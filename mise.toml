@@ -1,0 +1,20 @@
+[tools]
+go = "1.26.1"
+buf = "1.66.1"
+golangci-lint = "2.11.3"
+hledger = { version = "1.51.2", extract_all = "true" }
+
+[env]
+VAULT_DATA_DIR = "{{config_root}}/data"
+
+[tasks.test]
+description = "Run all tests"
+run = "go test ./..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run ./..."
+
+[tasks.check]
+description = "Lint + test"
+depends = ["lint", "test"]
