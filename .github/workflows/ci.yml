@@ -17,14 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Install hledger
-        run: |
-          curl -sL https://github.com/simonmichael/hledger/releases/download/1.51.2/hledger-linux-x64.tar.gz | tar xz -C /usr/local/bin
+      - name: Install mise
+        uses: jdx/mise-action@v2
 
       - name: Run tests
         run: go test ./...
