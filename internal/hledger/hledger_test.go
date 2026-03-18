@@ -1,6 +1,7 @@
 package hledger_test
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -37,14 +38,14 @@ func TestNew_BadBinary(t *testing.T) {
 
 func TestCheck_Valid(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	if err := c.Check(); err != nil {
+	if err := c.Check(context.Background()); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestCheck_Invalid(t *testing.T) {
 	c := mustClient(t, "invalid.journal")
-	err := c.Check()
+	err := c.Check(context.Background())
 	if err == nil {
 		t.Fatal("expected error for invalid journal")
 	}
@@ -59,14 +60,14 @@ func TestCheck_Invalid(t *testing.T) {
 
 func TestCheck_Empty(t *testing.T) {
 	c := mustClient(t, "empty.journal")
-	if err := c.Check(); err != nil {
+	if err := c.Check(context.Background()); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestBalances_All(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(0)
+	report, err := c.Balances(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("Balances: %v", err)
 	}
@@ -118,7 +119,7 @@ func TestBalances_All(t *testing.T) {
 
 func TestBalances_Depth1(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(1)
+	report, err := c.Balances(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("Balances depth=1: %v", err)
 	}
@@ -140,7 +141,7 @@ func TestBalances_Depth1(t *testing.T) {
 
 func TestBalances_Query(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(0, "expenses")
+	report, err := c.Balances(context.Background(), 0, "expenses")
 	if err != nil {
 		t.Fatalf("Balances query: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestBalances_Query(t *testing.T) {
 
 func TestBalances_Empty(t *testing.T) {
 	c := mustClient(t, "empty.journal")
-	report, err := c.Balances(0)
+	report, err := c.Balances(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("Balances empty: %v", err)
 	}
@@ -169,7 +170,7 @@ func TestBalances_Empty(t *testing.T) {
 
 func TestRegister_All(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	rows, err := c.Register()
+	rows, err := c.Register(context.Background())
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
@@ -186,7 +187,7 @@ func TestRegister_All(t *testing.T) {
 
 func TestRegister_FidQuery(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	rows, err := c.Register("tag:fid=bb002200")
+	rows, err := c.Register(context.Background(), "tag:fid=bb002200")
 	if err != nil {
 		t.Fatalf("Register fid: %v", err)
 	}
@@ -215,7 +216,7 @@ func TestRegister_FidQuery(t *testing.T) {
 
 func TestRegister_DateFilter(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	rows, err := c.Register("date:2026-01")
+	rows, err := c.Register(context.Background(), "date:2026-01")
 	if err != nil {
 		t.Fatalf("Register date filter: %v", err)
 	}
@@ -226,7 +227,7 @@ func TestRegister_DateFilter(t *testing.T) {
 
 func TestAccounts_Flat(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	nodes, err := c.Accounts(false)
+	nodes, err := c.Accounts(context.Background(), false)
 	if err != nil {
 		t.Fatalf("Accounts flat: %v", err)
 	}
@@ -251,7 +252,7 @@ func TestAccounts_Flat(t *testing.T) {
 
 func TestAccounts_Tree(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	roots, err := c.Accounts(true)
+	roots, err := c.Accounts(context.Background(), true)
 	if err != nil {
 		t.Fatalf("Accounts tree: %v", err)
 	}
@@ -281,7 +282,7 @@ func TestAccounts_Tree(t *testing.T) {
 
 func TestPrintCSV(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	txns, err := c.PrintCSV("testdata/import.csv", "testdata/import.rules")
+	txns, err := c.PrintCSV(context.Background(), "testdata/import.csv", "testdata/import.rules")
 	if err != nil {
 		t.Fatalf("PrintCSV: %v", err)
 	}
@@ -327,8 +328,27 @@ func TestPrintCSV(t *testing.T) {
 
 func TestPrintCSV_BadRules(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	_, err := c.PrintCSV("testdata/import.csv", "testdata/nonexistent.rules")
+	_, err := c.PrintCSV(context.Background(), "testdata/import.csv", "testdata/nonexistent.rules")
 	if err == nil {
 		t.Fatal("expected error for nonexistent rules file")
+	}
+}
+
+func TestNewWithRunner(t *testing.T) {
+	called := false
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		called = true
+		// Return a valid version response for the --version check in newClient
+		return []byte("hledger 1.51.2, linux-x86_64\n"), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	if !called {
+		t.Error("expected runner to be called during construction")
+	}
+	if c == nil {
+		t.Error("expected non-nil client")
 	}
 }
