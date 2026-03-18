@@ -1,12 +1,12 @@
-# Vault — Personal Finance Manager
+# float — Personal Finance Manager
 
-A self-hostable personal finance manager built on top of hledger's plain-text accounting format. Vault acts as a management and UX layer, delegating all accounting math and validation to hledger.
+A self-hostable personal finance manager built on top of hledger's plain-text accounting format. float acts as a management and UX layer, delegating all accounting math and validation to hledger.
 
 ## Core Principles
 
 - **Don't reinvent the wheel.** Use hledger for all accounting logic, parsing, validation, and reporting.
 - **Plain text is the source of truth.** `.journal` files on disk, version-controlled with git.
-- **Single binary.** `vaultd` (server) and `vault` (CLI) are the only artifacts. The server embeds the web UI.
+- **Single binary.** `floatd` (server) and `float` (CLI) are the only artifacts. The server embeds the web UI.
 
 ## Architecture
 
@@ -22,17 +22,17 @@ A self-hostable personal finance manager built on top of hledger's plain-text ac
 ### Project Structure
 
 ```
-vault/
+float/
 ├── proto/                          # Protobuf definitions (shared types)
-│   └── vault/v1/
+│   └── float/v1/
 │       ├── ledger.proto            # Transaction, Account, Balance messages & service
 │       ├── import.proto            # Import service
 │       ├── rules.proto             # Rules service
 │       └── auth.proto              # Auth service (Login, ChangePassphrase)
 ├── cmd/
-│   ├── vaultd/                     # Server binary (gRPC + embedded web)
+│   ├── floatd/                     # Server binary (gRPC + embedded web)
 │   │   └── main.go
-│   └── vault/                      # CLI binary (gRPC client)
+│   └── float/                      # CLI binary (gRPC client)
 │       └── main.go
 ├── internal/
 │   ├── server/                     # gRPC/Connect service implementations
@@ -60,7 +60,7 @@ vault/
 
 ```
 data/
-├── .git/                           # Auto-managed by vaultd
+├── .git/                           # Auto-managed by floatd
 ├── main.journal                    # Top-level file with include directives
 ├── accounts.journal                # Account declarations
 ├── rules/                          # hledger CSV rules files
@@ -70,8 +70,8 @@ data/
 │   ├── 01.journal                  # Transactions by month
 │   ├── 02.journal
 │   └── ...
-├── vault.key                       # Server-generated HMAC signing secret (256-bit)
-└── config.toml                     # Vault config (bank profiles, users, etc.)
+├── float.key                       # Server-generated HMAC signing secret (256-bit)
+└── config.toml                     # float config (bank profiles, users, etc.)
 ```
 
 `main.journal` is simply:
@@ -84,25 +84,25 @@ include 2026/*.journal
 
 ### Transaction IDs
 
-Every transaction managed by vault carries a `vid` (vault ID) tag — a short unique identifier minted at creation time:
+Every transaction managed by float carries a `fid` (float ID) tag — a short unique identifier minted at creation time:
 
 ```journal
-2026/02/15 AMAZON MARKETPLACE  ; vid:a1b2c3d4
+2026/02/15 AMAZON MARKETPLACE  ; fid:a1b2c3d4
     expenses:shopping    $25.00
     assets:checking
 ```
 
 - IDs are generated for every write path: import, manual entry, split, etc.
 - Format: first 8 characters of a UUID4, keeping journal files human-readable.
-- hledger natively supports tag queries (`hledger reg tag:vid=a1b2c3d4`), so `vid` integrates cleanly with all existing query commands.
-- On first startup against a pre-existing journal, vault runs a one-time migration pass to add `vid` tags to all untagged transactions.
+- hledger natively supports tag queries (`hledger reg tag:fid=a1b2c3d4`), so `fid` integrates cleanly with all existing query commands.
+- On first startup against a pre-existing journal, float runs a one-time migration pass to add `fid` tags to all untagged transactions.
 
 ### Write Flow
 
 Every mutation follows the same pattern:
 
 1. Acquire an in-process `sync.Mutex`
-2. Write changes to the journal file(s), minting `vid` tags for any new transactions
+2. Write changes to the journal file(s), minting `fid` tags for any new transactions
 3. Run `hledger check -f main.journal` to validate
 4. If invalid: revert file changes, return error
 5. Git commit with a descriptive message (see Git Snapshots below)
@@ -116,7 +116,7 @@ Git commits are **per API operation**, not periodic. Every successful write thro
 - `AddTransaction` → `"add: AMAZON MARKETPLACE 2026-02-15"`
 - `ImportCSV` → `"import: 47 transactions from Chase Checking"`
 - `ApplyRuleRetroactively` → `"rule: recategorize 12 txns to expenses:shopping"`
-- `DeleteTransaction` → `"delete: AMAZON MARKETPLACE 2026-02-15 (vid:a1b2c3d4)"`
+- `DeleteTransaction` → `"delete: AMAZON MARKETPLACE 2026-02-15 (fid:a1b2c3d4)"`
 
 This gives every mutation a clean, instantly-reversible snapshot. Bulk operations (imports, retroactive rules) are atomic — one commit for the entire batch.
 
@@ -128,7 +128,7 @@ Performance: `git add + commit` adds ~50-100ms per write, which is negligible fo
 
 ## Import Pipeline
 
-Vault uses hledger for CSV parsing (column mapping, date format conversion, categorization via rules files), but handles deduplication, file routing, and `vid` tagging itself.
+float uses hledger for CSV parsing (column mapping, date format conversion, categorization via rules files), but handles deduplication, file routing, and `fid` tagging itself.
 
 ### hledger Rules Files
 
@@ -150,27 +150,27 @@ if PAYROLL
 
 ### Import Flow
 
-1. User provides a CSV file and selects a bank profile (or vault auto-detects based on CSV headers)
-2. Vault runs `hledger import --rules-file <profile>.rules input.csv -f temp.journal` to a **throwaway file** — this gives us parsed, categorized transactions without touching the real journal
-3. Vault parses the temp file into individual transactions
+1. User profides a CSV file and selects a bank profile (or float auto-detects based on CSV headers)
+2. float runs `hledger import --rules-file <profile>.rules input.csv -f temp.journal` to a **throwaway file** — this gives us parsed, categorized transactions without touching the real journal
+3. float parses the temp file into indifidual transactions
 4. **Dedup pass**: compare candidates against existing transactions (see Duplicate Detection below)
 5. User reviews the preview in the UI/CLI — net-new transactions are shown, potential duplicates are flagged separately for confirmation
-6. On confirmation, vault groups transactions by month and appends to the correct `YYYY/MM.journal` files, minting `vid` tags and `import` tags (see below)
-7. If the year directory or month file doesn't exist yet, vault creates it and adds the necessary `include` directive to `main.journal`
+6. On confirmation, float groups transactions by month and appends to the correct `YYYY/MM.journal` files, minting `fid` tags and `import` tags (see below)
+7. If the year directory or month file doesn't exist yet, float creates it and adds the necessary `include` directive to `main.journal`
 8. Validate with `hledger check`, git commit (`"import: 47 transactions from Chase Checking"`)
 
 ### Duplicate Detection
 
-hledger's built-in `.latest` file mechanism only tracks the latest imported date per source, which breaks for out-of-order imports, corrected CSVs, and overlapping bank exports. Vault replaces this with its own dedup strategy:
+hledger's built-in `.latest` file mechanism only tracks the latest imported date per source, which breaks for out-of-order imports, corrected CSVs, and overlapping bank exports. float replaces this with its own dedup strategy:
 
 - **Content fingerprint**: For each candidate transaction, compute a fingerprint from `(date, normalized_description, amount, account)`. Check if any existing transaction has a matching fingerprint.
 - **Import source tag**: Each imported transaction gets an `import` tag recording its origin: `; import:chase-checking-2026-03-15.csv:42` (source filename + row number). Re-importing the same CSV detects already-imported rows precisely.
-- **Legitimate duplicates**: Two identical $5.00 Amazon charges on the same day are real transactions. Rather than silently deduplicating, vault flags these as *potential* duplicates in the preview and lets the user confirm or skip. The `vid` tags on existing transactions make this unambiguous — if a transaction already has a `vid`, it was already imported through vault.
+- **Legitimate duplicates**: Two identical $5.00 Amazon charges on the same day are real transactions. Rather than silently deduplicating, float flags these as *potential* duplicates in the preview and lets the user confirm or skip. The `fid` tags on existing transactions make this unambiguous — if a transaction already has a `fid`, it was already imported through float.
 
 Example of a fully-tagged imported transaction:
 
 ```journal
-2026/02/15 AMAZON MARKETPLACE  ; vid:a1b2c3d4, import:chase-checking-2026-03-15.csv:42
+2026/02/15 AMAZON MARKETPLACE  ; fid:a1b2c3d4, import:chase-checking-2026-03-15.csv:42
     expenses:shopping    $25.00
     assets:checking
 ```
@@ -197,18 +197,18 @@ When a user adds a new categorization rule, it's written into the appropriate `.
 
 ### Retroactive Application
 
-This is the main piece of custom logic in vault. When a user adds a rule and wants to apply it to past transactions:
+This is the main piece of custom logic in float. When a user adds a rule and wants to apply it to past transactions:
 
 1. Use `hledger reg -O json` (or similar) to find existing transactions matching the rule's pattern
 2. Show a preview: "14 transactions would be re-categorized from `expenses:unknown` → `expenses:shopping`"
 3. On confirmation, perform text-level modifications to the journal files:
-   - Look up each matching transaction by its `vid` tag (unique and unambiguous)
+   - Look up each matching transaction by its `fid` tag (unique and unambiguous)
    - Modify the relevant posting lines (change account, add tags, add postings)
 4. Validate the result with `hledger check`
 
 Example CLI flow:
 ```
-$ vault rules add --match "Amazon" --account "expenses:shopping"
+$ float rules add --match "Amazon" --account "expenses:shopping"
 Rule saved to chase-checking.rules
 14 existing transactions match. Apply retroactively? [y/n] y
   2026/02/15 AMAZON MARKETPLACE  expenses:unknown → expenses:shopping
@@ -226,11 +226,11 @@ All queries delegate to hledger:
 - **Account tree:** `hledger accounts --tree`
 - **Income/expense reports:** `hledger is -O json`, `hledger bs -O json`
 
-Vault parses the JSON output and serves it through the gRPC API. The CLI and web UI consume the same API.
+float parses the JSON output and serves it through the gRPC API. The CLI and web UI consume the same API.
 
 ### Query Cache
 
-Shelling out to hledger on every read re-parses all journal files from disk, which gets slow as history grows. Vault uses a **generation-counter cache** to avoid redundant work.
+Shelling out to hledger on every read re-parses all journal files from disk, which gets slow as history grows. float uses a **generation-counter cache** to avoid redundant work.
 
 #### Generation Counter
 
@@ -284,7 +284,7 @@ This is deliberately simple. Full cache invalidation on every write is the right
 
 ## Authentication
 
-Vault is **single-tenant**: one data directory, one journal, all authenticated users see everything. This matches the reality of a personal finance app — one person (or household) per instance.
+float is **single-tenant**: one data directory, one journal, all authenticated users see everything. This matches the reality of a personal finance app — one person (or household) per instance.
 
 ### Dependencies
 
@@ -302,7 +302,7 @@ Two roles, configured in `config.toml`:
 ```toml
 [[users]]
 name = "alice"
-passphrase_hash = "..."   # argon2id hash, set via `vault setup` or `vault user add`
+passphrase_hash = "..."   # argon2id hash, set via `float setup` or `float user add`
 role = "admin"
 
 [[users]]
@@ -318,14 +318,14 @@ role = "viewer"
 
 ### Setup Flow
 
-1. On first startup, `vaultd` generates a random 256-bit secret and writes it to `data/vault.key`. This key is used to sign all session tokens.
-2. The user creates the initial admin account via the CLI: `vault setup --user alice --passphrase`. The passphrase is hashed with argon2id and stored in `config.toml`.
+1. On first startup, `floatd` generates a random 256-bit secret and writes it to `data/float.key`. This key is used to sign all session tokens.
+2. The user creates the initial admin account via the CLI: `float setup --user alice --passphrase`. The passphrase is hashed with argon2id and stored in `config.toml`.
 
 ### Login Flow
 
 1. Client sends `Login(username, passphrase)` via the `AuthService` RPC
 2. Server verifies the passphrase against the stored argon2id hash
-3. Server issues an HMAC-SHA256 JWT signed with `vault.key`, containing claims: `sub` (username), `role`, `exp` (expiry)
+3. Server issues an HMAC-SHA256 JWT signed with `float.key`, containing claims: `sub` (username), `role`, `exp` (expiry)
 4. Token is returned as:
    - A `Set-Cookie` header (`httponly`, `secure`, `samesite=strict`) for the web UI
    - A plain token in the response body for the CLI
@@ -343,16 +343,16 @@ A ConnectRPC `UnaryInterceptorFunc` runs on every request except `AuthService/Lo
 
 ### CLI Authentication
 
-`vault login` prompts for username and passphrase, stores the returned token in `~/.config/vault/token`. Subsequent commands send it as a `Bearer` header automatically. If a request returns `Unauthenticated`, the CLI prompts to re-login.
+`float login` prompts for username and passphrase, stores the returned token in `~/.config/float/token`. Subsequent commands send it as a `Bearer` header automatically. If a request returns `Unauthenticated`, the CLI prompts to re-login.
 
 ### Reverse Proxy Compatibility
 
-Many self-hosters run apps behind Caddy, Traefik, or Authelia with their own auth layer. Vault supports an `--auth=none` flag (or `VAULT_AUTH=none` env var) that disables built-in auth entirely. This is intended for deployments where auth is handled by the reverse proxy or a VPN like Tailscale.
+Many self-hosters run apps behind Caddy, Traefik, or Authelia with their own auth layer. float supports an `--auth=none` flag (or `float_AUTH=none` env var) that disables built-in auth entirely. This is intended for deployments where auth is handled by the reverse proxy or a VPN like Tailscale.
 
 ### Proto Definition
 
 ```protobuf
-// proto/vault/v1/auth.proto
+// proto/float/v1/auth.proto
 service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse);
   rpc ChangePassphrase(ChangePassphraseRequest) returns (ChangePassphraseResponse);

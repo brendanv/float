@@ -1,4 +1,4 @@
-# Vault — Implementation Plan
+# float — Implementation Plan
 
 Each step produces something you can run, test, or interact with. No step is pure scaffolding.
 
@@ -23,12 +23,12 @@ Build `internal/hledger/` — the foundation everything else calls.
 Build `internal/config/` and `internal/journal/`.
 
 - **Config:** Parse `config.toml` — bank profiles, user entries, server settings. Return typed Go structs.
-- **Journal read:** Parse journal files to extract individual transactions with their metadata (date, description, postings, tags including `vid`).
+- **Journal read:** Parse journal files to extract indifidual transactions with their metadata (date, description, postings, tags including `fid`).
 - **Journal write:** Append transactions to the correct `YYYY/MM.journal` file, creating year directories and files as needed. Update `main.journal` include directives when new year/month files are created.
-- **VID minting:** Generate 8-char UUID prefix tags, attach to new transactions.
-- **VID migration:** Scan existing transactions, add `vid` tags to any that lack them.
+- **fid minting:** Generate 8-char UUID prefix tags, attach to new transactions.
+- **fid migration:** Scan existing transactions, add `fid` tags to any that lack them.
 
-**Testable artifact:** Unit tests against temp directories — write transactions, read them back, verify file organization and vid assignment. Config round-trip tests.
+**Testable artifact:** Unit tests against temp directories — write transactions, read them back, verify file organization and fid assignment. Config round-trip tests.
 
 ---
 
@@ -73,22 +73,22 @@ Define protobufs and stand up the server with read-only LedgerService.
 - **Protobufs:** Define `ledger.proto` — messages for `Transaction`, `Posting`, `Account`, `Balance`. RPCs: `ListTransactions`, `GetBalances`, `ListAccounts`.
 - **Buf setup:** `buf.yaml`, `buf.gen.yaml`, generate Go + ConnectRPC code.
 - **LedgerService handler:** `internal/server/ledger/` — implements the read RPCs by calling the hledger wrapper and mapping results to protobuf.
-- **Server binary:** `cmd/vaultd/main.go` — minimal main that wires up config, hledger wrapper, and the ConnectRPC handler on an HTTP server.
+- **Server binary:** `cmd/floatd/main.go` — minimal main that wires up config, hledger wrapper, and the ConnectRPC handler on an HTTP server.
 
-**Testable artifact:** Start `vaultd` pointing at a fixture data directory, query it with `buf curl` or `grpcurl`. See real balances and transactions come back.
+**Testable artifact:** Start `floatd` pointing at a fixture data directory, query it with `buf curl` or `grpcurl`. See real balances and transactions come back.
 
 ---
 
 ## Step 6: CLI (Read Path)
 
-Build `cmd/vault/` — a gRPC client CLI that talks to `vaultd`.
+Build `cmd/float/` — a gRPC client CLI that talks to `floatd`.
 
 - Connect to the server using ConnectRPC's HTTP client
-- Commands: `vault balances`, `vault transactions`, `vault accounts`
+- Commands: `float balances`, `float transactions`, `float accounts`
 - Tabular output for terminal (no auth yet — open access)
-- `--server` flag for the vaultd address (default `localhost:8080`)
+- `--server` flag for the floatd address (default `localhost:8080`)
 
-**Testable artifact:** Start `vaultd`, run `vault balances` — see formatted account balances in the terminal. A complete read-path round trip from CLI → gRPC → hledger → journal files.
+**Testable artifact:** Start `floatd`, run `float balances` — see formatted account balances in the terminal. A complete read-path round trip from CLI → gRPC → hledger → journal files.
 
 ---
 
@@ -98,10 +98,10 @@ Add mutating RPCs and wire them through the write protocol.
 
 - **Protobufs:** Add `AddTransaction`, `UpdateTransaction`, `DeleteTransaction` RPCs to `ledger.proto`.
 - **LedgerService handler (writes):** Use `txlock.Do()` to coordinate journal writes, hledger validation, and git commits.
-- **CLI commands:** `vault add`, `vault delete`
-- **Snapshot RPCs:** Add `ListSnapshots`, `RestoreSnapshot` to expose git history via the API. CLI: `vault snapshots`, `vault restore`.
+- **CLI commands:** `float add`, `float delete`
+- **Snapshot RPCs:** Add `ListSnapshots`, `RestoreSnapshot` to expose git history via the API. CLI: `float snapshots`, `float restore`.
 
-**Testable artifact:** `vault add` a transaction, `vault transactions` to see it, `vault delete` to remove it, `vault snapshots` to see the history, `vault restore` to undo.
+**Testable artifact:** `float add` a transaction, `float transactions` to see it, `float delete` to remove it, `float snapshots` to see the history, `float restore` to undo.
 
 ---
 
@@ -110,14 +110,14 @@ Add mutating RPCs and wire them through the write protocol.
 Build `internal/auth/` and `AuthService`.
 
 - **Passphrase hashing:** argon2id hash/verify functions
-- **JWT tokens:** Issue and validate HMAC-SHA256 tokens with `sub`, `role`, `exp` claims. Sign with `vault.key` (generated on first startup).
+- **JWT tokens:** Issue and validate HMAC-SHA256 tokens with `sub`, `role`, `exp` claims. Sign with `float.key` (generated on first startup).
 - **Auth interceptor:** ConnectRPC interceptor that validates tokens on all RPCs except `Login`. Injects user/role into context. Rejects `viewer` role on mutating RPCs.
 - **AuthService:** `Login`, `ChangePassphrase` RPCs. Proto definition + handler.
-- **Setup flow:** `vault setup --user alice --passphrase` creates the initial admin and writes the hash to `config.toml`.
-- **CLI auth:** `vault login` stores token to `~/.config/vault/token`. All commands attach it as `Bearer` header.
+- **Setup flow:** `float setup --user alice --passphrase` creates the initial admin and writes the hash to `config.toml`.
+- **CLI auth:** `float login` stores token to `~/.config/float/token`. All commands attach it as `Bearer` header.
 - **`--auth=none` flag** for reverse proxy deployments.
 
-**Testable artifact:** `vault setup`, `vault login`, then all existing commands still work (now authenticated). Viewer role can query but not mutate.
+**Testable artifact:** `float setup`, `float login`, then all existing commands still work (now authenticated). Viewer role can query but not mutate.
 
 ---
 
@@ -127,11 +127,11 @@ Build `internal/importer/` and `ImportService`.
 
 - **ImportService proto:** `PreviewImport` (returns candidates + duplicates), `ConfirmImport` (commits the import).
 - **Preview flow:** Take CSV + bank profile → run `hledger import` to temp file → parse candidates → run dedup (content fingerprint + import tag matching) → return preview with net-new vs. potential duplicates.
-- **Confirm flow:** Group confirmed transactions by month → append to journal files with `vid` + `import` tags → validate → commit through `txlock.Do()`.
-- **CLI:** `vault import <file> --profile "Chase Checking"` — shows preview, prompts for confirmation.
-- **Bank profile management:** `vault profiles list`, reading from config.
+- **Confirm flow:** Group confirmed transactions by month → append to journal files with `fid` + `import` tags → validate → commit through `txlock.Do()`.
+- **CLI:** `float import <file> --profile "Chase Checking"` — shows preview, prompts for confirmation.
+- **Bank profile management:** `float profiles list`, reading from config.
 
-**Testable artifact:** Import a CSV, see the preview with duplicate detection, confirm, verify transactions appear in `vault transactions` and git log shows the import commit.
+**Testable artifact:** Import a CSV, see the preview with duplicate detection, confirm, verify transactions appear in `float transactions` and git log shows the import commit.
 
 ---
 
@@ -142,8 +142,8 @@ Build `internal/rules/` and `RulesService`.
 - **RulesService proto:** `AddRule`, `ListRules`, `DeleteRule`, `PreviewRetroactive`, `ApplyRetroactive`.
 - **Rules file management:** Append/remove `if` blocks in `.rules` files so future `hledger import` picks them up.
 - **Retroactive preview:** Use `hledger reg -O json` to find matching existing transactions. Return a preview of what would change.
-- **Retroactive apply:** Look up transactions by `vid`, perform text-level edits to journal files (change account on posting lines), validate with `hledger check`, commit through `txlock.Do()`.
-- **CLI:** `vault rules add --match "Amazon" --account "expenses:shopping"` with retroactive prompt.
+- **Retroactive apply:** Look up transactions by `fid`, perform text-level edits to journal files (change account on posting lines), validate with `hledger check`, commit through `txlock.Do()`.
+- **CLI:** `float rules add --match "Amazon" --account "expenses:shopping"` with retroactive prompt.
 
 **Testable artifact:** Add a rule, see it reflected in the `.rules` file. Import new transactions and see the rule applied. Apply retroactively to existing transactions and verify the changes.
 
@@ -170,8 +170,8 @@ Build the frontend SPA in `web/`.
 - Choose framework (SvelteKit or React)
 - ConnectRPC client generation from the existing protobufs
 - Pages: dashboard (balances), transaction list, import wizard, rules management, snapshots
-- Embed built assets into the `vaultd` binary via `embed.FS`
-- Serve the SPA from `vaultd` alongside the gRPC API
+- Embed built assets into the `floatd` binary via `embed.FS`
+- Serve the SPA from `floatd` alongside the gRPC API
 
 **Testable artifact:** Open `localhost:8080` in a browser, log in, see balances and transactions, import a CSV, add a rule.
 
@@ -181,6 +181,6 @@ Build the frontend SPA in `web/`.
 
 - **Dockerfile:** Multi-stage build — Go binary + embedded web assets + hledger binary
 - **docker-compose.yml:** Volume mount for `data/`, port mapping, env var config
-- **Startup checks:** Verify hledger is available, init git repo if needed, run recovery snapshot, run vid migration on first startup against existing journals
+- **Startup checks:** Verify hledger is available, init git repo if needed, run recovery snapshot, run fid migration on first startup against existing journals
 
-**Testable artifact:** `docker compose up`, access vault from the browser, all features work.
+**Testable artifact:** `docker compose up`, access float from the browser, all features work.
