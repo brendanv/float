@@ -1,0 +1,4 @@
+# compiled binaries
+/hledger-internal-test
+/floatd
+/float

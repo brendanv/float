@@ -1,0 +1,12 @@
+skip 1
+fields date, description, amount
+account1 assets:checking
+
+if AMAZON
+  account2 expenses:shopping
+
+if PAYROLL
+  account2 income:salary
+
+if WHOLE FOODS
+  account2 expenses:food
