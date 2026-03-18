@@ -131,10 +131,10 @@ func (c *Client) Register(ctx context.Context, query ...string) ([]RegisterRow, 
 	return parseRegisterRows(stdout)
 }
 
-// Accounts runs `hledger accounts [--tree] -f <journal>`.
+// Accounts runs `hledger accounts --types [--tree] -f <journal>`.
 // tree=true: returns populated tree. tree=false: flat list with no children.
 func (c *Client) Accounts(ctx context.Context, tree bool) ([]*AccountNode, error) {
-	args := []string{"accounts", "-f", c.journal}
+	args := []string{"accounts", "--types", "-f", c.journal}
 	if tree {
 		args = append(args, "--tree")
 	}

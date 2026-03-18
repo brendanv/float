@@ -68,12 +68,26 @@ type BalanceReport struct {
 	Total []Amount
 }
 
+// AccountType represents the hledger account type letter (A, L, E, R, X, C, V).
+type AccountType string
+
+const (
+	AccountTypeAsset      AccountType = "A"
+	AccountTypeLiability  AccountType = "L"
+	AccountTypeEquity     AccountType = "E"
+	AccountTypeRevenue    AccountType = "R"
+	AccountTypeExpense    AccountType = "X"
+	AccountTypeCash       AccountType = "C"
+	AccountTypeConversion AccountType = "V"
+)
+
 // AccountNode is a node in the account tree.
 // Returned by Accounts(tree=true) with children populated,
 // or Accounts(tree=false) as a flat list with no children.
 type AccountNode struct {
-	Name     string // short segment (e.g. "checking")
-	FullName string // full colon path (e.g. "assets:checking")
+	Name     string      // short segment (e.g. "checking")
+	FullName string      // full colon path (e.g. "assets:checking")
+	Type     AccountType // hledger type letter; empty if unknown
 	Children []*AccountNode
 }
 

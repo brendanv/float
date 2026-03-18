@@ -97,6 +97,16 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 	return txns, nil
 }
 
+// extractAccountType parses the "; type: X" suffix added by hledger --types.
+// Returns the trimmed account name and the type letter (or empty string if absent).
+func extractAccountType(s string) (name string, typ AccountType) {
+	if idx := strings.Index(s, "; type: "); idx >= 0 {
+		letter := strings.TrimSpace(s[idx+8:])
+		return strings.TrimSpace(s[:idx]), AccountType(letter)
+	}
+	return strings.TrimSpace(s), ""
+}
+
 func parseAccountsTree(text string) ([]*AccountNode, error) {
 	lines := strings.Split(text, "\n")
 	var roots []*AccountNode
@@ -112,9 +122,9 @@ func parseAccountsTree(text string) ([]*AccountNode, error) {
 		}
 		spaces := len(line) - len(strings.TrimLeft(line, " "))
 		depth := spaces / 2
-		shortName := strings.TrimSpace(line)
+		shortName, acctType := extractAccountType(strings.TrimSpace(line))
 
-		node := &AccountNode{Name: shortName}
+		node := &AccountNode{Name: shortName, Type: acctType}
 
 		if depth == 0 {
 			node.FullName = shortName
@@ -142,17 +152,18 @@ func parseAccountsFlat(text string) ([]*AccountNode, error) {
 	lines := strings.Split(text, "\n")
 	var nodes []*AccountNode
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		name := line
-		if idx := strings.LastIndex(line, ":"); idx >= 0 {
-			name = line[idx+1:]
+		fullName, acctType := extractAccountType(line)
+		shortName := fullName
+		if idx := strings.LastIndex(fullName, ":"); idx >= 0 {
+			shortName = fullName[idx+1:]
 		}
 		nodes = append(nodes, &AccountNode{
-			Name:     name,
-			FullName: line,
+			Name:     shortName,
+			FullName: fullName,
+			Type:     acctType,
 			Children: nil,
 		})
 	}

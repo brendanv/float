@@ -243,10 +243,18 @@ func TestAccounts_Flat(t *testing.T) {
 	for _, n := range nodes {
 		if n.FullName == "assets:checking" {
 			foundChecking = true
+			if n.Type != hledger.AccountTypeCash {
+				t.Errorf("assets:checking expected type C, got %q", n.Type)
+			}
 		}
 	}
 	if !foundChecking {
 		t.Error("assets:checking not found in flat accounts")
+	}
+	for _, n := range nodes {
+		if strings.HasPrefix(n.FullName, "expenses:") && n.Type != hledger.AccountTypeExpense {
+			t.Errorf("%q expected type X, got %q", n.FullName, n.Type)
+		}
 	}
 }
 
@@ -264,6 +272,12 @@ func TestAccounts_Tree(t *testing.T) {
 	for _, r := range roots {
 		if r.FullName == "expenses" {
 			expensesNode = r
+			if r.Type != hledger.AccountTypeExpense {
+				t.Errorf("expenses root expected type X, got %q", r.Type)
+			}
+		}
+		if r.FullName == "income" && r.Type != hledger.AccountTypeRevenue {
+			t.Errorf("income root expected type R, got %q", r.Type)
 		}
 	}
 	if expensesNode == nil {
@@ -276,6 +290,9 @@ func TestAccounts_Tree(t *testing.T) {
 	for _, child := range expensesNode.Children {
 		if !strings.HasPrefix(child.FullName, "expenses:") {
 			t.Errorf("child FullName should start with 'expenses:', got %q", child.FullName)
+		}
+		if child.Type != hledger.AccountTypeExpense {
+			t.Errorf("child %q expected type X, got %q", child.FullName, child.Type)
 		}
 	}
 }
