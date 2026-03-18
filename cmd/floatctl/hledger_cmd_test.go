@@ -53,141 +53,123 @@ func assertValidJSON(t *testing.T, s string) {
 	}
 }
 
-// --- hledger balance ---
-
-func TestRunHledgerBalance_MissingJournal(t *testing.T) {
-	err := runHledgerBalance([]string{})
-	if err == nil || !strings.Contains(err.Error(), "missing") {
-		t.Errorf("expected missing-journal error, got %v", err)
-	}
-}
-
 func TestRunHledgerBalance(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerBalance([]string{testdataPath("simple.journal")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "missing journal", args: []string{}, wantErr: "missing"},
+		{name: "simple journal", args: []string{testdataPath("simple.journal")}},
+		{name: "with depth flag", args: []string{"--depth", "1", testdataPath("simple.journal")}},
+		{name: "with query", args: []string{testdataPath("simple.journal"), "expenses"}},
+		{name: "empty journal", args: []string{testdataPath("empty.journal")}},
 	}
-	assertValidJSON(t, out)
-}
-
-func TestRunHledgerBalance_WithDepth(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerBalance([]string{"--depth", "1", testdataPath("simple.journal")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertValidJSON(t, out)
-}
-
-func TestRunHledgerBalance_WithQuery(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerBalance([]string{testdataPath("simple.journal"), "expenses"})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertValidJSON(t, out)
-}
-
-func TestRunHledgerBalance_EmptyJournal(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerBalance([]string{testdataPath("empty.journal")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertValidJSON(t, out)
-}
-
-// --- hledger accounts ---
-
-func TestRunHledgerAccounts_MissingJournal(t *testing.T) {
-	err := runHledgerAccounts([]string{})
-	if err == nil || !strings.Contains(err.Error(), "missing") {
-		t.Errorf("expected missing-journal error, got %v", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			flush := captureStdout(t)
+			err := runHledgerBalance(tc.args)
+			out := flush()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertValidJSON(t, out)
+		})
 	}
 }
 
-func TestRunHledgerAccounts_Flat(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerAccounts([]string{testdataPath("simple.journal")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestRunHledgerAccounts(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "missing journal", args: []string{}, wantErr: "missing"},
+		{name: "flat", args: []string{testdataPath("simple.journal")}},
+		{name: "tree flag", args: []string{"--tree", testdataPath("simple.journal")}},
 	}
-	assertValidJSON(t, out)
-}
-
-func TestRunHledgerAccounts_Tree(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerAccounts([]string{"--tree", testdataPath("simple.journal")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertValidJSON(t, out)
-}
-
-// --- hledger register ---
-
-func TestRunHledgerRegister_MissingJournal(t *testing.T) {
-	err := runHledgerRegister([]string{})
-	if err == nil || !strings.Contains(err.Error(), "missing") {
-		t.Errorf("expected missing-journal error, got %v", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			flush := captureStdout(t)
+			err := runHledgerAccounts(tc.args)
+			out := flush()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertValidJSON(t, out)
+		})
 	}
 }
 
 func TestRunHledgerRegister(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerRegister([]string{testdataPath("simple.journal")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "missing journal", args: []string{}, wantErr: "missing"},
+		{name: "all transactions", args: []string{testdataPath("simple.journal")}},
+		{name: "with query", args: []string{testdataPath("simple.journal"), "expenses"}},
 	}
-	assertValidJSON(t, out)
-}
-
-func TestRunHledgerRegister_WithQuery(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerRegister([]string{testdataPath("simple.journal"), "expenses"})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertValidJSON(t, out)
-}
-
-// --- hledger print-csv ---
-
-func TestRunHledgerPrintCSV_NoArgs(t *testing.T) {
-	err := runHledgerPrintCSV([]string{})
-	if err == nil || !strings.Contains(err.Error(), "missing") {
-		t.Errorf("expected missing-args error, got %v", err)
-	}
-}
-
-func TestRunHledgerPrintCSV_MissingRules(t *testing.T) {
-	// Only csv provided, rules missing.
-	err := runHledgerPrintCSV([]string{testdataPath("import.csv")})
-	if err == nil || !strings.Contains(err.Error(), "missing") {
-		t.Errorf("expected missing-args error, got %v", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			flush := captureStdout(t)
+			err := runHledgerRegister(tc.args)
+			out := flush()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertValidJSON(t, out)
+		})
 	}
 }
 
 func TestRunHledgerPrintCSV(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerPrintCSV([]string{testdataPath("import.csv"), testdataPath("import.rules")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "no args", args: []string{}, wantErr: "missing"},
+		{name: "missing rules", args: []string{testdataPath("import.csv")}, wantErr: "missing"},
+		{name: "csv and rules", args: []string{testdataPath("import.csv"), testdataPath("import.rules")}},
 	}
-	assertValidJSON(t, out)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			flush := captureStdout(t)
+			err := runHledgerPrintCSV(tc.args)
+			out := flush()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			assertValidJSON(t, out)
+		})
+	}
 }
-
-// --- hledger version ---
 
 func TestRunHledgerVersion(t *testing.T) {
 	flush := captureStdout(t)
@@ -202,31 +184,40 @@ func TestRunHledgerVersion(t *testing.T) {
 	}
 }
 
-// --- hledger check ---
-
-func TestRunHledgerCheck_MissingJournal(t *testing.T) {
-	err := runHledgerCheck([]string{})
-	if err == nil || !strings.Contains(err.Error(), "missing") {
-		t.Errorf("expected missing-journal error, got %v", err)
+func TestRunHledgerCheck(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantErr    string // non-empty: expect error containing this substring
+		wantAnyErr bool   // true: expect any error (message unpredictable)
+		wantOutput string // non-empty: expect stdout to contain this
+	}{
+		{name: "missing journal", args: []string{}, wantErr: "missing"},
+		{name: "valid journal", args: []string{testdataPath("simple.journal")}, wantOutput: "ok"},
+		{name: "invalid journal", args: []string{testdataPath("invalid.journal")}, wantAnyErr: true},
 	}
-}
-
-func TestRunHledgerCheck_Valid(t *testing.T) {
-	flush := captureStdout(t)
-	err := runHledgerCheck([]string{testdataPath("simple.journal")})
-	out := flush()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(out, "ok") {
-		t.Errorf("expected 'ok' in output, got: %s", out)
-	}
-}
-
-func TestRunHledgerCheck_Invalid(t *testing.T) {
-	captureStdout(t) // suppress any stdout; invalid journal returns error without printing
-	err := runHledgerCheck([]string{testdataPath("invalid.journal")})
-	if err == nil {
-		t.Fatal("expected error for invalid journal")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			flush := captureStdout(t)
+			err := runHledgerCheck(tc.args)
+			out := flush()
+			switch {
+			case tc.wantErr != "":
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+				}
+			case tc.wantAnyErr:
+				if err == nil {
+					t.Fatal("expected error")
+				}
+			default:
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if tc.wantOutput != "" && !strings.Contains(out, tc.wantOutput) {
+					t.Errorf("output %q does not contain %q", out, tc.wantOutput)
+				}
+			}
+		})
 	}
 }

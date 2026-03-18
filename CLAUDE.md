@@ -113,3 +113,4 @@ floatctl <group> help
 - `atomic.Uint64` for the generation counter; `sync.RWMutex` + `singleflight` for cache concurrency
 - `floatd` validates hledger version on startup via `hledger --version` and exits with a clear error if unsupported
 - In tests, always use `t.Context()` instead of `context.Background()`
+- Prefer table-driven tests (`tests := []struct{...}{...}` + `for _, tc := range tests { t.Run(tc.name, ...) }`) for any function with multiple input/output variants; keep standalone test functions only for cases that require unique setup or fundamentally different structure
