@@ -50,465 +50,499 @@ func setupJournalDir(t *testing.T, includes []string, journalFiles map[string]st
 
 // ---- FID tests ----
 
-func TestMintFID_Length(t *testing.T) {
-	if got := len(journal.MintFID()); got != 8 {
-		t.Errorf("len(MintFID()) = %d, want 8", got)
-	}
-}
-
-func TestMintFID_HexChars(t *testing.T) {
+func TestMintFID(t *testing.T) {
 	hexRe := regexp.MustCompile(`^[0-9a-f]{8}$`)
-	fid := journal.MintFID()
-	if !hexRe.MatchString(fid) {
-		t.Errorf("MintFID() = %q, want 8 hex chars", fid)
+	tests := []struct {
+		name  string
+		check func(t *testing.T)
+	}{
+		{
+			name: "length is 8",
+			check: func(t *testing.T) {
+				if got := len(journal.MintFID()); got != 8 {
+					t.Errorf("len(MintFID()) = %d, want 8", got)
+				}
+			},
+		},
+		{
+			name: "only lowercase hex chars",
+			check: func(t *testing.T) {
+				if fid := journal.MintFID(); !hexRe.MatchString(fid) {
+					t.Errorf("MintFID() = %q, want 8 hex chars", fid)
+				}
+			},
+		},
+		{
+			name: "unique on each call",
+			check: func(t *testing.T) {
+				if a, b := journal.MintFID(), journal.MintFID(); a == b {
+					t.Errorf("two MintFID() calls returned same value %q", a)
+				}
+			},
+		},
 	}
-}
-
-func TestMintFID_Unique(t *testing.T) {
-	a, b := journal.MintFID(), journal.MintFID()
-	if a == b {
-		t.Errorf("two MintFID() calls returned same value %q", a)
+	for _, tt := range tests {
+		t.Run(tt.name, tt.check)
 	}
 }
 
 // ---- Format tests ----
 
-func TestFormatViaHledger_Basic(t *testing.T) {
-	c := mustHledger(t)
-	tx := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
-		Description: "AMAZON",
-		Postings: []journal.PostingInput{
-			{Account: "expenses:shopping", Amount: "$45.00"},
-			{Account: "assets:checking", Amount: "-$45.00"},
+func TestFormatViaHledger(t *testing.T) {
+	tests := []struct {
+		name     string
+		tx       journal.TransactionInput
+		fid      string
+		contains []string
+	}{
+		{
+			name: "basic transaction",
+			fid:  "bb002200",
+			tx: journal.TransactionInput{
+				Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+				Description: "AMAZON",
+				Postings: []journal.PostingInput{
+					{Account: "expenses:shopping", Amount: "$45.00"},
+					{Account: "assets:checking", Amount: "-$45.00"},
+				},
+			},
+			contains: []string{"2026-01-15 AMAZON", "fid:bb002200", "expenses:shopping", "45.00"},
+		},
+		{
+			name: "auto-balance posting",
+			fid:  "aa001122",
+			tx: journal.TransactionInput{
+				Date:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+				Description: "TEST",
+				Postings: []journal.PostingInput{
+					{Account: "expenses:food", Amount: "$10.00"},
+					{Account: "assets:checking"},
+				},
+			},
+			contains: []string{"expenses:food", "assets:checking"},
+		},
+		{
+			name: "fid tag preserved",
+			fid:  "aa001100",
+			tx: journal.TransactionInput{
+				Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+				Description: "PAYROLL",
+				Postings: []journal.PostingInput{
+					{Account: "assets:checking", Amount: "$3500.00"},
+					{Account: "income:salary"},
+				},
+			},
+			contains: []string{"fid:aa001100"},
+		},
+		{
+			name: "output ends with newline",
+			fid:  "ff001100",
+			tx: journal.TransactionInput{
+				Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+				Description: "TEST",
+				Postings: []journal.PostingInput{
+					{Account: "assets:checking", Amount: "$1.00"},
+					{Account: "income:other"},
+				},
+			},
 		},
 	}
-	out, err := journal.FormatViaHledger(t.Context(), c, tx, "bb002200")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "2026-01-15 AMAZON") {
-		t.Errorf("missing date/desc in output:\n%s", out)
-	}
-	if !strings.Contains(out, "fid:bb002200") {
-		t.Errorf("missing fid tag in output:\n%s", out)
-	}
-	if !strings.Contains(out, "expenses:shopping") {
-		t.Errorf("missing posting account in output:\n%s", out)
-	}
-	if !strings.Contains(out, "45.00") {
-		t.Errorf("missing amount in output:\n%s", out)
-	}
-}
-
-func TestFormatViaHledger_AutoBalance(t *testing.T) {
 	c := mustHledger(t)
-	tx := journal.TransactionInput{
-		Date:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
-		Description: "TEST",
-		Postings: []journal.PostingInput{
-			{Account: "expenses:food", Amount: "$10.00"},
-			{Account: "assets:checking"},
-		},
-	}
-	out, err := journal.FormatViaHledger(t.Context(), c, tx, "aa001122")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "expenses:food") || !strings.Contains(out, "assets:checking") {
-		t.Errorf("missing postings in output:\n%s", out)
-	}
-}
-
-func TestFormatViaHledger_FIDPreserved(t *testing.T) {
-	c := mustHledger(t)
-	tx := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
-		Description: "PAYROLL",
-		Postings: []journal.PostingInput{
-			{Account: "assets:checking", Amount: "$3500.00"},
-			{Account: "income:salary"},
-		},
-	}
-	out, err := journal.FormatViaHledger(t.Context(), c, tx, "aa001100")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out, "fid:aa001100") {
-		t.Errorf("fid not preserved in output:\n%s", out)
-	}
-}
-
-func TestFormatViaHledger_TrailingNewline(t *testing.T) {
-	c := mustHledger(t)
-	tx := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
-		Description: "TEST",
-		Postings: []journal.PostingInput{
-			{Account: "assets:checking", Amount: "$1.00"},
-			{Account: "income:other"},
-		},
-	}
-	out, err := journal.FormatViaHledger(t.Context(), c, tx, "ff001100")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasSuffix(out, "\n") {
-		t.Errorf("output does not end with newline: %q", out)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := journal.FormatViaHledger(t.Context(), c, tt.tx, tt.fid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range tt.contains {
+				if !strings.Contains(out, want) {
+					t.Errorf("output missing %q:\n%s", want, out)
+				}
+			}
+			if !strings.HasSuffix(out, "\n") {
+				t.Errorf("output does not end with newline: %q", out)
+			}
+		})
 	}
 }
 
 // ---- File management tests ----
 
-func TestEnsureMonthFile_Creates(t *testing.T) {
-	dir := t.TempDir()
-	relPath, created, err := journal.EnsureMonthFile(dir, 2026, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if relPath != "2026/01.journal" {
-		t.Errorf("relPath = %q, want %q", relPath, "2026/01.journal")
-	}
-	if !created {
-		t.Error("created = false, want true")
-	}
-	absPath := filepath.Join(dir, relPath)
-	data, err := os.ReadFile(absPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(string(data), "; float: 2026/01") {
-		t.Errorf("unexpected file header: %q", string(data))
-	}
-}
-
-func TestEnsureMonthFile_Idempotent(t *testing.T) {
-	dir := t.TempDir()
-	rel1, _, err := journal.EnsureMonthFile(dir, 2026, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rel2, created, err := journal.EnsureMonthFile(dir, 2026, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created {
-		t.Error("second call: created = true, want false")
-	}
-	if rel1 != rel2 {
-		t.Errorf("relPath changed: %q vs %q", rel1, rel2)
-	}
-}
-
-func TestEnsureMonthFile_CreatesDir(t *testing.T) {
-	dir := t.TempDir()
-	if _, _, err := journal.EnsureMonthFile(dir, 2026, 3); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "2026")); err != nil {
-		t.Error("year directory not created")
-	}
-}
-
-func TestUpdateMainIncludes_Adds(t *testing.T) {
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.journal")
-	if err := journal.UpdateMainIncludes(mainPath, "2026/01.journal"); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(mainPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "include 2026/01.journal") {
-		t.Errorf("directive not found: %q", string(data))
-	}
-}
-
-func TestUpdateMainIncludes_Idempotent(t *testing.T) {
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.journal")
-	if err := journal.UpdateMainIncludes(mainPath, "2026/01.journal"); err != nil {
-		t.Fatal(err)
-	}
-	if err := journal.UpdateMainIncludes(mainPath, "2026/01.journal"); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(mainPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := strings.Count(string(data), "include 2026/01.journal")
-	if count != 1 {
-		t.Errorf("directive appears %d times, want 1:\n%s", count, data)
-	}
-}
-
-func TestUpdateMainIncludes_Preserves(t *testing.T) {
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.journal")
-	if err := os.WriteFile(mainPath, []byte("; float main journal\ninclude accounts.journal\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := journal.UpdateMainIncludes(mainPath, "2026/01.journal"); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(mainPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "include accounts.journal") {
-		t.Error("existing content was removed")
-	}
-	if !strings.Contains(string(data), "include 2026/01.journal") {
-		t.Error("new directive not added")
-	}
-}
-
-func TestAppendTransaction_Basic(t *testing.T) {
-	c := mustHledger(t)
-	dir := t.TempDir()
-	tx := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
-		Description: "AMAZON MARKETPLACE",
-		Postings: []journal.PostingInput{
-			{Account: "expenses:shopping", Amount: "$45.00"},
-			{Account: "assets:checking"},
+func TestEnsureMonthFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		year    int
+		month   int
+		setup   func(t *testing.T, dir string)
+		check   func(t *testing.T, dir, relPath string, created bool)
+	}{
+		{
+			name:  "creates file and directory",
+			year:  2026,
+			month: 1,
+			check: func(t *testing.T, dir, relPath string, created bool) {
+				if relPath != "2026/01.journal" {
+					t.Errorf("relPath = %q, want %q", relPath, "2026/01.journal")
+				}
+				if !created {
+					t.Error("created = false, want true")
+				}
+				data, err := os.ReadFile(filepath.Join(dir, relPath))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.HasPrefix(string(data), "; float: 2026/01") {
+					t.Errorf("unexpected file header: %q", string(data))
+				}
+			},
+		},
+		{
+			name:  "idempotent on second call",
+			year:  2026,
+			month: 1,
+			setup: func(t *testing.T, dir string) {
+				if _, _, err := journal.EnsureMonthFile(dir, 2026, 1); err != nil {
+					t.Fatal(err)
+				}
+			},
+			check: func(t *testing.T, dir, relPath string, created bool) {
+				if created {
+					t.Error("second call: created = true, want false")
+				}
+				if relPath != "2026/01.journal" {
+					t.Errorf("relPath = %q, want %q", relPath, "2026/01.journal")
+				}
+			},
+		},
+		{
+			name:  "creates year directory",
+			year:  2026,
+			month: 3,
+			check: func(t *testing.T, dir, _ string, _ bool) {
+				if _, err := os.Stat(filepath.Join(dir, "2026")); err != nil {
+					t.Error("year directory not created")
+				}
+			},
 		},
 	}
-	fid, err := journal.AppendTransaction(t.Context(), c, dir, tx)
-	if err != nil {
-		t.Fatal(err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tt.setup != nil {
+				tt.setup(t, dir)
+			}
+			relPath, created, err := journal.EnsureMonthFile(dir, tt.year, tt.month)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tt.check(t, dir, relPath, created)
+		})
 	}
+}
+
+func TestUpdateMainIncludes(t *testing.T) {
+	tests := []struct {
+		name        string
+		initial     string
+		directive   string
+		check       func(t *testing.T, data string)
+	}{
+		{
+			name:      "adds directive to empty file",
+			initial:   "",
+			directive: "2026/01.journal",
+			check: func(t *testing.T, data string) {
+				if !strings.Contains(data, "include 2026/01.journal") {
+					t.Errorf("directive not found: %q", data)
+				}
+			},
+		},
+		{
+			name:      "idempotent on duplicate call",
+			initial:   "include 2026/01.journal\n",
+			directive: "2026/01.journal",
+			check: func(t *testing.T, data string) {
+				if count := strings.Count(data, "include 2026/01.journal"); count != 1 {
+					t.Errorf("directive appears %d times, want 1:\n%s", count, data)
+				}
+			},
+		},
+		{
+			name:      "preserves existing content",
+			initial:   "; float main journal\ninclude accounts.journal\n",
+			directive: "2026/01.journal",
+			check: func(t *testing.T, data string) {
+				if !strings.Contains(data, "include accounts.journal") {
+					t.Error("existing content was removed")
+				}
+				if !strings.Contains(data, "include 2026/01.journal") {
+					t.Error("new directive not added")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mainPath := filepath.Join(t.TempDir(), "main.journal")
+			if tt.initial != "" {
+				if err := os.WriteFile(mainPath, []byte(tt.initial), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := journal.UpdateMainIncludes(mainPath, tt.directive); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(mainPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tt.check(t, string(data))
+		})
+	}
+}
+
+func TestAppendTransaction(t *testing.T) {
 	hexRe := regexp.MustCompile(`^[0-9a-f]{8}$`)
-	if !hexRe.MatchString(fid) {
-		t.Errorf("fid %q is not 8 hex chars", fid)
-	}
-	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
-	if !strings.Contains(content, "AMAZON MARKETPLACE") {
-		t.Error("transaction description not found in file")
-	}
-	if !strings.Contains(content, "fid:"+fid) {
-		t.Error("fid tag not found in file")
-	}
-	if !strings.Contains(content, "2026-01-15") {
-		t.Error("ISO date not found in file")
-	}
-}
 
-func TestAppendTransaction_UpdatesMain(t *testing.T) {
+	tests := []struct {
+		name  string
+		txns  []journal.TransactionInput
+		check func(t *testing.T, dir string, fids []string)
+	}{
+		{
+			name: "single transaction written with fid",
+			txns: []journal.TransactionInput{
+				{
+					Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+					Description: "AMAZON MARKETPLACE",
+					Postings: []journal.PostingInput{
+						{Account: "expenses:shopping", Amount: "$45.00"},
+						{Account: "assets:checking"},
+					},
+				},
+			},
+			check: func(t *testing.T, dir string, fids []string) {
+				if !hexRe.MatchString(fids[0]) {
+					t.Errorf("fid %q is not 8 hex chars", fids[0])
+				}
+				data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				content := string(data)
+				if !strings.Contains(content, "AMAZON MARKETPLACE") {
+					t.Error("transaction description not found in file")
+				}
+				if !strings.Contains(content, "fid:"+fids[0]) {
+					t.Error("fid tag not found in file")
+				}
+				if !strings.Contains(content, "2026-01-15") {
+					t.Error("ISO date not found in file")
+				}
+			},
+		},
+		{
+			name: "new month file added to main.journal include",
+			txns: []journal.TransactionInput{
+				{
+					Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+					Description: "TEST",
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$1.00"}, {Account: "assets:checking"}},
+				},
+			},
+			check: func(t *testing.T, dir string, _ []string) {
+				data, err := os.ReadFile(filepath.Join(dir, "main.journal"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(data), "include 2026/01.journal") {
+					t.Errorf("main.journal missing include: %s", data)
+				}
+			},
+		},
+		{
+			name: "transactions across months create separate files",
+			txns: []journal.TransactionInput{
+				{
+					Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+					Description: "JANUARY",
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$1.00"}, {Account: "assets:checking"}},
+				},
+				{
+					Date:        time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
+					Description: "FEBRUARY",
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$2.00"}, {Account: "assets:checking"}},
+				},
+			},
+			check: func(t *testing.T, dir string, _ []string) {
+				if _, err := os.Stat(filepath.Join(dir, "2026/01.journal")); err != nil {
+					t.Error("2026/01.journal not created")
+				}
+				if _, err := os.Stat(filepath.Join(dir, "2026/02.journal")); err != nil {
+					t.Error("2026/02.journal not created")
+				}
+				main, err := os.ReadFile(filepath.Join(dir, "main.journal"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				s := string(main)
+				if !strings.Contains(s, "include 2026/01.journal") || !strings.Contains(s, "include 2026/02.journal") {
+					t.Errorf("main.journal missing includes:\n%s", s)
+				}
+			},
+		},
+		{
+			name: "two transactions same month both appear in file",
+			txns: []journal.TransactionInput{
+				{
+					Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+					Description: "FIRST",
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$1.00"}, {Account: "assets:checking"}},
+				},
+				{
+					Date:        time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
+					Description: "SECOND",
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$2.00"}, {Account: "assets:checking"}},
+				},
+			},
+			check: func(t *testing.T, dir string, _ []string) {
+				data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				content := string(data)
+				if !strings.Contains(content, "FIRST") || !strings.Contains(content, "SECOND") {
+					t.Errorf("both transactions not in file:\n%s", content)
+				}
+			},
+		},
+	}
 	c := mustHledger(t)
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.journal")
-	if err := os.WriteFile(mainPath, []byte("; float main journal\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	tx := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
-		Description: "TEST",
-		Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$1.00"}, {Account: "assets:checking"}},
-	}
-	if _, err := journal.AppendTransaction(t.Context(), c, dir, tx); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(mainPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "include 2026/01.journal") {
-		t.Errorf("main.journal missing include: %s", data)
-	}
-}
-
-func TestAppendTransaction_MultipleMonths(t *testing.T) {
-	c := mustHledger(t)
-	dir := t.TempDir()
-	txJan := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
-		Description: "JANUARY",
-		Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$1.00"}, {Account: "assets:checking"}},
-	}
-	txFeb := journal.TransactionInput{
-		Date:        time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
-		Description: "FEBRUARY",
-		Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$2.00"}, {Account: "assets:checking"}},
-	}
-	if _, err := journal.AppendTransaction(t.Context(), c, dir, txJan); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := journal.AppendTransaction(t.Context(), c, dir, txFeb); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := os.Stat(filepath.Join(dir, "2026/01.journal")); err != nil {
-		t.Error("2026/01.journal not created")
-	}
-	if _, err := os.Stat(filepath.Join(dir, "2026/02.journal")); err != nil {
-		t.Error("2026/02.journal not created")
-	}
-	main, err := os.ReadFile(filepath.Join(dir, "main.journal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(main), "include 2026/01.journal") || !strings.Contains(string(main), "include 2026/02.journal") {
-		t.Errorf("main.journal missing includes:\n%s", main)
-	}
-}
-
-func TestAppendTransaction_SameMonth(t *testing.T) {
-	c := mustHledger(t)
-	dir := t.TempDir()
-	tx1 := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
-		Description: "FIRST",
-		Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$1.00"}, {Account: "assets:checking"}},
-	}
-	tx2 := journal.TransactionInput{
-		Date:        time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
-		Description: "SECOND",
-		Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "$2.00"}, {Account: "assets:checking"}},
-	}
-	if _, err := journal.AppendTransaction(t.Context(), c, dir, tx1); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := journal.AppendTransaction(t.Context(), c, dir, tx2); err != nil {
-		t.Fatal(err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
-	if !strings.Contains(content, "FIRST") || !strings.Contains(content, "SECOND") {
-		t.Errorf("both transactions not in file:\n%s", content)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			// Pre-create main.journal so UpdateMainIncludes can find it.
+			if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte("; float main journal\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			var fids []string
+			for _, tx := range tt.txns {
+				fid, err := journal.AppendTransaction(t.Context(), c, dir, tx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fids = append(fids, fid)
+			}
+			tt.check(t, dir, fids)
+		})
 	}
 }
 
 // ---- Migration tests ----
 
-func TestMigrateFIDs_NoMainJournal(t *testing.T) {
-	dir := t.TempDir()
-	n, err := journal.MigrateFIDs(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 0 {
-		t.Errorf("got %d, want 0", n)
-	}
-}
-
-func TestMigrateFIDs_AddsToUntagged(t *testing.T) {
-	journalContent := `2026/01/05 PAYROLL
-    assets:checking  $3500.00
-    income:salary
-
-2026/01/15 AMAZON
-    expenses:shopping  $45.00
-    assets:checking
-`
-	dir := setupJournalDir(t, []string{"2026/01.journal"}, map[string]string{"2026/01.journal": journalContent})
-
-	n, err := journal.MigrateFIDs(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 2 {
-		t.Errorf("got %d modified, want 2", n)
-	}
-	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestMigrateFIDs(t *testing.T) {
 	fidRe := regexp.MustCompile(`fid:[0-9a-f]{8}`)
-	matches := fidRe.FindAllString(string(data), -1)
-	if len(matches) != 2 {
-		t.Errorf("expected 2 fid tags, found %d:\n%s", len(matches), data)
-	}
-}
 
-func TestMigrateFIDs_PreservesExisting(t *testing.T) {
-	journalContent := "2026/01/05 PAYROLL  ; fid:aa001100\n    assets:checking  $3500.00\n    income:salary\n"
-	dir := setupJournalDir(t, []string{"2026/01.journal"}, map[string]string{"2026/01.journal": journalContent})
+	tests := []struct {
+		name     string
+		includes []string
+		files    map[string]string
+		wantN    int
+		check    func(t *testing.T, dir string)
+	}{
+		{
+			name:  "no main.journal returns zero",
+			wantN: 0,
+		},
+		{
+			name:     "adds fid to all untagged transactions",
+			includes: []string{"2026/01.journal"},
+			files: map[string]string{
+				"2026/01.journal": "2026/01/05 PAYROLL\n    assets:checking  $3500.00\n    income:salary\n\n2026/01/15 AMAZON\n    expenses:shopping  $45.00\n    assets:checking\n",
+			},
+			wantN: 2,
+			check: func(t *testing.T, dir string) {
+				data, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+				if matches := fidRe.FindAllString(string(data), -1); len(matches) != 2 {
+					t.Errorf("expected 2 fid tags, found %d:\n%s", len(matches), data)
+				}
+			},
+		},
+		{
+			name:     "skips transactions that already have fid",
+			includes: []string{"2026/01.journal"},
+			files: map[string]string{
+				"2026/01.journal": "2026/01/05 PAYROLL  ; fid:aa001100\n    assets:checking  $3500.00\n    income:salary\n",
+			},
+			wantN: 0,
+			check: func(t *testing.T, dir string) {
+				original := "2026/01/05 PAYROLL  ; fid:aa001100\n    assets:checking  $3500.00\n    income:salary\n"
+				data, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+				if string(data) != original {
+					t.Errorf("file was modified unexpectedly:\n%s", data)
+				}
+			},
+		},
+		{
+			name:     "tags only untagged in mixed file",
+			includes: []string{"2026/01.journal"},
+			files: map[string]string{
+				"2026/01.journal": "2026/01/05 PAYROLL  ; fid:aa001100\n    assets:checking  $3500.00\n    income:salary\n\n2026/01/10 AMAZON  ; fid:bb002200\n    expenses:shopping  $45.00\n    assets:checking\n\n2026/01/15 WHOLE FOODS\n    expenses:food  $30.00\n    assets:checking\n",
+			},
+			wantN: 1,
+		},
+		{
+			name:     "generated fid is valid hex",
+			includes: []string{"2026/01.journal"},
+			files: map[string]string{
+				"2026/01.journal": "2026/01/15 UNTAGGED\n    expenses:misc  $1.00\n    assets:checking\n",
+			},
+			wantN: 1,
+			check: func(t *testing.T, dir string) {
+				data, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+				if m := fidRe.FindString(string(data)); m == "" {
+					t.Errorf("no valid fid tag found:\n%s", data)
+				}
+			},
+		},
+		{
+			name:     "posting lines are not modified",
+			includes: []string{"2026/01.journal"},
+			files: map[string]string{
+				"2026/01.journal": "2026/01/15 UNTAGGED\n    expenses:misc  $1.00\n    assets:checking\n",
+			},
+			wantN: 1,
+			check: func(t *testing.T, dir string) {
+				data, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+				s := string(data)
+				if !strings.Contains(s, "expenses:misc  $1.00") {
+					t.Errorf("posting line was modified:\n%s", s)
+				}
+				if !strings.Contains(s, "assets:checking") {
+					t.Errorf("auto-balance posting removed:\n%s", s)
+				}
+			},
+		},
+	}
 
-	n, err := journal.MigrateFIDs(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 0 {
-		t.Errorf("got %d modified, want 0", n)
-	}
-	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != journalContent {
-		t.Errorf("file was modified unexpectedly:\n%s", data)
-	}
-}
-
-func TestMigrateFIDs_Mixed(t *testing.T) {
-	journalContent := `2026/01/05 PAYROLL  ; fid:aa001100
-    assets:checking  $3500.00
-    income:salary
-
-2026/01/10 AMAZON  ; fid:bb002200
-    expenses:shopping  $45.00
-    assets:checking
-
-2026/01/15 WHOLE FOODS
-    expenses:food  $30.00
-    assets:checking
-`
-	dir := setupJournalDir(t, []string{"2026/01.journal"}, map[string]string{"2026/01.journal": journalContent})
-
-	n, err := journal.MigrateFIDs(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Errorf("got %d modified, want 1", n)
-	}
-}
-
-func TestMigrateFIDs_ValidFidFormat(t *testing.T) {
-	journalContent := "2026/01/15 UNTAGGED\n    expenses:misc  $1.00\n    assets:checking\n"
-	dir := setupJournalDir(t, []string{"2026/01.journal"}, map[string]string{"2026/01.journal": journalContent})
-
-	if _, err := journal.MigrateFIDs(dir); err != nil {
-		t.Fatal(err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	hexRe := regexp.MustCompile(`fid:([0-9a-f]{8})`)
-	if m := hexRe.FindString(string(data)); m == "" {
-		t.Errorf("no valid fid tag found:\n%s", data)
-	}
-}
-
-func TestMigrateFIDs_PreservesPostings(t *testing.T) {
-	journalContent := "2026/01/15 UNTAGGED\n    expenses:misc  $1.00\n    assets:checking\n"
-	dir := setupJournalDir(t, []string{"2026/01.journal"}, map[string]string{"2026/01.journal": journalContent})
-
-	if _, err := journal.MigrateFIDs(dir); err != nil {
-		t.Fatal(err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "expenses:misc  $1.00") {
-		t.Errorf("posting line was modified:\n%s", data)
-	}
-	if !strings.Contains(string(data), "assets:checking") {
-		t.Errorf("auto-balance posting removed:\n%s", data)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var dir string
+			if tt.includes == nil && tt.files == nil {
+				dir = t.TempDir()
+			} else {
+				dir = setupJournalDir(t, tt.includes, tt.files)
+			}
+			n, err := journal.MigrateFIDs(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n != tt.wantN {
+				t.Errorf("MigrateFIDs() = %d, want %d", n, tt.wantN)
+			}
+			if tt.check != nil {
+				tt.check(t, dir)
+			}
+		})
 	}
 }
