@@ -12,6 +12,7 @@ Build `internal/hledger/` — the foundation everything else calls.
 - Parse JSON output from `hledger bal -O json`, `hledger reg -O json`, `hledger accounts --tree`
 - Parse output from `hledger check` (success/failure + error messages)
 - Return typed Go structs (not raw JSON)
+- On startup, run `hledger --version` and fail fast with a clear error if the version is unsupported. The supported version is pinned in the Dockerfile and in `mise.toml`.
 - Integration tests that run real hledger against fixture `.journal` files
 
 **Testable artifact:** `go test ./internal/hledger/` — runs hledger against fixture journals, asserts parsed balances, transactions, and account trees match expectations.
@@ -39,7 +40,7 @@ Build `internal/gitsnap/` using go-git.
 - `Init(dir)` — initialize a git repo in the data directory if one doesn't exist
 - `Commit(msg)` — stage all changes and commit with the given message
 - `List()` — return recent commits (hash, message, timestamp)
-- `Restore(hash)` — hard reset to a given commit
+- `Restore(hash)` — hard reset to a given commit, intentionally discarding all subsequent commits. The API surfaces commits by timestamp and description; the UX presents this as "revert to this point in time" rather than exposing git semantics.
 - `RecoverUncommitted()` — on startup, commit any dirty working tree as a recovery snapshot
 
 **Testable artifact:** Integration tests — init a repo in a temp dir, make file changes, commit, list commits, restore to a previous one, verify file contents revert.
@@ -115,7 +116,6 @@ Build `internal/auth/` and `AuthService`.
 - **AuthService:** `Login`, `ChangePassphrase` RPCs. Proto definition + handler.
 - **Setup flow:** `float setup --user alice --passphrase` creates the initial admin and writes the hash to `config.toml`.
 - **CLI auth:** `float login` stores token to `~/.config/float/token`. All commands attach it as `Bearer` header.
-- **`--auth=none` flag** for reverse proxy deployments.
 
 **Testable artifact:** `float setup`, `float login`, then all existing commands still work (now authenticated). Viewer role can query but not mutate.
 
@@ -126,7 +126,7 @@ Build `internal/auth/` and `AuthService`.
 Build `internal/importer/` and `ImportService`.
 
 - **ImportService proto:** `PreviewImport` (returns candidates + duplicates), `ConfirmImport` (commits the import).
-- **Preview flow:** Take CSV + bank profile → run `hledger import` to temp file → parse candidates → run dedup (content fingerprint + import tag matching) → return preview with net-new vs. potential duplicates.
+- **Preview flow:** Take CSV + bank profile → run `hledger print --rules-file` to parse the CSV into journal entries (stdout only, no `.latest` side effects) → parse candidates → run dedup (content fingerprint + import tag matching) → return preview with net-new vs. potential duplicates.
 - **Confirm flow:** Group confirmed transactions by month → append to journal files with `fid` + `import` tags → validate → commit through `txlock.Do()`.
 - **CLI:** `float import <file> --profile "Chase Checking"` — shows preview, prompts for confirmation.
 - **Bank profile management:** `float profiles list`, reading from config.
@@ -155,6 +155,7 @@ Build `internal/cache/`.
 
 - Generation-counter LRU cache storing parsed Go structs
 - `sync.RWMutex` for concurrent reads, `atomic.Uint64` for generation checks
+- `golang.org/x/sync/singleflight` to deduplicate concurrent cache misses — only one hledger subprocess fires per unique key, others wait and share the result
 - Max 128 entries, LRU eviction
 - Pre-warming goroutine: after generation bump, asynchronously warm account tree, top-level balances, and current month transactions
 - Wire into `LedgerService` — cache sits between the handler and the hledger wrapper
@@ -179,7 +180,7 @@ Build the frontend SPA in `web/`.
 
 ## Step 13: Deployment
 
-- **Dockerfile:** Multi-stage build — Go binary + embedded web assets + hledger binary
+- **Dockerfile:** Multi-stage build — Go binary + embedded web assets + pinned hledger binary
 - **docker-compose.yml:** Volume mount for `data/`, port mapping, env var config
 - **Startup checks:** Verify hledger is available, init git repo if needed, run recovery snapshot, run fid migration on first startup against existing journals
 

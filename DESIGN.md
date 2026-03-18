@@ -16,7 +16,7 @@ A self-hostable personal finance manager built on top of hledger's plain-text ac
 - **API:** gRPC with ConnectRPC (supports gRPC, gRPC-Web, and Connect protocols — no Envoy proxy needed)
 - **Protobuf management:** Buf
 - **Web frontend:** SvelteKit or React (TBD), using grpc-web via ConnectRPC
-- **Accounting engine:** hledger (shelled out to, never reimplemented)
+- **Accounting engine:** hledger (shelled out to, never reimplemented). A specific version is pinned in the Dockerfile and in `mise.toml` for local dev. On startup, `floatd` runs `hledger --version`, parses the result, and exits with a clear error if the version is unsupported.
 - **Git integration:** go-git (pure Go, no git binary dependency)
 
 ### Project Structure
@@ -124,6 +124,8 @@ On server startup: check for uncommitted changes and commit them as a recovery s
 
 Snapshots can be listed and restored via the gRPC API (`ListSnapshots`, `RestoreSnapshot`). Users can also manually `cd data/ && git log` since it's a standard git repo.
 
+`RestoreSnapshot` performs a hard reset to the target commit, intentionally discarding all subsequent history. This is the intended behavior — the feature is exposed to users by timestamp and description ("Revert to March 15 at 2:04 PM"), not by git hash. Users interact with it as a point-in-time restore rather than a git operation; the destructive semantics are a feature.
+
 Performance: `git add + commit` adds ~50-100ms per write, which is negligible for a personal finance app where writes are infrequent. Plain-text journals compress extremely well in git packfiles, so repo size stays small even with years of per-edit history.
 
 ## Import Pipeline
@@ -151,8 +153,8 @@ if PAYROLL
 ### Import Flow
 
 1. User profides a CSV file and selects a bank profile (or float auto-detects based on CSV headers)
-2. float runs `hledger import --rules-file <profile>.rules input.csv -f temp.journal` to a **throwaway file** — this gives us parsed, categorized transactions without touching the real journal
-3. float parses the temp file into indifidual transactions
+2. float runs `hledger print --rules-file <profile>.rules input.csv` — this parses the CSV and prints categorized journal entries to stdout without touching any journal file or writing `.latest` tracking files
+3. float parses the stdout output into individual transactions
 4. **Dedup pass**: compare candidates against existing transactions (see Duplicate Detection below)
 5. User reviews the preview in the UI/CLI — net-new transactions are shown, potential duplicates are flagged separately for confirmation
 6. On confirmation, float groups transactions by month and appends to the correct `YYYY/MM.journal` files, minting `fid` tags and `import` tags (see below)
@@ -256,7 +258,7 @@ Each unique parameter combination produces a distinct cache entry. A cache looku
 Multiple gRPC handlers may read concurrently. The cache uses a `sync.RWMutex`:
 
 - **Cache hit:** acquire read lock, check generation + key, return cached struct. No contention between concurrent readers.
-- **Cache miss:** acquire write lock, double-check (another goroutine may have populated it), shell out to hledger, store result, release lock.
+- **Cache miss:** use `golang.org/x/sync/singleflight` to deduplicate concurrent misses on the same key — only one goroutine shells out to hledger while others wait and share the result. Once the result is returned, acquire a brief write lock only to store it. No readers are blocked during the hledger subprocess itself.
 
 The generation counter itself is `atomic.Uint64`, so readers can do a cheap check before acquiring any lock — if the generation matches, it's worth checking the cache; if not, the cache is known-stale and can be skipped entirely.
 
@@ -345,10 +347,6 @@ A ConnectRPC `UnaryInterceptorFunc` runs on every request except `AuthService/Lo
 
 `float login` prompts for username and passphrase, stores the returned token in `~/.config/float/token`. Subsequent commands send it as a `Bearer` header automatically. If a request returns `Unauthenticated`, the CLI prompts to re-login.
 
-### Reverse Proxy Compatibility
-
-Many self-hosters run apps behind Caddy, Traefik, or Authelia with their own auth layer. float supports an `--auth=none` flag (or `float_AUTH=none` env var) that disables built-in auth entirely. This is intended for deployments where auth is handled by the reverse proxy or a VPN like Tailscale.
-
 ### Proto Definition
 
 ```protobuf
@@ -369,6 +367,6 @@ service AuthService {
 
 ## Deployment
 
-- Single `Dockerfile` that bundles the Go binary, embedded web assets, and hledger
+- Single `Dockerfile` that bundles the Go binary, embedded web assets, and a pinned hledger binary
 - `docker-compose.yml` with a volume mount for the data directory
 - Config via environment variables or `config.toml`
