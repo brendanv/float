@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to run tests on
+        required: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install hledger
+        run: |
+          curl -sL https://github.com/simonmichael/hledger/releases/download/1.51.2/hledger-linux-x64.tar.gz | tar xz -C /usr/local/bin
+
+      - name: Run tests
+        run: go test ./...
