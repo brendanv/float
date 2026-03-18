@@ -6,9 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `float` is a self-hostable personal finance manager that wraps [hledger](https://hledger.org/) — a plain-text accounting tool. float provides the UX layer (gRPC API, CLI, web UI) and delegates all accounting math, parsing, and validation to hledger. Never reimplement accounting logic that hledger already handles.
 
-Two binaries:
+Three binaries:
 - `floatd` — gRPC server (embeds web UI)
 - `float` — CLI gRPC client
+- `floatctl` — admin/debug CLI that bypasses gRPC and operates directly on internal packages and the data directory
 
 ## Commands
 
@@ -79,6 +80,29 @@ gRPC via ConnectRPC (supports gRPC, gRPC-Web, and Connect protocols — no Envoy
 ### Authentication
 
 Single-tenant. Two roles: `admin` (full access) and `viewer` (read-only). JWT (HMAC-SHA256) signed with `data/float.key`. ConnectRPC interceptor validates tokens on every RPC except `AuthService/Login`. Passphrases hashed with argon2id.
+
+### `floatctl` — Admin/Debug CLI
+
+`floatctl` is distinct from `float` (the end-user gRPC client). It bypasses the API entirely and is used for admin tasks, data migrations, and debugging. See `cmd/floatctl/CLAUDE.md` for the full command reference.
+
+```
+floatctl <group> <subcommand> [flags] [args...]
+floatctl help
+floatctl <group> help
+```
+
+**Current commands (`hledger` group):**
+
+| Command | Description |
+|---------|-------------|
+| `floatctl hledger balance <journal> [query...]` | Run `hledger bal`, print as JSON |
+| `floatctl hledger accounts <journal>` | Run `hledger accounts`, print tree as JSON |
+| `floatctl hledger register <journal> [query...]` | Run `hledger reg`, print as JSON |
+| `floatctl hledger print-csv <csv> <rules>` | Parse CSV via rules, print transactions as JSON |
+| `floatctl hledger version` | Print hledger binary version |
+| `floatctl hledger check <journal>` | Validate journal; exit 0 if valid |
+
+**Adding a new command:** create a new file per group (e.g. `journal.go`), register via `init()` — do not edit `main.go` or `registry.go`.
 
 ## Go Practices for This Repo
 
