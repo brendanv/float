@@ -150,6 +150,17 @@ func (c *Client) Accounts(ctx context.Context, tree bool) ([]*AccountNode, error
 	return parseAccountsFlat(string(stdout))
 }
 
+// PrintText runs `hledger print -f <journalFile>` and returns the plain-text
+// output. Used to normalize/canonicalize transaction text before appending to
+// real journal files.
+func (c *Client) PrintText(ctx context.Context, journalFile string) (string, error) {
+	stdout, _, err := c.run(ctx, "print", "-f", journalFile)
+	if err != nil {
+		return "", fmt.Errorf("hledger print: %w", err)
+	}
+	return string(stdout), nil
+}
+
 // PrintCSV runs `hledger print -O json --rules-file <rulesFile> -f <csvFile>`.
 // Used for import preview — no journal file is needed/written.
 func (c *Client) PrintCSV(ctx context.Context, csvFile, rulesFile string) ([]Transaction, error) {

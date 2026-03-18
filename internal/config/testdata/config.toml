@@ -1,0 +1,20 @@
+[server]
+port = 9090
+
+[[users]]
+name = "alice"
+role = "admin"
+passphrase_hash = "argon2id$abc123"
+
+[[users]]
+name = "bob"
+role = "viewer"
+passphrase_hash = "argon2id$def456"
+
+[[bank_profiles]]
+name = "Chase Checking"
+rules_file = "rules/chase-checking.rules"
+
+[[bank_profiles]]
+name = "Amex"
+rules_file = "rules/amex.rules"
