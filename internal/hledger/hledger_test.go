@@ -38,14 +38,14 @@ func TestNew_BadBinary(t *testing.T) {
 
 func TestCheck_Valid(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	if err := c.Check(context.Background()); err != nil {
+	if err := c.Check(t.Context()); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestCheck_Invalid(t *testing.T) {
 	c := mustClient(t, "invalid.journal")
-	err := c.Check(context.Background())
+	err := c.Check(t.Context())
 	if err == nil {
 		t.Fatal("expected error for invalid journal")
 	}
@@ -60,14 +60,14 @@ func TestCheck_Invalid(t *testing.T) {
 
 func TestCheck_Empty(t *testing.T) {
 	c := mustClient(t, "empty.journal")
-	if err := c.Check(context.Background()); err != nil {
+	if err := c.Check(t.Context()); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 }
 
 func TestBalances_All(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(context.Background(), 0)
+	report, err := c.Balances(t.Context(), 0)
 	if err != nil {
 		t.Fatalf("Balances: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestBalances_All(t *testing.T) {
 
 func TestBalances_Depth1(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(context.Background(), 1)
+	report, err := c.Balances(t.Context(), 1)
 	if err != nil {
 		t.Fatalf("Balances depth=1: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestBalances_Depth1(t *testing.T) {
 
 func TestBalances_Query(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(context.Background(), 0, "expenses")
+	report, err := c.Balances(t.Context(), 0, "expenses")
 	if err != nil {
 		t.Fatalf("Balances query: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestBalances_Query(t *testing.T) {
 
 func TestBalances_Empty(t *testing.T) {
 	c := mustClient(t, "empty.journal")
-	report, err := c.Balances(context.Background(), 0)
+	report, err := c.Balances(t.Context(), 0)
 	if err != nil {
 		t.Fatalf("Balances empty: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestBalances_Empty(t *testing.T) {
 
 func TestRegister_All(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	rows, err := c.Register(context.Background())
+	rows, err := c.Register(t.Context())
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestRegister_All(t *testing.T) {
 
 func TestRegister_FidQuery(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	rows, err := c.Register(context.Background(), "tag:fid=bb002200")
+	rows, err := c.Register(t.Context(), "tag:fid=bb002200")
 	if err != nil {
 		t.Fatalf("Register fid: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestRegister_FidQuery(t *testing.T) {
 
 func TestRegister_DateFilter(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	rows, err := c.Register(context.Background(), "date:2026-01")
+	rows, err := c.Register(t.Context(), "date:2026-01")
 	if err != nil {
 		t.Fatalf("Register date filter: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestRegister_DateFilter(t *testing.T) {
 
 func TestAccounts_Flat(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	nodes, err := c.Accounts(context.Background(), false)
+	nodes, err := c.Accounts(t.Context(), false)
 	if err != nil {
 		t.Fatalf("Accounts flat: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestAccounts_Flat(t *testing.T) {
 
 func TestAccounts_Tree(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	roots, err := c.Accounts(context.Background(), true)
+	roots, err := c.Accounts(t.Context(), true)
 	if err != nil {
 		t.Fatalf("Accounts tree: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestAccounts_Tree(t *testing.T) {
 
 func TestPrintCSV(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	txns, err := c.PrintCSV(context.Background(), "testdata/import.csv", "testdata/import.rules")
+	txns, err := c.PrintCSV(t.Context(), "testdata/import.csv", "testdata/import.rules")
 	if err != nil {
 		t.Fatalf("PrintCSV: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestTransactionFID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	result, err := c.PrintCSV(context.Background(), "testdata/import.csv", "testdata/import.rules")
+	result, err := c.PrintCSV(t.Context(), "testdata/import.csv", "testdata/import.rules")
 	if err != nil {
 		t.Fatalf("PrintCSV via stub: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestTransactionFID(t *testing.T) {
 
 func TestPrintCSV_BadRules(t *testing.T) {
 	c := mustClient(t, "simple.journal")
-	_, err := c.PrintCSV(context.Background(), "testdata/import.csv", "testdata/nonexistent.rules")
+	_, err := c.PrintCSV(t.Context(), "testdata/import.csv", "testdata/nonexistent.rules")
 	if err == nil {
 		t.Fatal("expected error for nonexistent rules file")
 	}

@@ -88,3 +88,4 @@ Single-tenant. Two roles: `admin` (full access) and `viewer` (read-only). JWT (H
 - `internal/gitsnap/` uses go-git (pure Go); no dependency on a git binary
 - `atomic.Uint64` for the generation counter; `sync.RWMutex` + `singleflight` for cache concurrency
 - `floatd` validates hledger version on startup via `hledger --version` and exits with a clear error if unsupported
+- In tests, always use `t.Context()` instead of `context.Background()`
