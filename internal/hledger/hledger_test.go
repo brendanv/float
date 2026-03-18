@@ -326,6 +326,35 @@ func TestPrintCSV(t *testing.T) {
 	}
 }
 
+func TestTransactionFID(t *testing.T) {
+	const versionResp = "hledger 1.51.2, linux-x86_64\n"
+	const printJSON = `[{"tindex":1,"tdate":"2026-01-05","tdate2":null,"tdescription":"PAYROLL","tcode":"","tcomment":"fid:aa001100\n","ttags":[["fid","aa001100"]],"tpostings":[],"tstatus":"","tprecedingcomment":""},{"tindex":2,"tdate":"2026-01-15","tdate2":null,"tdescription":"AMAZON","tcode":"","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":""}]`
+
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		return []byte(printJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	result, err := c.PrintCSV(context.Background(), "testdata/import.csv", "testdata/import.rules")
+	if err != nil {
+		t.Fatalf("PrintCSV via stub: %v", err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("expected 2 transactions, got %d", len(result))
+	}
+	if result[0].FID != "aa001100" {
+		t.Errorf("expected FID aa001100, got %q", result[0].FID)
+	}
+	if result[1].FID != "" {
+		t.Errorf("expected empty FID for transaction without fid tag, got %q", result[1].FID)
+	}
+}
+
 func TestPrintCSV_BadRules(t *testing.T) {
 	c := mustClient(t, "simple.journal")
 	_, err := c.PrintCSV(context.Background(), "testdata/import.csv", "testdata/nonexistent.rules")

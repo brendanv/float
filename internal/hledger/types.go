@@ -37,6 +37,10 @@ type Transaction struct {
 	Postings         []Posting   `json:"tpostings"`
 	Status           string      `json:"tstatus"`
 	PrecedingComment string      `json:"tprecedingcomment"`
+
+	// FID is the value of the "fid" tag (e.g. "aa001100"), extracted from Tags.
+	// Empty string if no fid tag is present.
+	FID string `json:"-"`
 }
 
 // RegisterRow is one row from `hledger reg -O json`.

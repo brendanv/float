@@ -86,6 +86,14 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 	if err := json.Unmarshal(data, &txns); err != nil {
 		return nil, fmt.Errorf("parseTransactions: %w", err)
 	}
+	for i := range txns {
+		for _, tag := range txns[i].Tags {
+			if tag[0] == "fid" {
+				txns[i].FID = tag[1]
+				break
+			}
+		}
+	}
 	return txns, nil
 }
 
