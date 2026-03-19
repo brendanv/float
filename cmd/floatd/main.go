@@ -20,12 +20,17 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	slog.SetDefault(logger)
-
 	dataDir := flag.String("data-dir", "", "path to float data directory (required)")
 	addr := flag.String("addr", "", "listen address (overrides config; default :8080)")
+	verbose := flag.Bool("verbose", false, "enable debug-level logging (hledger queries, args, durations)")
 	flag.Parse()
+
+	var logLevel slog.LevelVar // defaults to Info
+	if *verbose {
+		logLevel.Set(slog.LevelDebug)
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel}))
+	slog.SetDefault(logger)
 
 	if *dataDir == "" {
 		slog.Error("--data-dir is required")

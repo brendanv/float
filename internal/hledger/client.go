@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"strings"
+	"time"
+
+	"github.com/brendanv/float/internal/slogctx"
 )
 
 const supportedVersion = "1.51.2"
@@ -77,8 +81,18 @@ func parseVersion(output string) (string, error) {
 }
 
 // run executes hledger with args via the configured runner.
+// At slog.LevelDebug it logs the full command and duration.
 func (c *Client) run(ctx context.Context, args ...string) (stdout []byte, stderr []byte, err error) {
-	return c.runner(ctx, c.bin, args...)
+	logger := slogctx.FromContext(ctx)
+	logger.DebugContext(ctx, "hledger exec", "args", args)
+	start := time.Now()
+	stdout, stderr, err = c.runner(ctx, c.bin, args...)
+	logger.DebugContext(ctx, "hledger done",
+		"args", args,
+		"duration_ms", time.Since(start).Milliseconds(),
+		slog.Bool("ok", err == nil),
+	)
+	return
 }
 
 // cmdError wraps a runner error with the full command line and any stderr output,
