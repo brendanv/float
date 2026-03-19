@@ -67,22 +67,7 @@ Add write commands to `floatctl` — the first point where float is genuinely us
 
 ---
 
-## Step 5: Rules Engine (floatctl)
-
-Build `internal/rules/` and wire it into `floatctl`.
-
-- **Rules file management:** Append/remove `if` blocks in `.rules` files so future imports pick them up
-- **`floatctl rules add --match <pattern> --account <account>`** — add a rule, optionally apply retroactively
-- **`floatctl rules list`** — show current rules
-- **`floatctl rules delete <n>`** — remove a rule
-- **Retroactive preview:** use `hledger reg -O json` to find matching existing transactions, show what would change
-- **Retroactive apply:** look up transactions by `fid`, edit posting lines in journal files, validate with `hledger check`, write via `txlock.Do()`
-
-**Testable artifact:** Add a rule, import new transactions and see it applied automatically. Apply retroactively to existing transactions.
-
----
-
-## Step 6: Protobuf & gRPC Server (Read Path)
+## Step 5: Protobuf & gRPC Server (Read Path)
 
 Define protobufs and stand up the server with read-only LedgerService.
 
@@ -95,7 +80,7 @@ Define protobufs and stand up the server with read-only LedgerService.
 
 ---
 
-## Step 7: CLI (Read Path)
+## Step 6: CLI (Read Path)
 
 Build `cmd/float/` — a gRPC client CLI that talks to `floatd`.
 
@@ -108,19 +93,19 @@ Build `cmd/float/` — a gRPC client CLI that talks to `floatd`.
 
 ---
 
-## Step 8: Write Path via gRPC
+## Step 7: Write Path via gRPC
 
 Add mutating RPCs to `floatd` and corresponding `float` CLI commands.
 
-- **Protobufs:** Add `AddTransaction`, `DeleteTransaction`, `PreviewImport`, `ConfirmImport`, `AddRule`, `ListRules`, `DeleteRule` RPCs.
+- **Protobufs:** Add `AddTransaction`, `DeleteTransaction`, `PreviewImport`, `ConfirmImport` RPCs.
 - **Handlers:** Use `txlock.Do()` to coordinate journal writes, hledger validation, and generation bumps.
-- **CLI commands:** `float add`, `float delete`, `float import`, `float rules`
+- **CLI commands:** `float add`, `float delete`, `float import`
 
 **Testable artifact:** Full round trip through the gRPC API for all write operations that already work via `floatctl`.
 
 ---
 
-## Step 9: Authentication
+## Step 8: Authentication
 
 Build `internal/auth/` and `AuthService`.
 
@@ -135,7 +120,7 @@ Build `internal/auth/` and `AuthService`.
 
 ---
 
-## Step 10: Query Cache
+## Step 9: Query Cache
 
 Build `internal/cache/`.
 
@@ -150,13 +135,13 @@ Build `internal/cache/`.
 
 ---
 
-## Step 11: Web UI
+## Step 10: Web UI
 
 Build the frontend SPA in `web/`.
 
 - Choose framework (SvelteKit or React)
 - ConnectRPC client generation from the existing protobufs
-- Pages: dashboard (balances), transaction list, import wizard, rules management, snapshots
+- Pages: dashboard (balances), transaction list, import wizard, snapshots
 - Embed built assets into the `floatd` binary via `embed.FS`
 - Serve the SPA from `floatd` alongside the gRPC API
 
@@ -164,7 +149,7 @@ Build the frontend SPA in `web/`.
 
 ---
 
-## Step 12: Git Snapshots
+## Step 11: Git Snapshots
 
 Build `internal/gitsnap/` using go-git and wire it into `txlock` and `floatctl`.
 
@@ -178,6 +163,23 @@ Build `internal/gitsnap/` using go-git and wire it into `txlock` and `floatctl`.
 - **`float snapshots`** and **`float restore`** via gRPC
 
 **Testable artifact:** Make changes, list snapshots, restore to a previous one, verify file contents revert.
+
+---
+
+## Step 12: Rules Engine
+
+Build `internal/rules/` and wire it into `floatctl` and the gRPC API.
+
+- **Rules file management:** Append/remove `if` blocks in `.rules` files so future imports pick them up
+- **`floatctl rules add --match <pattern> --account <account>`** — add a rule, optionally apply retroactively
+- **`floatctl rules list`** — show current rules
+- **`floatctl rules delete <n>`** — remove a rule
+- **Retroactive preview:** use `hledger reg -O json` to find matching existing transactions, show what would change
+- **Retroactive apply:** look up transactions by `fid`, edit posting lines in journal files, validate with `hledger check`, write via `txlock.Do()`
+- **Protobufs:** Add `AddRule`, `ListRules`, `DeleteRule` RPCs to `floatd`; wire `float rules` CLI commands
+- **Web UI:** Add rules management page
+
+**Testable artifact:** Add a rule, import new transactions and see it applied automatically. Apply retroactively to existing transactions. Manage rules via CLI, gRPC, and web UI.
 
 ---
 
