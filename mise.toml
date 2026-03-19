@@ -58,30 +58,37 @@ description = "Regenerate Go code from .proto files"
 run = "buf generate"
 
 [tasks.grpc-balances]
-description = "Query GetBalances (set FLOAT_ADDR to override localhost:8080; FLOAT_DEPTH and FLOAT_QUERY optional)"
+description = "Query GetBalances"
+usage = '''
+flag "--addr <addr>" help="Server address" default="localhost:8080"
+flag "--depth <depth>" help="Balance depth (0 = all)" default="0"
+flag "--query <query>" help="hledger query filter (e.g. expenses)"
+'''
 run = '''
-ADDR="${FLOAT_ADDR:-localhost:8080}"
-DATA="{\"depth\":${FLOAT_DEPTH:-0}${FLOAT_QUERY:+,\"query\":[\"$FLOAT_QUERY\"]}}"
+DATA="{\"depth\":$usage_depth${usage_query:+,\"query\":[\"$usage_query\"]}}"
 buf curl --schema . --protocol grpc --http2-prior-knowledge \
-  "http://$ADDR/float.v1.LedgerService/GetBalances" \
+  "http://$usage_addr/float.v1.LedgerService/GetBalances" \
   --data "$DATA"
 '''
 
 [tasks.grpc-transactions]
-description = "Query ListTransactions (set FLOAT_ADDR to override localhost:8080; FLOAT_QUERY optional)"
+description = "Query ListTransactions"
+usage = '''
+flag "--addr <addr>" help="Server address" default="localhost:8080"
+flag "--query <query>" help="hledger query filter (e.g. \"date:2026-01 expenses\")"
+'''
 run = '''
-ADDR="${FLOAT_ADDR:-localhost:8080}"
-DATA="${FLOAT_QUERY:+{\"query\":[\"$FLOAT_QUERY\"]}}"
+DATA="${usage_query:+{\"query\":[\"$usage_query\"]}}"
 buf curl --schema . --protocol grpc --http2-prior-knowledge \
-  "http://$ADDR/float.v1.LedgerService/ListTransactions" \
+  "http://$usage_addr/float.v1.LedgerService/ListTransactions" \
   --data "${DATA:-{}}"
 '''
 
 [tasks.grpc-accounts]
-description = "Query ListAccounts (set FLOAT_ADDR to override localhost:8080)"
-run = """
-ADDR="${FLOAT_ADDR:-localhost:8080}"
+description = "Query ListAccounts"
+usage = 'flag "--addr <addr>" help="Server address" default="localhost:8080"'
+run = '''
 buf curl --schema . --protocol grpc --http2-prior-knowledge \
-  "http://$ADDR/float.v1.LedgerService/ListAccounts" \
+  "http://$usage_addr/float.v1.LedgerService/ListAccounts" \
   --data "{}"
-"""
+'''
