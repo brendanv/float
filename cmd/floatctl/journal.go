@@ -181,14 +181,18 @@ func runJournalLookup(args []string) error {
 		return err
 	}
 
-	rows, err := c.Register(context.Background(), "tag:fid="+fid)
+	txns, err := c.Transactions(context.Background(), "tag:fid="+fid)
 	if err != nil {
 		return err
 	}
-	if len(rows) == 0 {
+	switch len(txns) {
+	case 0:
 		return fmt.Errorf("no transaction found with fid %q", fid)
+	case 1:
+		return printJSON(txns[0])
+	default:
+		return fmt.Errorf("fid %q matched %d transactions (corrupt journal — run audit)", fid, len(txns))
 	}
-	return printJSON(rows)
 }
 
 // journalStatsResult is the JSON output of `journal stats`.

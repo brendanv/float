@@ -19,8 +19,13 @@ func DeleteTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 	if err != nil {
 		return fmt.Errorf("journal: delete: lookup fid %q: %w", fid, err)
 	}
-	if len(txns) == 0 {
+	switch len(txns) {
+	case 0:
 		return fmt.Errorf("journal: delete: no transaction found with fid %q", fid)
+	case 1:
+		// expected
+	default:
+		return fmt.Errorf("journal: delete: fid %q matched %d transactions (corrupt journal — run audit)", fid, len(txns))
 	}
 
 	txn := txns[0]
