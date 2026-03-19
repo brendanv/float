@@ -115,12 +115,27 @@ func TestTxLock_Do(t *testing.T) {
 			},
 		},
 		{
-			name: "fn error returned directly without check or revert",
+			name: "fn error reverts partial writes and returns fn error",
 			fn: func(dir string) func() error {
-				return func() error { return errors.New("fn failed") }
+				return func() error {
+					// Write one file successfully, then fail — simulates partial write.
+					abs := filepath.Join(dir, "2026/01.journal")
+					if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+						return err
+					}
+					if err := os.WriteFile(abs, []byte("partial"), 0644); err != nil {
+						return err
+					}
+					return errors.New("fn failed mid-write")
+				}
 			},
 			wantErr:        true,
 			wantGeneration: 0,
+			check: func(t *testing.T, dir string) {
+				if _, err := os.Stat(filepath.Join(dir, "2026/01.journal")); !os.IsNotExist(err) {
+					t.Error("partially written file should have been reverted")
+				}
+			},
 		},
 		{
 			name: "second valid write bumps generation to 2",

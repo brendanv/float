@@ -50,6 +50,9 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 	}
 
 	if err := fn(); err != nil {
+		if revertErr := revertFromSnapshot(l.dataDir, snap); revertErr != nil {
+			return fmt.Errorf("txlock: fn failed (%w) and revert also failed: %v", err, revertErr)
+		}
 		return err
 	}
 
