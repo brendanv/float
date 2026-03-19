@@ -47,7 +47,9 @@ cmd/floatctl/
 ├── CLAUDE.md      ← you are here
 ├── main.go        ← entry point (arg parsing + dispatch)
 ├── registry.go    ← Command type, register(), dispatch(), help rendering
-└── hledger.go     ← "hledger" group commands
+├── hledger.go     ← "hledger" group commands
+├── journal.go     ← "journal" group commands
+└── config.go      ← "config" group commands
 ```
 
 Each group lives in its own file (`hledger.go`, `journal.go`, etc.). The pattern is:
@@ -77,13 +79,7 @@ floatctl hledger check                <journal>
 | `version`   | Print the hledger binary version string |
 | `check`     | Run `hledger check` on a journal; exit 0 if valid, 1 with error message |
 
----
-
-## Planned Future Commands
-
-Commands are unlocked as the corresponding internal packages are built (see root `PLAN.md`).
-
-### `journal` group — journal file management (Step 2)
+### `journal` group — journal file management
 
 ```
 floatctl journal verify       <data-dir>
@@ -93,9 +89,27 @@ floatctl journal list-files   <data-dir>
 
 | Subcommand      | Description |
 |-----------------|-------------|
-| `verify`        | Run `hledger check` on the full data directory; report all errors |
-| `migrate-fids`  | Scan all transactions, add `fid` tags to any that lack them |
-| `list-files`    | List all `.journal` files found under the data directory |
+| `verify`        | Run `hledger check` on `main.journal` in the data directory; print `ok` or error |
+| `migrate-fids`  | Scan all included journal files, add `fid` tags to any untagged transactions |
+| `list-files`    | Walk the data directory and print all `.journal` file paths |
+
+### `config` group — configuration inspection
+
+```
+floatctl config show     <config.toml>
+floatctl config validate <config.toml>
+```
+
+| Subcommand | Description |
+|------------|-------------|
+| `show`     | Print parsed `config.toml` as JSON |
+| `validate` | Validate `config.toml`; exit 0 if valid, 1 with error message |
+
+---
+
+## Planned Future Commands
+
+Commands are unlocked as the corresponding internal packages are built.
 
 ### `git` group — snapshot management (Step 3)
 
@@ -110,18 +124,6 @@ floatctl git status  <data-dir>
 | `log`      | List recent git snapshots (hash, message, timestamp) |
 | `restore`  | Hard-reset data directory to a given commit hash |
 | `status`   | Show uncommitted changes in the data directory |
-
-### `config` group — configuration inspection (Step 2)
-
-```
-floatctl config show     <config.toml>
-floatctl config validate <config.toml>
-```
-
-| Subcommand | Description |
-|------------|-------------|
-| `show`     | Print parsed `config.toml` as JSON |
-| `validate` | Validate `config.toml`; exit 0 if valid, 1 with errors |
 
 ### `txn` group — transaction admin (Step 7)
 

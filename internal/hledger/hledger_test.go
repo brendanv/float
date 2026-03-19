@@ -19,327 +19,377 @@ func mustClient(t *testing.T, journal string) *hledger.Client {
 	return c
 }
 
-func TestNew_ValidVersion(t *testing.T) {
-	_, err := hledger.New("hledger", "testdata/simple.journal")
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
+func TestNew(t *testing.T) {
+	tests := []struct {
+		name        string
+		binary      string
+		wantErr     bool
+		errContains string
+	}{
+		{name: "valid binary", binary: "hledger"},
+		{name: "bad binary", binary: "/nonexistent/hledger", wantErr: true, errContains: "not found"},
 	}
-}
-
-func TestNew_BadBinary(t *testing.T) {
-	_, err := hledger.New("/nonexistent/hledger", "testdata/simple.journal")
-	if err == nil {
-		t.Fatal("expected error for bad binary")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("expected error to contain 'not found', got: %v", err)
-	}
-}
-
-func TestCheck_Valid(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	if err := c.Check(t.Context()); err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestCheck_Invalid(t *testing.T) {
-	c := mustClient(t, "invalid.journal")
-	err := c.Check(t.Context())
-	if err == nil {
-		t.Fatal("expected error for invalid journal")
-	}
-	var checkErr *hledger.CheckError
-	if !errors.As(err, &checkErr) {
-		t.Errorf("expected *CheckError, got: %T", err)
-	}
-	if checkErr.Error() == "" {
-		t.Error("expected non-empty error message")
-	}
-}
-
-func TestCheck_Empty(t *testing.T) {
-	c := mustClient(t, "empty.journal")
-	if err := c.Check(t.Context()); err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestBalances_All(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(t.Context(), 0)
-	if err != nil {
-		t.Fatalf("Balances: %v", err)
-	}
-	if len(report.Rows) < 4 {
-		t.Errorf("expected at least 4 rows, got %d", len(report.Rows))
-	}
-
-	var checkingAmt, shoppingAmt, salaryAmt float64
-	var foundChecking, foundShopping, foundSalary bool
-	for _, row := range report.Rows {
-		switch row.FullName {
-		case "assets:checking":
-			if len(row.Amounts) > 0 {
-				checkingAmt = row.Amounts[0].Quantity.FloatingPoint
-				foundChecking = true
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := hledger.New(tt.binary, "testdata/simple.journal")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("New() error = %v, wantErr %v", err, tt.wantErr)
 			}
-		case "expenses:shopping":
-			if len(row.Amounts) > 0 {
-				shoppingAmt = row.Amounts[0].Quantity.FloatingPoint
-				foundShopping = true
+			if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("error %q does not contain %q", err.Error(), tt.errContains)
 			}
-		case "income:salary":
-			if len(row.Amounts) > 0 {
-				salaryAmt = row.Amounts[0].Quantity.FloatingPoint
-				foundSalary = true
+		})
+	}
+}
+
+func TestCheck(t *testing.T) {
+	tests := []struct {
+		name         string
+		journal      string
+		wantErr      bool
+		wantCheckErr bool
+	}{
+		{name: "valid journal", journal: "simple.journal"},
+		{name: "invalid journal", journal: "invalid.journal", wantErr: true, wantCheckErr: true},
+		{name: "empty journal", journal: "empty.journal"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := mustClient(t, tt.journal)
+			err := c.Check(t.Context())
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Check() error = %v, wantErr %v", err, tt.wantErr)
 			}
-		}
-	}
-
-	if !foundChecking {
-		t.Error("assets:checking not found")
-	}
-	if checkingAmt < 6819 || checkingAmt > 6821 {
-		t.Errorf("assets:checking balance ≈ 6820, got %v", checkingAmt)
-	}
-	if !foundShopping {
-		t.Error("expenses:shopping not found")
-	}
-	if shoppingAmt < 59 || shoppingAmt > 61 {
-		t.Errorf("expenses:shopping balance ≈ 60, got %v", shoppingAmt)
-	}
-	if !foundSalary {
-		t.Error("income:salary not found")
-	}
-	if salaryAmt >= 0 {
-		t.Errorf("income:salary should be negative, got %v", salaryAmt)
-	}
-}
-
-func TestBalances_Depth1(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(t.Context(), 1)
-	if err != nil {
-		t.Fatalf("Balances depth=1: %v", err)
-	}
-	for _, row := range report.Rows {
-		if strings.Contains(row.FullName, ":") {
-			t.Errorf("depth=1 should not have ':' in FullName, got %q", row.FullName)
-		}
-	}
-	var expensesAmt float64
-	for _, row := range report.Rows {
-		if row.FullName == "expenses" && len(row.Amounts) > 0 {
-			expensesAmt = row.Amounts[0].Quantity.FloatingPoint
-		}
-	}
-	if expensesAmt < 179 || expensesAmt > 181 {
-		t.Errorf("expenses balance ≈ 180, got %v", expensesAmt)
-	}
-}
-
-func TestBalances_Query(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	report, err := c.Balances(t.Context(), 0, "expenses")
-	if err != nil {
-		t.Fatalf("Balances query: %v", err)
-	}
-	for _, row := range report.Rows {
-		if !strings.HasPrefix(row.FullName, "expenses") {
-			t.Errorf("expected only expenses rows, got %q", row.FullName)
-		}
-	}
-	for _, row := range report.Rows {
-		if strings.HasPrefix(row.FullName, "assets") {
-			t.Errorf("expected no assets rows, got %q", row.FullName)
-		}
-	}
-}
-
-func TestBalances_Empty(t *testing.T) {
-	c := mustClient(t, "empty.journal")
-	report, err := c.Balances(t.Context(), 0)
-	if err != nil {
-		t.Fatalf("Balances empty: %v", err)
-	}
-	if len(report.Rows) != 0 {
-		t.Errorf("expected no rows for empty journal, got %d", len(report.Rows))
-	}
-}
-
-func TestRegister_All(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	rows, err := c.Register(t.Context())
-	if err != nil {
-		t.Fatalf("Register: %v", err)
-	}
-	if len(rows) != 10 {
-		t.Errorf("expected 10 rows (5 txns × 2 postings), got %d", len(rows))
-	}
-	if rows[0].Date == nil {
-		t.Error("first row Date should be non-nil")
-	}
-	if rows[1].Date != nil {
-		t.Error("second row Date should be nil")
-	}
-}
-
-func TestRegister_FidQuery(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	rows, err := c.Register(t.Context(), "tag:fid=bb002200")
-	if err != nil {
-		t.Fatalf("Register fid: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Errorf("expected 2 rows, got %d", len(rows))
-	}
-	if rows[0].Description == nil || *rows[0].Description != "AMAZON MARKETPLACE" {
-		t.Errorf("expected description AMAZON MARKETPLACE, got %v", rows[0].Description)
-	}
-	var foundShopping bool
-	for _, row := range rows {
-		if row.Posting.Account == "expenses:shopping" {
-			foundShopping = true
-			if len(row.Posting.Amounts) > 0 {
-				fp := row.Posting.Amounts[0].Quantity.FloatingPoint
-				if fp < 44 || fp > 46 {
-					t.Errorf("expenses:shopping amount ≈ 45, got %v", fp)
+			if tt.wantCheckErr {
+				var checkErr *hledger.CheckError
+				if !errors.As(err, &checkErr) {
+					t.Errorf("expected *CheckError, got: %T", err)
+				}
+				if checkErr.Error() == "" {
+					t.Error("expected non-empty error message")
 				}
 			}
-		}
-	}
-	if !foundShopping {
-		t.Error("expenses:shopping posting not found")
+		})
 	}
 }
 
-func TestRegister_DateFilter(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	rows, err := c.Register(t.Context(), "date:2026-01")
-	if err != nil {
-		t.Fatalf("Register date filter: %v", err)
+func TestBalances(t *testing.T) {
+	tests := []struct {
+		name    string
+		journal string
+		depth   int
+		query   []string
+		check   func(t *testing.T, report *hledger.BalanceReport)
+	}{
+		{
+			name:    "all accounts",
+			journal: "simple.journal",
+			depth:   0,
+			check: func(t *testing.T, report *hledger.BalanceReport) {
+				if len(report.Rows) < 4 {
+					t.Errorf("expected at least 4 rows, got %d", len(report.Rows))
+				}
+				amts := map[string]float64{}
+				found := map[string]bool{}
+				for _, row := range report.Rows {
+					if len(row.Amounts) > 0 {
+						amts[row.FullName] = row.Amounts[0].Quantity.FloatingPoint
+						found[row.FullName] = true
+					}
+				}
+				if !found["assets:checking"] {
+					t.Error("assets:checking not found")
+				} else if v := amts["assets:checking"]; v < 6819 || v > 6821 {
+					t.Errorf("assets:checking balance ≈ 6820, got %v", v)
+				}
+				if !found["expenses:shopping"] {
+					t.Error("expenses:shopping not found")
+				} else if v := amts["expenses:shopping"]; v < 59 || v > 61 {
+					t.Errorf("expenses:shopping balance ≈ 60, got %v", v)
+				}
+				if !found["income:salary"] {
+					t.Error("income:salary not found")
+				} else if amts["income:salary"] >= 0 {
+					t.Errorf("income:salary should be negative, got %v", amts["income:salary"])
+				}
+			},
+		},
+		{
+			name:    "depth 1 collapses sub-accounts",
+			journal: "simple.journal",
+			depth:   1,
+			check: func(t *testing.T, report *hledger.BalanceReport) {
+				for _, row := range report.Rows {
+					if strings.Contains(row.FullName, ":") {
+						t.Errorf("depth=1 should not have ':' in FullName, got %q", row.FullName)
+					}
+				}
+				for _, row := range report.Rows {
+					if row.FullName == "expenses" && len(row.Amounts) > 0 {
+						v := row.Amounts[0].Quantity.FloatingPoint
+						if v < 179 || v > 181 {
+							t.Errorf("expenses balance ≈ 180, got %v", v)
+						}
+					}
+				}
+			},
+		},
+		{
+			name:    "expense query filters accounts",
+			journal: "simple.journal",
+			depth:   0,
+			query:   []string{"expenses"},
+			check: func(t *testing.T, report *hledger.BalanceReport) {
+				for _, row := range report.Rows {
+					if !strings.HasPrefix(row.FullName, "expenses") {
+						t.Errorf("expected only expenses rows, got %q", row.FullName)
+					}
+				}
+			},
+		},
+		{
+			name:    "empty journal has no rows",
+			journal: "empty.journal",
+			depth:   0,
+			check: func(t *testing.T, report *hledger.BalanceReport) {
+				if len(report.Rows) != 0 {
+					t.Errorf("expected no rows, got %d", len(report.Rows))
+				}
+			},
+		},
 	}
-	if len(rows) != 6 {
-		t.Errorf("expected 6 rows (3 Jan txns × 2 postings), got %d", len(rows))
-	}
-}
-
-func TestAccounts_Flat(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	nodes, err := c.Accounts(t.Context(), false)
-	if err != nil {
-		t.Fatalf("Accounts flat: %v", err)
-	}
-	if len(nodes) != 4 {
-		t.Errorf("expected 4 nodes, got %d", len(nodes))
-	}
-	for _, n := range nodes {
-		if n.Children != nil {
-			t.Errorf("flat node %q should have nil Children", n.FullName)
-		}
-	}
-	var foundChecking bool
-	for _, n := range nodes {
-		if n.FullName == "assets:checking" {
-			foundChecking = true
-			if n.Type != hledger.AccountTypeCash {
-				t.Errorf("assets:checking expected type C, got %q", n.Type)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := mustClient(t, tt.journal)
+			report, err := c.Balances(t.Context(), tt.depth, tt.query...)
+			if err != nil {
+				t.Fatalf("Balances: %v", err)
 			}
-		}
-	}
-	if !foundChecking {
-		t.Error("assets:checking not found in flat accounts")
-	}
-	for _, n := range nodes {
-		if strings.HasPrefix(n.FullName, "expenses:") && n.Type != hledger.AccountTypeExpense {
-			t.Errorf("%q expected type X, got %q", n.FullName, n.Type)
-		}
+			tt.check(t, report)
+		})
 	}
 }
 
-func TestAccounts_Tree(t *testing.T) {
+func TestRegister(t *testing.T) {
+	tests := []struct {
+		name  string
+		query []string
+		check func(t *testing.T, rows []hledger.RegisterRow)
+	}{
+		{
+			name: "all transactions",
+			check: func(t *testing.T, rows []hledger.RegisterRow) {
+				if len(rows) != 10 {
+					t.Errorf("expected 10 rows (5 txns × 2 postings), got %d", len(rows))
+				}
+				if rows[0].Date == nil {
+					t.Error("first row Date should be non-nil")
+				}
+				if rows[1].Date != nil {
+					t.Error("second row Date should be nil")
+				}
+			},
+		},
+		{
+			name:  "fid tag query",
+			query: []string{"tag:fid=bb002200"},
+			check: func(t *testing.T, rows []hledger.RegisterRow) {
+				if len(rows) != 2 {
+					t.Errorf("expected 2 rows, got %d", len(rows))
+				}
+				if rows[0].Description == nil || *rows[0].Description != "AMAZON MARKETPLACE" {
+					t.Errorf("expected description AMAZON MARKETPLACE, got %v", rows[0].Description)
+				}
+				var foundShopping bool
+				for _, row := range rows {
+					if row.Posting.Account == "expenses:shopping" {
+						foundShopping = true
+						if len(row.Posting.Amounts) > 0 {
+							fp := row.Posting.Amounts[0].Quantity.FloatingPoint
+							if fp < 44 || fp > 46 {
+								t.Errorf("expenses:shopping amount ≈ 45, got %v", fp)
+							}
+						}
+					}
+				}
+				if !foundShopping {
+					t.Error("expenses:shopping posting not found")
+				}
+			},
+		},
+		{
+			name:  "date filter",
+			query: []string{"date:2026-01"},
+			check: func(t *testing.T, rows []hledger.RegisterRow) {
+				if len(rows) != 6 {
+					t.Errorf("expected 6 rows (3 Jan txns × 2 postings), got %d", len(rows))
+				}
+			},
+		},
+	}
 	c := mustClient(t, "simple.journal")
-	roots, err := c.Accounts(t.Context(), true)
-	if err != nil {
-		t.Fatalf("Accounts tree: %v", err)
-	}
-	if len(roots) != 3 {
-		t.Errorf("expected 3 root nodes (assets, expenses, income), got %d", len(roots))
-	}
-
-	var expensesNode *hledger.AccountNode
-	for _, r := range roots {
-		if r.FullName == "expenses" {
-			expensesNode = r
-			if r.Type != hledger.AccountTypeExpense {
-				t.Errorf("expenses root expected type X, got %q", r.Type)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows, err := c.Register(t.Context(), tt.query...)
+			if err != nil {
+				t.Fatalf("Register: %v", err)
 			}
-		}
-		if r.FullName == "income" && r.Type != hledger.AccountTypeRevenue {
-			t.Errorf("income root expected type R, got %q", r.Type)
-		}
+			tt.check(t, rows)
+		})
 	}
-	if expensesNode == nil {
-		t.Fatal("expenses root node not found")
-	}
-	if len(expensesNode.Children) != 2 {
-		t.Errorf("expected expenses to have 2 children, got %d", len(expensesNode.Children))
-	}
+}
 
-	for _, child := range expensesNode.Children {
-		if !strings.HasPrefix(child.FullName, "expenses:") {
-			t.Errorf("child FullName should start with 'expenses:', got %q", child.FullName)
-		}
-		if child.Type != hledger.AccountTypeExpense {
-			t.Errorf("child %q expected type X, got %q", child.FullName, child.Type)
-		}
+func TestAccounts(t *testing.T) {
+	tests := []struct {
+		name  string
+		tree  bool
+		check func(t *testing.T, nodes []*hledger.AccountNode)
+	}{
+		{
+			name: "flat list",
+			tree: false,
+			check: func(t *testing.T, nodes []*hledger.AccountNode) {
+				if len(nodes) != 4 {
+					t.Errorf("expected 4 nodes, got %d", len(nodes))
+				}
+				for _, n := range nodes {
+					if n.Children != nil {
+						t.Errorf("flat node %q should have nil Children", n.FullName)
+					}
+				}
+				var foundChecking bool
+				for _, n := range nodes {
+					if n.FullName == "assets:checking" {
+						foundChecking = true
+						if n.Type != hledger.AccountTypeCash {
+							t.Errorf("assets:checking expected type C, got %q", n.Type)
+						}
+					}
+					if strings.HasPrefix(n.FullName, "expenses:") && n.Type != hledger.AccountTypeExpense {
+						t.Errorf("%q expected type X, got %q", n.FullName, n.Type)
+					}
+				}
+				if !foundChecking {
+					t.Error("assets:checking not found in flat accounts")
+				}
+			},
+		},
+		{
+			name: "tree with children",
+			tree: true,
+			check: func(t *testing.T, roots []*hledger.AccountNode) {
+				if len(roots) != 3 {
+					t.Errorf("expected 3 root nodes (assets, expenses, income), got %d", len(roots))
+				}
+				var expensesNode *hledger.AccountNode
+				for _, r := range roots {
+					if r.FullName == "expenses" {
+						expensesNode = r
+						if r.Type != hledger.AccountTypeExpense {
+							t.Errorf("expenses root expected type X, got %q", r.Type)
+						}
+					}
+					if r.FullName == "income" && r.Type != hledger.AccountTypeRevenue {
+						t.Errorf("income root expected type R, got %q", r.Type)
+					}
+				}
+				if expensesNode == nil {
+					t.Fatal("expenses root node not found")
+				}
+				if len(expensesNode.Children) != 2 {
+					t.Errorf("expected expenses to have 2 children, got %d", len(expensesNode.Children))
+				}
+				for _, child := range expensesNode.Children {
+					if !strings.HasPrefix(child.FullName, "expenses:") {
+						t.Errorf("child FullName should start with 'expenses:', got %q", child.FullName)
+					}
+					if child.Type != hledger.AccountTypeExpense {
+						t.Errorf("child %q expected type X, got %q", child.FullName, child.Type)
+					}
+				}
+			},
+		},
+	}
+	c := mustClient(t, "simple.journal")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodes, err := c.Accounts(t.Context(), tt.tree)
+			if err != nil {
+				t.Fatalf("Accounts: %v", err)
+			}
+			tt.check(t, nodes)
+		})
 	}
 }
 
 func TestPrintCSV(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	txns, err := c.PrintCSV(t.Context(), "testdata/import.csv", "testdata/import.rules")
-	if err != nil {
-		t.Fatalf("PrintCSV: %v", err)
-	}
-	if len(txns) != 3 {
-		t.Errorf("expected 3 transactions, got %d", len(txns))
-	}
-
-	var foundAmazon, foundPayroll bool
-	for _, txn := range txns {
-		if txn.Description == "AMAZON MARKETPLACE" {
-			foundAmazon = true
-			for _, p := range txn.Postings {
-				if p.Account == "expenses:shopping" {
-					if len(p.Amounts) > 0 {
-						fp := p.Amounts[0].Quantity.FloatingPoint
-						if fp < 44 || fp > 46 {
-							t.Errorf("AMAZON shopping amount ≈ 45, got %v", fp)
+	tests := []struct {
+		name      string
+		csvFile   string
+		rulesFile string
+		wantErr   bool
+		check     func(t *testing.T, txns []hledger.Transaction)
+	}{
+		{
+			name:      "valid import",
+			csvFile:   "testdata/import.csv",
+			rulesFile: "testdata/import.rules",
+			check: func(t *testing.T, txns []hledger.Transaction) {
+				if len(txns) != 3 {
+					t.Errorf("expected 3 transactions, got %d", len(txns))
+				}
+				var foundAmazon, foundPayroll bool
+				for _, txn := range txns {
+					if txn.Description == "AMAZON MARKETPLACE" {
+						foundAmazon = true
+						for _, p := range txn.Postings {
+							if p.Account == "expenses:shopping" && len(p.Amounts) > 0 {
+								fp := p.Amounts[0].Quantity.FloatingPoint
+								if fp < 44 || fp > 46 {
+									t.Errorf("AMAZON shopping amount ≈ 45, got %v", fp)
+								}
+							}
+						}
+					}
+					if txn.Description == "PAYROLL DIRECT DEPOSIT" {
+						foundPayroll = true
+						var hasSalary bool
+						for _, p := range txn.Postings {
+							if p.Account == "income:salary" {
+								hasSalary = true
+							}
+						}
+						if !hasSalary {
+							t.Error("PAYROLL transaction missing income:salary posting")
 						}
 					}
 				}
-			}
-		}
-		if txn.Description == "PAYROLL DIRECT DEPOSIT" {
-			foundPayroll = true
-			var hasSalary bool
-			for _, p := range txn.Postings {
-				if p.Account == "income:salary" {
-					hasSalary = true
+				if !foundAmazon {
+					t.Error("AMAZON MARKETPLACE transaction not found")
 				}
-			}
-			if !hasSalary {
-				t.Error("PAYROLL transaction missing income:salary posting")
-			}
-		}
+				if !foundPayroll {
+					t.Error("PAYROLL DIRECT DEPOSIT transaction not found")
+				}
+			},
+		},
+		{
+			name:      "nonexistent rules file",
+			csvFile:   "testdata/import.csv",
+			rulesFile: "testdata/nonexistent.rules",
+			wantErr:   true,
+		},
 	}
-	if !foundAmazon {
-		t.Error("AMAZON MARKETPLACE transaction not found")
-	}
-	if !foundPayroll {
-		t.Error("PAYROLL DIRECT DEPOSIT transaction not found")
+	c := mustClient(t, "simple.journal")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			txns, err := c.PrintCSV(t.Context(), tt.csvFile, tt.rulesFile)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("PrintCSV() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.check != nil {
+				tt.check(t, txns)
+			}
+		})
 	}
 }
 
@@ -361,22 +411,24 @@ func TestTransactionFID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PrintCSV via stub: %v", err)
 	}
+
+	tests := []struct {
+		name    string
+		idx     int
+		wantFID string
+	}{
+		{name: "transaction with fid tag", idx: 0, wantFID: "aa001100"},
+		{name: "transaction without fid tag", idx: 1, wantFID: ""},
+	}
 	if len(result) != 2 {
 		t.Fatalf("expected 2 transactions, got %d", len(result))
 	}
-	if result[0].FID != "aa001100" {
-		t.Errorf("expected FID aa001100, got %q", result[0].FID)
-	}
-	if result[1].FID != "" {
-		t.Errorf("expected empty FID for transaction without fid tag, got %q", result[1].FID)
-	}
-}
-
-func TestPrintCSV_BadRules(t *testing.T) {
-	c := mustClient(t, "simple.journal")
-	_, err := c.PrintCSV(t.Context(), "testdata/import.csv", "testdata/nonexistent.rules")
-	if err == nil {
-		t.Fatal("expected error for nonexistent rules file")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if result[tt.idx].FID != tt.wantFID {
+				t.Errorf("FID = %q, want %q", result[tt.idx].FID, tt.wantFID)
+			}
+		})
 	}
 }
 
@@ -384,7 +436,6 @@ func TestNewWithRunner(t *testing.T) {
 	called := false
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		called = true
-		// Return a valid version response for the --version check in newClient
 		return []byte("hledger 1.51.2, linux-x86_64\n"), nil, nil
 	}
 	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
