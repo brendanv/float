@@ -29,10 +29,84 @@ mise run lint
 mise run check
 
 # Generate protobuf code (after editing .proto files)
-buf generate
+mise run proto-gen
+# or: buf generate
 ```
 
 Tool versions are managed by `mise`. Run `mise install` to get pinned versions of Go, buf, golangci-lint, and hledger.
+
+## Running floatd
+
+```bash
+# Start the server (uses $VAULT_DATA_DIR by default)
+mise run floatd
+
+# Custom data dir or address
+FLOAT_DATA_DIR=/path/to/data mise run floatd
+FLOAT_ADDR=:9090 mise run floatd
+```
+
+`floatd` requires a `config.toml` in the data directory and a `main.journal` file.
+
+## Querying floatd with buf curl
+
+`floatd` supports three protocols: **gRPC** (HTTP/2), **gRPC-Web**, and **Connect** (HTTP/1.1 or HTTP/2). The `buf curl` tool is the primary way to send test requests.
+
+All `buf curl` commands must be run from the repo root (so `--schema .` can find `proto/`). The `--http2-prior-knowledge` flag is required for gRPC over plain HTTP (no TLS).
+
+```bash
+# Get balances (all accounts)
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  http://localhost:8080/float.v1.LedgerService/GetBalances \
+  --data '{}'
+
+# Get balances at depth 1 (top-level accounts only)
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  http://localhost:8080/float.v1.LedgerService/GetBalances \
+  --data '{"depth": 1}'
+
+# Get balances filtered to a specific account subtree
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  http://localhost:8080/float.v1.LedgerService/GetBalances \
+  --data '{"query": ["expenses"]}'
+
+# List transactions (all)
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  http://localhost:8080/float.v1.LedgerService/ListTransactions \
+  --data '{}'
+
+# List transactions with hledger query filters
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  http://localhost:8080/float.v1.LedgerService/ListTransactions \
+  --data '{"query": ["date:2026-01", "expenses"]}'
+
+# List accounts
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  http://localhost:8080/float.v1.LedgerService/ListAccounts \
+  --data '{}'
+```
+
+**mise shortcuts** (wrap the above with `FLOAT_ADDR` and `FLOAT_QUERY` env vars):
+
+```bash
+mise run grpc-balances
+mise run grpc-transactions
+mise run grpc-accounts
+
+# With options
+FLOAT_DEPTH=1 mise run grpc-balances
+FLOAT_QUERY=expenses mise run grpc-balances
+FLOAT_QUERY="date:2026-01" mise run grpc-transactions
+FLOAT_ADDR=localhost:9090 mise run grpc-accounts
+```
+
+**Using the Connect protocol** (works with HTTP/1.1, no `--http2-prior-knowledge` needed):
+
+```bash
+buf curl --schema . \
+  http://localhost:8080/float.v1.LedgerService/GetBalances \
+  --data '{}'
+```
 
 ## Architecture
 

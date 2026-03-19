@@ -46,3 +46,57 @@ depends = ["lint", "vet", "test"]
 [tasks.floatctl]
 description = "Run floatctl"
 run = "go run ./cmd/floatctl/"
+
+[tasks.floatd]
+description = "Build and run floatd (set FLOAT_DATA_DIR or falls back to $VAULT_DATA_DIR)"
+run = """
+go run ./cmd/floatd/ --data-dir "${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}" ${FLOAT_ADDR:+--addr "$FLOAT_ADDR"}
+"""
+
+[tasks.proto-gen]
+description = "Regenerate Go code from .proto files"
+run = "buf generate"
+
+[tasks.grpc-balances]
+description = "Query GetBalances"
+usage = '''
+flag "--addr <addr>" help="Server address" default="localhost:8080"
+flag "--depth <depth>" help="Balance depth (0 = all)" default="0"
+flag "--query <query>" help="hledger query filter (e.g. expenses)"
+'''
+run = '''
+if [ -n "$usage_query" ]; then
+  DATA="{\"depth\":$usage_depth,\"query\":[\"$usage_query\"]}"
+else
+  DATA="{\"depth\":$usage_depth}"
+fi
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$usage_addr/float.v1.LedgerService/GetBalances" \
+  --data "$DATA"
+'''
+
+[tasks.grpc-transactions]
+description = "Query ListTransactions"
+usage = '''
+flag "--addr <addr>" help="Server address" default="localhost:8080"
+flag "--query <query>" help="hledger query filter (e.g. \"date:2026-01 expenses\")"
+'''
+run = '''
+if [ -n "$usage_query" ]; then
+  DATA="{\"query\":[\"$usage_query\"]}"
+else
+  DATA="{}"
+fi
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$usage_addr/float.v1.LedgerService/ListTransactions" \
+  --data "$DATA"
+'''
+
+[tasks.grpc-accounts]
+description = "Query ListAccounts"
+usage = 'flag "--addr <addr>" help="Server address" default="localhost:8080"'
+run = '''
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$usage_addr/float.v1.LedgerService/ListAccounts" \
+  --data "{}"
+'''

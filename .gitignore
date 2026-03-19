@@ -2,3 +2,7 @@
 /floatctl
 /floatd
 /float
+
+# local development data dir (journals, logs, config, etc.)
+/data/*
+!/data/.gitkeep
