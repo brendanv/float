@@ -26,6 +26,14 @@ type Posting struct {
 	Date2            *string     `json:"pdate2"`
 }
 
+// SourcePos is a file location emitted by hledger in its JSON output as
+// {"sourceName": "/path/to/file.journal", "sourceLine": 6, "sourceColumn": 1}.
+type SourcePos struct {
+	File   string `json:"sourceName"`
+	Line   int    `json:"sourceLine"`
+	Column int    `json:"sourceColumn"`
+}
+
 type Transaction struct {
 	Index            int         `json:"tindex"`
 	Date             string      `json:"tdate"`
@@ -37,6 +45,12 @@ type Transaction struct {
 	Postings         []Posting   `json:"tpostings"`
 	Status           string      `json:"tstatus"`
 	PrecedingComment string      `json:"tprecedingcomment"`
+	// SourcePos is the [start, end] source file position from hledger's
+	// tsourcepos field. SourcePos[0] is the transaction header line;
+	// SourcePos[1] is the line after the last posting. Always populated
+	// when returned by Transactions() or PrintCSV(); zero-value for
+	// programmatically constructed transactions.
+	SourcePos [2]SourcePos `json:"tsourcepos"`
 
 	// FID is the value of the "fid" tag (e.g. "aa001100"), extracted from Tags.
 	// Empty string if no fid tag is present.

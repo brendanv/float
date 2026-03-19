@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/testgen"
 )
 
@@ -262,4 +263,256 @@ func TestRunHledgerRawOutput(t *testing.T) {
 	if strings.TrimSpace(out) == "" {
 		t.Error("expected non-empty output from hledger bal")
 	}
+}
+
+func TestRunJournalDelete(t *testing.T) {
+	t.Run("missing args", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			args    []string
+			wantErr string
+		}{
+			{name: "no args", args: []string{}, wantErr: "missing"},
+			{name: "only data-dir", args: []string{"/some/dir"}, wantErr: "missing"},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				err := runJournalDelete(tc.args)
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+				}
+			})
+		}
+	})
+
+	t.Run("delete existing transaction", func(t *testing.T) {
+		dir := journalDataDir(t)
+
+		// Extract a real FID from the generated data.
+		fid := extractFirstFID(t, dir)
+
+		flush := captureStdout(t)
+		err := runJournalDelete([]string{dir, fid})
+		out := flush()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out, fid) {
+			t.Errorf("expected fid %q in output, got: %s", fid, out)
+		}
+
+		// Subsequent lookup should fail.
+		err = runJournalLookup([]string{dir, fid})
+		if err == nil || !strings.Contains(err.Error(), "no transaction found") {
+			t.Errorf("expected 'no transaction found' after delete, got: %v", err)
+		}
+	})
+}
+
+func TestRunJournalAdd(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "no args", args: []string{}, wantErr: "missing"},
+		{name: "missing description", args: []string{t.TempDir()}, wantErr: "--description"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := runJournalAdd(tc.args)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+			}
+		})
+	}
+
+	t.Run("too few postings", func(t *testing.T) {
+		dir := journalDataDir(t)
+		err := runJournalAdd([]string{dir,
+			"--description", "Test",
+			"--posting", "expenses:food  $5.00",
+		})
+		if err == nil || !strings.Contains(err.Error(), "2 --posting") {
+			t.Errorf("got error %v, want containing '2 --posting'", err)
+		}
+	})
+
+	t.Run("valid add", func(t *testing.T) {
+		dir := journalDataDir(t)
+
+		flush := captureStdout(t)
+		err := runJournalAdd([]string{dir,
+			"--date", "2026-02-15",
+			"--description", "TEST TRANSACTION",
+			"--posting", "expenses:food  $12.34",
+			"--posting", "assets:checking",
+		})
+		out := flush()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out, "added transaction with fid:") {
+			t.Errorf("expected fid in output, got: %s", out)
+		}
+
+		// Extract fid from output and look it up.
+		parts := strings.Fields(out)
+		fid := parts[len(parts)-1]
+		err = runJournalLookup([]string{dir, fid})
+		if err != nil {
+			t.Errorf("lookup after add failed: %v", err)
+		}
+	})
+}
+
+func TestRunJournalImport(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "no args", args: []string{}, wantErr: "missing"},
+		{name: "only data-dir", args: []string{"/some/dir"}, wantErr: "missing"},
+		{name: "missing profile", args: []string{"/some/dir", "/some/csv"}, wantErr: "--profile"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := runJournalImport(tc.args)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("got error %v, want containing %q", err, tc.wantErr)
+			}
+		})
+	}
+
+	t.Run("unknown profile", func(t *testing.T) {
+		dir := journalDataDir(t)
+		// Write a minimal config.toml with no bank profiles.
+		cfg := &config.Config{}
+		if err := config.Save(filepath.Join(dir, "config.toml"), cfg); err != nil {
+			t.Fatal(err)
+		}
+		err := runJournalImport([]string{dir, testdataPath("import.csv"),
+			"--profile", "nonexistent",
+			"--yes",
+		})
+		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Errorf("got error %v, want containing 'not found'", err)
+		}
+	})
+
+	t.Run("valid import", func(t *testing.T) {
+		dir := journalDataDir(t)
+
+		// Write config.toml with a bank profile pointing to testdata rules.
+		rulesRel := "rules/test.rules"
+		rulesAbs := filepath.Join(dir, rulesRel)
+		if err := os.MkdirAll(filepath.Dir(rulesAbs), 0755); err != nil {
+			t.Fatal(err)
+		}
+		// Copy testdata rules file.
+		rulesData, err := os.ReadFile(testdataPath("import.rules"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(rulesAbs, rulesData, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := &config.Config{
+			BankProfiles: []config.BankProfile{
+				{Name: "testbank", RulesFile: rulesRel},
+			},
+		}
+		if err := config.Save(filepath.Join(dir, "config.toml"), cfg); err != nil {
+			t.Fatal(err)
+		}
+
+		flush := captureStdout(t)
+		err = runJournalImport([]string{dir, testdataPath("import.csv"),
+			"--profile", "testbank",
+			"--yes",
+		})
+		out := flush()
+		if err != nil {
+			t.Fatalf("unexpected error: %v\noutput: %s", err, out)
+		}
+		if !strings.Contains(out, "imported") {
+			t.Errorf("expected 'imported' in output, got: %s", out)
+		}
+	})
+
+	t.Run("duplicate detection", func(t *testing.T) {
+		dir := journalDataDir(t)
+
+		rulesRel := "rules/test.rules"
+		rulesAbs := filepath.Join(dir, rulesRel)
+		if err := os.MkdirAll(filepath.Dir(rulesAbs), 0755); err != nil {
+			t.Fatal(err)
+		}
+		rulesData, err := os.ReadFile(testdataPath("import.rules"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(rulesAbs, rulesData, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := &config.Config{
+			BankProfiles: []config.BankProfile{
+				{Name: "testbank", RulesFile: rulesRel},
+			},
+		}
+		if err := config.Save(filepath.Join(dir, "config.toml"), cfg); err != nil {
+			t.Fatal(err)
+		}
+
+		// First import.
+		flush := captureStdout(t)
+		if err := runJournalImport([]string{dir, testdataPath("import.csv"),
+			"--profile", "testbank", "--yes",
+		}); err != nil {
+			_ = flush()
+			t.Fatalf("first import: %v", err)
+		}
+		_ = flush()
+
+		// Second import of same CSV — all should be duplicates.
+		flush = captureStdout(t)
+		if err := runJournalImport([]string{dir, testdataPath("import.csv"),
+			"--profile", "testbank", "--yes",
+		}); err != nil {
+			_ = flush()
+			t.Fatalf("second import: %v", err)
+		}
+		out := flush()
+		if !strings.Contains(out, "nothing to import") {
+			t.Errorf("expected 'nothing to import' on second run, got: %s", out)
+		}
+	})
+}
+
+// extractFirstFID reads main.journal and returns the first fid tag found.
+func extractFirstFID(t *testing.T, dir string) string {
+	t.Helper()
+	mainData, err := os.ReadFile(filepath.Join(dir, "main.journal"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(mainData), "\n") {
+		if strings.HasPrefix(line, "include ") {
+			rel := strings.TrimPrefix(line, "include ")
+			data, readErr := os.ReadFile(filepath.Join(dir, strings.TrimSpace(rel)))
+			if readErr != nil {
+				continue
+			}
+			for _, jline := range strings.Split(string(data), "\n") {
+				if idx := strings.Index(jline, "fid:"); idx >= 0 {
+					return jline[idx+4 : idx+12]
+				}
+			}
+		}
+	}
+	t.Fatal("could not extract a FID from generated journal")
+	return ""
 }

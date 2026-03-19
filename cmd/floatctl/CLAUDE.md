@@ -37,8 +37,21 @@ floatctl help
 floatctl <group> help
 ```
 
-Flags must precede positional arguments (standard Go `flag` package behavior).
 Each command creates its own `flag.NewFlagSet` with `flag.ExitOnError`.
+
+**Two positional-arg conventions exist depending on the command:**
+
+1. **Flags-first** (read-only commands with no mandatory data-dir): flags precede positional args, which are then read via `fset.Arg(0)`, `fset.Arg(1)`, etc. Standard Go `flag` package behavior — parsing stops at the first non-flag argument.
+   ```
+   floatctl hledger balance [--depth N] <journal> [query...]
+   ```
+
+2. **Data-dir-first** (write commands that take `<data-dir>` and optional flags): `<data-dir>` and other positional args are extracted from `args[0]`, `args[1]`, etc. before calling `fset.Parse(args[N:])`. This lets flags follow the data-dir naturally.
+   ```
+   floatctl journal add <data-dir> --description "..." --posting "..."
+   floatctl journal import <data-dir> <csv> --profile <name>
+   ```
+   When implementing a new write command using this pattern, extract positional args from `args` before calling `fset.Parse`.
 
 ## File Layout
 
@@ -84,6 +97,9 @@ floatctl hledger raw                  <journal> <subcmd> [args...]
 ### `journal` group — journal file management
 
 ```
+floatctl journal add          <data-dir> --description <text> --posting "account  [amount]" [--posting ...] [--date YYYY-MM-DD] [--comment <text>]
+floatctl journal delete       <data-dir> <fid>
+floatctl journal import       <data-dir> <csv> --profile <name> [--yes]
 floatctl journal verify       <data-dir>
 floatctl journal migrate-fids <data-dir>
 floatctl journal list-files   <data-dir>
@@ -94,6 +110,9 @@ floatctl journal audit        <data-dir>
 
 | Subcommand      | Description |
 |-----------------|-------------|
+| `add`           | Add a new transaction via `txlock.Do()`. `--posting` is repeatable (min 2); format is `"account  amount"` (2+ spaces) or `"account"` for auto-balance. |
+| `delete`        | Remove the transaction with the given `fid` from its journal file via `txlock.Do()`. Exits non-zero if not found. |
+| `import`        | Parse `<csv>` using the rules file from the named bank profile in `config.toml`. Prints a preview with `[NEW]`/`[DUP]` status for each transaction (duplicate = same date+description+amounts as an existing transaction). Prompts for confirmation unless `--yes`. Writes new transactions via `txlock.Do()`. |
 | `verify`        | Run `hledger check` on `main.journal` in the data directory; print `ok` or error |
 | `migrate-fids`  | Scan all included journal files, add `fid` tags to any untagged transactions |
 | `list-files`    | Walk the data directory and print all `.journal` file paths |
@@ -119,45 +138,19 @@ floatctl config validate <config.toml>
 
 Commands are unlocked as the corresponding internal packages are built.
 
-### `git` group — snapshot management (Step 3)
+### `journal` group additions — git snapshots (Step 12)
 
 ```
-floatctl git log     <data-dir>
-floatctl git restore <data-dir> <commit-hash>
-floatctl git status  <data-dir>
-```
-
-| Subcommand | Description |
-|------------|-------------|
-| `log`      | List recent git snapshots (hash, message, timestamp) |
-| `restore`  | Hard-reset data directory to a given commit hash |
-| `status`   | Show uncommitted changes in the data directory |
-
-### `txn` group — transaction admin (Step 7)
-
-```
-floatctl txn add    <data-dir>
-floatctl txn delete <data-dir> <fid>
-```
-
-| Subcommand | Description |
-|------------|-------------|
-| `add`      | Add a transaction directly via `txlock` (bypasses gRPC) |
-| `delete`   | Delete a transaction by `fid` via `txlock` (bypasses gRPC) |
-
-### `import` group — import pipeline debug (Step 9)
-
-```
-floatctl import preview    <data-dir> <csv> --profile <name>
-floatctl import rules-test <csv> <rules>
+floatctl journal snapshots <data-dir>
+floatctl journal restore   <data-dir> <commit-hash>
 ```
 
 | Subcommand    | Description |
 |---------------|-------------|
-| `preview`     | Preview a CSV import without committing; print candidates + duplicates |
-| `rules-test`  | Test a rules file against a CSV; print parsed transactions as JSON |
+| `snapshots`   | List recent git snapshots (hash, message, timestamp) |
+| `restore`     | Hard-reset data directory to a given commit hash |
 
-### `rules` group — rules file inspection (Step 10)
+### `rules` group — rules file inspection (Step 5)
 
 ```
 floatctl rules list <data-dir>
@@ -169,7 +162,7 @@ floatctl rules show <data-dir> <profile>
 | `list`     | List all rules files in `data/rules/` |
 | `show`     | Print the raw contents of a rules file |
 
-### `cache` group — query cache admin (Step 11)
+### `cache` group — query cache admin (Step 10)
 
 ```
 floatctl cache stats

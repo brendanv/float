@@ -42,3 +42,7 @@ depends = ["lint", "test"]
 [tasks.check-all]
 description = "Full pre-commit gate: lint + vet + test"
 depends = ["lint", "vet", "test"]
+
+[tasks.floatctl]
+description = "Run floatctl"
+run = "go run ./cmd/floatctl/"

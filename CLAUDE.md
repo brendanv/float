@@ -102,6 +102,20 @@ floatctl <group> help
 | `floatctl hledger version` | Print hledger binary version |
 | `floatctl hledger check <journal>` | Validate journal; exit 0 if valid |
 
+**Current commands (`journal` group):**
+
+| Command | Description |
+|---------|-------------|
+| `floatctl journal add <data-dir> --description <text> --posting "account  amount" [--posting ...]` | Add a transaction via txlock |
+| `floatctl journal delete <data-dir> <fid>` | Delete a transaction by fid via txlock |
+| `floatctl journal import <data-dir> <csv> --profile <name> [--yes]` | Preview and import a CSV using a bank profile's rules |
+| `floatctl journal verify <data-dir>` | Run `hledger check`; print `ok` or error |
+| `floatctl journal lookup <data-dir> <fid>` | Look up a transaction by fid, print as JSON |
+| `floatctl journal stats <data-dir>` | Print journal statistics as JSON |
+| `floatctl journal audit <data-dir>` | Check include integrity, FID uniqueness, orphaned files |
+| `floatctl journal migrate-fids <data-dir>` | Add fid tags to any untagged transactions |
+| `floatctl journal list-files <data-dir>` | List all `.journal` files under the data directory |
+
 **Adding a new command:** create a new file per group (e.g. `journal.go`), register via `init()` — do not edit `main.go` or `registry.go`.
 
 ## Go Practices for This Repo

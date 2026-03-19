@@ -189,6 +189,20 @@ func (c *Client) PrintText(ctx context.Context, journalFile string) (string, err
 	return string(stdout), nil
 }
 
+// Transactions runs `hledger print -O json -f <journal> [query...]`.
+// Returns parsed transactions.
+func (c *Client) Transactions(ctx context.Context, query ...string) ([]Transaction, error) {
+	args := []string{"print", "-O", "json", "-f", c.journal}
+	args = append(args, query...)
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger print: %w", err))
+	}
+
+	return parseTransactions(stdout)
+}
+
 // PrintCSV runs `hledger print -O json --rules-file <rulesFile> -f <csvFile>`.
 // Used for import preview — no journal file is needed/written.
 func (c *Client) PrintCSV(ctx context.Context, csvFile, rulesFile string) ([]Transaction, error) {
