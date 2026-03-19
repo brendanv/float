@@ -65,7 +65,11 @@ flag "--depth <depth>" help="Balance depth (0 = all)" default="0"
 flag "--query <query>" help="hledger query filter (e.g. expenses)"
 '''
 run = '''
-DATA="{\"depth\":$usage_depth${usage_query:+,\"query\":[\"$usage_query\"]}}"
+if [ -n "$usage_query" ]; then
+  DATA="{\"depth\":$usage_depth,\"query\":[\"$usage_query\"]}"
+else
+  DATA="{\"depth\":$usage_depth}"
+fi
 buf curl --schema . --protocol grpc --http2-prior-knowledge \
   "http://$usage_addr/float.v1.LedgerService/GetBalances" \
   --data "$DATA"
@@ -78,10 +82,14 @@ flag "--addr <addr>" help="Server address" default="localhost:8080"
 flag "--query <query>" help="hledger query filter (e.g. \"date:2026-01 expenses\")"
 '''
 run = '''
-DATA="${usage_query:+{\"query\":[\"$usage_query\"]}}"
+if [ -n "$usage_query" ]; then
+  DATA="{\"query\":[\"$usage_query\"]}"
+else
+  DATA="{}"
+fi
 buf curl --schema . --protocol grpc --http2-prior-knowledge \
   "http://$usage_addr/float.v1.LedgerService/ListTransactions" \
-  --data "${DATA:-{}}"
+  --data "$DATA"
 '''
 
 [tasks.grpc-accounts]
