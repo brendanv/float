@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/slogctx"
 )
 
 // DeleteTransaction removes the transaction tagged with fid from its journal file.
@@ -32,7 +33,11 @@ func DeleteTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 	sourceFile := txn.SourcePos[0].File
 	sourceLine := txn.SourcePos[0].Line // 1-indexed header line
 
-	return removeTransactionAtLine(sourceFile, sourceLine, fid)
+	if err := removeTransactionAtLine(sourceFile, sourceLine, fid); err != nil {
+		return err
+	}
+	slogctx.FromContext(ctx).InfoContext(ctx, "journal: transaction deleted", "fid", fid, "file", sourceFile, "line", sourceLine)
+	return nil
 }
 
 // removeTransactionAtLine removes the transaction block starting at headerLine
