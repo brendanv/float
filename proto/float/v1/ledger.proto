@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package float.v1;
+
+option go_package = "github.com/brendanv/float/gen/float/v1;floatv1";
+
+message Amount {
+  string commodity = 1; // e.g. "$"
+  string quantity = 2; // e.g. "25.00" (formatted decimal)
+}
+
+message Posting {
+  string account = 1;
+  repeated Amount amounts = 2;
+  string comment = 3;
+}
+
+message Transaction {
+  string fid = 1; // 8-char UUID prefix; empty if untagged
+  string date = 2; // "YYYY-MM-DD"
+  string description = 3;
+  string comment = 4;
+  repeated Posting postings = 5;
+}
+
+message BalanceRow {
+  string display_name = 1; // short segment (e.g. "checking")
+  string full_name = 2; // full colon path (e.g. "assets:checking")
+  int32 indent = 3;
+  repeated Amount amounts = 4;
+}
+
+message BalanceReport {
+  repeated BalanceRow rows = 1;
+  repeated Amount total = 2;
+}
+
+message Account {
+  string name = 1; // short segment
+  string full_name = 2; // full colon path
+  string type = 3; // "A", "L", "E", "R", "X", "C", "V"
+}
+
+message ListTransactionsRequest {
+  repeated string query = 1; // hledger query tokens (optional)
+}
+
+message ListTransactionsResponse {
+  repeated Transaction transactions = 1;
+}
+
+message GetBalancesRequest {
+  int32 depth = 1; // 0 = no --depth flag
+  repeated string query = 2;
+}
+
+message GetBalancesResponse {
+  BalanceReport report = 1;
+}
+
+message ListAccountsRequest {}
+
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+}
+
+service LedgerService {
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+  rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+}
