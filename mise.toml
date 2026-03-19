@@ -44,5 +44,5 @@ description = "Full pre-commit gate: lint + vet + test"
 depends = ["lint", "vet", "test"]
 
 [tasks.floatctl]
-description = "Run floatctl (pass args after --)"
-run = "go run ./cmd/floatctl/ {{args}}"
+description = "Run floatctl"
+run = "go run ./cmd/floatctl/"
