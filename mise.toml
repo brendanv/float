@@ -46,3 +46,42 @@ depends = ["lint", "vet", "test"]
 [tasks.floatctl]
 description = "Run floatctl"
 run = "go run ./cmd/floatctl/"
+
+[tasks.floatd]
+description = "Build and run floatd (set FLOAT_DATA_DIR or falls back to $VAULT_DATA_DIR)"
+run = """
+go run ./cmd/floatd/ --data-dir "${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}" ${FLOAT_ADDR:+--addr "$FLOAT_ADDR"}
+"""
+
+[tasks.proto-gen]
+description = "Regenerate Go code from .proto files"
+run = "buf generate"
+
+[tasks.grpc-balances]
+description = "Query GetBalances (set FLOAT_ADDR to override localhost:8080; FLOAT_DEPTH and FLOAT_QUERY optional)"
+run = """
+ADDR="${FLOAT_ADDR:-localhost:8080}"
+DATA="{\"depth\":${FLOAT_DEPTH:-0}${FLOAT_QUERY:+,\"query\":[\"$FLOAT_QUERY\"]}}"
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$ADDR/float.v1.LedgerService/GetBalances" \
+  --data "$DATA"
+"""
+
+[tasks.grpc-transactions]
+description = "Query ListTransactions (set FLOAT_ADDR to override localhost:8080; FLOAT_QUERY optional)"
+run = """
+ADDR="${FLOAT_ADDR:-localhost:8080}"
+DATA="${FLOAT_QUERY:+{\"query\":[\"$FLOAT_QUERY\"]}}"
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$ADDR/float.v1.LedgerService/ListTransactions" \
+  --data "${DATA:-{}}"
+"""
+
+[tasks.grpc-accounts]
+description = "Query ListAccounts (set FLOAT_ADDR to override localhost:8080)"
+run = """
+ADDR="${FLOAT_ADDR:-localhost:8080}"
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$ADDR/float.v1.LedgerService/ListAccounts" \
+  --data "{}"
+"""
