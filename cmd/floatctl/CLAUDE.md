@@ -68,6 +68,7 @@ floatctl hledger register             <journal> [query...]
 floatctl hledger print-csv            <csv> <rules>
 floatctl hledger version
 floatctl hledger check                <journal>
+floatctl hledger raw                  <journal> <subcmd> [args...]
 ```
 
 | Subcommand  | Description |
@@ -78,6 +79,7 @@ floatctl hledger check                <journal>
 | `print-csv` | Run `hledger print` on a CSV+rules file, print parsed `Transaction` slice as JSON |
 | `version`   | Print the hledger binary version string |
 | `check`     | Run `hledger check` on a journal; exit 0 if valid, 1 with error message |
+| `raw`       | Run any hledger subcommand with arbitrary args; print raw stdout (escape hatch for debugging). The exact command is printed to stderr as `# command: ...` |
 
 ### `journal` group — journal file management
 
@@ -85,6 +87,9 @@ floatctl hledger check                <journal>
 floatctl journal verify       <data-dir>
 floatctl journal migrate-fids <data-dir>
 floatctl journal list-files   <data-dir>
+floatctl journal lookup       <data-dir> <fid>
+floatctl journal stats        <data-dir>
+floatctl journal audit        <data-dir>
 ```
 
 | Subcommand      | Description |
@@ -92,6 +97,9 @@ floatctl journal list-files   <data-dir>
 | `verify`        | Run `hledger check` on `main.journal` in the data directory; print `ok` or error |
 | `migrate-fids`  | Scan all included journal files, add `fid` tags to any untagged transactions |
 | `list-files`    | Walk the data directory and print all `.journal` file paths |
+| `lookup`        | Look up a transaction by `fid` tag using `hledger reg tag:fid=<fid>`; print as JSON. Exits non-zero if not found |
+| `stats`         | Print journal statistics as JSON: file count, transaction count, date range, account count, total size |
+| `audit`         | Audit journal integrity: checks include directives exist, FIDs are unique, no orphaned journal files. Prints JSON report; exits non-zero if any issues found |
 
 ### `config` group — configuration inspection
 
@@ -128,14 +136,12 @@ floatctl git status  <data-dir>
 ### `txn` group — transaction admin (Step 7)
 
 ```
-floatctl txn lookup <data-dir> <fid>
 floatctl txn add    <data-dir>
 floatctl txn delete <data-dir> <fid>
 ```
 
 | Subcommand | Description |
 |------------|-------------|
-| `lookup`   | Look up a transaction by `fid` tag, print as JSON |
 | `add`      | Add a transaction directly via `txlock` (bypasses gRPC) |
 | `delete`   | Delete a transaction by `fid` via `txlock` (bypasses gRPC) |
 

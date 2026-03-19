@@ -34,10 +34,10 @@ func captureStdout(t *testing.T) func() string {
 			return ""
 		}
 		restored = true
-		w.Close()
+		_ = w.Close()
 		os.Stdout = orig
 		out, _ := io.ReadAll(r)
-		r.Close()
+		_ = r.Close()
 		return string(out)
 	}
 	t.Cleanup(func() { restore() })

@@ -11,10 +11,34 @@ VAULT_DATA_DIR = "{{config_root}}/data"
 description = "Run all tests"
 run = "go test ./..."
 
+[tasks.test-v]
+description = "Run all tests with verbose output"
+run = "go test -v ./..."
+
 [tasks.lint]
 description = "Run golangci-lint"
 run = "golangci-lint run ./..."
 
+[tasks.vet]
+description = "Run go vet"
+run = "go vet ./..."
+
+[tasks.tidy]
+description = "Run go mod tidy"
+run = "go mod tidy"
+
+[tasks.coverage]
+description = "Run tests with coverage and open HTML report"
+run = "go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out"
+
+[tasks.bench]
+description = "Run all benchmarks"
+run = "go test -bench=. -benchmem ./..."
+
 [tasks.check]
 description = "Lint + test"
 depends = ["lint", "test"]
+
+[tasks.check-all]
+description = "Full pre-commit gate: lint + vet + test"
+depends = ["lint", "vet", "test"]

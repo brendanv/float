@@ -81,6 +81,33 @@ func (c *Client) run(ctx context.Context, args ...string) (stdout []byte, stderr
 	return c.runner(ctx, c.bin, args...)
 }
 
+// cmdError wraps a runner error with the full command line and any stderr output,
+// so callers can see exactly what hledger invocation failed and why.
+func cmdError(bin string, args []string, stderr []byte, err error) error {
+	cmd := bin
+	if len(args) > 0 {
+		cmd += " " + strings.Join(args, " ")
+	}
+	se := strings.TrimSpace(string(stderr))
+	if se != "" {
+		return fmt.Errorf("%w\ncommand: %s\nstderr: %s", err, cmd, se)
+	}
+	return fmt.Errorf("%w\ncommand: %s", err, cmd)
+}
+
+// RunRaw executes hledger with arbitrary args and returns stdout, stderr, and
+// any error. The full command line is included in the returned cmdLine string
+// for display purposes. This is an escape hatch for debugging — prefer the
+// typed methods (Balances, Register, etc.) for production code.
+func (c *Client) RunRaw(ctx context.Context, args ...string) (stdout, stderr []byte, cmdLine string, err error) {
+	cmdLine = c.bin
+	if len(args) > 0 {
+		cmdLine += " " + strings.Join(args, " ")
+	}
+	stdout, stderr, err = c.run(ctx, args...)
+	return
+}
+
 // Version returns the hledger version string.
 func (c *Client) Version(ctx context.Context) (string, error) {
 	stdout, _, err := c.run(ctx, "--version")
@@ -109,9 +136,9 @@ func (c *Client) Balances(ctx context.Context, depth int, query ...string) (*Bal
 	}
 	args = append(args, query...)
 
-	stdout, _, err := c.run(ctx, args...)
+	stdout, stderr, err := c.run(ctx, args...)
 	if err != nil {
-		return nil, fmt.Errorf("hledger bal: %w", err)
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bal: %w", err))
 	}
 
 	return parseBalanceReport(stdout)
@@ -123,9 +150,9 @@ func (c *Client) Register(ctx context.Context, query ...string) ([]RegisterRow, 
 	args := []string{"reg", "-O", "json", "-f", c.journal}
 	args = append(args, query...)
 
-	stdout, _, err := c.run(ctx, args...)
+	stdout, stderr, err := c.run(ctx, args...)
 	if err != nil {
-		return nil, fmt.Errorf("hledger reg: %w", err)
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger reg: %w", err))
 	}
 
 	return parseRegisterRows(stdout)
@@ -139,9 +166,9 @@ func (c *Client) Accounts(ctx context.Context, tree bool) ([]*AccountNode, error
 		args = append(args, "--tree")
 	}
 
-	stdout, _, err := c.run(ctx, args...)
+	stdout, stderr, err := c.run(ctx, args...)
 	if err != nil {
-		return nil, fmt.Errorf("hledger accounts: %w", err)
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger accounts: %w", err))
 	}
 
 	if tree {
@@ -154,9 +181,10 @@ func (c *Client) Accounts(ctx context.Context, tree bool) ([]*AccountNode, error
 // output. Used to normalize/canonicalize transaction text before appending to
 // real journal files.
 func (c *Client) PrintText(ctx context.Context, journalFile string) (string, error) {
-	stdout, _, err := c.run(ctx, "print", "-f", journalFile)
+	printArgs := []string{"print", "-f", journalFile}
+	stdout, stderr, err := c.run(ctx, printArgs...)
 	if err != nil {
-		return "", fmt.Errorf("hledger print: %w", err)
+		return "", cmdError(c.bin, printArgs, stderr, fmt.Errorf("hledger print: %w", err))
 	}
 	return string(stdout), nil
 }
@@ -166,9 +194,9 @@ func (c *Client) PrintText(ctx context.Context, journalFile string) (string, err
 func (c *Client) PrintCSV(ctx context.Context, csvFile, rulesFile string) ([]Transaction, error) {
 	args := []string{"print", "-O", "json", "--rules-file", rulesFile, "-f", csvFile}
 
-	stdout, _, err := c.run(ctx, args...)
+	stdout, stderr, err := c.run(ctx, args...)
 	if err != nil {
-		return nil, fmt.Errorf("hledger print csv: %w", err)
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger print csv: %w", err))
 	}
 
 	return parseTransactions(stdout)

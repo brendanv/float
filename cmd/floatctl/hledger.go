@@ -48,6 +48,12 @@ func init() {
 			Synopsis: "Run hledger check on a journal; exit 0 if valid, 1 with error message",
 			Run:      runHledgerCheck,
 		},
+		&Command{
+			Group:    "hledger",
+			Name:     "raw",
+			Synopsis: "Run any hledger subcommand with arbitrary args; print raw stdout (escape hatch for debugging)",
+			Run:      runHledgerRaw,
+		},
 	)
 }
 
@@ -212,4 +218,42 @@ func runHledgerCheck(args []string) error {
 	}
 	fmt.Println("ok")
 	return nil
+}
+
+func runHledgerRaw(args []string) error {
+	fs := flag.NewFlagSet("hledger raw", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: floatctl hledger raw <journal> <subcmd> [args...]")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Runs hledger with arbitrary args and prints raw stdout.")
+		fmt.Fprintln(os.Stderr, "The exact command is printed to stderr as '# command: ...'.")
+		fmt.Fprintln(os.Stderr, "Useful for debugging parse failures and unexpected hledger output.")
+	}
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() < 2 {
+		fs.Usage()
+		return fmt.Errorf("missing <journal> and/or <subcmd> argument")
+	}
+	journal := fs.Arg(0)
+	subcmd := fs.Arg(1)
+	rest := fs.Args()[2:]
+
+	c, err := hledgerClient(journal)
+	if err != nil {
+		return err
+	}
+
+	hledgerArgs := append([]string{subcmd, "-f", journal}, rest...)
+	stdout, stderr, cmdLine, err := c.RunRaw(context.Background(), hledgerArgs...)
+
+	fmt.Fprintf(os.Stderr, "# command: %s\n", cmdLine)
+	if len(stderr) > 0 {
+		fmt.Fprintf(os.Stderr, "# stderr:\n%s\n", stderr)
+	}
+	if len(stdout) > 0 {
+		_, _ = os.Stdout.Write(stdout)
+	}
+	return err
 }
