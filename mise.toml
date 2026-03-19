@@ -59,23 +59,23 @@ run = "buf generate"
 
 [tasks.grpc-balances]
 description = "Query GetBalances (set FLOAT_ADDR to override localhost:8080; FLOAT_DEPTH and FLOAT_QUERY optional)"
-run = """
+run = '''
 ADDR="${FLOAT_ADDR:-localhost:8080}"
 DATA="{\"depth\":${FLOAT_DEPTH:-0}${FLOAT_QUERY:+,\"query\":[\"$FLOAT_QUERY\"]}}"
 buf curl --schema . --protocol grpc --http2-prior-knowledge \
   "http://$ADDR/float.v1.LedgerService/GetBalances" \
   --data "$DATA"
-"""
+'''
 
 [tasks.grpc-transactions]
 description = "Query ListTransactions (set FLOAT_ADDR to override localhost:8080; FLOAT_QUERY optional)"
-run = """
+run = '''
 ADDR="${FLOAT_ADDR:-localhost:8080}"
 DATA="${FLOAT_QUERY:+{\"query\":[\"$FLOAT_QUERY\"]}}"
 buf curl --schema . --protocol grpc --http2-prior-knowledge \
   "http://$ADDR/float.v1.LedgerService/ListTransactions" \
   --data "${DATA:-{}}"
-"""
+'''
 
 [tasks.grpc-accounts]
 description = "Query ListAccounts (set FLOAT_ADDR to override localhost:8080)"
