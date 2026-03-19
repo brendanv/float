@@ -437,7 +437,7 @@ func runJournalDelete(args []string) error {
 	}
 	lock := txlock.New(dataDir, client)
 	if err := lock.Do(context.Background(), func() error {
-		return journal.DeleteTransaction(dataDir, fid)
+		return journal.DeleteTransaction(context.Background(), client, dataDir, fid)
 	}); err != nil {
 		return err
 	}

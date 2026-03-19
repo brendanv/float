@@ -1,69 +1,53 @@
 package journal
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/brendanv/float/internal/hledger"
 )
 
-// DeleteTransaction removes the transaction tagged with fid from the journal files.
-// It scans all files included from main.journal, finds the transaction block
-// containing fid:<fid>, and removes it.
+// DeleteTransaction removes the transaction tagged with fid from its journal file.
+// It uses hledger to look up the transaction's exact source location, then removes
+// the transaction block at that line.
 // Returns an error if the fid is not found or if file I/O fails.
 // Callers must wrap this in txlock.Do().
-func DeleteTransaction(dataDir, fid string) error {
-	mainPath := filepath.Join(dataDir, "main.journal")
-	mainData, err := os.ReadFile(mainPath)
+func DeleteTransaction(ctx context.Context, client *hledger.Client, dataDir, fid string) error {
+	txns, err := client.Transactions(ctx, "tag:fid="+fid)
 	if err != nil {
-		return fmt.Errorf("journal: delete: read main.journal: %w", err)
+		return fmt.Errorf("journal: delete: lookup fid %q: %w", fid, err)
+	}
+	if len(txns) == 0 {
+		return fmt.Errorf("journal: delete: no transaction found with fid %q", fid)
 	}
 
-	var includes []string
-	for _, line := range strings.Split(string(mainData), "\n") {
-		if m := includeRe.FindStringSubmatch(strings.TrimSpace(line)); m != nil {
-			includes = append(includes, strings.TrimSpace(m[1]))
-		}
-	}
+	txn := txns[0]
+	sourceFile := txn.SourcePos[0].File
+	sourceLine := txn.SourcePos[0].Line // 1-indexed header line
 
-	for _, rel := range includes {
-		abs := filepath.Join(dataDir, rel)
-		removed, err := removeTransactionFromFile(abs, fid)
-		if err != nil {
-			return err
-		}
-		if removed {
-			return nil
-		}
-	}
-	return fmt.Errorf("journal: delete: no transaction found with fid %q", fid)
+	return removeTransactionAtLine(sourceFile, sourceLine, fid)
 }
 
-// removeTransactionFromFile removes the transaction containing fid from path.
-// Returns true if found and removed, false if not found.
-func removeTransactionFromFile(path, fid string) (bool, error) {
+// removeTransactionAtLine removes the transaction block starting at headerLine
+// (1-indexed) from path. The fid is used only as a sanity check on the header.
+func removeTransactionAtLine(path string, headerLine int, fid string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("journal: delete: read %s: %w", path, err)
+		return fmt.Errorf("journal: delete: read %s: %w", path, err)
 	}
 
 	lines := strings.Split(string(data), "\n")
-	fidPat := "fid:" + fid
+	headerIdx := headerLine - 1 // convert to 0-indexed
 
-	// Find the transaction header line containing this fid.
-	// fid is always on the transaction header line (see format.go).
-	headerIdx := -1
-	for i, line := range lines {
-		if txnHeaderRe.MatchString(line) && strings.Contains(line, fidPat) {
-			headerIdx = i
-			break
-		}
+	if headerIdx < 0 || headerIdx >= len(lines) {
+		return fmt.Errorf("journal: delete: source line %d out of range in %s", headerLine, path)
 	}
-	if headerIdx < 0 {
-		return false, nil
+
+	// Sanity check: the line should be a transaction header containing the fid.
+	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "fid:"+fid) {
+		return fmt.Errorf("journal: delete: line %d in %s does not match expected transaction header for fid %q", headerLine, path, fid)
 	}
 
 	// Walk forward to find the end of the transaction block (non-blank lines).
@@ -81,7 +65,7 @@ func removeTransactionFromFile(path, fid string) (bool, error) {
 	newContent := strings.Join(newLines, "\n")
 
 	if err := os.WriteFile(path, []byte(newContent), 0644); err != nil {
-		return false, fmt.Errorf("journal: delete: write %s: %w", path, err)
+		return fmt.Errorf("journal: delete: write %s: %w", path, err)
 	}
-	return true, nil
+	return nil
 }

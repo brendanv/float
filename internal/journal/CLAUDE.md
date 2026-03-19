@@ -14,6 +14,7 @@ delegated to `internal/hledger`.
 | `fid.go` | `MintFID()` — generates random 8-char lowercase hex FID |
 | `format.go` | `TransactionInput`, `PostingInput`, `FormatViaHledger()`, `draftFormat()` |
 | `files.go` | `EnsureMonthFile()`, `UpdateMainIncludes()`, `AppendTransaction()` |
+| `delete.go` | `DeleteTransaction()` — removes a transaction by fid using hledger source locations |
 | `migrate.go` | `MigrateFIDs()` — back-fills `fid` tags on untagged transactions |
 
 ## Key Functions
@@ -56,6 +57,18 @@ relPath, created, err := journal.EnsureMonthFile(dataDir, 2026, 1)
 // Add "include 2026/01.journal" to main.journal (idempotent)
 err := journal.UpdateMainIncludes(mainPath, "2026/01.journal")
 ```
+
+### Deleting a Transaction
+
+```go
+err := journal.DeleteTransaction(ctx, hledgerClient, dataDir, fid)
+```
+
+Uses `hledger print -O json tag:fid=<fid>` to get the transaction's exact source
+file and line number (`tsourcepos`), then removes that block directly — no file
+scanning. The fid presence on the header line is verified as a sanity check.
+`DeleteTransaction` does **not** acquire `txlock` — callers must wrap it in
+`txlock.Do()`.
 
 ### Migration
 

@@ -9,10 +9,20 @@ import (
 	"github.com/brendanv/float/internal/testgen"
 )
 
+func mustHledgerClient(t *testing.T, dataDir string) *hledger.Client {
+	t.Helper()
+	client, err := hledger.New("hledger", dataDir+"/main.journal")
+	if err != nil {
+		t.Fatalf("hledger.New: %v", err)
+	}
+	return client
+}
+
 func TestDeleteTransaction(t *testing.T) {
 	t.Run("not_found", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 1, NumTxns: 3, WithFIDs: true})
-		err := DeleteTransaction(dir, "00000000")
+		client := mustHledgerClient(t, dir)
+		err := DeleteTransaction(t.Context(), client, dir, "00000000")
 		if err == nil {
 			t.Fatal("expected error for non-existent fid, got nil")
 		}
@@ -23,11 +33,7 @@ func TestDeleteTransaction(t *testing.T) {
 
 	t.Run("removes_transaction", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 2, NumTxns: 3, WithFIDs: true})
-
-		client, err := hledger.New("hledger", dir+"/main.journal")
-		if err != nil {
-			t.Fatalf("hledger.New: %v", err)
-		}
+		client := mustHledgerClient(t, dir)
 
 		// Add a transaction so we have a known fid.
 		tx := TransactionInput{
@@ -53,7 +59,7 @@ func TestDeleteTransaction(t *testing.T) {
 		}
 
 		// Delete it.
-		if err := DeleteTransaction(dir, fid); err != nil {
+		if err := DeleteTransaction(t.Context(), client, dir, fid); err != nil {
 			t.Fatalf("DeleteTransaction: %v", err)
 		}
 
@@ -74,11 +80,7 @@ func TestDeleteTransaction(t *testing.T) {
 
 	t.Run("idempotent_after_delete", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 3, NumTxns: 2, WithFIDs: true})
-
-		client, err := hledger.New("hledger", dir+"/main.journal")
-		if err != nil {
-			t.Fatalf("hledger.New: %v", err)
-		}
+		client := mustHledgerClient(t, dir)
 
 		tx := TransactionInput{
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
@@ -93,12 +95,12 @@ func TestDeleteTransaction(t *testing.T) {
 			t.Fatalf("AppendTransaction: %v", err)
 		}
 
-		if err := DeleteTransaction(dir, fid); err != nil {
+		if err := DeleteTransaction(t.Context(), client, dir, fid); err != nil {
 			t.Fatalf("first DeleteTransaction: %v", err)
 		}
 
 		// Second delete should return "not found".
-		err = DeleteTransaction(dir, fid)
+		err = DeleteTransaction(t.Context(), client, dir, fid)
 		if err == nil {
 			t.Fatal("expected error on second delete, got nil")
 		}
