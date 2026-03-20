@@ -13,11 +13,11 @@ import (
 )
 
 // postingLineRe matches the start of a posting line.
-// Posting lines start with 4+ spaces followed by a non-space, non-semicolon character.
-var postingLineRe = regexp.MustCompile(`^\s{4}[^\s;]`)
+// Posting lines start with 1+ spaces followed by a non-space, non-semicolon character.
+var postingLineRe = regexp.MustCompile(`^\s+[^\s;]`)
 
-// anyTagRe matches a tag:value pattern in a comment string.
-var anyTagRe = regexp.MustCompile(`[A-Za-z][A-Za-z0-9_-]*:[^\s,;]+`)
+// anyTagRe matches a tag:value pattern in a comment string, including empty values (e.g. "tag:").
+var anyTagRe = regexp.MustCompile(`[A-Za-z][A-Za-z0-9_-]*:[^\s,;]*`)
 
 // commentLineRe matches a line that is a hledger comment (starts with optional whitespace then ;).
 var commentLineRe = regexp.MustCompile(`^\s*;`)

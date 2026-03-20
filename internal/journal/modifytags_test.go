@@ -133,6 +133,102 @@ func TestModifyTags(t *testing.T) {
 		}
 	})
 
+	t.Run("empty_value_tag_can_be_removed", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 15, NumTxns: 2, WithFIDs: true})
+		client := mustHledgerClient(t, dir)
+
+		tx := TransactionInput{
+			Date:        time.Date(2026, 1, 22, 0, 0, 0, 0, time.UTC),
+			Description: "EMPTY TAG TEST",
+			Postings: []PostingInput{
+				{Account: "expenses:misc", Amount: "$7.00"},
+				{Account: "assets:checking"},
+			},
+		}
+		fid, err := AppendTransaction(t.Context(), client, dir, tx)
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		// Set a tag with an empty value.
+		if err := ModifyTags(t.Context(), client, dir, fid, map[string]string{"review": ""}); err != nil {
+			t.Fatalf("ModifyTags to set empty-value tag: %v", err)
+		}
+
+		// Remove it by passing an empty map.
+		if err := ModifyTags(t.Context(), client, dir, fid, map[string]string{}); err != nil {
+			t.Fatalf("ModifyTags to clear: %v", err)
+		}
+
+		if err := client.Check(t.Context()); err != nil {
+			t.Fatalf("hledger check: %v", err)
+		}
+
+		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		if err != nil {
+			t.Fatalf("Transactions: %v", err)
+		}
+		if len(txns) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(txns))
+		}
+		for _, tag := range txns[0].Tags {
+			if tag[0] == "review" {
+				t.Errorf("review tag should have been removed, still present with value %q", tag[1])
+			}
+		}
+		if txns[0].FID != fid {
+			t.Errorf("fid mismatch: got %q, want %q", txns[0].FID, fid)
+		}
+	})
+
+	t.Run("subsequent_calls_produce_single_tag_line", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 16, NumTxns: 2, WithFIDs: true})
+		client := mustHledgerClient(t, dir)
+
+		tx := TransactionInput{
+			Date:        time.Date(2026, 1, 25, 0, 0, 0, 0, time.UTC),
+			Description: "SINGLE ROW TEST",
+			Postings: []PostingInput{
+				{Account: "expenses:food", Amount: "$9.00"},
+				{Account: "assets:checking"},
+			},
+		}
+		fid, err := AppendTransaction(t.Context(), client, dir, tx)
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		if err := ModifyTags(t.Context(), client, dir, fid, map[string]string{"review": ""}); err != nil {
+			t.Fatalf("first ModifyTags: %v", err)
+		}
+		if err := ModifyTags(t.Context(), client, dir, fid, map[string]string{"category": "food"}); err != nil {
+			t.Fatalf("second ModifyTags: %v", err)
+		}
+
+		if err := client.Check(t.Context()); err != nil {
+			t.Fatalf("hledger check: %v", err)
+		}
+
+		// Verify only one non-fid tag comment line exists in the file.
+		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		if err != nil {
+			t.Fatalf("Transactions: %v", err)
+		}
+		if len(txns) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(txns))
+		}
+		tagMap := make(map[string]string)
+		for _, tag := range txns[0].Tags {
+			tagMap[tag[0]] = tag[1]
+		}
+		if tagMap["category"] != "food" {
+			t.Errorf("category = %q, want %q", tagMap["category"], "food")
+		}
+		if _, ok := tagMap["review"]; ok {
+			t.Errorf("review tag should have been replaced, still present")
+		}
+	})
+
 	t.Run("clears_all_tags", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 13, NumTxns: 2, WithFIDs: true})
 		client := mustHledgerClient(t, dir)
@@ -224,6 +320,48 @@ func TestModifyTags(t *testing.T) {
 	})
 }
 
+func TestModifyTagsTwoSpaceIndent(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte("include 2026/03.journal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/03.journal"),
+		[]byte("2026-03-01 Whole Foods  ; fid:3a4591b0\n  expenses:food  $31.50\n  assets:checking\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	client := mustHledgerClient(t, dir)
+
+	if err := ModifyTags(t.Context(), client, dir, "3a4591b0", map[string]string{"category": "groceries"}); err != nil {
+		t.Fatalf("ModifyTags add: %v", err)
+	}
+	if err := client.Check(t.Context()); err != nil {
+		t.Fatalf("hledger check after add: %v", err)
+	}
+
+	if err := ModifyTags(t.Context(), client, dir, "3a4591b0", map[string]string{}); err != nil {
+		t.Fatalf("ModifyTags clear: %v", err)
+	}
+	if err := client.Check(t.Context()); err != nil {
+		t.Fatalf("hledger check after clear: %v", err)
+	}
+
+	txns, err := client.Transactions(t.Context(), "tag:fid=3a4591b0")
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if len(txns) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txns))
+	}
+	for _, tag := range txns[0].Tags {
+		if tag[0] == "category" {
+			t.Errorf("category tag should have been removed, still present with value %q", tag[1])
+		}
+	}
+}
+
 func TestStripNonFidTagsFromHeaderLine(t *testing.T) {
 	tests := []struct {
 		name string
@@ -292,6 +430,16 @@ func TestStripTagsFromCommentLine(t *testing.T) {
 			name: "mixed line preserves non-tag text",
 			line: "    ; imported from bank, category:food",
 			want: "    ; imported from bank",
+		},
+		{
+			name: "empty-value tag",
+			line: "    ; review:",
+			want: "",
+		},
+		{
+			name: "mixed empty-value and valued tags",
+			line: "    ; review:, category:food",
+			want: "",
 		},
 		{
 			name: "no tags",

@@ -100,3 +100,28 @@ buf curl --schema . --protocol grpc --http2-prior-knowledge \
   "http://$usage_addr/float.v1.LedgerService/ListAccounts" \
   --data "{}"
 '''
+
+[tasks.grpc-delete]
+description = "Delete a transaction by fid"
+usage = '''
+flag "--addr <addr>" help="Server address" default="localhost:8080"
+arg "<fid>" help="8-char fid of the transaction to delete"
+'''
+run = '''
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$usage_addr/float.v1.LedgerService/DeleteTransaction" \
+  --data "{\"fid\":\"$usage_fid\"}"
+'''
+
+[tasks.grpc-modify-tags]
+description = "Replace all non-fid tags on a transaction"
+usage = '''
+flag "--addr <addr>" help="Server address" default="localhost:8080"
+flag "--tags <tags>" help="JSON object of tags e.g. {\"category\":\"food\"}" default="{}"
+arg "<fid>" help="8-char fid of the transaction to update"
+'''
+run = '''
+buf curl --schema . --protocol grpc --http2-prior-knowledge \
+  "http://$usage_addr/float.v1.LedgerService/ModifyTags" \
+  --data "{\"fid\":\"$usage_fid\",\"tags\":$usage_tags}"
+'''
