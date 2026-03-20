@@ -2,23 +2,29 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/slogctx"
+	"github.com/brendanv/float/internal/txlock"
 )
 
-// Handler implements LedgerService read RPCs by delegating to the hledger wrapper.
+// Handler implements LedgerService RPCs by delegating to the hledger wrapper.
 type Handler struct {
 	floatv1connect.UnimplementedLedgerServiceHandler
-	hl *hledger.Client
+	hl      *hledger.Client
+	lock    *txlock.TxLock
+	dataDir string
 }
 
-func NewHandler(hl *hledger.Client) *Handler {
-	return &Handler{hl: hl}
+func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string) *Handler {
+	return &Handler{hl: hl, lock: lock, dataDir: dataDir}
 }
 
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
@@ -67,6 +73,44 @@ func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1
 		accounts[i] = toProtoAccount(n)
 	}
 	return connect.NewResponse(&floatv1.ListAccountsResponse{Accounts: accounts}), nil
+}
+
+func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[floatv1.DeleteTransactionRequest]) (*connect.Response[floatv1.DeleteTransactionResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	fid := req.Msg.Fid
+	if fid == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
+	}
+	err := h.lock.Do(ctx, func() error {
+		return journal.DeleteTransaction(ctx, h.hl, h.dataDir, fid)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "no transaction found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "delete transaction failed", "fid", fid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.DeleteTransactionResponse{}), nil
+}
+
+func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.ModifyTagsRequest]) (*connect.Response[floatv1.ModifyTagsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	fid := req.Msg.Fid
+	if fid == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
+	}
+	err := h.lock.Do(ctx, func() error {
+		return journal.ModifyTags(ctx, h.hl, h.dataDir, fid, req.Msg.Tags)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "no transaction found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "modify tags failed", "fid", fid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.ModifyTagsResponse{}), nil
 }
 
 func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {

@@ -17,6 +17,7 @@ import (
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
+	"github.com/brendanv/float/internal/txlock"
 )
 
 func main() {
@@ -58,7 +59,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := serverledger.NewHandler(hl)
+	lock := txlock.New(*dataDir, hl)
+	handler := serverledger.NewHandler(hl, lock, *dataDir)
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,
