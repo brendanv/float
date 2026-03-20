@@ -3,6 +3,7 @@ go = "1.26.1"
 buf = "1.66.1"
 golangci-lint = "2.11.3"
 hledger = { version = "1.51.2", extract_all = "true" }
+air = "latest"
 
 [env]
 VAULT_DATA_DIR = "{{config_root}}/data"
@@ -48,9 +49,9 @@ description = "Run floatctl"
 run = "go run ./cmd/floatctl/"
 
 [tasks.floatd]
-description = "Build and run floatd (set FLOAT_DATA_DIR or falls back to $VAULT_DATA_DIR)"
+description = "Build and run floatd with hot reload (set FLOAT_DATA_DIR or falls back to $VAULT_DATA_DIR)"
 run = """
-go run ./cmd/floatd/ --data-dir "${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}" ${FLOAT_ADDR:+--addr "$FLOAT_ADDR"} --verbose
+air -c cmd/floatd/.air.toml -- --data-dir "${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}" ${FLOAT_ADDR:+--addr "$FLOAT_ADDR"} --verbose
 """
 
 [tasks.proto-gen]

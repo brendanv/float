@@ -1,0 +1,16 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/floatd ./cmd/floatd/"
+entrypoint = "./tmp/floatd"
+delay = 500
+include_ext = ["go"]
+exclude_dir = ["tmp", "testdata", "gen", "vendor", "data"]
+kill_delay = "500ms"
+
+[log]
+time = false
+
+[misc]
+clean_on_exit = true
