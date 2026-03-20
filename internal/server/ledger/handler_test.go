@@ -4,12 +4,16 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/journal"
+	"github.com/brendanv/float/internal/testgen"
+	"github.com/brendanv/float/internal/txlock"
 )
 
 // versionRunner returns a valid hledger version string for client construction.
@@ -35,7 +39,7 @@ func mustHandler(t *testing.T, data map[string][]byte) *serverledger.Handler {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	return serverledger.NewHandler(c)
+	return serverledger.NewHandler(c, nil, "")
 }
 
 const printJSON = `[
@@ -139,7 +143,7 @@ func TestListTransactionsWithQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c)
+	h := serverledger.NewHandler(c, nil, "")
 
 	_, err = h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{
 		Query: []string{"assets:checking", "date:2026-01"},
@@ -224,4 +228,147 @@ func TestListAccounts(t *testing.T) {
 			t.Errorf("accounts[%d].Type = %q, want %q", tt.idx, a.Type, tt.typ)
 		}
 	}
+}
+
+// mustRealHandler creates a handler backed by a real hledger client and data dir.
+func mustRealHandler(t *testing.T, dir string) *serverledger.Handler {
+	t.Helper()
+	c, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	lock := txlock.New(dir, c)
+	return serverledger.NewHandler(c, lock, dir)
+}
+
+func TestDeleteTransactionHandler(t *testing.T) {
+	t.Run("empty_fid_returns_invalid_argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 20, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.DeleteTransaction(t.Context(), connect.NewRequest(&floatv1.DeleteTransactionRequest{Fid: ""}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		var connectErr *connect.Error
+		if !connect.IsWireError(err) {
+			// check via type assertion
+			_ = connectErr
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("not_found_fid_returns_not_found", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 21, NumTxns: 2, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.DeleteTransaction(t.Context(), connect.NewRequest(&floatv1.DeleteTransactionRequest{Fid: "00000000"}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v, want NotFound", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("deletes_transaction", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 22, NumTxns: 2, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+
+		tx := journal.TransactionInput{
+			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+			Description: "HANDLER DELETE TEST",
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Amount: "$12.00"},
+				{Account: "assets:checking"},
+			},
+		}
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, tx)
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		_, err = h.DeleteTransaction(t.Context(), connect.NewRequest(&floatv1.DeleteTransactionRequest{Fid: fid}))
+		if err != nil {
+			t.Fatalf("DeleteTransaction: %v", err)
+		}
+
+		// Verify gone.
+		txns, err := c.Transactions(t.Context(), "tag:fid="+fid)
+		if err != nil {
+			t.Fatalf("Transactions after delete: %v", err)
+		}
+		if len(txns) != 0 {
+			t.Errorf("transaction still present after delete, got %d", len(txns))
+		}
+	})
+}
+
+func TestModifyTagsHandler(t *testing.T) {
+	t.Run("empty_fid_returns_invalid_argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 30, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.ModifyTags(t.Context(), connect.NewRequest(&floatv1.ModifyTagsRequest{
+			Fid:  "",
+			Tags: map[string]string{"category": "food"},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("modifies_tags", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 31, NumTxns: 2, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+
+		tx := journal.TransactionInput{
+			Date:        time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
+			Description: "HANDLER MODIFY TAGS TEST",
+			Postings: []journal.PostingInput{
+				{Account: "expenses:shopping", Amount: "$30.00"},
+				{Account: "assets:checking"},
+			},
+		}
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, tx)
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		_, err = h.ModifyTags(t.Context(), connect.NewRequest(&floatv1.ModifyTagsRequest{
+			Fid:  fid,
+			Tags: map[string]string{"category": "household"},
+		}))
+		if err != nil {
+			t.Fatalf("ModifyTags: %v", err)
+		}
+
+		txns, err := c.Transactions(t.Context(), "tag:fid="+fid)
+		if err != nil {
+			t.Fatalf("Transactions after modify-tags: %v", err)
+		}
+		if len(txns) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(txns))
+		}
+		tagMap := make(map[string]string)
+		for _, tag := range txns[0].Tags {
+			tagMap[tag[0]] = tag[1]
+		}
+		if tagMap["category"] != "household" {
+			t.Errorf("category = %q, want %q", tagMap["category"], "household")
+		}
+		if tagMap["fid"] != fid {
+			t.Errorf("fid = %q, want %q", tagMap["fid"], fid)
+		}
+	})
 }

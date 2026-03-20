@@ -64,8 +64,23 @@ message ListAccountsResponse {
   repeated Account accounts = 1;
 }
 
+message DeleteTransactionRequest {
+  string fid = 1;
+}
+
+message DeleteTransactionResponse {}
+
+message ModifyTagsRequest {
+  string fid = 1;
+  map<string, string> tags = 2; // complete desired set of non-fid tags
+}
+
+message ModifyTagsResponse {}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);
+  rpc ModifyTags(ModifyTagsRequest) returns (ModifyTagsResponse);
 }

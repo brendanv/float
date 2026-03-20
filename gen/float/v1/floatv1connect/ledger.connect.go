@@ -42,6 +42,12 @@ const (
 	// LedgerServiceListAccountsProcedure is the fully-qualified name of the LedgerService's
 	// ListAccounts RPC.
 	LedgerServiceListAccountsProcedure = "/float.v1.LedgerService/ListAccounts"
+	// LedgerServiceDeleteTransactionProcedure is the fully-qualified name of the LedgerService's
+	// DeleteTransaction RPC.
+	LedgerServiceDeleteTransactionProcedure = "/float.v1.LedgerService/DeleteTransaction"
+	// LedgerServiceModifyTagsProcedure is the fully-qualified name of the LedgerService's ModifyTags
+	// RPC.
+	LedgerServiceModifyTagsProcedure = "/float.v1.LedgerService/ModifyTags"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -49,6 +55,8 @@ type LedgerServiceClient interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
+	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
+	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -80,14 +88,28 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ListAccounts")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteTransaction: connect.NewClient[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse](
+			httpClient,
+			baseURL+LedgerServiceDeleteTransactionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("DeleteTransaction")),
+			connect.WithClientOptions(opts...),
+		),
+		modifyTags: connect.NewClient[v1.ModifyTagsRequest, v1.ModifyTagsResponse](
+			httpClient,
+			baseURL+LedgerServiceModifyTagsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ModifyTags")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // ledgerServiceClient implements LedgerServiceClient.
 type ledgerServiceClient struct {
-	listTransactions *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
-	getBalances      *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
-	listAccounts     *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	listTransactions  *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
+	getBalances       *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
+	listAccounts      *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	deleteTransaction *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
+	modifyTags        *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -105,11 +127,23 @@ func (c *ledgerServiceClient) ListAccounts(ctx context.Context, req *connect.Req
 	return c.listAccounts.CallUnary(ctx, req)
 }
 
+// DeleteTransaction calls float.v1.LedgerService.DeleteTransaction.
+func (c *ledgerServiceClient) DeleteTransaction(ctx context.Context, req *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error) {
+	return c.deleteTransaction.CallUnary(ctx, req)
+}
+
+// ModifyTags calls float.v1.LedgerService.ModifyTags.
+func (c *ledgerServiceClient) ModifyTags(ctx context.Context, req *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error) {
+	return c.modifyTags.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
+	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
+	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -137,6 +171,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ListAccounts")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceDeleteTransactionHandler := connect.NewUnaryHandler(
+		LedgerServiceDeleteTransactionProcedure,
+		svc.DeleteTransaction,
+		connect.WithSchema(ledgerServiceMethods.ByName("DeleteTransaction")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceModifyTagsHandler := connect.NewUnaryHandler(
+		LedgerServiceModifyTagsProcedure,
+		svc.ModifyTags,
+		connect.WithSchema(ledgerServiceMethods.ByName("ModifyTags")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -145,6 +191,10 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetBalancesHandler.ServeHTTP(w, r)
 		case LedgerServiceListAccountsProcedure:
 			ledgerServiceListAccountsHandler.ServeHTTP(w, r)
+		case LedgerServiceDeleteTransactionProcedure:
+			ledgerServiceDeleteTransactionHandler.ServeHTTP(w, r)
+		case LedgerServiceModifyTagsProcedure:
+			ledgerServiceModifyTagsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -164,4 +214,12 @@ func (UnimplementedLedgerServiceHandler) GetBalances(context.Context, *connect.R
 
 func (UnimplementedLedgerServiceHandler) ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListAccounts is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeleteTransaction is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ModifyTags is not implemented"))
 }
