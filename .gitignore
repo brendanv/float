@@ -6,3 +6,6 @@
 # local development data dir (journals, logs, config, etc.)
 /data/*
 !/data/.gitkeep
+
+# air hot-reload build output
+/tmp/
