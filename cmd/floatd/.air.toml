@@ -1,9 +1,9 @@
-root = "../.."
+root = "."
 tmp_dir = "tmp"
 
 [build]
 cmd = "go build -o ./tmp/floatd ./cmd/floatd/"
-bin = "./tmp/floatd"
+entrypoint = "./tmp/floatd"
 delay = 500
 include_ext = ["go"]
 exclude_dir = ["tmp", "testdata", "gen", "vendor", "data"]
