@@ -81,13 +81,11 @@ func parseVersion(output string) (string, error) {
 }
 
 // run executes hledger with args via the configured runner.
-// At slog.LevelDebug it logs the full command and duration.
+// At slog.LevelDebug it logs the command and duration on completion.
 func (c *Client) run(ctx context.Context, args ...string) (stdout []byte, stderr []byte, err error) {
-	logger := slogctx.FromContext(ctx)
-	logger.DebugContext(ctx, "hledger exec", "args", args)
 	start := time.Now()
 	stdout, stderr, err = c.runner(ctx, c.bin, args...)
-	logger.DebugContext(ctx, "hledger done",
+	slogctx.FromContext(ctx).DebugContext(ctx, "hledger",
 		"args", args,
 		"duration_ms", time.Since(start).Milliseconds(),
 		slog.Bool("ok", err == nil),
