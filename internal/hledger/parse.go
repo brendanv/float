@@ -89,7 +89,14 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 	for i := range txns {
 		for _, tag := range txns[i].Tags {
 			if tag[0] == "fid" {
-				txns[i].FID = tag[1]
+				// hledger extends tag values to end of line unless terminated by
+				// a comma, so the value may include trailing comment text
+				// (e.g. "908dc69c my note"). Extract only the 8-char hex prefix.
+				v := tag[1]
+				if len(v) > 8 {
+					v = v[:8]
+				}
+				txns[i].FID = v
 				break
 			}
 		}

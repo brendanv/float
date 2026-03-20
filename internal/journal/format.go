@@ -23,6 +23,7 @@ type TransactionInput struct {
 	Description string
 	Comment     string // optional transaction-level comment (without "; " prefix)
 	Postings    []PostingInput
+	FID         string // optional; if empty, AppendTransaction mints a new fid
 }
 
 // draftFormat renders a TransactionInput + fid as minimal hledger journal text.

@@ -821,6 +821,102 @@ func (*ModifyTagsResponse) Descriptor() ([]byte, []int) {
 	return file_float_v1_ledger_proto_rawDescGZIP(), []int{15}
 }
 
+type UpdateTransactionDateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`
+	NewDate       string                 `protobuf:"bytes,2,opt,name=new_date,json=newDate,proto3" json:"new_date,omitempty"` // "YYYY-MM-DD"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTransactionDateRequest) Reset() {
+	*x = UpdateTransactionDateRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTransactionDateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTransactionDateRequest) ProtoMessage() {}
+
+func (x *UpdateTransactionDateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTransactionDateRequest.ProtoReflect.Descriptor instead.
+func (*UpdateTransactionDateRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *UpdateTransactionDateRequest) GetFid() string {
+	if x != nil {
+		return x.Fid
+	}
+	return ""
+}
+
+func (x *UpdateTransactionDateRequest) GetNewDate() string {
+	if x != nil {
+		return x.NewDate
+	}
+	return ""
+}
+
+type UpdateTransactionDateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transaction   *Transaction           `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTransactionDateResponse) Reset() {
+	*x = UpdateTransactionDateResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTransactionDateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTransactionDateResponse) ProtoMessage() {}
+
+func (x *UpdateTransactionDateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTransactionDateResponse.ProtoReflect.Descriptor instead.
+func (*UpdateTransactionDateResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *UpdateTransactionDateResponse) GetTransaction() *Transaction {
+	if x != nil {
+		return x.Transaction
+	}
+	return nil
+}
+
 var File_float_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_float_v1_ledger_proto_rawDesc = "" +
@@ -873,14 +969,20 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x14\n" +
-	"\x12ModifyTagsResponse2\xac\x03\n" +
+	"\x12ModifyTagsResponse\"K\n" +
+	"\x1cUpdateTransactionDateRequest\x12\x10\n" +
+	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x19\n" +
+	"\bnew_date\x18\x02 \x01(\tR\anewDate\"X\n" +
+	"\x1dUpdateTransactionDateResponse\x127\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction2\x96\x04\n" +
 	"\rLedgerService\x12Y\n" +
 	"\x10ListTransactions\x12!.float.v1.ListTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12J\n" +
 	"\vGetBalances\x12\x1c.float.v1.GetBalancesRequest\x1a\x1d.float.v1.GetBalancesResponse\x12M\n" +
 	"\fListAccounts\x12\x1d.float.v1.ListAccountsRequest\x1a\x1e.float.v1.ListAccountsResponse\x12\\\n" +
 	"\x11DeleteTransaction\x12\".float.v1.DeleteTransactionRequest\x1a#.float.v1.DeleteTransactionResponse\x12G\n" +
 	"\n" +
-	"ModifyTags\x12\x1b.float.v1.ModifyTagsRequest\x1a\x1c.float.v1.ModifyTagsResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
+	"ModifyTags\x12\x1b.float.v1.ModifyTagsRequest\x1a\x1c.float.v1.ModifyTagsResponse\x12h\n" +
+	"\x15UpdateTransactionDate\x12&.float.v1.UpdateTransactionDateRequest\x1a'.float.v1.UpdateTransactionDateResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
 
 var (
 	file_float_v1_ledger_proto_rawDescOnce sync.Once
@@ -894,25 +996,27 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_float_v1_ledger_proto_goTypes = []any{
-	(*Amount)(nil),                    // 0: float.v1.Amount
-	(*Posting)(nil),                   // 1: float.v1.Posting
-	(*Transaction)(nil),               // 2: float.v1.Transaction
-	(*BalanceRow)(nil),                // 3: float.v1.BalanceRow
-	(*BalanceReport)(nil),             // 4: float.v1.BalanceReport
-	(*Account)(nil),                   // 5: float.v1.Account
-	(*ListTransactionsRequest)(nil),   // 6: float.v1.ListTransactionsRequest
-	(*ListTransactionsResponse)(nil),  // 7: float.v1.ListTransactionsResponse
-	(*GetBalancesRequest)(nil),        // 8: float.v1.GetBalancesRequest
-	(*GetBalancesResponse)(nil),       // 9: float.v1.GetBalancesResponse
-	(*ListAccountsRequest)(nil),       // 10: float.v1.ListAccountsRequest
-	(*ListAccountsResponse)(nil),      // 11: float.v1.ListAccountsResponse
-	(*DeleteTransactionRequest)(nil),  // 12: float.v1.DeleteTransactionRequest
-	(*DeleteTransactionResponse)(nil), // 13: float.v1.DeleteTransactionResponse
-	(*ModifyTagsRequest)(nil),         // 14: float.v1.ModifyTagsRequest
-	(*ModifyTagsResponse)(nil),        // 15: float.v1.ModifyTagsResponse
-	nil,                               // 16: float.v1.ModifyTagsRequest.TagsEntry
+	(*Amount)(nil),                        // 0: float.v1.Amount
+	(*Posting)(nil),                       // 1: float.v1.Posting
+	(*Transaction)(nil),                   // 2: float.v1.Transaction
+	(*BalanceRow)(nil),                    // 3: float.v1.BalanceRow
+	(*BalanceReport)(nil),                 // 4: float.v1.BalanceReport
+	(*Account)(nil),                       // 5: float.v1.Account
+	(*ListTransactionsRequest)(nil),       // 6: float.v1.ListTransactionsRequest
+	(*ListTransactionsResponse)(nil),      // 7: float.v1.ListTransactionsResponse
+	(*GetBalancesRequest)(nil),            // 8: float.v1.GetBalancesRequest
+	(*GetBalancesResponse)(nil),           // 9: float.v1.GetBalancesResponse
+	(*ListAccountsRequest)(nil),           // 10: float.v1.ListAccountsRequest
+	(*ListAccountsResponse)(nil),          // 11: float.v1.ListAccountsResponse
+	(*DeleteTransactionRequest)(nil),      // 12: float.v1.DeleteTransactionRequest
+	(*DeleteTransactionResponse)(nil),     // 13: float.v1.DeleteTransactionResponse
+	(*ModifyTagsRequest)(nil),             // 14: float.v1.ModifyTagsRequest
+	(*ModifyTagsResponse)(nil),            // 15: float.v1.ModifyTagsResponse
+	(*UpdateTransactionDateRequest)(nil),  // 16: float.v1.UpdateTransactionDateRequest
+	(*UpdateTransactionDateResponse)(nil), // 17: float.v1.UpdateTransactionDateResponse
+	nil,                                   // 18: float.v1.ModifyTagsRequest.TagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
@@ -923,22 +1027,25 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	2,  // 5: float.v1.ListTransactionsResponse.transactions:type_name -> float.v1.Transaction
 	4,  // 6: float.v1.GetBalancesResponse.report:type_name -> float.v1.BalanceReport
 	5,  // 7: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	16, // 8: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
-	6,  // 9: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
-	8,  // 10: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
-	10, // 11: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
-	12, // 12: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
-	14, // 13: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
-	7,  // 14: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	9,  // 15: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	11, // 16: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	13, // 17: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	15, // 18: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	18, // 8: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	2,  // 9: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
+	6,  // 10: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
+	8,  // 11: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
+	10, // 12: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
+	12, // 13: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
+	14, // 14: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
+	16, // 15: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
+	7,  // 16: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	9,  // 17: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	11, // 18: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	13, // 19: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	15, // 20: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	17, // 21: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	16, // [16:22] is the sub-list for method output_type
+	10, // [10:16] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_float_v1_ledger_proto_init() }
@@ -952,7 +1059,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

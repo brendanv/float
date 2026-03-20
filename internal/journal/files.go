@@ -65,7 +65,10 @@ func UpdateMainIncludes(mainJournalPath string, relPath string) error {
 // and appends the canonical text.
 // Returns the assigned FID.
 func AppendTransaction(ctx context.Context, client *hledger.Client, dataDir string, tx TransactionInput) (string, error) {
-	fid := MintFID()
+	fid := tx.FID
+	if fid == "" {
+		fid = MintFID()
+	}
 
 	text, err := FormatViaHledger(ctx, client, tx, fid)
 	if err != nil {

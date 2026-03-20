@@ -113,6 +113,36 @@ func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.M
 	return connect.NewResponse(&floatv1.ModifyTagsResponse{}), nil
 }
 
+func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Request[floatv1.UpdateTransactionDateRequest]) (*connect.Response[floatv1.UpdateTransactionDateResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	fid := req.Msg.Fid
+	if fid == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
+	}
+	if req.Msg.NewDate == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("new_date is required"))
+	}
+	var updated hledger.Transaction
+	err := h.lock.Do(ctx, func() error {
+		var e error
+		updated, e = journal.UpdateTransactionDate(ctx, h.hl, h.dataDir, fid, req.Msg.NewDate)
+		return e
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "no transaction found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		if strings.Contains(err.Error(), "invalid date") {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		logger.ErrorContext(ctx, "update transaction date failed", "fid", fid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.UpdateTransactionDateResponse{
+		Transaction: toProtoTransaction(updated),
+	}), nil
+}
+
 func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 	postings := make([]*floatv1.Posting, len(t.Postings))
 	for i, p := range t.Postings {

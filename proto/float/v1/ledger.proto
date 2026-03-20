@@ -77,10 +77,20 @@ message ModifyTagsRequest {
 
 message ModifyTagsResponse {}
 
+message UpdateTransactionDateRequest {
+  string fid = 1;
+  string new_date = 2; // "YYYY-MM-DD"
+}
+
+message UpdateTransactionDateResponse {
+  Transaction transaction = 1;
+}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
   rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);
   rpc ModifyTags(ModifyTagsRequest) returns (ModifyTagsResponse);
+  rpc UpdateTransactionDate(UpdateTransactionDateRequest) returns (UpdateTransactionDateResponse);
 }
