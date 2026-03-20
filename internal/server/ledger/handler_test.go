@@ -308,6 +308,91 @@ func TestDeleteTransactionHandler(t *testing.T) {
 	})
 }
 
+func TestUpdateTransactionDateHandler(t *testing.T) {
+	t.Run("empty_fid", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 40, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransactionDate(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionDateRequest{
+			Fid:     "",
+			NewDate: "2026-03-01",
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("empty_new_date", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 41, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransactionDate(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionDateRequest{
+			Fid:     "aa001100",
+			NewDate: "",
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 42, NumTxns: 2, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransactionDate(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionDateRequest{
+			Fid:     "00000000",
+			NewDate: "2026-03-01",
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v, want NotFound", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 43, NumTxns: 2, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+
+		tx := journal.TransactionInput{
+			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+			Description: "HANDLER UPDATE DATE TEST",
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Amount: "$18.00"},
+				{Account: "assets:checking"},
+			},
+		}
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, tx)
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		resp, err := h.UpdateTransactionDate(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionDateRequest{
+			Fid:     fid,
+			NewDate: "2026-02-15",
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransactionDate: %v", err)
+		}
+
+		got := resp.Msg.Transaction
+		if got.Date != "2026-02-15" {
+			t.Errorf("Date = %q, want %q", got.Date, "2026-02-15")
+		}
+		if got.Fid != fid {
+			t.Errorf("Fid = %q, want %q", got.Fid, fid)
+		}
+	})
+}
+
 func TestModifyTagsHandler(t *testing.T) {
 	t.Run("empty_fid_returns_invalid_argument", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 30, NumTxns: 1, WithFIDs: true})

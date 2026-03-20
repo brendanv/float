@@ -48,6 +48,9 @@ const (
 	// LedgerServiceModifyTagsProcedure is the fully-qualified name of the LedgerService's ModifyTags
 	// RPC.
 	LedgerServiceModifyTagsProcedure = "/float.v1.LedgerService/ModifyTags"
+	// LedgerServiceUpdateTransactionDateProcedure is the fully-qualified name of the LedgerService's
+	// UpdateTransactionDate RPC.
+	LedgerServiceUpdateTransactionDateProcedure = "/float.v1.LedgerService/UpdateTransactionDate"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -57,6 +60,7 @@ type LedgerServiceClient interface {
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
 	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
+	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -100,16 +104,23 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ModifyTags")),
 			connect.WithClientOptions(opts...),
 		),
+		updateTransactionDate: connect.NewClient[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse](
+			httpClient,
+			baseURL+LedgerServiceUpdateTransactionDateProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UpdateTransactionDate")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // ledgerServiceClient implements LedgerServiceClient.
 type ledgerServiceClient struct {
-	listTransactions  *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
-	getBalances       *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
-	listAccounts      *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	deleteTransaction *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
-	modifyTags        *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
+	listTransactions      *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
+	getBalances           *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
+	listAccounts          *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	deleteTransaction     *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
+	modifyTags            *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
+	updateTransactionDate *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -137,6 +148,11 @@ func (c *ledgerServiceClient) ModifyTags(ctx context.Context, req *connect.Reque
 	return c.modifyTags.CallUnary(ctx, req)
 }
 
+// UpdateTransactionDate calls float.v1.LedgerService.UpdateTransactionDate.
+func (c *ledgerServiceClient) UpdateTransactionDate(ctx context.Context, req *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error) {
+	return c.updateTransactionDate.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -144,6 +160,7 @@ type LedgerServiceHandler interface {
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
 	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
+	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -183,6 +200,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ModifyTags")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceUpdateTransactionDateHandler := connect.NewUnaryHandler(
+		LedgerServiceUpdateTransactionDateProcedure,
+		svc.UpdateTransactionDate,
+		connect.WithSchema(ledgerServiceMethods.ByName("UpdateTransactionDate")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -195,6 +218,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceDeleteTransactionHandler.ServeHTTP(w, r)
 		case LedgerServiceModifyTagsProcedure:
 			ledgerServiceModifyTagsHandler.ServeHTTP(w, r)
+		case LedgerServiceUpdateTransactionDateProcedure:
+			ledgerServiceUpdateTransactionDateHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -222,4 +247,8 @@ func (UnimplementedLedgerServiceHandler) DeleteTransaction(context.Context, *con
 
 func (UnimplementedLedgerServiceHandler) ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ModifyTags is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateTransactionDate is not implemented"))
 }
