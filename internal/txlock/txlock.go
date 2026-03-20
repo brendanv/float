@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/slogctx"
 )
 
 // TxLock serializes all journal mutations and enforces the write protocol:
@@ -41,6 +42,7 @@ func (l *TxLock) Generation() uint64 {
 //  5. On check failure: revert all journal files from snapshot, return error
 //  6. On success: bump generation counter
 func (l *TxLock) Do(ctx context.Context, fn func() error) error {
+	logger := slogctx.FromContext(ctx)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -48,8 +50,10 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 	if err != nil {
 		return fmt.Errorf("txlock: snapshot: %w", err)
 	}
+	logger.Debug("txlock: snapshotted journal files", "file_count", len(snap))
 
 	if err := fn(); err != nil {
+		logger.Debug("txlock: reverting snapshot after write failure", "error", err)
 		if revertErr := revertFromSnapshot(l.dataDir, snap); revertErr != nil {
 			return fmt.Errorf("txlock: fn failed (%w) and revert also failed: %v", err, revertErr)
 		}
@@ -57,13 +61,15 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 	}
 
 	if err := l.client.Check(ctx); err != nil {
+		logger.Debug("txlock: reverting snapshot after check failure", "error", err)
 		if revertErr := revertFromSnapshot(l.dataDir, snap); revertErr != nil {
 			return fmt.Errorf("txlock: check failed (%w) and revert also failed: %v", err, revertErr)
 		}
 		return err
 	}
 
-	l.gen.Add(1)
+	gen := l.gen.Add(1)
+	logger.Info("txlock: write committed", "generation", gen)
 	return nil
 }
 

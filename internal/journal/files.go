@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/slogctx"
 )
 
 // EnsureMonthFile ensures dataDir/YYYY/MM.journal exists.
@@ -94,5 +95,6 @@ func AppendTransaction(ctx context.Context, client *hledger.Client, dataDir stri
 	if _, err := f.WriteString(text); err != nil {
 		return "", fmt.Errorf("journal: write %s: %w", absPath, err)
 	}
+	slogctx.FromContext(ctx).Info("journal: transaction appended", "fid", fid, "path", relPath)
 	return fid, nil
 }

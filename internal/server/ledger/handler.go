@@ -8,6 +8,7 @@ import (
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/slogctx"
 )
 
 // Handler implements LedgerService read RPCs by delegating to the hledger wrapper.
@@ -21,8 +22,10 @@ func NewHandler(hl *hledger.Client) *Handler {
 }
 
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
+	logger := slogctx.FromContext(ctx)
 	txns, err := h.hl.Transactions(ctx, req.Msg.Query...)
 	if err != nil {
+		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	proto := make([]*floatv1.Transaction, len(txns))
@@ -33,8 +36,10 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 }
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
+	logger := slogctx.FromContext(ctx)
 	report, err := h.hl.Balances(ctx, int(req.Msg.Depth), req.Msg.Query...)
 	if err != nil {
+		logger.ErrorContext(ctx, "hledger balances failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	rows := make([]*floatv1.BalanceRow, len(report.Rows))
@@ -51,8 +56,10 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 }
 
 func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1.ListAccountsRequest]) (*connect.Response[floatv1.ListAccountsResponse], error) {
+	logger := slogctx.FromContext(ctx)
 	nodes, err := h.hl.Accounts(ctx, false)
 	if err != nil {
+		logger.ErrorContext(ctx, "hledger accounts failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	accounts := make([]*floatv1.Account, len(nodes))

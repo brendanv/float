@@ -3,31 +3,44 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 
+	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 )
 
 func main() {
 	dataDir := flag.String("data-dir", "", "path to float data directory (required)")
 	addr := flag.String("addr", "", "listen address (overrides config; default :8080)")
+	verbose := flag.Bool("verbose", false, "enable debug-level logging (hledger queries, args, durations)")
 	flag.Parse()
 
+	var logLevel slog.LevelVar // defaults to Info
+	if *verbose {
+		logLevel.Set(slog.LevelDebug)
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel}))
+	slog.SetDefault(logger)
+
 	if *dataDir == "" {
-		log.Fatal("--data-dir is required")
+		slog.Error("--data-dir is required")
+		os.Exit(1)
 	}
 
 	cfg, err := config.Load(filepath.Join(*dataDir, "config.toml"))
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		slog.Error("load config", "error", err)
+		os.Exit(1)
 	}
 
 	listenAddr := *addr
@@ -41,16 +54,21 @@ func main() {
 
 	hl, err := hledger.New("hledger", filepath.Join(*dataDir, "main.journal"))
 	if err != nil {
-		log.Fatalf("hledger init: %v", err)
+		slog.Error("hledger init", "error", err)
+		os.Exit(1)
 	}
 
 	handler := serverledger.NewHandler(hl)
 	mux := http.NewServeMux()
-	path, svcHandler := floatv1connect.NewLedgerServiceHandler(handler)
+	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
+		handler,
+		connect.WithInterceptors(middleware.NewLoggingInterceptor(logger)),
+	)
 	mux.Handle(path, svcHandler)
 
-	log.Printf("floatd listening on %s", listenAddr)
+	slog.Info("floatd listening", "addr", listenAddr)
 	if err := http.ListenAndServe(listenAddr, h2c.NewHandler(mux, &http2.Server{})); err != nil {
-		log.Fatalf("server: %v", err)
+		slog.Error("server", "error", err)
+		os.Exit(1)
 	}
 }
