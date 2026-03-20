@@ -2,6 +2,9 @@ package hledger
 
 import "encoding/json"
 
+// FIDLen is the length in characters of a float transaction ID (fid tag).
+const FIDLen = 8
+
 type AmountQuantity struct {
 	DecimalMantissa int64   `json:"decimalMantissa"`
 	DecimalPlaces   int     `json:"decimalPlaces"`

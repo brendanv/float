@@ -81,10 +81,6 @@ func parseRegisterRows(data []byte) ([]RegisterRow, error) {
 	return rows, nil
 }
 
-// fidLen is the length of a float transaction ID (see journal.FIDLen).
-// Defined locally to avoid an import cycle (journal imports hledger).
-const fidLen = 8
-
 func parseTransactions(data []byte) ([]Transaction, error) {
 	var txns []Transaction
 	if err := json.Unmarshal(data, &txns); err != nil {
@@ -97,8 +93,8 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 				// a comma, so the value may include trailing comment text
 				// (e.g. "908dc69c my note"). Extract only the 8-char hex prefix.
 				v := tag[1]
-				if len(v) > fidLen {
-					v = v[:fidLen]
+				if len(v) > FIDLen {
+					v = v[:FIDLen]
 				}
 				txns[i].FID = v
 				break
