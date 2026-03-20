@@ -85,7 +85,7 @@ func parseVersion(output string) (string, error) {
 func (c *Client) run(ctx context.Context, args ...string) (stdout []byte, stderr []byte, err error) {
 	start := time.Now()
 	stdout, stderr, err = c.runner(ctx, c.bin, args...)
-	slogctx.FromContext(ctx).DebugContext(ctx, "hledger",
+	slogctx.FromContext(ctx).Debug("hledger",
 		"args", args,
 		"duration_ms", time.Since(start).Milliseconds(),
 		slog.Bool("ok", err == nil),

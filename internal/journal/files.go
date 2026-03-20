@@ -95,6 +95,6 @@ func AppendTransaction(ctx context.Context, client *hledger.Client, dataDir stri
 	if _, err := f.WriteString(text); err != nil {
 		return "", fmt.Errorf("journal: write %s: %w", absPath, err)
 	}
-	slogctx.FromContext(ctx).InfoContext(ctx, "journal: transaction appended", "fid", fid, "path", relPath)
+	slogctx.FromContext(ctx).Info("journal: transaction appended", "fid", fid, "path", relPath)
 	return fid, nil
 }

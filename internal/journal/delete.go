@@ -36,7 +36,7 @@ func DeleteTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 	if err := removeTransactionAtLine(sourceFile, sourceLine, fid); err != nil {
 		return err
 	}
-	slogctx.FromContext(ctx).InfoContext(ctx, "journal: transaction deleted", "fid", fid, "file", sourceFile, "line", sourceLine)
+	slogctx.FromContext(ctx).Info("journal: transaction deleted", "fid", fid, "file", sourceFile, "line", sourceLine)
 	return nil
 }
 

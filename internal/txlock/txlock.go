@@ -50,10 +50,10 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 	if err != nil {
 		return fmt.Errorf("txlock: snapshot: %w", err)
 	}
-	logger.DebugContext(ctx, "txlock: snapshotted journal files", "file_count", len(snap))
+	logger.Debug("txlock: snapshotted journal files", "file_count", len(snap))
 
 	if err := fn(); err != nil {
-		logger.DebugContext(ctx, "txlock: reverting snapshot after write failure", "error", err)
+		logger.Debug("txlock: reverting snapshot after write failure", "error", err)
 		if revertErr := revertFromSnapshot(l.dataDir, snap); revertErr != nil {
 			return fmt.Errorf("txlock: fn failed (%w) and revert also failed: %v", err, revertErr)
 		}
@@ -61,7 +61,7 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 	}
 
 	if err := l.client.Check(ctx); err != nil {
-		logger.DebugContext(ctx, "txlock: reverting snapshot after check failure", "error", err)
+		logger.Debug("txlock: reverting snapshot after check failure", "error", err)
 		if revertErr := revertFromSnapshot(l.dataDir, snap); revertErr != nil {
 			return fmt.Errorf("txlock: check failed (%w) and revert also failed: %v", err, revertErr)
 		}
@@ -69,7 +69,7 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 	}
 
 	gen := l.gen.Add(1)
-	logger.InfoContext(ctx, "txlock: write committed", "generation", gen)
+	logger.Info("txlock: write committed", "generation", gen)
 	return nil
 }
 
