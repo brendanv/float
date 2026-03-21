@@ -394,7 +394,7 @@ func TestPrintCSV(t *testing.T) {
 }
 
 func TestTransactionFID(t *testing.T) {
-	const versionResp = "hledger 1.51.2, linux-x86_64\n"
+	const versionResp = "hledger 1.52, linux-x86_64\n"
 	const printJSON = `[{"tindex":1,"tdate":"2026-01-05","tdate2":null,"tdescription":"PAYROLL","tcode":"","tcomment":"fid:aa001100\n","ttags":[["fid","aa001100"]],"tpostings":[],"tstatus":"","tprecedingcomment":""},{"tindex":2,"tdate":"2026-01-15","tdate2":null,"tdescription":"AMAZON","tcode":"","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":""}]`
 
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
@@ -436,7 +436,7 @@ func TestNewWithRunner(t *testing.T) {
 	called := false
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		called = true
-		return []byte("hledger 1.51.2, linux-x86_64\n"), nil, nil
+		return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
 	}
 	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
 	if err != nil {

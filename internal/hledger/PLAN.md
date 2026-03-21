@@ -2,7 +2,7 @@
 
 ## Context
 
-`internal/hledger/` is the foundational package that everything else depends on. It wraps the hledger CLI: builds commands, shells out, parses JSON/text output, and returns typed Go structs. No external dependencies — pure stdlib. The supported hledger version is **1.51.2** (pinned in `mise.toml`).
+`internal/hledger/` is the foundational package that everything else depends on. It wraps the hledger CLI: builds commands, shells out, parses JSON/text output, and returns typed Go structs. No external dependencies — pure stdlib. The supported hledger version is **1.52** (pinned in `mise.toml`).
 
 ---
 
@@ -125,7 +125,7 @@ import (
     "strings"
 )
 
-const supportedVersion = "1.51.2"
+const supportedVersion = "1.52"
 
 type Client struct {
     bin     string
@@ -135,7 +135,7 @@ type Client struct {
 // New validates the binary exists and the version matches supportedVersion.
 func New(bin, journal string) (*Client, error)
 
-// parseVersion extracts version from "hledger 1.51.2, linux-x86_64\n":
+// parseVersion extracts version from "hledger 1.52, linux-x86_64\n":
 //   split on " " → take index 1 → strip trailing comma
 func parseVersion(output string) (string, error)
 
@@ -361,7 +361,7 @@ func mustClient(t *testing.T, journal string) *hledger.Client {
 go test ./internal/hledger/ -v
 ```
 
-Prereq: `mise install` must be run so hledger 1.51.2 is on PATH.
+Prereq: `mise install` must be run so hledger 1.52 is on PATH.
 
 ---
 

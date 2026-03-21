@@ -12,7 +12,7 @@ import (
 	"github.com/brendanv/float/internal/slogctx"
 )
 
-const supportedVersion = "1.51.2"
+const supportedVersion = "1.52"
 
 // CommandRunner executes a command and returns its stdout, stderr, and error.
 // Inject a stub via NewWithRunner for testing.
@@ -69,7 +69,7 @@ func newClient(bin, journal string, runner CommandRunner) (*Client, error) {
 	return c, nil
 }
 
-// parseVersion extracts version from "hledger 1.51.2, linux-x86_64\n".
+// parseVersion extracts version from "hledger 1.52, linux-x86_64\n".
 func parseVersion(output string) (string, error) {
 	output = strings.TrimSpace(output)
 	parts := strings.Split(output, " ")
