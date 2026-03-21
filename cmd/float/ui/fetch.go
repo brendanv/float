@@ -61,3 +61,21 @@ func FetchTransactions(client floatv1connect.LedgerServiceClient, query []string
 		return TransactionsMsg{Transactions: resp.Msg.Transactions}
 	}
 }
+
+type InsightsMsg struct {
+	Report *floatv1.BalanceReport
+	Err    error
+}
+
+func FetchInsights(client floatv1connect.LedgerServiceClient, periodQuery string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetBalances(context.Background(), connect.NewRequest(&floatv1.GetBalancesRequest{
+			Depth: 2,
+			Query: []string{periodQuery},
+		}))
+		if err != nil {
+			return InsightsMsg{Err: err}
+		}
+		return InsightsMsg{Report: resp.Msg.Report}
+	}
+}

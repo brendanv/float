@@ -14,9 +14,9 @@ func RenderHelpBar(ctx HelpContext, width int) string {
 	case ctx.ActiveTab == TabHome && ctx.FilterActive:
 		help = "  enter search  esc cancel"
 	case ctx.ActiveTab == TabHome && ctx.HomeFocused == 1:
-		help = "  q quit  tab tabs  h/l switch  j/k navigate  / filter  s split  r retry"
+		help = "  q quit  tab tabs  h/l switch  j/k navigate  / filter  s split  [/] period  r retry"
 	case ctx.ActiveTab == TabHome:
-		help = "  q quit  tab tabs  h/l switch  j/k navigate  r retry"
+		help = "  q quit  tab tabs  h/l switch  j/k navigate  [/] period  r retry"
 	default:
 		help = "  q quit  tab tabs"
 	}

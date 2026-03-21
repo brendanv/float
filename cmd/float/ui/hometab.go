@@ -8,15 +8,22 @@ import (
 )
 
 type HomeTab struct {
-	leftWidth  int
-	rightWidth int
-	height     int
-	client     floatv1connect.LedgerServiceClient
-	accounts     AccountsPanel
+	leftWidth   int
+	rightWidth  int
+	height      int
+	client      floatv1connect.LedgerServiceClient
+	accounts    AccountsPanel
 	transactions TransactionsPanel
-	filter       FilterInput
-	query        []string
-	focused      int
+	filter      FilterInput
+	period      PeriodSelector
+	insights    InsightsPanel
+	query       []string // filter query from /
+	focused     int
+	// left column sub-layout dimensions (inner, after border)
+	leftInnerW  int
+	accountsH   int
+	insightsH   int
+	showInsights bool
 }
 
 func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
@@ -25,9 +32,18 @@ func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
 		accounts:     NewAccountsPanel(),
 		transactions: newTransactionsPanel(),
 		filter:       NewFilterInput(client),
+		period:       NewPeriodSelector(),
+		insights:     NewInsightsPanel(),
 	}
 	m.accounts.Focus()
 	return m
+}
+
+// periodAndFilterQuery combines the period query with the user's filter query.
+func (m HomeTab) periodAndFilterQuery() []string {
+	q := []string{m.period.Query()}
+	q = append(q, m.query...)
+	return q
 }
 
 func (m HomeTab) SetSize(w, h int) HomeTab {
@@ -35,8 +51,31 @@ func (m HomeTab) SetSize(w, h int) HomeTab {
 	m.leftWidth = layout.LeftWidth
 	m.rightWidth = layout.RightWidth
 	m.height = h
+
 	leftInnerW, leftInnerH := innerSize(m.leftWidth, m.height, BorderStyle)
-	m.accounts.SetSize(leftInnerW, leftInnerH)
+	m.leftInnerW = leftInnerW
+
+	// Left column sub-layout: accounts | period (1 line) | insights
+	m.showInsights = leftInnerH >= 15
+	if m.showInsights {
+		m.accountsH = leftInnerH * 55 / 100
+		if m.accountsH < 5 {
+			m.accountsH = 5
+		}
+		m.insightsH = leftInnerH - m.accountsH - 1
+		if m.insightsH < 3 {
+			m.showInsights = false
+		}
+	}
+	if !m.showInsights {
+		m.accountsH = leftInnerH - 1 // leave 1 line for period selector
+		m.insightsH = 0
+	}
+
+	m.accounts.SetSize(leftInnerW, m.accountsH)
+	m.period.SetWidth(leftInnerW)
+	m.insights.SetSize(leftInnerW, m.insightsH)
+
 	rightInnerW, rightInnerH := innerSize(m.rightWidth, m.height, BorderStyle)
 	txH := rightInnerH
 	if m.filter.Active() {
@@ -53,9 +92,11 @@ func (m HomeTab) Init() tea.Cmd {
 	return tea.Batch(
 		m.accounts.spinner.Tick(),
 		m.transactions.spinner.Tick(),
+		m.insights.spinner.Tick(),
 		FetchAccounts(m.client),
-		FetchBalances(m.client, 0, nil),
-		FetchTransactions(m.client, nil),
+		FetchBalances(m.client, 0, []string{m.period.Query()}),
+		FetchTransactions(m.client, m.periodAndFilterQuery()),
+		FetchInsights(m.client, m.period.Query()),
 	)
 }
 
@@ -77,6 +118,14 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 		}
 		return m, nil
 
+	case InsightsMsg:
+		if msg.Err != nil {
+			m.insights.SetError(msg.Err.Error())
+		} else {
+			m.insights.SetData(msg.Report)
+		}
+		return m, nil
+
 	case TransactionsMsg:
 		if msg.Err != nil {
 			m.transactions.SetError(msg.Err.Error())
@@ -85,13 +134,25 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 		}
 		return m, nil
 
+	case PeriodChangedMsg:
+		m.accounts.state = stateLoading
+		m.transactions.state = stateLoading
+		m.insights.state = stateLoading
+		return m, tea.Batch(
+			FetchBalances(m.client, 0, []string{m.period.Query()}),
+			FetchTransactions(m.client, m.periodAndFilterQuery()),
+			FetchInsights(m.client, m.period.Query()),
+		)
+
 	case RetryFetchMsg:
 		m.accounts.state = stateLoading
 		m.transactions.state = stateLoading
+		m.insights.state = stateLoading
 		return m, tea.Batch(
 			FetchAccounts(m.client),
-			FetchBalances(m.client, 0, nil),
-			FetchTransactions(m.client, m.query),
+			FetchBalances(m.client, 0, []string{m.period.Query()}),
+			FetchTransactions(m.client, m.periodAndFilterQuery()),
+			FetchInsights(m.client, m.period.Query()),
 		)
 
 	case tea.KeyMsg:
@@ -100,10 +161,12 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			case "r":
 				m.accounts.state = stateLoading
 				m.transactions.state = stateLoading
+				m.insights.state = stateLoading
 				return m, tea.Batch(
 					FetchAccounts(m.client),
-					FetchBalances(m.client, 0, nil),
-					FetchTransactions(m.client, m.query),
+					FetchBalances(m.client, 0, []string{m.period.Query()}),
+					FetchTransactions(m.client, m.periodAndFilterQuery()),
+					FetchInsights(m.client, m.period.Query()),
 				)
 			case "tab", "l", "h":
 				m.focused = 1 - m.focused
@@ -115,6 +178,10 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 					m.transactions.Focus()
 				}
 				return m, nil
+			case "[", "]":
+				newPeriod, cmd := m.period.Update(msg)
+				m.period = newPeriod
+				return m, cmd
 			case "/":
 				if m.focused == 1 {
 					m.filter.Activate()
@@ -143,7 +210,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			case "enter":
 				m.query = m.filter.Query()
 				m.transactions.state = stateLoading
-				return m, FetchTransactions(m.client, m.query)
+				return m, FetchTransactions(m.client, m.periodAndFilterQuery())
 			default:
 				newFilter, cmd := m.filter.Update(msg)
 				m.filter = newFilter
@@ -161,7 +228,8 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 	default:
 		cmd1 := m.accounts.Update(msg)
 		cmd2 := m.transactions.Update(msg)
-		return m, tea.Batch(cmd1, cmd2)
+		cmd3 := m.insights.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3)
 	}
 }
 
@@ -169,10 +237,28 @@ func (m HomeTab) View() string {
 	leftInnerW, leftInnerH := innerSize(m.leftWidth, m.height, BorderStyle)
 	rightInnerW, rightInnerH := innerSize(m.rightWidth, m.height, BorderStyle)
 
-	leftContent := lipgloss.NewStyle().
+	// Build left column content as a vertical stack.
+	accountsView := lipgloss.NewStyle().
+		Width(leftInnerW).
+		Height(m.accountsH).
+		Render(m.accounts.View())
+	periodView := m.period.View()
+
+	var leftContent string
+	if m.showInsights {
+		insightsView := lipgloss.NewStyle().
+			Width(leftInnerW).
+			Height(m.insightsH).
+			Render(m.insights.View())
+		leftContent = lipgloss.JoinVertical(lipgloss.Left, accountsView, periodView, insightsView)
+	} else {
+		leftContent = lipgloss.JoinVertical(lipgloss.Left, accountsView, periodView)
+	}
+	// Pad to full height.
+	leftContent = lipgloss.NewStyle().
 		Width(leftInnerW).
 		Height(leftInnerH).
-		Render(m.accounts.View())
+		Render(leftContent)
 
 	var rightContent string
 	if m.filter.Active() {
