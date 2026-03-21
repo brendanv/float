@@ -3,7 +3,7 @@ package ui
 import (
 	"context"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	connect "connectrpc.com/connect"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"

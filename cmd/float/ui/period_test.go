@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestPeriodSelector_Query(t *testing.T) {
@@ -44,7 +44,7 @@ func TestPeriodSelector_NavigateForward(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			p := PeriodSelector{year: tc.startYear, month: tc.startMonth}
-			p2, cmd := p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}})
+			p2, cmd := p.Update(tea.KeyPressMsg{Code: ']'})
 			if p2.month != tc.wantMonth || p2.year != tc.wantYear {
 				t.Errorf("got %v %d, want %v %d", p2.month, p2.year, tc.wantMonth, tc.wantYear)
 			}
@@ -74,7 +74,7 @@ func TestPeriodSelector_NavigateBackward(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			p := PeriodSelector{year: tc.startYear, month: tc.startMonth}
-			p2, cmd := p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
+			p2, cmd := p.Update(tea.KeyPressMsg{Code: '['})
 			if p2.month != tc.wantMonth || p2.year != tc.wantYear {
 				t.Errorf("got %v %d, want %v %d", p2.month, p2.year, tc.wantMonth, tc.wantYear)
 			}
@@ -94,7 +94,7 @@ func TestPeriodSelector_NoChangedMsgOnOtherKeys(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.key, func(t *testing.T) {
-			_, cmd := p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tc.key)})
+			_, cmd := p.Update(tea.KeyPressMsg{Code: rune(tc.key[0])})
 			if cmd != nil {
 				t.Errorf("expected nil cmd for key %q, got non-nil", tc.key)
 			}

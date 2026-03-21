@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"golang.org/x/net/http2"
 
 	"github.com/brendanv/float/cmd/float/ui"
@@ -37,7 +37,7 @@ func main() {
 
 	model := ui.New(client)
 
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

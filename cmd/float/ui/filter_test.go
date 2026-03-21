@@ -8,7 +8,7 @@ import (
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func newFilterClient() floatv1connect.LedgerServiceClient {
@@ -77,8 +77,8 @@ func TestFilterInput_Enter_FetchesWithQuery(t *testing.T) {
 	f := NewFilterInput(client)
 	f.Activate()
 
-	f, _ = f.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("expenses food")})
-	f, cmd := f.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	f.input.SetValue("expenses food")
+	f, cmd := f.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("expected cmd from Enter")
 	}
@@ -100,7 +100,7 @@ func TestFilterInput_Esc_FetchesNilQuery(t *testing.T) {
 	}
 	f := NewFilterInput(client)
 	f.Activate()
-	f, cmd := f.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	f, cmd := f.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if cmd == nil {
 		t.Fatal("expected cmd from Esc")
 	}

@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // RenderTabBar returns a 1-line string showing tabs.
 // activeTab: 0 = Home, 1 = Manager.

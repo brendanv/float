@@ -1,13 +1,15 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
+)
 
 var (
-	colorSubtle   = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
-	colorBorder   = lipgloss.AdaptiveColor{Light: "#A49FA5", Dark: "#555555"}
-	colorFocused  = lipgloss.AdaptiveColor{Light: "#6C91BF", Dark: "#7DC4E4"}
-	colorTabActive = lipgloss.AdaptiveColor{Light: "#1C1C1C", Dark: "#EEEEEE"}
-	colorHelp     = lipgloss.AdaptiveColor{Light: "#9B9B9B", Dark: "#626262"}
+	colorBorder    = compat.AdaptiveColor{Light: lipgloss.Color("#A49FA5"), Dark: lipgloss.Color("#555555")}
+	colorFocused   = compat.AdaptiveColor{Light: lipgloss.Color("#6C91BF"), Dark: lipgloss.Color("#7DC4E4")}
+	colorTabActive = compat.AdaptiveColor{Light: lipgloss.Color("#1C1C1C"), Dark: lipgloss.Color("#EEEEEE")}
+	colorHelp      = compat.AdaptiveColor{Light: lipgloss.Color("#9B9B9B"), Dark: lipgloss.Color("#626262")}
 
 	BorderStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

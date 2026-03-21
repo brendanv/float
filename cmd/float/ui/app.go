@@ -1,8 +1,8 @@
 package ui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 )
@@ -72,13 +72,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	var v tea.View
+	v.AltScreen = true
+
 	if m.width < 60 || m.height < 15 {
-		return lipgloss.NewStyle().
+		v.Content = lipgloss.NewStyle().
 			Width(m.width).
 			Height(m.height).
 			Align(lipgloss.Center, lipgloss.Center).
 			Render("Terminal too small.\nNeed at least 60×15.")
+		return v
 	}
 
 	tabBar := RenderTabBar(m.activeTab, m.width)
@@ -100,5 +104,6 @@ func (m Model) View() string {
 		content = m.manager.View()
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, tabBar, content, helpBar)
+	v.Content = lipgloss.JoinVertical(lipgloss.Left, tabBar, content, helpBar)
+	return v
 }

@@ -1,8 +1,8 @@
 package ui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 )
@@ -286,13 +286,13 @@ func (m HomeTab) View() string {
 	}
 
 	leftPanel := leftBorder.
-		Width(leftInnerW).
-		Height(leftInnerH).
+		Width(m.leftWidth).
+		Height(m.height).
 		Render(leftContent)
 
 	rightPanel := rightBorder.
-		Width(rightInnerW).
-		Height(rightInnerH).
+		Width(m.rightWidth).
+		Height(m.height).
 		Render(rightContent)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)

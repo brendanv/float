@@ -6,15 +6,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 )
 
 var insightsBarStyle = lipgloss.NewStyle().Foreground(colorFocused)
-var revenueBarStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#3D7A4A", Dark: "#A6E3A1"})
+var revenueBarStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{Light: lipgloss.Color("#3D7A4A"), Dark: lipgloss.Color("#A6E3A1")})
 
 // InsightsPanel displays a horizontal bar chart of income and expense sub-categories.
 type InsightsPanel struct {
