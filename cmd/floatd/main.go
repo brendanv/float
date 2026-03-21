@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
+	"github.com/brendanv/float/internal/cache"
 	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/middleware"
@@ -60,7 +61,8 @@ func main() {
 	}
 
 	lock := txlock.New(*dataDir, hl)
-	handler := serverledger.NewHandler(hl, lock, *dataDir)
+	c := cache.New[any](lock.Generation)
+	handler := serverledger.NewHandler(hl, lock, *dataDir, c)
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,
