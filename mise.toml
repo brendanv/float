@@ -2,7 +2,7 @@
 go = "1.26.1"
 buf = "1.66.1"
 golangci-lint = "2.11.3"
-hledger = { version = "1.51.2", extract_all = "true" }
+hledger = { version = "1.52", extract_all = "true" }
 air = "latest"
 
 [env]

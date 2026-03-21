@@ -21,7 +21,7 @@ func versionRunner(t *testing.T, data map[string][]byte) hledger.CommandRunner {
 	t.Helper()
 	return func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.51.2, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
 		}
 		key := strings.Join(args, " ")
 		for k, v := range data {
@@ -134,7 +134,7 @@ func TestListTransactionsWithQuery(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.51.2, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte("[]"), nil, nil
