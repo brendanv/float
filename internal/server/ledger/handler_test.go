@@ -39,7 +39,7 @@ func mustHandler(t *testing.T, data map[string][]byte) *serverledger.Handler {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	return serverledger.NewHandler(c, nil, "")
+	return serverledger.NewHandler(c, nil, "", nil)
 }
 
 const printJSON = `[
@@ -143,7 +143,7 @@ func TestListTransactionsWithQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "")
+	h := serverledger.NewHandler(c, nil, "", nil)
 
 	_, err = h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{
 		Query: []string{"assets:checking", "date:2026-01"},
@@ -238,7 +238,7 @@ func mustRealHandler(t *testing.T, dir string) *serverledger.Handler {
 		t.Skipf("hledger unavailable: %v", err)
 	}
 	lock := txlock.New(dir, c)
-	return serverledger.NewHandler(c, lock, dir)
+	return serverledger.NewHandler(c, lock, dir, nil)
 }
 
 func TestDeleteTransactionHandler(t *testing.T) {

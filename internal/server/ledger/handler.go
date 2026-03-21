@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
+	"github.com/brendanv/float/internal/cache"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/slogctx"
@@ -21,15 +23,76 @@ type Handler struct {
 	hl      *hledger.Client
 	lock    *txlock.TxLock
 	dataDir string
+	cache   *cache.Cache[any] // nil = bypass cache
 }
 
-func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string) *Handler {
-	return &Handler{hl: hl, lock: lock, dataDir: dataDir}
+// NewHandler creates a Handler. c may be nil to disable caching (useful in tests).
+func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any]) *Handler {
+	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c}
+}
+
+// cacheKey helpers produce deterministic, namespaced keys from RPC parameters.
+// Query args are sorted so that ["b","a"] and ["a","b"] produce the same key.
+
+func transactionsKey(query []string) string {
+	sorted := append([]string(nil), query...)
+	sort.Strings(sorted)
+	return "transactions:" + strings.Join(sorted, "|")
+}
+
+func balancesKey(depth int, query []string) string {
+	sorted := append([]string(nil), query...)
+	sort.Strings(sorted)
+	return fmt.Sprintf("balances:%d:%s", depth, strings.Join(sorted, "|"))
+}
+
+const accountsKey = "accounts"
+
+// cachedTransactions fetches transactions from cache or hledger.
+func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
+	if c == nil {
+		return hl.Transactions(ctx, query...)
+	}
+	val, err := c.Get(ctx, transactionsKey(query), func(ctx context.Context) (any, error) {
+		return hl.Transactions(ctx, query...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.([]hledger.Transaction), nil
+}
+
+// cachedBalances fetches balances from cache or hledger.
+func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
+	if c == nil {
+		return hl.Balances(ctx, depth, query...)
+	}
+	val, err := c.Get(ctx, balancesKey(depth, query), func(ctx context.Context) (any, error) {
+		return hl.Balances(ctx, depth, query...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.(*hledger.BalanceReport), nil
+}
+
+// cachedAccounts fetches accounts from cache or hledger.
+func cachedAccounts(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([]*hledger.AccountNode, error) {
+	if c == nil {
+		return hl.Accounts(ctx, false)
+	}
+	val, err := c.Get(ctx, accountsKey, func(ctx context.Context) (any, error) {
+		return hl.Accounts(ctx, false)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.([]*hledger.AccountNode), nil
 }
 
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	txns, err := h.hl.Transactions(ctx, req.Msg.Query...)
+	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
 	if err != nil {
 		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -43,7 +106,7 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	report, err := h.hl.Balances(ctx, int(req.Msg.Depth), req.Msg.Query...)
+	report, err := cachedBalances(ctx, h.cache, h.hl, int(req.Msg.Depth), req.Msg.Query)
 	if err != nil {
 		logger.ErrorContext(ctx, "hledger balances failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -63,7 +126,7 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 
 func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1.ListAccountsRequest]) (*connect.Response[floatv1.ListAccountsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	nodes, err := h.hl.Accounts(ctx, false)
+	nodes, err := cachedAccounts(ctx, h.cache, h.hl)
 	if err != nil {
 		logger.ErrorContext(ctx, "hledger accounts failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
