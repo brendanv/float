@@ -1,0 +1,188 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/table"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
+	floatv1 "github.com/brendanv/float/gen/float/v1"
+)
+
+type TransactionsPanel struct {
+	width, height int
+	state         loadState
+	spinner       Spinner
+	transactions  []*floatv1.Transaction
+	rowToTx       []int
+	splitView     bool
+	errMsg        string
+	table         table.Model
+}
+
+func newTransactionsTable() table.Model {
+	s := table.DefaultStyles()
+	s.Header = s.Header.Bold(true)
+	s.Selected = s.Selected.Foreground(colorFocused).Bold(false).Reverse(true)
+	return table.New(
+		table.WithColumns([]table.Column{
+			{Title: "Date", Width: 10},
+			{Title: "Description", Width: 20},
+			{Title: "Amount", Width: 13},
+			{Title: "Account", Width: 20},
+		}),
+		table.WithStyles(s),
+		table.WithFocused(false),
+	)
+}
+
+func newTransactionsPanel() TransactionsPanel {
+	return TransactionsPanel{
+		state:   stateLoading,
+		spinner: NewSpinner(),
+		table:   newTransactionsTable(),
+	}
+}
+
+func (p *TransactionsPanel) SetSize(w, h int) {
+	p.width = w
+	p.height = h
+	remaining := w - 10 - 13 - 4
+	if remaining < 2 {
+		remaining = 2
+	}
+	descWidth := remaining * 40 / 100
+	acctWidth := remaining - descWidth
+	if descWidth < 1 {
+		descWidth = 1
+	}
+	if acctWidth < 1 {
+		acctWidth = 1
+	}
+	p.table.SetColumns([]table.Column{
+		{Title: "Date", Width: 10},
+		{Title: "Description", Width: descWidth},
+		{Title: "Amount", Width: 13},
+		{Title: "Account", Width: acctWidth},
+	})
+	p.table.SetWidth(w)
+	p.table.SetHeight(h)
+}
+
+func (p *TransactionsPanel) SetTransactions(txs []*floatv1.Transaction) {
+	p.transactions = txs
+	if p.state != stateError {
+		p.state = stateLoaded
+	}
+	p.rebuildRows()
+}
+
+func (p *TransactionsPanel) SetError(msg string) {
+	p.errMsg = msg
+	p.state = stateError
+}
+
+func primaryPosting(tx *floatv1.Transaction) *floatv1.Posting {
+	for _, post := range tx.Postings {
+		a := strings.ToLower(post.Account)
+		if strings.HasPrefix(a, "expenses:") || strings.HasPrefix(a, "income:") {
+			return post
+		}
+	}
+	if len(tx.Postings) > 0 {
+		return tx.Postings[0]
+	}
+	return nil
+}
+
+func (p *TransactionsPanel) rebuildRows() {
+	p.rowToTx = nil
+	var rows []table.Row
+	for i, tx := range p.transactions {
+		if !p.splitView {
+			post := primaryPosting(tx)
+			acct := ""
+			amt := ""
+			if post != nil {
+				acct = post.Account
+				amt = formatBalance(post.Amounts)
+			}
+			rows = append(rows, table.Row{tx.Date, tx.Description, amt, acct})
+			p.rowToTx = append(p.rowToTx, i)
+		} else {
+			for _, post := range tx.Postings {
+				rows = append(rows, table.Row{tx.Date, tx.Description, formatBalance(post.Amounts), post.Account})
+				p.rowToTx = append(p.rowToTx, i)
+			}
+		}
+	}
+	p.table.SetRows(rows)
+}
+
+func (p *TransactionsPanel) SelectedTransaction() *floatv1.Transaction {
+	if len(p.rowToTx) == 0 || p.table.Cursor() >= len(p.rowToTx) {
+		return nil
+	}
+	idx := p.rowToTx[p.table.Cursor()]
+	if idx >= len(p.transactions) {
+		return nil
+	}
+	return p.transactions[idx]
+}
+
+func (p *TransactionsPanel) Focus() {
+	p.table.Focus()
+}
+
+func (p *TransactionsPanel) Blur() {
+	p.table.Blur()
+}
+
+func (p *TransactionsPanel) Update(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		return p.spinner.Update(msg)
+	case tea.KeyMsg:
+		if p.state != stateLoaded {
+			return nil
+		}
+		if msg.String() == "s" {
+			p.splitView = !p.splitView
+			p.rebuildRows()
+			return nil
+		}
+		var cmd tea.Cmd
+		p.table, cmd = p.table.Update(msg)
+		return cmd
+	}
+	return nil
+}
+
+func (p TransactionsPanel) View() string {
+	if p.height < 3 {
+		return ""
+	}
+
+	switch p.state {
+	case stateLoading:
+		return lipgloss.NewStyle().
+			Width(p.width).
+			Height(p.height).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render(p.spinner.View())
+
+	case stateError:
+		return lipgloss.NewStyle().
+			Width(p.width).
+			Height(p.height).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render(fmt.Sprintf("! %s\n\nPress r to retry", p.errMsg))
+
+	case stateLoaded:
+		return p.table.View()
+	}
+	return ""
+}

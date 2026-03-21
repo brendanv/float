@@ -114,6 +114,10 @@ buf curl --schema . --protocol grpc --http2-prior-knowledge \
   --data "{\"fid\":\"$usage_fid\"}"
 '''
 
+[tasks.float]
+description = "Run the float TUI"
+run = "go run ./cmd/float/ --server ${FLOAT_ADDR:-localhost:8080}"
+
 [tasks.grpc-modify-tags]
 description = "Replace all non-fid tags on a transaction"
 usage = '''
