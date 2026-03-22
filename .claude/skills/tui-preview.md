@@ -87,7 +87,7 @@ tmux capture-pane -t float-preview:0.1 -ep | \
 
 ## Step 6 — Upload the image with the paste skill
 
-Use the [paste skill](.claude/skills/paste.md) to upload `/tmp/tui-preview.png` with:
+Use the [paste skill](https://raw.githubusercontent.com/brendanv/paste/refs/heads/main/.claude/skills/paste.md) to upload `/tmp/tui-preview.png` with:
 - `visibility`: `logged_in`
 - `expiration`: `1week`
 
