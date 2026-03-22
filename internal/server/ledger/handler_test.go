@@ -393,6 +393,128 @@ func TestUpdateTransactionDateHandler(t *testing.T) {
 	})
 }
 
+func TestAddTransactionHandler(t *testing.T) {
+	t.Run("missing_description", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 50, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("too_few_postings", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 51, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Test",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("invalid_date", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 52, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Test",
+			Date:        "not-a-date",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("success_with_date", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 53, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+
+		resp, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "GROCERY STORE",
+			Date:        "2026-02-10",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$55.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+
+		got := resp.Msg.Transaction
+		if got.Description != "GROCERY STORE" {
+			t.Errorf("Description = %q, want %q", got.Description, "GROCERY STORE")
+		}
+		if got.Date != "2026-02-10" {
+			t.Errorf("Date = %q, want %q", got.Date, "2026-02-10")
+		}
+		if got.Fid == "" {
+			t.Error("Fid should be non-empty")
+		}
+		if len(got.Postings) != 2 {
+			t.Fatalf("expected 2 postings, got %d", len(got.Postings))
+		}
+
+		// Verify it's in the journal.
+		txns, err := c.Transactions(t.Context(), "tag:fid="+got.Fid)
+		if err != nil {
+			t.Fatalf("Transactions lookup: %v", err)
+		}
+		if len(txns) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(txns))
+		}
+	})
+
+	t.Run("success_without_date_defaults_to_today", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 54, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+
+		resp, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "AUTO DATE TEST",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$20.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+
+		got := resp.Msg.Transaction
+		today := time.Now().UTC().Format("2006-01-02")
+		if got.Date != today {
+			t.Errorf("Date = %q, want today %q", got.Date, today)
+		}
+	})
+}
+
 func TestModifyTagsHandler(t *testing.T) {
 	t.Run("empty_fid_returns_invalid_argument", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 30, NumTxns: 1, WithFIDs: true})

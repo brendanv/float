@@ -51,6 +51,9 @@ const (
 	// LedgerServiceUpdateTransactionDateProcedure is the fully-qualified name of the LedgerService's
 	// UpdateTransactionDate RPC.
 	LedgerServiceUpdateTransactionDateProcedure = "/float.v1.LedgerService/UpdateTransactionDate"
+	// LedgerServiceAddTransactionProcedure is the fully-qualified name of the LedgerService's
+	// AddTransaction RPC.
+	LedgerServiceAddTransactionProcedure = "/float.v1.LedgerService/AddTransaction"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -61,6 +64,7 @@ type LedgerServiceClient interface {
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
 	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
 	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
+	AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -110,6 +114,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("UpdateTransactionDate")),
 			connect.WithClientOptions(opts...),
 		),
+		addTransaction: connect.NewClient[v1.AddTransactionRequest, v1.AddTransactionResponse](
+			httpClient,
+			baseURL+LedgerServiceAddTransactionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("AddTransaction")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -121,6 +131,7 @@ type ledgerServiceClient struct {
 	deleteTransaction     *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
 	modifyTags            *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
 	updateTransactionDate *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
+	addTransaction        *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -153,6 +164,11 @@ func (c *ledgerServiceClient) UpdateTransactionDate(ctx context.Context, req *co
 	return c.updateTransactionDate.CallUnary(ctx, req)
 }
 
+// AddTransaction calls float.v1.LedgerService.AddTransaction.
+func (c *ledgerServiceClient) AddTransaction(ctx context.Context, req *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error) {
+	return c.addTransaction.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -161,6 +177,7 @@ type LedgerServiceHandler interface {
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
 	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
 	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
+	AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -206,6 +223,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("UpdateTransactionDate")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceAddTransactionHandler := connect.NewUnaryHandler(
+		LedgerServiceAddTransactionProcedure,
+		svc.AddTransaction,
+		connect.WithSchema(ledgerServiceMethods.ByName("AddTransaction")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -220,6 +243,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceModifyTagsHandler.ServeHTTP(w, r)
 		case LedgerServiceUpdateTransactionDateProcedure:
 			ledgerServiceUpdateTransactionDateHandler.ServeHTTP(w, r)
+		case LedgerServiceAddTransactionProcedure:
+			ledgerServiceAddTransactionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -251,4 +276,8 @@ func (UnimplementedLedgerServiceHandler) ModifyTags(context.Context, *connect.Re
 
 func (UnimplementedLedgerServiceHandler) UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateTransactionDate is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.AddTransaction is not implemented"))
 }
