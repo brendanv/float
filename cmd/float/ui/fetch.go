@@ -62,6 +62,21 @@ func FetchTransactions(client floatv1connect.LedgerServiceClient, query []string
 	}
 }
 
+type AddTransactionMsg struct {
+	Transaction *floatv1.Transaction
+	Err         error
+}
+
+func AddTransactionCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddTransactionRequest) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.AddTransaction(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			return AddTransactionMsg{Err: err}
+		}
+		return AddTransactionMsg{Transaction: resp.Msg.Transaction}
+	}
+}
+
 type InsightsMsg struct {
 	Report *floatv1.BalanceReport
 	Err    error

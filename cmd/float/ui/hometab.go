@@ -17,6 +17,7 @@ type HomeTab struct {
 	filter      FilterInput
 	period      PeriodSelector
 	insights    InsightsPanel
+	addTxForm   AddTxForm
 	query       []string // filter query from /
 	focused     int
 	// left column sub-layout dimensions (inner, after border)
@@ -34,6 +35,7 @@ func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
 		filter:       NewFilterInput(client),
 		period:       NewPeriodSelector(),
 		insights:     NewInsightsPanel(),
+		addTxForm:    NewAddTxForm(client),
 	}
 	m.accounts.Focus()
 	return m
@@ -85,6 +87,7 @@ func (m HomeTab) SetSize(w, h int) HomeTab {
 		txH = 0
 	}
 	m.transactions.SetSize(rightInnerW, txH)
+	m.addTxForm.SetSize(rightInnerW, rightInnerH)
 	return m
 }
 
@@ -102,11 +105,29 @@ func (m HomeTab) Init() tea.Cmd {
 
 func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 	switch msg := msg.(type) {
+	case AddTransactionMsg:
+		m.addTxForm.submitting = false
+		if msg.Err != nil {
+			m.addTxForm.errMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.addTxForm.Deactivate()
+		m.accounts.state = stateLoading
+		m.transactions.state = stateLoading
+		m.insights.state = stateLoading
+		return m, tea.Batch(
+			FetchAccounts(m.client),
+			FetchBalances(m.client, 0, []string{m.period.Query()}),
+			FetchTransactions(m.client, m.periodAndFilterQuery()),
+			FetchInsights(m.client, m.period.Query()),
+		)
+
 	case AccountsMsg:
 		if msg.Err != nil {
 			m.accounts.SetError(msg.Err.Error())
 		} else {
 			m.accounts.SetAccounts(msg.Accounts)
+			m.addTxForm.SetAccounts(msg.Accounts)
 		}
 		return m, nil
 
@@ -156,6 +177,12 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 		)
 
 	case tea.KeyMsg:
+		if m.addTxForm.Active() {
+			newForm, cmd := m.addTxForm.Update(msg)
+			m.addTxForm = newForm
+			return m, cmd
+		}
+
 		if !m.filter.Active() {
 			switch msg.String() {
 			case "r":
@@ -192,6 +219,11 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 					}
 					rightInnerW, _ := innerSize(m.rightWidth, m.height, BorderStyle)
 					m.transactions.SetSize(rightInnerW, txH)
+					return m, nil
+				}
+			case "a":
+				if m.focused == 1 {
+					m.addTxForm.Activate()
 					return m, nil
 				}
 			}
@@ -261,7 +293,12 @@ func (m HomeTab) View() string {
 		Render(leftContent)
 
 	var rightContent string
-	if m.filter.Active() {
+	if m.addTxForm.Active() {
+		rightContent = lipgloss.NewStyle().
+			Width(rightInnerW).
+			Height(rightInnerH).
+			Render(m.addTxForm.View())
+	} else if m.filter.Active() {
 		txContent := lipgloss.NewStyle().
 			Width(rightInnerW).
 			Height(rightInnerH - 1).
@@ -303,6 +340,7 @@ func (m HomeTab) HelpContext() HelpContext {
 		ActiveTab:    TabHome,
 		HomeFocused:  m.focused,
 		FilterActive: m.filter.Active(),
+		AddTxActive:  m.addTxForm.Active(),
 	}
 }
 
