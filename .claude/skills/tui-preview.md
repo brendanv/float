@@ -95,6 +95,7 @@ Use the [paste skill](.claude/skills/paste.md) to upload `/tmp/tui-preview.png` 
 RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
   -H "X-PASTE-USERID: $PASTE_USER_ID" \
   -H "X-PASTE-API-KEY: $PASTE_API_KEY" \
+  -H "Origin: $PASTE_URL" \
   -F "file=@/tmp/tui-preview.png" \
   -F "visibility=logged_in" \
   -F "expiration=1week")
@@ -143,6 +144,7 @@ tmux capture-pane -t float-preview:0.1 -ep | \
 RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
   -H "X-PASTE-USERID: $PASTE_USER_ID" \
   -H "X-PASTE-API-KEY: $PASTE_API_KEY" \
+  -H "Origin: $PASTE_URL" \
   -F "file=@/tmp/tui-preview.png" \
   -F "visibility=logged_in" \
   -F "expiration=1week")
