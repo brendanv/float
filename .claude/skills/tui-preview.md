@@ -89,7 +89,7 @@ tmux capture-pane -t float-preview:0.1 -ep | \
 
 Use the [paste skill](https://raw.githubusercontent.com/brendanv/paste/refs/heads/main/.claude/skills/paste.md) to upload `/tmp/tui-preview.png` with:
 - `visibility`: `logged_in`
-- `expiration`: `1week`
+- `expiration`: `1day`
 
 ```bash
 RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
@@ -98,7 +98,7 @@ RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
   -H "Origin: $PASTE_URL" \
   -F "file=@/tmp/tui-preview.png" \
   -F "visibility=logged_in" \
-  -F "expiration=1week")
+  -F "expiration=1day")
 
 SLUG=$(echo "$RESPONSE" | jq -r '.slug')
 FULL_URL="${PASTE_URL}/p/${SLUG}"
@@ -147,7 +147,7 @@ RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
   -H "Origin: $PASTE_URL" \
   -F "file=@/tmp/tui-preview.png" \
   -F "visibility=logged_in" \
-  -F "expiration=1week")
+  -F "expiration=1day")
 SLUG=$(echo "$RESPONSE" | jq -r '.slug')
 echo "Preview: ${PASTE_URL}/p/${SLUG}"
 

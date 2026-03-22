@@ -20,7 +20,7 @@ All API requests require two headers:
 
 Unless the user specifies otherwise:
 - `visibility`: `logged_in`
-- `expiration`: `1week`
+- `expiration`: `1day`
 
 Available visibility values: `public`, `private`, `logged_in`
 Available expiration values: `never`, `1hour`, `1day`, `1week`, `1month`, `6months`, `1year`
@@ -62,7 +62,7 @@ Content-Type: multipart/form-data
 Form fields:
 - `file` (required): the image file. Supported types: `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/svg+xml`. Max size: 10 MB.
 - `visibility` (optional, default `logged_in`)
-- `expiration` (optional, default `1week`)
+- `expiration` (optional, default `1day`)
 - `title` (optional)
 - `customSlug` (optional)
 
@@ -113,7 +113,7 @@ RESPONSE=$(curl -s -X POST "$PASTE_URL/api/create" \
   -H "Content-Type: application/json" \
   -H "X-PASTE-USERID: $PASTE_USER_ID" \
   -H "X-PASTE-API-KEY: $PASTE_API_KEY" \
-  -d "{\"content\": \"$(cat file.txt | jq -Rs .)\", \"visibility\": \"logged_in\", \"expiration\": \"1week\"}")
+  -d "{\"content\": \"$(cat file.txt | jq -Rs .)\", \"visibility\": \"logged_in\", \"expiration\": \"1day\"}")
 
 SLUG=$(echo "$RESPONSE" | jq -r '.slug')
 FULL_URL="${PASTE_URL}/p/${SLUG}"

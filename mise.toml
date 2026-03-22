@@ -4,7 +4,7 @@ buf = "1.66.1"
 golangci-lint = "2.11.3"
 hledger = { version = "1.52", extract_all = "true" }
 air = "latest"
-"aqua:charmbracelet/freeze" = "latest"
+"aqua:charmbracelet/freeze" = "0.1.6"
 
 [env]
 VAULT_DATA_DIR = "{{config_root}}/data"
