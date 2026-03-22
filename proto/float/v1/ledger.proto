@@ -86,6 +86,23 @@ message UpdateTransactionDateResponse {
   Transaction transaction = 1;
 }
 
+message PostingInput {
+  string account = 1;
+  string amount = 2; // e.g. "$45.00"; empty = auto-balance posting
+  string comment = 3;
+}
+
+message AddTransactionRequest {
+  string description = 1;
+  string date = 2; // "YYYY-MM-DD"; empty = today
+  string comment = 3;
+  repeated PostingInput postings = 4;
+}
+
+message AddTransactionResponse {
+  Transaction transaction = 1;
+}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
@@ -93,4 +110,5 @@ service LedgerService {
   rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);
   rpc ModifyTags(ModifyTagsRequest) returns (ModifyTagsResponse);
   rpc UpdateTransactionDate(UpdateTransactionDateRequest) returns (UpdateTransactionDateResponse);
+  rpc AddTransaction(AddTransactionRequest) returns (AddTransactionResponse);
 }

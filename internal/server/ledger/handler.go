@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
@@ -203,6 +204,70 @@ func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Reques
 	}
 	return connect.NewResponse(&floatv1.UpdateTransactionDateResponse{
 		Transaction: toProtoTransaction(updated),
+	}), nil
+}
+
+func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[floatv1.AddTransactionRequest]) (*connect.Response[floatv1.AddTransactionResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.Description == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("description is required"))
+	}
+	if len(req.Msg.Postings) < 2 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("at least 2 postings are required"))
+	}
+	for i, p := range req.Msg.Postings {
+		if p.Account == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("posting %d: account is required", i))
+		}
+	}
+
+	var date time.Time
+	if req.Msg.Date == "" {
+		date = time.Now().UTC().Truncate(24 * time.Hour)
+	} else {
+		var err error
+		date, err = time.Parse("2006-01-02", req.Msg.Date)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid date %q: must be YYYY-MM-DD", req.Msg.Date))
+		}
+	}
+
+	postings := make([]journal.PostingInput, len(req.Msg.Postings))
+	for i, p := range req.Msg.Postings {
+		postings[i] = journal.PostingInput{
+			Account: p.Account,
+			Amount:  p.Amount,
+			Comment: p.Comment,
+		}
+	}
+	tx := journal.TransactionInput{
+		Date:        date,
+		Description: req.Msg.Description,
+		Comment:     req.Msg.Comment,
+		Postings:    postings,
+	}
+
+	var fid string
+	err := h.lock.Do(ctx, func() error {
+		var e error
+		fid, e = journal.AppendTransaction(ctx, h.hl, h.dataDir, tx)
+		return e
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "add transaction failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	txns, err := h.hl.Transactions(ctx, "tag:fid="+fid)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch new transaction failed", "fid", fid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if len(txns) == 0 {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after add", fid))
+	}
+	return connect.NewResponse(&floatv1.AddTransactionResponse{
+		Transaction: toProtoTransaction(txns[0]),
 	}), nil
 }
 
