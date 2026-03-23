@@ -21,7 +21,7 @@ All API requests require two headers:
 
 Unless the user specifies otherwise:
 - `visibility`: `logged_in`
-- `expiration`: `1week`
+- `expiration`: `1day`
 
 Available visibility values: `public`, `private`, `logged_in`
 Available expiration values: `never`, `1hour`, `1day`, `1week`, `1month`, `6months`, `1year`
