@@ -9,11 +9,11 @@ import (
 
 func TestGroupAccounts(t *testing.T) {
 	accounts := []*floatv1.Account{
-		{Name: "food", FullName: "expenses:food", Type: "E"},
+		{Name: "food", FullName: "expenses:food", Type: "X"},
 		{Name: "checking", FullName: "assets:checking", Type: "A"},
 		{Name: "visa", FullName: "liabilities:visa", Type: "L"},
 		{Name: "salary", FullName: "revenue:salary", Type: "R"},
-		{Name: "opening", FullName: "equity:opening", Type: "X"},
+		{Name: "opening", FullName: "equity:opening", Type: "E"},
 	}
 	rows := groupedRows(accounts)
 
@@ -26,7 +26,7 @@ func TestGroupAccounts(t *testing.T) {
 		}
 	}
 
-	want := []string{"H:Assets", "A", "H:Liabilities", "L", "H:Revenue", "R", "H:Expenses", "E", "H:Equity", "X"}
+	want := []string{"H:Assets", "A", "H:Liabilities", "L", "H:Revenue", "R", "H:Expenses", "X", "H:Equity", "E"}
 	if len(order) != len(want) {
 		t.Fatalf("expected %v, got %v", want, order)
 	}
