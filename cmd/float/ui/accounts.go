@@ -20,14 +20,14 @@ const (
 	stateError
 )
 
-var accountTypeOrder = []string{"A", "L", "R", "E", "X"}
+var accountTypeOrder = []string{"A", "L", "R", "X", "E"}
 
 var accountTypeLabel = map[string]string{
 	"A": "Assets",
 	"L": "Liabilities",
 	"R": "Revenue",
-	"E": "Expenses",
-	"X": "Equity",
+	"E": "Equity",
+	"X": "Expenses",
 }
 
 type AccountsPanel struct {
