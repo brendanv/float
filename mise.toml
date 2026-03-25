@@ -46,8 +46,8 @@ description = "Full pre-commit gate: lint + vet + test"
 depends = ["lint", "vet", "test"]
 
 [tasks.build]
-description = "Build web UI and compile floatd"
-run = "cd web && npm run build && cd .. && go build -o floatd ./cmd/floatd/"
+description = "Generate JS protobuf code, build web UI, and compile floatd"
+run = "cd web && npx buf generate --template buf.gen.yaml ../proto && npm run build && cd .. && go build -o floatd ./cmd/floatd/"
 
 [tasks.floatctl]
 description = "Run floatctl"
@@ -128,8 +128,8 @@ description = "Generate JS protobuf code from .proto files"
 run = "cd web && npx buf generate --template buf.gen.yaml ../proto"
 
 [tasks.web-build]
-description = "Build web UI for production"
-run = "cd web && npm run build"
+description = "Generate JS protobuf code and build web UI for production"
+run = "cd web && npx buf generate --template buf.gen.yaml ../proto && npm run build"
 
 [tasks.web-dev]
 description = "Start Vite dev server for web UI"
