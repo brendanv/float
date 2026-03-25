@@ -1,13 +1,13 @@
 import { formatAmounts } from "../format.js";
 import { navigate } from "../router.jsx";
 
-const TYPE_ORDER = ["A", "L", "R", "E", "X"];
+const TYPE_ORDER = ["A", "L", "E", "R", "X"];
 const TYPE_LABELS = {
   A: "Assets",
   L: "Liabilities",
   R: "Revenue",
-  E: "Expenses",
-  X: "Equity",
+  E: "Equity",
+  X: "Expenses",
 };
 
 export function AccountList({ accounts, balanceRows }) {

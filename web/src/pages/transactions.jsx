@@ -43,7 +43,7 @@ export function TransactionsPage({ params }) {
       <FilterInput value={filter} onChange={setFilter} />
       {loading && <Loading />}
       {error && <ErrorBanner error={error} />}
-      {data && <TransactionTable transactions={data.transactions || []} />}
+      {data && <TransactionTable transactions={data.transactions || []} focusedAccount={accountFilter} />}
     </div>
   );
 }
