@@ -1,0 +1,69 @@
+/* Custom overrides on top of Pico CSS */
+
+:root {
+  --pico-font-size: 16px;
+}
+
+/* Transaction table: show desktop table, hide mobile cards on large screens */
+.transaction-table-desktop {
+  display: table;
+}
+.transaction-cards-mobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .transaction-table-desktop {
+    display: none;
+  }
+  .transaction-cards-mobile {
+    display: block;
+  }
+}
+
+/* Dashboard layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+/* Insights bar chart */
+.insights-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+.insights-bar-label {
+  flex: 0 0 40%;
+  text-align: right;
+  padding-right: 0.5rem;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insights-bar-track {
+  flex: 1;
+  background: var(--pico-secondary-background);
+  border-radius: 4px;
+  height: 1.25rem;
+  overflow: hidden;
+}
+.insights-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.insights-bar-value {
+  flex: 0 0 auto;
+  padding-left: 0.5rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}

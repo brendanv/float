@@ -9,3 +9,8 @@
 
 # air hot-reload build output
 /tmp/
+
+# web UI
+web/node_modules/
+web/src/gen/
+internal/webui/dist/

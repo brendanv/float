@@ -19,6 +19,7 @@ import (
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/txlock"
+	"github.com/brendanv/float/internal/webui"
 )
 
 func main() {
@@ -69,8 +70,9 @@ func main() {
 		connect.WithInterceptors(middleware.NewLoggingInterceptor(logger)),
 	)
 	mux.Handle(path, svcHandler)
+	mux.Handle("/", webui.Handler())
 
-	slog.Info("floatd listening", "addr", listenAddr)
+	slog.Info("floatd listening", "addr", listenAddr, "webui", true)
 	if err := http.ListenAndServe(listenAddr, h2c.NewHandler(mux, &http2.Server{})); err != nil {
 		slog.Error("server", "error", err)
 		os.Exit(1)
