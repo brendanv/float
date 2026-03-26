@@ -24,7 +24,8 @@ export function AppShell({ children, currentPath }) {
       <nav class="container">
         <ul>
           <li>
-            <a href="#/" onClick={(e) => { e.preventDefault(); navigate("/"); }}>
+            <a href="#/" onClick={(e) => { e.preventDefault(); navigate("/"); }} style="display:flex;align-items:center;gap:0.4em">
+              <img src="/icon.png" alt="" style="height:1.75em;width:1.75em;border-radius:0.3em" />
               <strong>float</strong>
             </a>
           </li>
