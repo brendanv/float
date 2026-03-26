@@ -49,6 +49,10 @@ func balancesKey(depth int, query []string) string {
 
 const accountsKey = "accounts"
 
+func netWorthKey(begin, end string) string {
+	return fmt.Sprintf("networth:%s:%s", begin, end)
+}
+
 // cachedTransactions fetches transactions from cache or hledger.
 func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
 	if c == nil {
@@ -75,6 +79,20 @@ func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 		return nil, err
 	}
 	return val.(*hledger.BalanceReport), nil
+}
+
+// cachedNetWorth fetches a balance sheet timeseries from cache or hledger.
+func cachedNetWorth(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, begin, end string) (*hledger.BalanceSheetTimeseries, error) {
+	if c == nil {
+		return hl.BalanceSheetTimeseries(ctx, begin, end)
+	}
+	val, err := c.Get(ctx, netWorthKey(begin, end), func(ctx context.Context) (any, error) {
+		return hl.BalanceSheetTimeseries(ctx, begin, end)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.(*hledger.BalanceSheetTimeseries), nil
 }
 
 // cachedAccounts fetches accounts from cache or hledger.
@@ -123,6 +141,30 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 	return connect.NewResponse(&floatv1.GetBalancesResponse{
 		Report: &floatv1.BalanceReport{Rows: rows, Total: total},
 	}), nil
+}
+
+func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	ts, err := cachedNetWorth(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger balance sheet timeseries failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	snapshots := make([]*floatv1.NetWorthSnapshot, len(ts.Periods))
+	for i, date := range ts.Periods {
+		snap := &floatv1.NetWorthSnapshot{Date: date}
+		for _, sub := range ts.Subreports {
+			switch sub.Name {
+			case "Assets":
+				snap.Assets = toProtoAmounts(sub.Totals[i])
+			case "Liabilities":
+				snap.Liabilities = toProtoAmounts(sub.Totals[i])
+			}
+		}
+		snap.NetWorth = toProtoAmounts(ts.NetWorth[i])
+		snapshots[i] = snap
+	}
+	return connect.NewResponse(&floatv1.GetNetWorthTimeseriesResponse{Snapshots: snapshots}), nil
 }
 
 func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1.ListAccountsRequest]) (*connect.Response[floatv1.ListAccountsResponse], error) {
@@ -324,4 +366,12 @@ func toProtoAccount(n *hledger.AccountNode) *floatv1.Account {
 		FullName: n.FullName,
 		Type:     string(n.Type),
 	}
+}
+
+func toProtoAmounts(amounts []hledger.Amount) []*floatv1.Amount {
+	result := make([]*floatv1.Amount, len(amounts))
+	for i, a := range amounts {
+		result[i] = toProtoAmount(a)
+	}
+	return result
 }

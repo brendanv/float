@@ -156,6 +156,28 @@ func (c *Client) Balances(ctx context.Context, depth int, query ...string) (*Bal
 	return parseBalanceReport(stdout)
 }
 
+// BalanceSheetTimeseries runs `hledger bs --monthly --historical --layout=bare
+// --infer-market-prices --value=then -O json -f <journal> [date:begin..end]`
+// and returns per-period asset and liability totals.
+// begin and end are optional "YYYY-MM-DD" strings; pass "" to omit.
+func (c *Client) BalanceSheetTimeseries(ctx context.Context, begin, end string) (*BalanceSheetTimeseries, error) {
+	args := []string{
+		"bs", "-O", "json", "-f", c.journal,
+		"--monthly", "--historical", "--layout=bare",
+		"--infer-market-prices", "--value=then",
+	}
+	if begin != "" || end != "" {
+		args = append(args, "date:"+begin+".."+end)
+	}
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bs: %w", err))
+	}
+
+	return parseBalanceSheetTimeseries(stdout)
+}
+
 // Register runs `hledger reg -O json -f <journal> [query...]`.
 // Returns flat RegisterRows (one per posting).
 func (c *Client) Register(ctx context.Context, query ...string) ([]RegisterRow, error) {

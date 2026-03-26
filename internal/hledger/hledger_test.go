@@ -432,6 +432,72 @@ func TestTransactionFID(t *testing.T) {
 	}
 }
 
+func TestBalanceSheetTimeseries(t *testing.T) {
+	c := mustClient(t, "simple.journal")
+	ts, err := c.BalanceSheetTimeseries(t.Context(), "", "")
+	if err != nil {
+		t.Fatalf("BalanceSheetTimeseries: %v", err)
+	}
+
+	// simple.journal has transactions in 2026-01 and 2026-02.
+	if len(ts.Periods) != 2 {
+		t.Fatalf("expected 2 periods, got %d", len(ts.Periods))
+	}
+	if ts.Periods[0] != "2026-01-01" {
+		t.Errorf("period 0 date = %q, want 2026-01-01", ts.Periods[0])
+	}
+	if ts.Periods[1] != "2026-02-01" {
+		t.Errorf("period 1 date = %q, want 2026-02-01", ts.Periods[1])
+	}
+
+	// Net worth length must match periods.
+	if len(ts.NetWorth) != 2 {
+		t.Fatalf("expected 2 net worth entries, got %d", len(ts.NetWorth))
+	}
+
+	// Find Assets and Liabilities subreports.
+	var assetsSub, liabSub *hledger.BSSubreport
+	for i := range ts.Subreports {
+		switch ts.Subreports[i].Name {
+		case "Assets":
+			assetsSub = &ts.Subreports[i]
+		case "Liabilities":
+			liabSub = &ts.Subreports[i]
+		}
+	}
+	if assetsSub == nil {
+		t.Fatal("Assets subreport not found")
+	}
+	if liabSub == nil {
+		t.Fatal("Liabilities subreport not found")
+	}
+
+	// simple.journal has assets:checking with $3335 in Jan (historical).
+	if len(assetsSub.Totals[0]) == 0 {
+		t.Error("expected non-empty assets totals for period 0")
+	} else {
+		v := assetsSub.Totals[0][0].Quantity.FloatingPoint
+		if v < 3334 || v > 3336 {
+			t.Errorf("assets period 0 ≈ 3335, got %v", v)
+		}
+	}
+
+	// simple.journal has no liability accounts, so liabilities should be empty.
+	if len(liabSub.Totals[0]) != 0 {
+		t.Errorf("expected empty liabilities for period 0, got %v", liabSub.Totals[0])
+	}
+
+	// Net worth in period 0 should equal assets (no liabilities).
+	if len(ts.NetWorth[0]) == 0 {
+		t.Error("expected non-empty net worth for period 0")
+	} else {
+		v := ts.NetWorth[0][0].Quantity.FloatingPoint
+		if v < 3334 || v > 3336 {
+			t.Errorf("net worth period 0 ≈ 3335, got %v", v)
+		}
+	}
+}
+
 func TestNewWithRunner(t *testing.T) {
 	called := false
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {

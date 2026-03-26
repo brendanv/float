@@ -104,6 +104,69 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 	return txns, nil
 }
 
+// parseBalanceSheetTimeseries parses the JSON object emitted by
+// `hledger bs --monthly -O json`. The format differs substantially from
+// `hledger bal`: it is a JSON object with cbrDates, cbrSubreports, and
+// cbrTotals rather than a simple two-element array.
+func parseBalanceSheetTimeseries(data []byte) (*BalanceSheetTimeseries, error) {
+	// Intermediate structs that mirror hledger's JSON schema.
+	type dateEntry struct {
+		Contents string `json:"contents"`
+	}
+	type prrRow struct {
+		PrrAmounts [][]Amount `json:"prrAmounts"`
+	}
+	type prSubreport struct {
+		PrTotals prrRow `json:"prTotals"`
+	}
+	type bsJSON struct {
+		CbrDates      [][]dateEntry      `json:"cbrDates"`
+		CbrSubreports []json.RawMessage  `json:"cbrSubreports"`
+		CbrTotals     prrRow             `json:"cbrTotals"`
+	}
+
+	var raw bsJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parseBalanceSheetTimeseries: unmarshal: %w", err)
+	}
+
+	// Extract period start dates.
+	periods := make([]string, len(raw.CbrDates))
+	for i, pair := range raw.CbrDates {
+		if len(pair) < 1 {
+			return nil, fmt.Errorf("parseBalanceSheetTimeseries: period %d missing start date", i)
+		}
+		periods[i] = pair[0].Contents
+	}
+
+	// Each element of cbrSubreports is a 2-element JSON array: [name, subreportObject].
+	subreports := make([]BSSubreport, 0, len(raw.CbrSubreports))
+	for i, rawSub := range raw.CbrSubreports {
+		var pair [2]json.RawMessage
+		if err := json.Unmarshal(rawSub, &pair); err != nil {
+			return nil, fmt.Errorf("parseBalanceSheetTimeseries: subreport %d unmarshal pair: %w", i, err)
+		}
+		var name string
+		if err := json.Unmarshal(pair[0], &name); err != nil {
+			return nil, fmt.Errorf("parseBalanceSheetTimeseries: subreport %d name: %w", i, err)
+		}
+		var sub prSubreport
+		if err := json.Unmarshal(pair[1], &sub); err != nil {
+			return nil, fmt.Errorf("parseBalanceSheetTimeseries: subreport %d data: %w", i, err)
+		}
+		subreports = append(subreports, BSSubreport{
+			Name:   name,
+			Totals: sub.PrTotals.PrrAmounts,
+		})
+	}
+
+	return &BalanceSheetTimeseries{
+		Periods:    periods,
+		Subreports: subreports,
+		NetWorth:   raw.CbrTotals.PrrAmounts,
+	}, nil
+}
+
 // extractAccountType parses the "; type: X" suffix added by hledger --types.
 // Returns the trimmed account name and the type letter (or empty string if absent).
 func extractAccountType(s string) (name string, typ AccountType) {

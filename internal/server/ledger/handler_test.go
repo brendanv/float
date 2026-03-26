@@ -83,6 +83,41 @@ const printJSON = `[
 
 const balJSON = `[[["assets:checking", "assets:checking", 0, [{"acommodity": "$", "acost": null, "aquantity": {"decimalMantissa": 700000, "decimalPlaces": 2, "floatingPoint": 7000}}]], ["income:salary", "income:salary", 0, [{"acommodity": "$", "acost": null, "aquantity": {"decimalMantissa": -700000, "decimalPlaces": 2, "floatingPoint": -7000}}]]], [{"acommodity": "$", "acost": null, "aquantity": {"decimalMantissa": 0, "decimalPlaces": 2, "floatingPoint": 0}}]]`
 
+// bsTimeseriesJSON is a minimal hledger bs --monthly -O json fixture with 2 periods,
+// Assets and Liabilities subreports, and net worth totals.
+const bsTimeseriesJSON = `{
+  "cbrDates": [
+    [{"contents": "2026-01-01", "tag": "Exact"}, {"contents": "2026-02-01", "tag": "Exact"}],
+    [{"contents": "2026-02-01", "tag": "Exact"}, {"contents": "2026-03-01", "tag": "Exact"}]
+  ],
+  "cbrSubreports": [
+    ["Assets", {
+      "prDates": [],
+      "prRows": [],
+      "prTotals": {
+        "prrAmounts": [
+          [{"acommodity": "$", "acost": null, "aquantity": {"decimalMantissa": 333500, "decimalPlaces": 2, "floatingPoint": 3335}}],
+          [{"acommodity": "$", "acost": null, "aquantity": {"decimalMantissa": 682000, "decimalPlaces": 2, "floatingPoint": 6820}}]
+        ],
+        "prrAverage": [], "prrName": [], "prrTotal": []
+      }
+    }],
+    ["Liabilities", {
+      "prDates": [],
+      "prRows": [],
+      "prTotals": {"prrAmounts": [[], []], "prrAverage": [], "prrName": [], "prrTotal": []}
+    }]
+  ],
+  "cbrTitle": "Balance Sheet",
+  "cbrTotals": {
+    "prrAmounts": [
+      [{"acommodity": "$", "acost": null, "aquantity": {"decimalMantissa": 333500, "decimalPlaces": 2, "floatingPoint": 3335}}],
+      [{"acommodity": "$", "acost": null, "aquantity": {"decimalMantissa": 682000, "decimalPlaces": 2, "floatingPoint": 6820}}]
+    ],
+    "prrAverage": [], "prrName": [], "prrTotal": []
+  }
+}`
+
 const accountsText = `assets:checking      ; type: A
 income:salary        ; type: R
 `
@@ -193,6 +228,56 @@ func TestGetBalances(t *testing.T) {
 	}
 	if report.Total[0].Quantity != "0.00" {
 		t.Errorf("Total Quantity = %q, want %q", report.Total[0].Quantity, "0.00")
+	}
+}
+
+func TestGetNetWorthTimeseries(t *testing.T) {
+	h := mustHandler(t, map[string][]byte{
+		"bs": []byte(bsTimeseriesJSON),
+	})
+
+	resp, err := h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+	if err != nil {
+		t.Fatalf("GetNetWorthTimeseries: %v", err)
+	}
+
+	snapshots := resp.Msg.Snapshots
+	if len(snapshots) != 2 {
+		t.Fatalf("expected 2 snapshots, got %d", len(snapshots))
+	}
+
+	s0 := snapshots[0]
+	if s0.Date != "2026-01-01" {
+		t.Errorf("snapshot[0].Date = %q, want %q", s0.Date, "2026-01-01")
+	}
+	if len(s0.Assets) != 1 {
+		t.Fatalf("expected 1 asset amount in snapshot[0], got %d", len(s0.Assets))
+	}
+	if s0.Assets[0].Commodity != "$" {
+		t.Errorf("Assets[0].Commodity = %q, want %q", s0.Assets[0].Commodity, "$")
+	}
+	if s0.Assets[0].Quantity != "3335.00" {
+		t.Errorf("Assets[0].Quantity = %q, want %q", s0.Assets[0].Quantity, "3335.00")
+	}
+	if len(s0.Liabilities) != 0 {
+		t.Errorf("expected 0 liability amounts in snapshot[0], got %d", len(s0.Liabilities))
+	}
+	if len(s0.NetWorth) != 1 {
+		t.Fatalf("expected 1 net worth amount in snapshot[0], got %d", len(s0.NetWorth))
+	}
+	if s0.NetWorth[0].Quantity != "3335.00" {
+		t.Errorf("NetWorth[0].Quantity = %q, want %q", s0.NetWorth[0].Quantity, "3335.00")
+	}
+
+	s1 := snapshots[1]
+	if s1.Date != "2026-02-01" {
+		t.Errorf("snapshot[1].Date = %q, want %q", s1.Date, "2026-02-01")
+	}
+	if len(s1.Assets) != 1 {
+		t.Fatalf("expected 1 asset amount in snapshot[1], got %d", len(s1.Assets))
+	}
+	if s1.Assets[0].Quantity != "6820.00" {
+		t.Errorf("Assets[0].Quantity = %q, want %q", s1.Assets[0].Quantity, "6820.00")
 	}
 }
 
