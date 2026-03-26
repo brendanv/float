@@ -27,7 +27,7 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 	return Model{
 		client:  client,
 		home:    NewHomeTab(client),
-		manager: NewManagerTab(),
+		manager: NewManagerTab(client),
 	}
 }
 
@@ -73,9 +73,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	default:
-		var cmd tea.Cmd
-		m.home, cmd = m.home.Update(msg)
-		return m, cmd
+		var cmd1, cmd2 tea.Cmd
+		m.home, cmd1 = m.home.Update(msg)
+		m.manager, cmd2 = m.manager.Update(msg)
+		return m, tea.Batch(cmd1, cmd2)
 	}
 	return m, nil
 }
