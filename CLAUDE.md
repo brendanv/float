@@ -31,6 +31,20 @@ mise run check
 # Generate protobuf code (after editing .proto files)
 mise run proto-gen
 # or: buf generate
+
+# Generate JS protobuf client (after editing .proto files)
+mise run web-gen
+# or: cd web && npx buf generate --template buf.gen.yaml ../proto
+
+# Build web UI for production (outputs to internal/webui/dist/)
+mise run web-build
+# or: cd web && npm run build
+
+# Build web UI + compile floatd
+mise run build
+
+# Start Vite dev server for web UI (HMR, proxies API to floatd)
+mise run web-dev
 ```
 
 Tool versions are managed by `mise`. Run `mise install` to get pinned versions of Go, buf, golangci-lint, and hledger.
@@ -47,6 +61,15 @@ FLOAT_ADDR=:9090 mise run floatd
 ```
 
 `floatd` requires a `config.toml` in the data directory and a `main.journal` file.
+
+### Web UI Development
+
+The web UI is a Preact SPA in `web/` that gets embedded into the `floatd` binary via `go:embed`. For development with hot reload:
+
+1. Terminal 1: `mise run floatd` (Go server on :8080)
+2. Terminal 2: `mise run web-dev` (Vite dev server on :5173, proxies API calls to :8080)
+
+For production: `mise run build` builds the web UI into `internal/webui/dist/` and compiles `floatd` with the embedded files. The web UI uses the Connect protocol (JSON over HTTP POST) to call the same gRPC endpoints.
 
 ## Querying floatd with buf curl
 
