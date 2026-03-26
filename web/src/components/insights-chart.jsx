@@ -44,16 +44,16 @@ function BarChart({ rows, color }) {
 
 export function InsightsChart({ periodQuery }) {
   const expenses = useRpc(
-    () => ledgerClient.getBalances({ depth: 2, query: [...periodQuery, "expenses"] }),
+    () => ledgerClient.getBalances({ depth: 2, query: [...periodQuery, "type:X"] }),
     [periodQuery.join(",")]
   );
   const revenue = useRpc(
-    () => ledgerClient.getBalances({ depth: 2, query: [...periodQuery, "revenue"] }),
+    () => ledgerClient.getBalances({ depth: 2, query: [...periodQuery, "type:R"] }),
     [periodQuery.join(",")]
   );
 
-  const expenseRows = (expenses.data?.report?.rows || []).filter((r) => r.indent > 0);
-  const revenueRows = (revenue.data?.report?.rows || []).filter((r) => r.indent > 0);
+  const expenseRows = expenses.data?.report?.rows || [];
+  const revenueRows = revenue.data?.report?.rows || [];
 
   return (
     <div>

@@ -51,7 +51,7 @@
 }
 .insights-bar-track {
   flex: 1;
-  background: var(--pico-secondary-background);
+  background: var(--pico-muted-border-color, rgba(0, 0, 0, 0.1));
   border-radius: 4px;
   height: 1.25rem;
   overflow: hidden;
@@ -62,8 +62,9 @@
   transition: width 0.3s ease;
 }
 .insights-bar-value {
-  flex: 0 0 auto;
+  flex: 0 0 6rem;
   padding-left: 0.5rem;
   font-size: 0.85rem;
   white-space: nowrap;
+  text-align: right;
 }

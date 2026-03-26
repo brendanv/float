@@ -23,10 +23,10 @@ export function AccountList({ accounts, balanceRows }) {
     }
   }
 
-  // Group accounts by type
+  // Group accounts by type; treat Cash (C) as Asset (A)
   const groups = {};
   for (const acct of accounts) {
-    const t = acct.type || "X";
+    const t = acct.type === "C" ? "A" : (acct.type || "X");
     if (!groups[t]) groups[t] = [];
     groups[t].push(acct);
   }

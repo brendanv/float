@@ -22,6 +22,7 @@ export function HomePage() {
 
   const accounts = useRpc(() => ledgerClient.listAccounts({}), []);
   const balances = useRpc(() => ledgerClient.getBalances({ depth: 1 }), []);
+  const accountBalances = useRpc(() => ledgerClient.getBalances({}), []);
   const txns = useRpc(
     () => ledgerClient.listTransactions({ query: periodQuery }),
     [year, month]
@@ -33,6 +34,9 @@ export function HomePage() {
   }
 
   const balanceRows = balances.data?.report?.rows || [];
+  const allAccounts = accounts.data?.accounts || [];
+  const sidebarAccounts = allAccounts.filter((a) => a.type === "A" || a.type === "C" || a.type === "L");
+  const accountBalanceRows = accountBalances.data?.report?.rows || [];
 
   return (
     <div>
@@ -45,8 +49,8 @@ export function HomePage() {
           {accounts.error && <ErrorBanner error={accounts.error} />}
           {accounts.data && (
             <AccountList
-              accounts={accounts.data.accounts || []}
-              balanceRows={balanceRows}
+              accounts={sidebarAccounts}
+              balanceRows={accountBalanceRows}
             />
           )}
           <InsightsChart periodQuery={periodQuery} />

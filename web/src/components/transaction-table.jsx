@@ -13,9 +13,12 @@ function generalDisplay(tx) {
     return { from: postings[0].account, to: postings[0].account, amount: formatAmounts(postings[0].amounts) };
   }
   if (postings.length > 2) {
-    const pos = postings.find((p) => firstQuantity(p) > 0);
-    const amount = pos ? formatAmounts(pos.amounts) : formatAmounts(postings[0].amounts);
-    return { from: "various accounts", to: "various accounts", amount };
+    const positives = postings.filter((p) => firstQuantity(p) > 0);
+    const negatives = postings.filter((p) => firstQuantity(p) < 0);
+    const amount = positives.length > 0 ? formatAmounts(positives[0].amounts) : formatAmounts(postings[0].amounts);
+    const from = negatives.length === 1 ? negatives[0].account : "various accounts";
+    const to = positives.length === 1 ? positives[0].account : "various accounts";
+    return { from, to, amount };
   }
   const neg = postings.find((p) => firstQuantity(p) < 0);
   const pos = postings.find((p) => firstQuantity(p) > 0);
@@ -104,7 +107,7 @@ export function TransactionTable({ transactions, focusedAccount }) {
             const display = resolveDisplay(tx);
             const accountCell = isAccountRegister
               ? (display?.otherAccounts || "")
-              : display ? `${display.from} \u2192 ${display.to}` : "";
+              : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
             const amountCell = display?.amount || "";
             return (
               <tr
@@ -128,7 +131,7 @@ export function TransactionTable({ transactions, focusedAccount }) {
           const display = resolveDisplay(tx);
           const accountCell = isAccountRegister
             ? (display?.otherAccounts || "")
-            : display ? `${display.from} \u2192 ${display.to}` : "";
+            : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
           const amountCell = display?.amount || "";
           return (
             <article
