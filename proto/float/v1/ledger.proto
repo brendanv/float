@@ -41,6 +41,22 @@ message Account {
   string type = 3; // "A", "L", "E", "R", "X", "C", "V"
 }
 
+message NetWorthSnapshot {
+  string date = 1; // Start date of period, "YYYY-MM-DD"
+  repeated Amount assets = 2; // Total assets for this period
+  repeated Amount liabilities = 3; // Total liabilities (negative by hledger convention)
+  repeated Amount net_worth = 4; // Net worth = assets + liabilities
+}
+
+message GetNetWorthTimeseriesRequest {
+  string begin = 1; // Optional "YYYY-MM-DD"; no value = all time
+  string end = 2; // Optional "YYYY-MM-DD"; no value = today
+}
+
+message GetNetWorthTimeseriesResponse {
+  repeated NetWorthSnapshot snapshots = 1;
+}
+
 message ListTransactionsRequest {
   repeated string query = 1; // hledger query tokens (optional)
 }
@@ -111,4 +127,5 @@ service LedgerService {
   rpc ModifyTags(ModifyTagsRequest) returns (ModifyTagsResponse);
   rpc UpdateTransactionDate(UpdateTransactionDateRequest) returns (UpdateTransactionDateResponse);
   rpc AddTransaction(AddTransactionRequest) returns (AddTransactionResponse);
+  rpc GetNetWorthTimeseries(GetNetWorthTimeseriesRequest) returns (GetNetWorthTimeseriesResponse);
 }

@@ -108,6 +108,23 @@ type AccountNode struct {
 	Children []*AccountNode
 }
 
+// BalanceSheetTimeseries is returned by hledger bs --monthly -O json.
+type BalanceSheetTimeseries struct {
+	// Periods[i] is the start date "YYYY-MM-DD" of period i (period end is exclusive).
+	Periods []string
+	// Subreports holds the per-section (e.g. "Assets", "Liabilities") totals.
+	Subreports []BSSubreport
+	// NetWorth[i] contains the net worth amounts for period i.
+	NetWorth [][]Amount
+}
+
+// BSSubreport holds per-period totals for one section of the balance sheet.
+type BSSubreport struct {
+	Name string
+	// Totals[i] contains the total amounts for period i.
+	Totals [][]Amount
+}
+
 type CheckError struct {
 	Output string
 }
