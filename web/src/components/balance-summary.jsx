@@ -3,22 +3,21 @@ import { formatAmounts } from "../format.js";
 export function BalanceSummary({ balanceRows }) {
   if (!balanceRows || balanceRows.length === 0) return null;
 
-  // Find top-level totals for assets, liabilities
   const assets = balanceRows.find((r) => r.fullName === "assets");
   const liabilities = balanceRows.find((r) => r.fullName === "liabilities");
 
   return (
-    <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
+    <div class="stats shadow mb-6 w-full sm:w-auto">
       {assets && (
-        <div>
-          <small class="secondary">Assets</small>
-          <div><strong>{formatAmounts(assets.amounts)}</strong></div>
+        <div class="stat">
+          <div class="stat-title">Assets</div>
+          <div class="stat-value text-success text-2xl">{formatAmounts(assets.amounts)}</div>
         </div>
       )}
       {liabilities && (
-        <div>
-          <small class="secondary">Liabilities</small>
-          <div><strong>{formatAmounts(liabilities.amounts)}</strong></div>
+        <div class="stat">
+          <div class="stat-title">Liabilities</div>
+          <div class="stat-value text-error text-2xl">{formatAmounts(liabilities.amounts)}</div>
         </div>
       )}
     </div>

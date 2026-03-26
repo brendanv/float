@@ -18,16 +18,18 @@ export function PeriodSelector({ year, month, onChange }) {
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
-      <button class="outline secondary" onClick={prev} style={{ padding: "0.25rem 0.75rem" }}>
-        &lsaquo;
-      </button>
-      <strong style={{ minWidth: "10rem", textAlign: "center" }}>
-        {monthName(month)} {year}
-      </strong>
-      <button class="outline secondary" onClick={next} style={{ padding: "0.25rem 0.75rem" }}>
-        &rsaquo;
-      </button>
+    <div class="flex items-center mb-4">
+      <div class="join">
+        <button class="btn btn-ghost btn-sm join-item" onClick={prev}>
+          &lsaquo;
+        </button>
+        <button class="btn btn-ghost btn-sm join-item pointer-events-none min-w-40 font-semibold">
+          {monthName(month)} {year}
+        </button>
+        <button class="btn btn-ghost btn-sm join-item" onClick={next}>
+          &rsaquo;
+        </button>
+      </div>
     </div>
   );
 }

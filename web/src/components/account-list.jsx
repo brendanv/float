@@ -12,10 +12,9 @@ const TYPE_LABELS = {
 
 export function AccountList({ accounts, balanceRows }) {
   if (!accounts || accounts.length === 0) {
-    return <p>No accounts found.</p>;
+    return <p class="text-base-content/60">No accounts found.</p>;
   }
 
-  // Build a map of fullName -> balance amounts from the balance report
   const balanceMap = {};
   if (balanceRows) {
     for (const row of balanceRows) {
@@ -23,7 +22,6 @@ export function AccountList({ accounts, balanceRows }) {
     }
   }
 
-  // Group accounts by type; treat Cash (C) as Asset (A)
   const groups = {};
   for (const acct of accounts) {
     const t = acct.type === "C" ? "A" : (acct.type || "X");
@@ -37,14 +35,17 @@ export function AccountList({ accounts, balanceRows }) {
         const group = groups[type];
         if (!group || group.length === 0) return null;
         return (
-          <section key={type} style={{ marginBottom: "1.5rem" }}>
-            <h4 style={{ marginBottom: "0.5rem" }}>{TYPE_LABELS[type] || type}</h4>
-            <table role="grid">
+          <div key={type} class="mb-6">
+            <h4 class="font-semibold text-sm uppercase tracking-wide text-base-content/60 mb-2">
+              {TYPE_LABELS[type] || type}
+            </h4>
+            <table class="table table-sm w-full">
               <tbody>
                 {group.map((acct) => (
-                  <tr key={acct.fullName}>
+                  <tr key={acct.fullName} class="hover">
                     <td>
                       <a
+                        class="link link-hover text-sm"
                         href={"#/transactions?account=" + encodeURIComponent(acct.fullName)}
                         onClick={(e) => {
                           e.preventDefault();
@@ -54,14 +55,14 @@ export function AccountList({ accounts, balanceRows }) {
                         {acct.fullName}
                       </a>
                     </td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <td class="text-right whitespace-nowrap text-sm font-mono">
                       {formatAmounts(balanceMap[acct.fullName])}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </section>
+          </div>
         );
       })}
     </div>

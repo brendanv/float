@@ -37,7 +37,7 @@ function AccountInput({ value, onChange, accounts }) {
   }
 
   return (
-    <div ref={wrapperRef} style={{ position: "relative", flex: 1 }}>
+    <div ref={wrapperRef} class="relative flex-1">
       <input
         type="text"
         placeholder="Account"
@@ -46,33 +46,15 @@ function AccountInput({ value, onChange, accounts }) {
         onFocus={() => {
           if (value.length > 0 && filtered.length > 0) setShowSuggestions(true);
         }}
+        class="input input-bordered input-sm w-full"
       />
       {showSuggestions && filtered.length > 0 && (
-        <ul
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            zIndex: 10,
-            background: "var(--pico-background-color)",
-            border: "1px solid var(--pico-muted-border-color)",
-            borderRadius: "4px",
-            maxHeight: "12rem",
-            overflowY: "auto",
-            listStyle: "none",
-            padding: 0,
-            margin: 0,
-          }}
-        >
+        <ul class="absolute top-full left-0 right-0 z-10 bg-base-100 border border-base-300 rounded-box shadow-lg max-h-48 overflow-y-auto p-1">
           {filtered.map((a) => (
             <li
               key={a.fullName}
               onClick={() => select(a.fullName)}
-              style={{
-                padding: "0.5rem 0.75rem",
-                cursor: "pointer",
-              }}
+              class="px-3 py-2 text-sm cursor-pointer rounded hover:bg-base-200"
             >
               {a.fullName}
             </li>
@@ -101,9 +83,9 @@ export function PostingFields({ postings, onChange, accounts }) {
   }
 
   return (
-    <div>
+    <div class="space-y-2">
       {postings.map((p, i) => (
-        <div key={i} style={{ display: "flex", gap: "0.5rem", alignItems: "start", marginBottom: "0.5rem" }}>
+        <div key={i} class="flex gap-2 items-start">
           <AccountInput
             value={p.account}
             onChange={(v) => update(i, "account", v)}
@@ -114,20 +96,19 @@ export function PostingFields({ postings, onChange, accounts }) {
             placeholder={i === postings.length - 1 ? "Auto-balance" : "Amount"}
             value={p.amount}
             onInput={(e) => update(i, "amount", e.target.value)}
-            style={{ flex: "0 0 8rem" }}
+            class="input input-bordered input-sm w-32 shrink-0"
           />
           <button
-            class="outline secondary"
+            class="btn btn-ghost btn-sm shrink-0"
             onClick={() => removeRow(i)}
             disabled={postings.length <= 2}
-            style={{ flex: "0 0 auto", padding: "0.25rem 0.5rem" }}
             type="button"
           >
             &times;
           </button>
         </div>
       ))}
-      <button class="outline" onClick={addRow} type="button" style={{ marginTop: "0.5rem" }}>
+      <button class="btn btn-ghost btn-sm" onClick={addRow} type="button">
         + Add posting
       </button>
     </div>
