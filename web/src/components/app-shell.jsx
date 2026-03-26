@@ -25,8 +25,8 @@ export function AppShell({ children, currentPath }) {
         <ul>
           <li>
             <a href="#/" onClick={(e) => { e.preventDefault(); navigate("/"); }} style="display:flex;align-items:center;gap:0.4em">
-              <img src="/icon.png" alt="" style="height:1.75em;width:1.75em;border-radius:0.3em" />
-              <strong>float</strong>
+              <img src="/icon.png" alt="" style="height:2.5em;width:2.5em;border-radius:0.3em" />
+              <strong style="font-size:1.4em">float</strong>
             </a>
           </li>
         </ul>
