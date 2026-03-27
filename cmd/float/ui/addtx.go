@@ -14,12 +14,13 @@ import (
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
+	"github.com/brendanv/float/internal/hledger"
 )
 
 const maxSuggestions = 6
 
 // fidTagRe strips "fid:xxxxxxxx" from comment strings in the UI layer.
-var fidTagRe = regexp.MustCompile(`fid:[0-9a-f]{8}`)
+var fidTagRe = regexp.MustCompile(fmt.Sprintf(`fid:[0-9a-f]{%d}`, hledger.FIDLen))
 
 // postingField holds the inputs for a single posting row.
 type postingField struct {
