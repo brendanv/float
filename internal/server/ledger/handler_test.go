@@ -2,7 +2,9 @@ package ledger_test
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 
+	"github.com/brendanv/float/internal/cache"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/testgen"
@@ -533,6 +536,24 @@ func TestAddTransactionHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("empty_account_in_posting", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 55, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Test",
+			Postings: []*floatv1.PostingInput{
+				{Account: "", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
 	t.Run("success_with_date", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 53, NumTxns: 1, WithFIDs: true})
 		h := mustRealHandler(t, dir)
@@ -600,6 +621,296 @@ func TestAddTransactionHandler(t *testing.T) {
 	})
 }
 
+// errorRunner returns a runner that fails on every non-version call.
+func errorRunner(t *testing.T) hledger.CommandRunner {
+	t.Helper()
+	return func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		return nil, nil, errors.New("hledger failed")
+	}
+}
+
+func mustHandlerWithCache(t *testing.T, runner hledger.CommandRunner) (*serverledger.Handler, *cache.Cache[any]) {
+	t.Helper()
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	ch := cache.New[any](func() uint64 { return 0 })
+	return serverledger.NewHandler(c, nil, "", ch), ch
+}
+
+func TestListTransactions_HledgerError(t *testing.T) {
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", errorRunner(t))
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", nil)
+	_, err = h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestGetBalances_HledgerError(t *testing.T) {
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", errorRunner(t))
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", nil)
+	_, err = h.GetBalances(t.Context(), connect.NewRequest(&floatv1.GetBalancesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestListAccounts_HledgerError(t *testing.T) {
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", errorRunner(t))
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", nil)
+	_, err = h.ListAccounts(t.Context(), connect.NewRequest(&floatv1.ListAccountsRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestGetNetWorthTimeseries_HledgerError(t *testing.T) {
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", errorRunner(t))
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", nil)
+	_, err = h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestListTransactions_CacheHit(t *testing.T) {
+	var calls atomic.Int64
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		calls.Add(1)
+		return []byte(printJSON), nil, nil
+	}
+	h, _ := mustHandlerWithCache(t, runner)
+
+	req := connect.NewRequest(&floatv1.ListTransactionsRequest{})
+	resp1, err := h.ListTransactions(t.Context(), req)
+	if err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	resp2, err := h.ListTransactions(t.Context(), req)
+	if err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+
+	if calls.Load() != 1 {
+		t.Errorf("hledger called %d times, want 1 (cache should serve second call)", calls.Load())
+	}
+	if len(resp1.Msg.Transactions) != len(resp2.Msg.Transactions) {
+		t.Errorf("cached result differs: got %d txns vs %d", len(resp1.Msg.Transactions), len(resp2.Msg.Transactions))
+	}
+}
+
+func TestGetBalances_CacheHit(t *testing.T) {
+	var calls atomic.Int64
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		calls.Add(1)
+		return []byte(balJSON), nil, nil
+	}
+	h, _ := mustHandlerWithCache(t, runner)
+
+	req := connect.NewRequest(&floatv1.GetBalancesRequest{})
+	if _, err := h.GetBalances(t.Context(), req); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	if _, err := h.GetBalances(t.Context(), req); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+
+	if calls.Load() != 1 {
+		t.Errorf("hledger called %d times, want 1", calls.Load())
+	}
+}
+
+func TestListAccounts_CacheHit(t *testing.T) {
+	var calls atomic.Int64
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		calls.Add(1)
+		return []byte(accountsText), nil, nil
+	}
+	h, _ := mustHandlerWithCache(t, runner)
+
+	req := connect.NewRequest(&floatv1.ListAccountsRequest{})
+	if _, err := h.ListAccounts(t.Context(), req); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	if _, err := h.ListAccounts(t.Context(), req); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+
+	if calls.Load() != 1 {
+		t.Errorf("hledger called %d times, want 1", calls.Load())
+	}
+}
+
+func TestGetNetWorthTimeseries_CacheHit(t *testing.T) {
+	var calls atomic.Int64
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		calls.Add(1)
+		return []byte(bsTimeseriesJSON), nil, nil
+	}
+	h, _ := mustHandlerWithCache(t, runner)
+
+	req := connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{})
+	if _, err := h.GetNetWorthTimeseries(t.Context(), req); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	if _, err := h.GetNetWorthTimeseries(t.Context(), req); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+
+	if calls.Load() != 1 {
+		t.Errorf("hledger called %d times, want 1", calls.Load())
+	}
+}
+
+func TestListTransactions_CacheError(t *testing.T) {
+	h, _ := mustHandlerWithCache(t, errorRunner(t))
+	_, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestGetBalances_CacheError(t *testing.T) {
+	h, _ := mustHandlerWithCache(t, errorRunner(t))
+	_, err := h.GetBalances(t.Context(), connect.NewRequest(&floatv1.GetBalancesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestListAccounts_CacheError(t *testing.T) {
+	h, _ := mustHandlerWithCache(t, errorRunner(t))
+	_, err := h.ListAccounts(t.Context(), connect.NewRequest(&floatv1.ListAccountsRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestGetNetWorthTimeseries_CacheError(t *testing.T) {
+	h, _ := mustHandlerWithCache(t, errorRunner(t))
+	_, err := h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestGetNetWorthTimeseries_WithDateRange(t *testing.T) {
+	var capturedArgs []string
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		capturedArgs = args
+		return []byte(bsTimeseriesJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", nil)
+
+	_, err = h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{
+		Begin: "2026-01-01",
+		End:   "2026-03-01",
+	}))
+	if err != nil {
+		t.Fatalf("GetNetWorthTimeseries: %v", err)
+	}
+
+	joined := strings.Join(capturedArgs, " ")
+	if !strings.Contains(joined, "2026-01-01") {
+		t.Errorf("args %v missing begin date", capturedArgs)
+	}
+	if !strings.Contains(joined, "2026-03-01") {
+		t.Errorf("args %v missing end date", capturedArgs)
+	}
+}
+
+func TestGetBalances_WithDepthAndQuery(t *testing.T) {
+	var capturedArgs []string
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		capturedArgs = args
+		return []byte(balJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", nil)
+
+	_, err = h.GetBalances(t.Context(), connect.NewRequest(&floatv1.GetBalancesRequest{
+		Depth: 2,
+		Query: []string{"expenses"},
+	}))
+	if err != nil {
+		t.Fatalf("GetBalances: %v", err)
+	}
+
+	joined := strings.Join(capturedArgs, " ")
+	if !strings.Contains(joined, "--depth 2") {
+		t.Errorf("args %v missing --depth 2", capturedArgs)
+	}
+	if !strings.Contains(joined, "expenses") {
+		t.Errorf("args %v missing query 'expenses'", capturedArgs)
+	}
+}
+
 func TestModifyTagsHandler(t *testing.T) {
 	t.Run("empty_fid_returns_invalid_argument", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 30, NumTxns: 1, WithFIDs: true})
@@ -613,6 +924,21 @@ func TestModifyTagsHandler(t *testing.T) {
 		}
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("not_found_fid_returns_not_found", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 32, NumTxns: 2, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.ModifyTags(t.Context(), connect.NewRequest(&floatv1.ModifyTagsRequest{
+			Fid:  "00000000",
+			Tags: map[string]string{"category": "food"},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v, want NotFound", connect.CodeOf(err))
 		}
 	})
 
