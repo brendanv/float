@@ -5,28 +5,26 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
+
+	lipglossv1 "github.com/charmbracelet/lipgloss"
+	"github.com/NimbleMarkets/ntcharts/canvas/runes"
+	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 )
 
-var (
-	networthPositiveStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
-		Light: lipgloss.Color("#3D7A4A"),
-		Dark:  lipgloss.Color("#A6E3A1"),
-	})
-	networthLiabilityStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{
-		Light: lipgloss.Color("#C0392B"),
-		Dark:  lipgloss.Color("#F38BA8"),
-	})
-	networthAssetsStyle = lipgloss.NewStyle().Foreground(colorFocused)
+const (
+	dsAssets      = "assets"
+	dsLiabilities = "liabilities"
+	dsNetWorth    = "networth"
 )
 
-// NetWorthPanel displays a stacked bar chart of net worth, assets, and liabilities over time.
+// NetWorthPanel displays a time-series line chart of assets, liabilities, and net worth.
 type NetWorthPanel struct {
 	width, height int
 	state         loadState
@@ -93,6 +91,12 @@ func fmtCompact(v float64) string {
 	}
 }
 
+// parseSnapshotDate parses "YYYY-MM-DD" into a time.Time.
+func parseSnapshotDate(s string) (time.Time, bool) {
+	t, err := time.Parse("2006-01-02", s)
+	return t, err == nil
+}
+
 func (p NetWorthPanel) View() string {
 	if p.height < 5 || p.width < 20 {
 		return ""
@@ -100,20 +104,17 @@ func (p NetWorthPanel) View() string {
 	switch p.state {
 	case stateLoading:
 		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
+			Width(p.width).Height(p.height).
 			Align(lipgloss.Center, lipgloss.Center).
 			Render(p.spinner.View())
 	case stateError:
 		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
+			Width(p.width).Height(p.height).
 			Render(HelpStyle.Render("! " + p.errMsg))
 	case stateLoaded:
 		if len(p.snapshots) == 0 {
 			return lipgloss.NewStyle().
-				Width(p.width).
-				Height(p.height).
+				Width(p.width).Height(p.height).
 				Align(lipgloss.Center, lipgloss.Center).
 				Render("no net worth data")
 		}
@@ -123,36 +124,18 @@ func (p NetWorthPanel) View() string {
 }
 
 func (p NetWorthPanel) renderChart() string {
-	const yAxisW = 9 // label width (8) + separator (1)
-	const colW = 4   // chars per month column: 3 bar + 1 gap
-	const barW = 3   // bar width in chars
-
-	chartW := p.width - yAxisW
-	if chartW < colW {
-		chartW = colW
-	}
-	maxMonths := chartW / colW
-	if maxMonths < 1 {
-		maxMonths = 1
+	// Reserve 2 rows: 1 for title+legend, 1 for bottom padding.
+	chartH := p.height - 2
+	if chartH < 4 {
+		chartH = 4
 	}
 
-	// Height: 1 title + chartH bar rows + 1 x-axis line + 1 month labels
-	chartH := p.height - 3
-	if chartH < 2 {
-		chartH = 2
-	}
-
-	// Take the most recent months that fit.
-	snaps := p.snapshots
-	if len(snaps) > maxMonths {
-		snaps = snaps[len(snaps)-maxMonths:]
-	}
-
-	// Compute value range.
-	maxVal := 0.0
+	// Compute value range across all snapshots.
 	minVal := 0.0
-	for _, s := range snaps {
+	maxVal := 1.0
+	for _, s := range p.snapshots {
 		a := signedAmountVal(s.Assets)
+		l := signedAmountVal(s.Liabilities) // negative
 		nw := signedAmountVal(s.NetWorth)
 		if a > maxVal {
 			maxVal = a
@@ -160,132 +143,85 @@ func (p NetWorthPanel) renderChart() string {
 		if nw > maxVal {
 			maxVal = nw
 		}
+		if l < minVal {
+			minVal = l
+		}
 		if nw < minVal {
 			minVal = nw
 		}
 	}
-	if maxVal == minVal {
-		if maxVal == 0 {
-			maxVal = 1
-		} else {
-			maxVal += math.Abs(maxVal) * 0.1
+	// Add 10% headroom.
+	maxVal *= 1.1
+	if minVal < 0 {
+		minVal *= 1.1
+	}
+
+	// Parse time range.
+	firstDate, ok1 := parseSnapshotDate(p.snapshots[0].Date)
+	lastDate, ok2 := parseSnapshotDate(p.snapshots[len(p.snapshots)-1].Date)
+	if !ok1 || !ok2 {
+		return "date parse error"
+	}
+	// Extend end slightly so the last point isn't flush against the right edge.
+	lastDate = lastDate.AddDate(0, 1, 0)
+
+	// ntcharts uses github.com/charmbracelet/lipgloss (v1) for styles.
+	axisStyle := lipglossv1.NewStyle().Foreground(lipglossv1.Color("#626262"))
+	labelStyle := lipglossv1.NewStyle().Foreground(lipglossv1.Color("#626262"))
+	assetsStyle := lipglossv1.NewStyle().Foreground(lipglossv1.Color("#7DC4E4"))   // blue
+	networthStyle := lipglossv1.NewStyle().Foreground(lipglossv1.Color("#A6E3A1")) // green
+	liabStyle := lipglossv1.NewStyle().Foreground(lipglossv1.Color("#F38BA8"))     // red/pink
+
+	monthFormatter := func(_ int, v float64) string {
+		t := time.Unix(int64(v), 0).UTC()
+		return t.Format("Jan")
+	}
+	yFormatter := func(_ int, v float64) string {
+		return fmtCompact(v)
+	}
+
+	chart := timeserieslinechart.New(p.width, chartH,
+		timeserieslinechart.WithTimeRange(firstDate, lastDate),
+		timeserieslinechart.WithYRange(minVal, maxVal),
+		timeserieslinechart.WithXYSteps(4, 4),
+		timeserieslinechart.WithAxesStyles(axisStyle, labelStyle),
+		timeserieslinechart.WithXLabelFormatter(monthFormatter),
+		timeserieslinechart.WithYLabelFormatter(yFormatter),
+		// Default dataset = assets.
+		timeserieslinechart.WithStyle(assetsStyle),
+		timeserieslinechart.WithLineStyle(runes.ThinLineStyle),
+		timeserieslinechart.WithDataSetStyle(dsNetWorth, networthStyle),
+		timeserieslinechart.WithDataSetLineStyle(dsNetWorth, runes.ThinLineStyle),
+		timeserieslinechart.WithDataSetStyle(dsLiabilities, liabStyle),
+		timeserieslinechart.WithDataSetLineStyle(dsLiabilities, runes.ThinLineStyle),
+	)
+
+	for _, s := range p.snapshots {
+		t, ok := parseSnapshotDate(s.Date)
+		if !ok {
+			continue
 		}
-	}
-	totalRange := maxVal - minVal
-
-	// rowMidVal returns the value at the midpoint of row r.
-	rowMidVal := func(r int) float64 {
-		return maxVal - (float64(r)+0.5)*totalRange/float64(chartH)
-	}
-
-	// valToRow maps a value to the nearest chart row.
-	valToRow := func(v float64) int {
-		return int(math.Round(float64(chartH-1) * (maxVal - v) / totalRange))
+		a := signedAmountVal(s.Assets)
+		l := signedAmountVal(s.Liabilities)
+		nw := signedAmountVal(s.NetWorth)
+		chart.PushDataSet(dsAssets, timeserieslinechart.TimePoint{Time: t, Value: a})
+		chart.PushDataSet(dsLiabilities, timeserieslinechart.TimePoint{Time: t, Value: l})
+		chart.PushDataSet(dsNetWorth, timeserieslinechart.TimePoint{Time: t, Value: nw})
 	}
 
-	zeroInRange := minVal < 0 && maxVal > 0
-	zeroRow := 0
-	if zeroInRange {
-		zeroRow = valToRow(0)
-	}
+	chart.DrawBrailleAll()
 
-	// Y-axis label positions.
-	yLabels := map[int]string{
-		0:          fmtCompact(maxVal),
-		chartH / 2: fmtCompact((maxVal + minVal) / 2),
-		chartH - 1: fmtCompact(minVal),
-	}
-	if zeroInRange {
-		yLabels[zeroRow] = "0"
-	}
+	// Legend line using charm.land/lipgloss/v2 for rendering with the rest of the TUI.
+	assetsLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#7DC4E4")).Render("━━")
+	networthLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1")).Render("━━")
+	liabLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#F38BA8")).Render("━━")
+	legend := lipgloss.NewStyle().Bold(true).Render("Net Worth") + "  " +
+		assetsLegend + HelpStyle.Render(" assets  ") +
+		networthLegend + HelpStyle.Render(" net worth  ") +
+		liabLegend + HelpStyle.Render(" liabilities")
+	titleLine := lipgloss.NewStyle().Width(p.width).Render(legend)
 
-	var lines []string
-
-	// Title + legend.
-	legend := networthPositiveStyle.Render("█") + HelpStyle.Render(" net worth  ") +
-		networthLiabilityStyle.Render("█") + HelpStyle.Render(" liabilities  ") +
-		networthAssetsStyle.Render("█") + HelpStyle.Render(" assets (neg NW)")
-	lines = append(lines, lipgloss.NewStyle().Width(p.width).Render(
-		lipgloss.NewStyle().Bold(true).Render("Net Worth")+"  "+legend,
-	))
-
-	// Chart rows.
-	for row := 0; row < chartH; row++ {
-		mid := rowMidVal(row)
-
-		label := ""
-		if lbl, ok := yLabels[row]; ok {
-			label = lbl
-		}
-		axisChar := "│"
-		if zeroInRange && row == zeroRow {
-			axisChar = "┼"
-		}
-
-		var sb strings.Builder
-		sb.WriteString(HelpStyle.Render(fmt.Sprintf("%*s%s", yAxisW-1, label, axisChar)))
-
-		for _, s := range snaps {
-			assets := signedAmountVal(s.Assets)
-			nw := signedAmountVal(s.NetWorth)
-
-			var cellStr string
-			bar := strings.Repeat("█", barW)
-
-			if zeroInRange && row == zeroRow {
-				// Draw zero baseline through this row.
-				cellStr = HelpStyle.Render(strings.Repeat("─", barW))
-			} else if nw >= 0 {
-				// Positive net worth: bottom = net worth (green), top = liabilities (red).
-				switch {
-				case mid >= 0 && mid <= nw:
-					cellStr = networthPositiveStyle.Render(bar)
-				case mid > nw && mid <= assets:
-					cellStr = networthLiabilityStyle.Render(bar)
-				default:
-					cellStr = strings.Repeat(" ", barW)
-				}
-			} else {
-				// Negative net worth: assets above zero (blue), negative portion below (red).
-				switch {
-				case mid >= 0 && mid <= assets:
-					cellStr = networthAssetsStyle.Render(bar)
-				case mid >= nw && mid < 0:
-					cellStr = networthLiabilityStyle.Render(bar)
-				default:
-					cellStr = strings.Repeat(" ", barW)
-				}
-			}
-
-			sb.WriteString(cellStr)
-			sb.WriteString(" ") // gap between months
-		}
-
-		lines = append(lines, sb.String())
-	}
-
-	// X-axis line.
-	xLine := fmt.Sprintf("%*s└%s", yAxisW-1, "", strings.Repeat("─", p.width-yAxisW))
-	lines = append(lines, HelpStyle.Render(xLine))
-
-	// Month labels.
-	monthNames := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-	var mlSB strings.Builder
-	mlSB.WriteString(strings.Repeat(" ", yAxisW))
-	for _, s := range snaps {
-		label := "   "
-		if len(s.Date) >= 7 {
-			parts := strings.SplitN(s.Date[:7], "-", 2)
-			if len(parts) == 2 {
-				if m, err := strconv.Atoi(parts[1]); err == nil && m >= 1 && m <= 12 {
-					label = fmt.Sprintf("%-3s", monthNames[m-1])
-				}
-			}
-		}
-		mlSB.WriteString(label)
-		mlSB.WriteString(" ")
-	}
-	lines = append(lines, HelpStyle.Render(mlSB.String()))
-
-	return lipgloss.NewStyle().Width(p.width).Height(p.height).Render(strings.Join(lines, "\n"))
+	return lipgloss.NewStyle().Width(p.width).Height(p.height).Render(
+		lipgloss.JoinVertical(lipgloss.Left, titleLine, chart.View()),
+	)
 }
