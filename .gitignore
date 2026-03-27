@@ -1,3 +1,6 @@
+# go test coverage output
+*.out
+
 # compiled binaries
 /floatctl
 /floatd
