@@ -94,3 +94,18 @@ func FetchInsights(client floatv1connect.LedgerServiceClient, periodQuery string
 		return InsightsMsg{Report: resp.Msg.Report}
 	}
 }
+
+type NetWorthMsg struct {
+	Snapshots []*floatv1.NetWorthSnapshot
+	Err       error
+}
+
+func FetchNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetNetWorthTimeseries(context.Background(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+		if err != nil {
+			return NetWorthMsg{Err: err}
+		}
+		return NetWorthMsg{Snapshots: resp.Msg.Snapshots}
+	}
+}

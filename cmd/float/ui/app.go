@@ -10,6 +10,7 @@ import (
 const (
 	TabHome    = 0
 	TabManager = 1
+	TabTrends  = 2
 )
 
 // Model is the root Bubbletea model for the float TUI.
@@ -19,6 +20,7 @@ type Model struct {
 	activeTab int
 	home      HomeTab
 	manager   ManagerTab
+	trends    TrendsTab
 	client    floatv1connect.LedgerServiceClient
 }
 
@@ -28,11 +30,12 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 		client:  client,
 		home:    NewHomeTab(client),
 		manager: NewManagerTab(),
+		trends:  NewTrendsTab(client),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.home.Init(), m.manager.Init())
+	return tea.Batch(m.home.Init(), m.manager.Init(), m.trends.Init())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -43,6 +46,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		layout := CalcLayout(m.width, m.height)
 		m.home = m.home.SetSize(m.width, layout.ContentHeight)
 		m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
+		m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -58,7 +62,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "tab", "shift+tab":
-			m.activeTab = (m.activeTab + 1) % 2
+			m.activeTab = (m.activeTab + 1) % 3
 			return m, nil
 		}
 		// Forward to active tab.
@@ -71,11 +75,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.manager, cmd = m.manager.Update(msg)
 			return m, cmd
+		case TabTrends:
+			var cmd tea.Cmd
+			m.trends, cmd = m.trends.Update(msg)
+			return m, cmd
 		}
 	default:
-		var cmd tea.Cmd
-		m.home, cmd = m.home.Update(msg)
-		return m, cmd
+		var cmd1, cmd2, cmd3 tea.Cmd
+		m.home, cmd1 = m.home.Update(msg)
+		m.manager, cmd2 = m.manager.Update(msg)
+		m.trends, cmd3 = m.trends.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3)
 	}
 	return m, nil
 }
@@ -101,6 +111,8 @@ func (m Model) View() tea.View {
 		helpCtx = m.home.HelpContext()
 	case TabManager:
 		helpCtx = m.manager.HelpContext()
+	case TabTrends:
+		helpCtx = m.trends.HelpContext()
 	}
 	helpBar := RenderHelpBar(helpCtx, m.width)
 
@@ -110,6 +122,8 @@ func (m Model) View() tea.View {
 		content = m.home.View()
 	case TabManager:
 		content = m.manager.View()
+	case TabTrends:
+		content = m.trends.View()
 	}
 
 	v.Content = lipgloss.JoinVertical(lipgloss.Left, tabBar, content, helpBar)
