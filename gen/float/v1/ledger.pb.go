@@ -1253,6 +1253,126 @@ func (x *AddTransactionResponse) GetTransaction() *Transaction {
 	return nil
 }
 
+type UpdateTransactionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`                 // required
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"` // required; replaces existing
+	Date          string                 `protobuf:"bytes,3,opt,name=date,proto3" json:"date,omitempty"`               // "YYYY-MM-DD"; empty = keep existing date
+	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`         // optional; replaces existing non-fid comment
+	Postings      []*PostingInput        `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`       // required; replaces all existing postings
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTransactionRequest) Reset() {
+	*x = UpdateTransactionRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTransactionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTransactionRequest) ProtoMessage() {}
+
+func (x *UpdateTransactionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTransactionRequest.ProtoReflect.Descriptor instead.
+func (*UpdateTransactionRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *UpdateTransactionRequest) GetFid() string {
+	if x != nil {
+		return x.Fid
+	}
+	return ""
+}
+
+func (x *UpdateTransactionRequest) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *UpdateTransactionRequest) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *UpdateTransactionRequest) GetComment() string {
+	if x != nil {
+		return x.Comment
+	}
+	return ""
+}
+
+func (x *UpdateTransactionRequest) GetPostings() []*PostingInput {
+	if x != nil {
+		return x.Postings
+	}
+	return nil
+}
+
+type UpdateTransactionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transaction   *Transaction           `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTransactionResponse) Reset() {
+	*x = UpdateTransactionResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTransactionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTransactionResponse) ProtoMessage() {}
+
+func (x *UpdateTransactionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTransactionResponse.ProtoReflect.Descriptor instead.
+func (*UpdateTransactionResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *UpdateTransactionResponse) GetTransaction() *Transaction {
+	if x != nil {
+		return x.Transaction
+	}
+	return nil
+}
+
 var File_float_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_float_v1_ledger_proto_rawDesc = "" +
@@ -1331,7 +1451,15 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\acomment\x18\x03 \x01(\tR\acomment\x122\n" +
 	"\bpostings\x18\x04 \x03(\v2\x16.float.v1.PostingInputR\bpostings\"Q\n" +
 	"\x16AddTransactionResponse\x127\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction2\xd5\x05\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"\xb0\x01\n" +
+	"\x18UpdateTransactionRequest\x12\x10\n" +
+	"\x03fid\x18\x01 \x01(\tR\x03fid\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x12\n" +
+	"\x04date\x18\x03 \x01(\tR\x04date\x12\x18\n" +
+	"\acomment\x18\x04 \x01(\tR\acomment\x122\n" +
+	"\bpostings\x18\x05 \x03(\v2\x16.float.v1.PostingInputR\bpostings\"T\n" +
+	"\x19UpdateTransactionResponse\x127\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction2\xb3\x06\n" +
 	"\rLedgerService\x12Y\n" +
 	"\x10ListTransactions\x12!.float.v1.ListTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12J\n" +
 	"\vGetBalances\x12\x1c.float.v1.GetBalancesRequest\x1a\x1d.float.v1.GetBalancesResponse\x12M\n" +
@@ -1339,7 +1467,8 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x11DeleteTransaction\x12\".float.v1.DeleteTransactionRequest\x1a#.float.v1.DeleteTransactionResponse\x12G\n" +
 	"\n" +
 	"ModifyTags\x12\x1b.float.v1.ModifyTagsRequest\x1a\x1c.float.v1.ModifyTagsResponse\x12h\n" +
-	"\x15UpdateTransactionDate\x12&.float.v1.UpdateTransactionDateRequest\x1a'.float.v1.UpdateTransactionDateResponse\x12S\n" +
+	"\x15UpdateTransactionDate\x12&.float.v1.UpdateTransactionDateRequest\x1a'.float.v1.UpdateTransactionDateResponse\x12\\\n" +
+	"\x11UpdateTransaction\x12\".float.v1.UpdateTransactionRequest\x1a#.float.v1.UpdateTransactionResponse\x12S\n" +
 	"\x0eAddTransaction\x12\x1f.float.v1.AddTransactionRequest\x1a .float.v1.AddTransactionResponse\x12h\n" +
 	"\x15GetNetWorthTimeseries\x12&.float.v1.GetNetWorthTimeseriesRequest\x1a'.float.v1.GetNetWorthTimeseriesResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
 
@@ -1355,7 +1484,7 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_float_v1_ledger_proto_goTypes = []any{
 	(*Amount)(nil),                        // 0: float.v1.Amount
 	(*Posting)(nil),                       // 1: float.v1.Posting
@@ -1381,7 +1510,9 @@ var file_float_v1_ledger_proto_goTypes = []any{
 	(*PostingInput)(nil),                  // 21: float.v1.PostingInput
 	(*AddTransactionRequest)(nil),         // 22: float.v1.AddTransactionRequest
 	(*AddTransactionResponse)(nil),        // 23: float.v1.AddTransactionResponse
-	nil,                                   // 24: float.v1.ModifyTagsRequest.TagsEntry
+	(*UpdateTransactionRequest)(nil),      // 24: float.v1.UpdateTransactionRequest
+	(*UpdateTransactionResponse)(nil),     // 25: float.v1.UpdateTransactionResponse
+	nil,                                   // 26: float.v1.ModifyTagsRequest.TagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
@@ -1396,31 +1527,35 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	2,  // 9: float.v1.ListTransactionsResponse.transactions:type_name -> float.v1.Transaction
 	4,  // 10: float.v1.GetBalancesResponse.report:type_name -> float.v1.BalanceReport
 	5,  // 11: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	24, // 12: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	26, // 12: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
 	2,  // 13: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
 	21, // 14: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
 	2,  // 15: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
-	9,  // 16: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
-	11, // 17: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
-	13, // 18: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
-	15, // 19: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
-	17, // 20: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
-	19, // 21: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
-	22, // 22: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
-	7,  // 23: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
-	10, // 24: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	12, // 25: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	14, // 26: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	16, // 27: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	18, // 28: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	20, // 29: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	23, // 30: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	8,  // 31: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	24, // [24:32] is the sub-list for method output_type
-	16, // [16:24] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	21, // 16: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
+	2,  // 17: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
+	9,  // 18: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
+	11, // 19: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
+	13, // 20: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
+	15, // 21: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
+	17, // 22: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
+	19, // 23: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
+	24, // 24: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
+	22, // 25: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
+	7,  // 26: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
+	10, // 27: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	12, // 28: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	14, // 29: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	16, // 30: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	18, // 31: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	20, // 32: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	25, // 33: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	23, // 34: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	8,  // 35: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	27, // [27:36] is the sub-list for method output_type
+	18, // [18:27] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_float_v1_ledger_proto_init() }
@@ -1434,7 +1569,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

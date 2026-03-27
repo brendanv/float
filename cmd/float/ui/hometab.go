@@ -1,9 +1,13 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	floatv1 "github.com/brendanv/float/gen/float/v1"
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 )
 
@@ -25,6 +29,10 @@ type HomeTab struct {
 	accountsH   int
 	insightsH   int
 	showInsights bool
+
+	// delete confirmation state
+	confirmDeleteTx *floatv1.Transaction
+	deleteErrMsg    string
 }
 
 func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
@@ -103,6 +111,18 @@ func (m HomeTab) Init() tea.Cmd {
 	)
 }
 
+func (m HomeTab) refreshAll() tea.Cmd {
+	m.accounts.state = stateLoading
+	m.transactions.state = stateLoading
+	m.insights.state = stateLoading
+	return tea.Batch(
+		FetchAccounts(m.client),
+		FetchBalances(m.client, 0, []string{m.period.Query()}),
+		FetchTransactions(m.client, m.periodAndFilterQuery()),
+		FetchInsights(m.client, m.period.Query()),
+	)
+}
+
 func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 	switch msg := msg.(type) {
 	case AddTransactionMsg:
@@ -112,15 +132,25 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			return m, nil
 		}
 		m.addTxForm.Deactivate()
-		m.accounts.state = stateLoading
-		m.transactions.state = stateLoading
-		m.insights.state = stateLoading
-		return m, tea.Batch(
-			FetchAccounts(m.client),
-			FetchBalances(m.client, 0, []string{m.period.Query()}),
-			FetchTransactions(m.client, m.periodAndFilterQuery()),
-			FetchInsights(m.client, m.period.Query()),
-		)
+		return m, m.refreshAll()
+
+	case UpdateTransactionMsg:
+		m.addTxForm.submitting = false
+		if msg.Err != nil {
+			m.addTxForm.errMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.addTxForm.Deactivate()
+		return m, m.refreshAll()
+
+	case DeleteTransactionMsg:
+		m.confirmDeleteTx = nil
+		if msg.Err != nil {
+			m.deleteErrMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.deleteErrMsg = ""
+		return m, m.refreshAll()
 
 	case AccountsMsg:
 		if msg.Err != nil {
@@ -183,6 +213,21 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			return m, cmd
 		}
 
+		// Delete confirmation intercepts all keys when active
+		if m.confirmDeleteTx != nil {
+			switch msg.String() {
+			case "y":
+				fid := m.confirmDeleteTx.Fid
+				m.confirmDeleteTx = nil
+				return m, DeleteTransactionCmd(m.client, fid)
+			case "esc", "n":
+				m.confirmDeleteTx = nil
+				m.deleteErrMsg = ""
+				return m, nil
+			}
+			return m, nil
+		}
+
 		if !m.filter.Active() {
 			switch msg.String() {
 			case "r":
@@ -224,6 +269,21 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			case "a":
 				if m.focused == 1 {
 					m.addTxForm.Activate()
+					return m, nil
+				}
+			case "e":
+				if m.focused == 1 {
+					if tx := m.transactions.SelectedTransaction(); tx != nil && tx.Fid != "" {
+						m.addTxForm.ActivateEdit(tx)
+					}
+					return m, nil
+				}
+			case "d":
+				if m.focused == 1 {
+					if tx := m.transactions.SelectedTransaction(); tx != nil && tx.Fid != "" {
+						m.confirmDeleteTx = tx
+						m.deleteErrMsg = ""
+					}
 					return m, nil
 				}
 			}
@@ -293,12 +353,18 @@ func (m HomeTab) View() string {
 		Render(leftContent)
 
 	var rightContent string
-	if m.addTxForm.Active() {
+	switch {
+	case m.addTxForm.Active():
 		rightContent = lipgloss.NewStyle().
 			Width(rightInnerW).
 			Height(rightInnerH).
 			Render(m.addTxForm.View())
-	} else if m.filter.Active() {
+	case m.confirmDeleteTx != nil:
+		rightContent = lipgloss.NewStyle().
+			Width(rightInnerW).
+			Height(rightInnerH).
+			Render(m.renderDeleteConfirm(rightInnerW))
+	case m.filter.Active():
 		txContent := lipgloss.NewStyle().
 			Width(rightInnerW).
 			Height(rightInnerH - 1).
@@ -307,7 +373,7 @@ func (m HomeTab) View() string {
 			Width(rightInnerW).
 			Render(m.filter.View())
 		rightContent = lipgloss.JoinVertical(lipgloss.Left, txContent, filterLine)
-	} else {
+	default:
 		rightContent = lipgloss.NewStyle().
 			Width(rightInnerW).
 			Height(rightInnerH).
@@ -335,12 +401,40 @@ func (m HomeTab) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
 
+func (m HomeTab) renderDeleteConfirm(w int) string {
+	tx := m.confirmDeleteTx
+	var lines []string
+
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF5555")).Render("Delete Transaction?")
+	lines = append(lines, title)
+	lines = append(lines, HelpStyle.Render(strings.Repeat("─", w)))
+	lines = append(lines, "")
+	lines = append(lines, fmt.Sprintf("  %s  %s", tx.Date, tx.Description))
+	if len(tx.Postings) > 0 {
+		lines = append(lines, "")
+		for _, p := range tx.Postings {
+			lines = append(lines, fmt.Sprintf("    %-30s  %s", p.Account, formatBalance(p.Amounts)))
+		}
+	}
+	lines = append(lines, "")
+	if m.deleteErrMsg != "" {
+		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
+		lines = append(lines, errStyle.Render("  Error: "+m.deleteErrMsg))
+		lines = append(lines, "")
+	}
+	lines = append(lines, HelpStyle.Render("  Press y to confirm, esc to cancel"))
+
+	return strings.Join(lines, "\n")
+}
+
 func (m HomeTab) HelpContext() HelpContext {
 	return HelpContext{
-		ActiveTab:    TabHome,
-		HomeFocused:  m.focused,
-		FilterActive: m.filter.Active(),
-		AddTxActive:  m.addTxForm.Active(),
+		ActiveTab:           TabHome,
+		HomeFocused:         m.focused,
+		FilterActive:        m.filter.Active(),
+		AddTxActive:         m.addTxForm.Active() && !m.addTxForm.EditMode(),
+		EditTxActive:        m.addTxForm.Active() && m.addTxForm.EditMode(),
+		ConfirmDeleteActive: m.confirmDeleteTx != nil,
 	}
 }
 
