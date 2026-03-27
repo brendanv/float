@@ -412,8 +412,16 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	lines = append(lines, fmt.Sprintf("  %s  %s", tx.Date, tx.Description))
 	if len(tx.Postings) > 0 {
 		lines = append(lines, "")
+		const indent = 4
+		const amtW = 14
+		acctW := w - indent - amtW
+		if acctW < 10 {
+			acctW = 10
+		}
 		for _, p := range tx.Postings {
-			lines = append(lines, fmt.Sprintf("    %-30s  %s", p.Account, formatBalance(p.Amounts)))
+			amt := formatBalance(p.Amounts)
+			line := strings.Repeat(" ", indent) + padRight(p.Account, acctW) + fmt.Sprintf("%*s", amtW, amt)
+			lines = append(lines, line)
 		}
 	}
 	lines = append(lines, "")
