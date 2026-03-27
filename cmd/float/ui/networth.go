@@ -189,11 +189,11 @@ func (p NetWorthPanel) renderChart() string {
 		timeserieslinechart.WithYLabelFormatter(yFormatter),
 		// Default dataset = assets.
 		timeserieslinechart.WithStyle(assetsStyle),
-		timeserieslinechart.WithLineStyle(runes.ThinLineStyle),
+		timeserieslinechart.WithLineStyle(runes.ArcLineStyle),
 		timeserieslinechart.WithDataSetStyle(dsNetWorth, networthStyle),
-		timeserieslinechart.WithDataSetLineStyle(dsNetWorth, runes.ThinLineStyle),
+		timeserieslinechart.WithDataSetLineStyle(dsNetWorth, runes.ArcLineStyle),
 		timeserieslinechart.WithDataSetStyle(dsLiabilities, liabStyle),
-		timeserieslinechart.WithDataSetLineStyle(dsLiabilities, runes.ThinLineStyle),
+		timeserieslinechart.WithDataSetLineStyle(dsLiabilities, runes.ArcLineStyle),
 	)
 
 	for _, s := range p.snapshots {
@@ -209,7 +209,7 @@ func (p NetWorthPanel) renderChart() string {
 		chart.PushDataSet(dsNetWorth, timeserieslinechart.TimePoint{Time: t, Value: nw})
 	}
 
-	chart.DrawBrailleAll()
+	chart.DrawAll()
 
 	// Legend line using charm.land/lipgloss/v2 for rendering with the rest of the TUI.
 	assetsLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#7DC4E4")).Render("━━")
