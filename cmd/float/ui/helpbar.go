@@ -32,6 +32,8 @@ func RenderHelpBar(ctx HelpContext, width int) string {
 		help = "  q quit  tab tabs  h/l switch  j/k navigate  a add  e edit  d delete  / filter  s split  [/] period  r retry"
 	case ctx.ActiveTab == TabHome:
 		help = "  q quit  tab tabs  h/l switch  j/k navigate  [/] period  r retry"
+	case ctx.ActiveTab == TabManager:
+		help = "  q quit  tab tabs  j/k navigate  enter expand/collapse  r retry"
 	default:
 		help = "  q quit  tab tabs"
 	}

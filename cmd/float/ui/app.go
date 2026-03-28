@@ -30,7 +30,7 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 	return Model{
 		client:  client,
 		home:    NewHomeTab(client),
-		manager: NewManagerTab(),
+		manager: NewManagerTab(client),
 		trends:  NewTrendsTab(client),
 	}
 }
