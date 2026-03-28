@@ -71,6 +71,30 @@ The web UI is a Preact SPA in `web/` that gets embedded into the `floatd` binary
 
 For production: `mise run build` builds the web UI into `internal/webui/dist/` and compiles `floatd` with the embedded files. The web UI uses the Connect protocol (JSON over HTTP POST) to call the same gRPC endpoints.
 
+### Web UI Screenshots (Playwright)
+
+Playwright is set up in `web/` to capture screenshots without a running `floatd`. All `LedgerService` API calls are intercepted with mock data.
+
+```bash
+# Capture screenshots of all pages
+cd web && npm run screenshots
+
+# Output files:
+#   web/test-results/home.png
+#   web/test-results/transactions.png
+#   web/test-results/add-transaction.png
+```
+
+Use the `web-screenshots` skill to run tests and display screenshots inline in a Claude Code session. Key files:
+
+| File | Purpose |
+|------|---------|
+| `web/playwright.config.js` | Playwright config; starts Vite on port 5174 |
+| `web/tests/screenshots.spec.js` | Screenshot tests for each page |
+| `web/tests/mock-api.js` | Mock data + Connect RPC interception |
+
+`@playwright/test` is pinned to **1.56.1** to match the system-installed Chromium at `/root/.cache/ms-playwright/chromium-1194`. Do not upgrade it without also installing the matching browser.
+
 ## Querying floatd with buf curl
 
 `floatd` supports three protocols: **gRPC** (HTTP/2), **gRPC-Web**, and **Connect** (HTTP/1.1 or HTTP/2). The `buf curl` tool is the primary way to send test requests.

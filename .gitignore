@@ -18,3 +18,7 @@ web/node_modules/
 web/src/gen/
 internal/webui/dist/
 !internal/webui/dist/index.html
+
+# Playwright
+web/test-results/
+web/playwright-report/
