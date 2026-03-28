@@ -37,6 +37,7 @@ export function AppShell({ children, currentPath }) {
             <NavLink href="/" label="Home" current={currentPath} />
             <NavLink href="/transactions" label="Transactions" current={currentPath} />
             <NavLink href="/trends" label="Trends" current={currentPath} />
+            <NavLink href="/prices" label="Prices" current={currentPath} />
             <NavLink href="/add" label="Add" current={currentPath} />
           </ul>
         </div>
