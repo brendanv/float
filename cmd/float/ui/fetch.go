@@ -77,6 +77,34 @@ func AddTransactionCmd(client floatv1connect.LedgerServiceClient, req *floatv1.A
 	}
 }
 
+type UpdateTransactionMsg struct {
+	Transaction *floatv1.Transaction
+	Err         error
+}
+
+func UpdateTransactionCmd(client floatv1connect.LedgerServiceClient, req *floatv1.UpdateTransactionRequest) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.UpdateTransaction(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			return UpdateTransactionMsg{Err: err}
+		}
+		return UpdateTransactionMsg{Transaction: resp.Msg.Transaction}
+	}
+}
+
+type DeleteTransactionMsg struct {
+	Err error
+}
+
+func DeleteTransactionCmd(client floatv1connect.LedgerServiceClient, fid string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.DeleteTransaction(context.Background(), connect.NewRequest(&floatv1.DeleteTransactionRequest{
+			Fid: fid,
+		}))
+		return DeleteTransactionMsg{Err: err}
+	}
+}
+
 type InsightsMsg struct {
 	Report *floatv1.BalanceReport
 	Err    error

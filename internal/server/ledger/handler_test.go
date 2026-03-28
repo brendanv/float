@@ -990,3 +990,240 @@ func TestModifyTagsHandler(t *testing.T) {
 		}
 	})
 }
+
+func TestUpdateTransactionHandler(t *testing.T) {
+	t.Run("empty_fid", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 60, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         "",
+			Description: "Test",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("empty_description", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 61, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         "aa001100",
+			Description: "",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("too_few_postings", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 62, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         "aa001100",
+			Description: "Test",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("posting_missing_account", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 63, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         "aa001100",
+			Description: "Test",
+			Postings: []*floatv1.PostingInput{
+				{Account: "", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 64, NumTxns: 2, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         "00000000",
+			Description: "Test",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v, want NotFound", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("invalid_date", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 65, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
+			Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+			Description: "ORIGINAL",
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		_, err = h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         fid,
+			Description: "UPDATED",
+			Date:        "not-a-date",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("success_updates_fields", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 66, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
+			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+			Description: "ORIGINAL",
+			Comment:     "old note",
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Amount: "$20.00"},
+				{Account: "assets:checking"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		resp, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         fid,
+			Description: "UPDATED",
+			Date:        "2026-02-15",
+			Comment:     "new note",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:shopping", Amount: "$55.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransaction: %v", err)
+		}
+
+		got := resp.Msg.Transaction
+		if got.Fid != fid {
+			t.Errorf("Fid = %q, want %q", got.Fid, fid)
+		}
+		if got.Description != "UPDATED" {
+			t.Errorf("Description = %q, want %q", got.Description, "UPDATED")
+		}
+		if got.Date != "2026-02-15" {
+			t.Errorf("Date = %q, want %q", got.Date, "2026-02-15")
+		}
+		if !strings.Contains(got.Comment, "new note") {
+			t.Errorf("Comment %q does not contain %q", got.Comment, "new note")
+		}
+		if len(got.Postings) != 2 {
+			t.Fatalf("expected 2 postings, got %d", len(got.Postings))
+		}
+		if got.Postings[0].Account != "expenses:shopping" {
+			t.Errorf("Posting[0].Account = %q, want %q", got.Postings[0].Account, "expenses:shopping")
+		}
+
+		// Confirm only one transaction exists with this fid.
+		txns, err := c.Transactions(t.Context(), "tag:fid="+fid)
+		if err != nil {
+			t.Fatalf("Transactions: %v", err)
+		}
+		if len(txns) != 1 {
+			t.Errorf("expected 1 transaction with fid %q, got %d", fid, len(txns))
+		}
+	})
+
+	t.Run("empty_date_keeps_existing", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 67, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
+			Date:        time.Date(2026, 3, 12, 0, 0, 0, 0, time.UTC),
+			Description: "KEEP DATE TEST",
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+
+		resp, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         fid,
+			Description: "KEEP DATE TEST UPDATED",
+			Date:        "",
+			Postings: []*floatv1.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransaction: %v", err)
+		}
+
+		if resp.Msg.Transaction.Date != "2026-03-12" {
+			t.Errorf("Date = %q, want %q (original should be preserved)", resp.Msg.Transaction.Date, "2026-03-12")
+		}
+	})
+}
+

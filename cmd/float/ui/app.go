@@ -50,10 +50,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// When the add-transaction form is active in the home tab, let it
-		// consume all key events (including tab/shift+tab for field navigation
-		// and q/ctrl+c which should not quit while editing).
-		if m.activeTab == TabHome && m.home.addTxForm.Active() {
+		// When the add/edit-transaction form or delete confirmation is active in
+		// the home tab, let it consume all key events (including tab/shift+tab
+		// for field navigation and q/ctrl+c which should not quit while editing).
+		if m.activeTab == TabHome && (m.home.addTxForm.Active() || m.home.confirmDeleteTx != nil) {
 			var cmd tea.Cmd
 			m.home, cmd = m.home.Update(msg)
 			return m, cmd

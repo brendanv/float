@@ -119,6 +119,18 @@ message AddTransactionResponse {
   Transaction transaction = 1;
 }
 
+message UpdateTransactionRequest {
+  string fid = 1; // required
+  string description = 2; // required; replaces existing
+  string date = 3; // "YYYY-MM-DD"; empty = keep existing date
+  string comment = 4; // optional; replaces existing non-fid comment
+  repeated PostingInput postings = 5; // required; replaces all existing postings
+}
+
+message UpdateTransactionResponse {
+  Transaction transaction = 1;
+}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
@@ -126,6 +138,7 @@ service LedgerService {
   rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);
   rpc ModifyTags(ModifyTagsRequest) returns (ModifyTagsResponse);
   rpc UpdateTransactionDate(UpdateTransactionDateRequest) returns (UpdateTransactionDateResponse);
+  rpc UpdateTransaction(UpdateTransactionRequest) returns (UpdateTransactionResponse);
   rpc AddTransaction(AddTransactionRequest) returns (AddTransactionResponse);
   rpc GetNetWorthTimeseries(GetNetWorthTimeseriesRequest) returns (GetNetWorthTimeseriesResponse);
 }
