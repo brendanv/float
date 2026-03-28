@@ -1,26 +1,20 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 )
 
 type TransactionsPanel struct {
-	width, height int
-	state         loadState
-	spinner       Spinner
-	transactions  []*floatv1.Transaction
-	rowToTx       []int
-	splitView     bool
-	errMsg        string
-	table         table.Model
+	panelBase
+	transactions []*floatv1.Transaction
+	rowToTx      []int
+	splitView    bool
+	table        table.Model
 }
 
 func newTransactionsTable() table.Model {
@@ -41,9 +35,8 @@ func newTransactionsTable() table.Model {
 
 func newTransactionsPanel() TransactionsPanel {
 	return TransactionsPanel{
-		state:   stateLoading,
-		spinner: NewSpinner(),
-		table:   newTransactionsTable(),
+		panelBase: newPanelBase(),
+		table:     newTransactionsTable(),
 	}
 }
 
@@ -78,11 +71,6 @@ func (p *TransactionsPanel) SetTransactions(txs []*floatv1.Transaction) {
 		p.state = stateLoaded
 	}
 	p.rebuildRows()
-}
-
-func (p *TransactionsPanel) SetError(msg string) {
-	p.errMsg = msg
-	p.state = stateError
 }
 
 func primaryPosting(tx *floatv1.Transaction) *floatv1.Posting {
@@ -143,8 +131,6 @@ func (p *TransactionsPanel) Blur() {
 
 func (p *TransactionsPanel) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
-	case spinner.TickMsg:
-		return p.spinner.Update(msg)
 	case tea.KeyMsg:
 		if p.state != stateLoaded {
 			return nil
@@ -158,7 +144,7 @@ func (p *TransactionsPanel) Update(msg tea.Msg) tea.Cmd {
 		p.table, cmd = p.table.Update(msg)
 		return cmd
 	}
-	return nil
+	return p.handleSpinnerTick(msg)
 }
 
 func (p TransactionsPanel) View() string {
@@ -168,19 +154,9 @@ func (p TransactionsPanel) View() string {
 
 	switch p.state {
 	case stateLoading:
-		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(p.spinner.View())
-
+		return p.renderLoading()
 	case stateError:
-		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(fmt.Sprintf("! %s\n\nPress r to retry", p.errMsg))
-
+		return p.renderError(true)
 	case stateLoaded:
 		return p.table.View()
 	}
