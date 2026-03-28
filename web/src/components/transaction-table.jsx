@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState, useRef } from "preact/hooks";
 import { ledgerClient } from "../client.js";
 import { formatAmounts, formatDate } from "../format.js";
 import { PostingFields } from "./posting-fields.jsx";
@@ -168,9 +168,12 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
   const [postings, setPostings] = useState(() => toFields(tx.postings));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const containerRef = useRef(null);
+  // Track current postings in a ref so the focusout handler always sees the latest value
+  const postingsRef = useRef(postings);
+  postingsRef.current = postings;
 
-  async function handleSave(e) {
-    e.stopPropagation();
+  async function save(currentPostings) {
     setSaving(true);
     setError(null);
     try {
@@ -178,34 +181,34 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
-        postings: postings.map((p) => ({ account: p.account.trim(), amount: p.amount.trim() })),
+        postings: currentPostings.map((p) => ({ account: p.account.trim(), amount: p.amount.trim() })),
       });
       if (onSaved) onSaved();
     } catch (err) {
       setError(err.message || String(err));
-    } finally {
       setSaving(false);
     }
   }
 
-  function handleCancel(e) {
-    e.stopPropagation();
-    setPostings(toFields(tx.postings));
-    setError(null);
+  function handleFocusOut(e) {
+    // Only save when focus leaves the entire container (not when moving between fields within it)
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget)) {
+      save(postingsRef.current);
+    }
   }
 
   return (
-    <div class="p-3" onClick={(e) => e.stopPropagation()}>
-      <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
+    <div
+      ref={containerRef}
+      class="p-3"
+      onClick={(e) => e.stopPropagation()}
+      onFocusOut={handleFocusOut}
+    >
+      {saving
+        ? <span class="loading loading-spinner loading-xs" />
+        : <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
+      }
       {error && <p class="text-error text-xs mt-2">{error}</p>}
-      <div class="flex gap-2 mt-3">
-        <button class="btn btn-primary btn-xs" onClick={handleSave} disabled={saving} type="button">
-          {saving ? <span class="loading loading-spinner loading-xs" /> : "Save"}
-        </button>
-        <button class="btn btn-ghost btn-xs" onClick={handleCancel} disabled={saving} type="button">
-          Cancel
-        </button>
-      </div>
     </div>
   );
 }
