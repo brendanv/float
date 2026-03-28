@@ -43,25 +43,37 @@ export function HomePage() {
       <PeriodSelector year={year} month={month} onChange={onPeriodChange} />
       <BalanceSummary balanceRows={balanceRows} />
 
-      <div class="dashboard-grid">
-        <div>
-          {accounts.loading && <Loading />}
-          {accounts.error && <ErrorBanner error={accounts.error} />}
-          {accounts.data && (
-            <AccountList
-              accounts={sidebarAccounts}
-              balanceRows={accountBalanceRows}
-            />
-          )}
-          <InsightsChart periodQuery={periodQuery} />
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-1 space-y-6">
+          <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+              {accounts.loading && <Loading />}
+              {accounts.error && <ErrorBanner error={accounts.error} />}
+              {accounts.data && (
+                <AccountList
+                  accounts={sidebarAccounts}
+                  balanceRows={accountBalanceRows}
+                />
+              )}
+            </div>
+          </div>
+          <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+              <InsightsChart periodQuery={periodQuery} />
+            </div>
+          </div>
         </div>
-        <div>
-          <h4>Transactions</h4>
-          {txns.loading && <Loading />}
-          {txns.error && <ErrorBanner error={txns.error} />}
-          {txns.data && (
-            <TransactionTable transactions={txns.data.transactions || []} />
-          )}
+        <div class="lg:col-span-2">
+          <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+              <h4 class="card-title text-base mb-2">Transactions</h4>
+              {txns.loading && <Loading />}
+              {txns.error && <ErrorBanner error={txns.error} />}
+              {txns.data && (
+                <TransactionTable transactions={txns.data.transactions || []} />
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

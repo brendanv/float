@@ -6,7 +6,7 @@ function NavLink({ href, label, current }) {
     <li>
       <a
         href={"#" + href}
-        class={active ? "contrast" : "secondary"}
+        class={active ? "active" : ""}
         onClick={(e) => {
           e.preventDefault();
           navigate(href);
@@ -20,23 +20,27 @@ function NavLink({ href, label, current }) {
 
 export function AppShell({ children, currentPath }) {
   return (
-    <div>
-      <nav class="container">
-        <ul>
-          <li>
-            <a href="#/" onClick={(e) => { e.preventDefault(); navigate("/"); }} style="display:flex;align-items:center;gap:0.4em">
-              <img src="/icon.png" alt="" style="height:2.5em;width:2.5em;border-radius:0.3em" />
-              <strong style="font-size:1.4em">float</strong>
-            </a>
-          </li>
-        </ul>
-        <ul>
-          <NavLink href="/" label="Home" current={currentPath} />
-          <NavLink href="/transactions" label="Transactions" current={currentPath} />
-          <NavLink href="/add" label="Add" current={currentPath} />
-        </ul>
-      </nav>
-      <main class="container">
+    <div class="min-h-screen bg-base-200">
+      <div class="navbar bg-base-100 shadow-sm">
+        <div class="navbar-start">
+          <a
+            href="#/"
+            class="btn btn-ghost gap-2 text-xl"
+            onClick={(e) => { e.preventDefault(); navigate("/"); }}
+          >
+            <img src="/icon.png" alt="" class="h-8 w-8 rounded" />
+            float
+          </a>
+        </div>
+        <div class="navbar-end">
+          <ul class="menu menu-horizontal px-1">
+            <NavLink href="/" label="Home" current={currentPath} />
+            <NavLink href="/transactions" label="Transactions" current={currentPath} />
+            <NavLink href="/add" label="Add" current={currentPath} />
+          </ul>
+        </div>
+      </div>
+      <main class="container mx-auto px-4 py-6 max-w-7xl">
         {children}
       </main>
     </div>

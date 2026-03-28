@@ -6,6 +6,7 @@ import { FilterInput } from "../components/filter-input.jsx";
 import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { navigate } from "../router.jsx";
 
 function pad2(n) {
   return n < 10 ? "0" + n : "" + n;
@@ -34,10 +35,16 @@ export function TransactionsPage({ params }) {
   return (
     <div>
       {accountFilter && (
-        <p>
-          Filtered to: <strong>{accountFilter}</strong>{" "}
-          <a href="#/transactions">clear</a>
-        </p>
+        <div class="alert mb-4">
+          <span>Filtered to: <strong>{accountFilter}</strong></span>
+          <a
+            class="btn btn-ghost btn-xs"
+            href="#/transactions"
+            onClick={(e) => { e.preventDefault(); navigate("/transactions"); }}
+          >
+            clear
+          </a>
+        </div>
       )}
       <PeriodSelector year={year} month={month} onChange={onPeriodChange} />
       <FilterInput value={filter} onChange={setFilter} />
