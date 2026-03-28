@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -130,8 +131,8 @@ func (m ManagerTab) Update(msg tea.Msg) (ManagerTab, tea.Cmd) {
 	}
 }
 
-func (m ManagerTab) HelpContext() HelpContext {
-	return HelpContext{ActiveTab: TabManager}
+func (m ManagerTab) KeyMap() help.KeyMap {
+	return ManagerKeyMap{}
 }
 
 func (m ManagerTab) View() string {
