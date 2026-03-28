@@ -29,7 +29,7 @@ test("add transaction page", async ({ page }) => {
 
 test("trends page", async ({ page }) => {
   await page.goto("/#/trends");
-  await page.waitForSelector(".trends-chart, .stats", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(500);
+  await page.waitForSelector(".trends-chart canvas", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(1000);
   await page.screenshot({ path: "test-results/trends.png", fullPage: true });
 });

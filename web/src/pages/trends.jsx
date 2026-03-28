@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "preact/hooks";
-import { Chart, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend } from "chart.js";
+import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend } from "chart.js";
 import { ledgerClient } from "../client.js";
 import { useRpc } from "../hooks/use-rpc.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 
-Chart.register(LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend);
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend);
 
 const RANGES = [
   { label: "1Y", months: 12 },
@@ -133,7 +133,7 @@ function NetWorthChart({ snapshots }) {
   }, [snapshots]);
 
   return (
-    <div class="trends-chart">
+    <div class="trends-chart" style={{ position: "relative", height: "320px" }}>
       <canvas ref={canvasRef} />
     </div>
   );
