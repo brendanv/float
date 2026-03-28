@@ -11,6 +11,7 @@ const (
 	TabHome    = 0
 	TabManager = 1
 	TabTrends  = 2
+	numTabs    = 3
 )
 
 // Model is the root Bubbletea model for the float TUI.
@@ -61,8 +62,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "tab", "shift+tab":
-			m.activeTab = (m.activeTab + 1) % 3
+		case "tab":
+			m.activeTab = (m.activeTab + 1) % numTabs
+		case "shift+tab":
+			m.activeTab = (m.activeTab + numTabs - 1) % numTabs
 			return m, nil
 		}
 		// Forward to active tab.

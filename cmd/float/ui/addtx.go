@@ -356,11 +356,9 @@ func (f *AddTxForm) deleteCurrentPosting() {
 	f.focusField(newFocused)
 }
 
-func (f *AddTxForm) buildAddRequest() (*floatv1.AddTransactionRequest, string) {
-	desc := strings.TrimSpace(f.descInput.Value())
-	if desc == "" {
-		return nil, "description is required"
-	}
+// buildPostings collects non-empty posting rows into PostingInput protos.
+// Returns an error string if validation fails.
+func (f *AddTxForm) buildPostings() ([]*floatv1.PostingInput, string) {
 	var postings []*floatv1.PostingInput
 	for _, p := range f.postings {
 		acc := strings.TrimSpace(p.account.Value())
@@ -375,6 +373,18 @@ func (f *AddTxForm) buildAddRequest() (*floatv1.AddTransactionRequest, string) {
 	}
 	if len(postings) == 0 {
 		return nil, "at least one posting is required"
+	}
+	return postings, ""
+}
+
+func (f *AddTxForm) buildAddRequest() (*floatv1.AddTransactionRequest, string) {
+	desc := strings.TrimSpace(f.descInput.Value())
+	if desc == "" {
+		return nil, "description is required"
+	}
+	postings, errMsg := f.buildPostings()
+	if errMsg != "" {
+		return nil, errMsg
 	}
 	return &floatv1.AddTransactionRequest{
 		Description: desc,
@@ -389,20 +399,9 @@ func (f *AddTxForm) buildUpdateRequest() (*floatv1.UpdateTransactionRequest, str
 	if desc == "" {
 		return nil, "description is required"
 	}
-	var postings []*floatv1.PostingInput
-	for _, p := range f.postings {
-		acc := strings.TrimSpace(p.account.Value())
-		amt := strings.TrimSpace(p.amount.Value())
-		if acc == "" && amt == "" {
-			continue
-		}
-		postings = append(postings, &floatv1.PostingInput{
-			Account: acc,
-			Amount:  amt,
-		})
-	}
-	if len(postings) == 0 {
-		return nil, "at least one posting is required"
+	postings, errMsg := f.buildPostings()
+	if errMsg != "" {
+		return nil, errMsg
 	}
 	return &floatv1.UpdateTransactionRequest{
 		Fid:         f.editFID,

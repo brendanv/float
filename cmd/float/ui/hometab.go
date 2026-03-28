@@ -125,11 +125,11 @@ func (m HomeTab) Init() tea.Cmd {
 	)
 }
 
-func (m HomeTab) refreshAll() tea.Cmd {
+func (m HomeTab) refreshAll() (HomeTab, tea.Cmd) {
 	m.accounts.state = stateLoading
 	m.transactions.state = stateLoading
 	m.insights.state = stateLoading
-	return tea.Batch(
+	return m, tea.Batch(
 		FetchAccounts(m.client),
 		FetchBalances(m.client, 0, []string{m.period.Query()}),
 		FetchTransactions(m.client, m.periodAndFilterQuery()),
@@ -146,7 +146,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			return m, nil
 		}
 		m.addTxForm.Deactivate()
-		return m, m.refreshAll()
+		return m.refreshAll()
 
 	case UpdateTransactionMsg:
 		m.addTxForm.submitting = false
@@ -155,7 +155,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			return m, nil
 		}
 		m.addTxForm.Deactivate()
-		return m, m.refreshAll()
+		return m.refreshAll()
 
 	case DeleteTransactionMsg:
 		m.confirmDeleteTx = nil
@@ -164,7 +164,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			return m, nil
 		}
 		m.deleteErrMsg = ""
-		return m, m.refreshAll()
+		return m.refreshAll()
 
 	case AccountsMsg:
 		if msg.Err != nil {
@@ -210,15 +210,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 		)
 
 	case RetryFetchMsg:
-		m.accounts.state = stateLoading
-		m.transactions.state = stateLoading
-		m.insights.state = stateLoading
-		return m, tea.Batch(
-			FetchAccounts(m.client),
-			FetchBalances(m.client, 0, []string{m.period.Query()}),
-			FetchTransactions(m.client, m.periodAndFilterQuery()),
-			FetchInsights(m.client, m.period.Query()),
-		)
+		return m.refreshAll()
 
 	case tea.KeyMsg:
 		if m.addTxForm.Active() {
@@ -245,15 +237,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 		if !m.filter.Active() {
 			switch msg.String() {
 			case "r":
-				m.accounts.state = stateLoading
-				m.transactions.state = stateLoading
-				m.insights.state = stateLoading
-				return m, tea.Batch(
-					FetchAccounts(m.client),
-					FetchBalances(m.client, 0, []string{m.period.Query()}),
-					FetchTransactions(m.client, m.periodAndFilterQuery()),
-					FetchInsights(m.client, m.period.Query()),
-				)
+				return m.refreshAll()
 			case "tab", "l", "h":
 				m.focused = 1 - m.focused
 				if m.focused == 0 {
