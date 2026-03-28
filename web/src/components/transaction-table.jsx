@@ -1,6 +1,7 @@
-import { useState } from "preact/hooks";
+import { useState, useRef } from "preact/hooks";
 import { ledgerClient } from "../client.js";
 import { formatAmounts, formatDate } from "../format.js";
+import { PostingFields } from "./posting-fields.jsx";
 
 function firstQuantity(posting) {
   if (!posting.amounts || posting.amounts.length === 0) return 0;
@@ -96,22 +97,123 @@ function StatusButton({ fid, status, onStatusChange }) {
   );
 }
 
-function PostingDetail({ postings }) {
+function EditableDescriptionCell({ fid, description, date, postings, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(description);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function save() {
+    if (draft.trim() === description) { setEditing(false); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await ledgerClient.updateTransaction({
+        fid,
+        description: draft.trim(),
+        date,
+        postings: postings.map((p) => ({ account: p.account, amount: formatAmounts(p.amounts) })),
+      });
+      setEditing(false);
+      if (onSaved) onSaved();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter") { e.preventDefault(); save(); }
+    if (e.key === "Escape") { setDraft(description); setEditing(false); setError(null); }
+  }
+
+  if (editing) {
+    return (
+      <span onClick={(e) => e.stopPropagation()}>
+        {saving
+          ? <span class="loading loading-spinner loading-xs" />
+          : (
+            <input
+              class="input input-bordered input-xs w-full"
+              value={draft}
+              onInput={(e) => setDraft(e.target.value)}
+              onBlur={save}
+              onKeyDown={handleKeyDown}
+              autoFocus
+            />
+          )
+        }
+        {error && <span class="text-error text-xs block mt-1">{error}</span>}
+      </span>
+    );
+  }
+
   return (
-    <table class="table table-xs mt-2">
-      <tbody>
-        {postings.map((p, i) => (
-          <tr key={i}>
-            <td class="pl-6 text-xs text-base-content/70">{p.account}</td>
-            <td class="text-right text-xs font-mono whitespace-nowrap">{formatAmounts(p.amounts)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <span
+      onClick={(e) => { e.stopPropagation(); setDraft(description); setEditing(true); }}
+      class="cursor-text hover:underline decoration-dotted"
+      title="Click to edit description"
+    >
+      {description}
+    </span>
   );
 }
 
-export function TransactionTable({ transactions, focusedAccount, onStatusChange }) {
+function EditableDetailRow({ tx, accounts, onSaved }) {
+  function toFields(ps) {
+    return (ps || []).map((p) => ({ account: p.account, amount: formatAmounts(p.amounts) }));
+  }
+
+  const [postings, setPostings] = useState(() => toFields(tx.postings));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const containerRef = useRef(null);
+  // Track current postings in a ref so the focusout handler always sees the latest value
+  const postingsRef = useRef(postings);
+  postingsRef.current = postings;
+
+  async function save(currentPostings) {
+    setSaving(true);
+    setError(null);
+    try {
+      await ledgerClient.updateTransaction({
+        fid: tx.fid,
+        description: tx.description,
+        date: tx.date,
+        postings: currentPostings.map((p) => ({ account: p.account.trim(), amount: p.amount.trim() })),
+      });
+      if (onSaved) onSaved();
+    } catch (err) {
+      setError(err.message || String(err));
+      setSaving(false);
+    }
+  }
+
+  function handleFocusOut(e) {
+    // Only save when focus leaves the entire container (not when moving between fields within it)
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget)) {
+      save(postingsRef.current);
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      class="p-3"
+      onClick={(e) => e.stopPropagation()}
+      onFocusOut={handleFocusOut}
+    >
+      {saving
+        ? <span class="loading loading-spinner loading-xs" />
+        : <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
+      }
+      {error && <p class="text-error text-xs mt-2">{error}</p>}
+    </div>
+  );
+}
+
+export function TransactionTable({ transactions, focusedAccount, onStatusChange, accounts = [] }) {
   const [expanded, setExpanded] = useState(null);
 
   if (!transactions || transactions.length === 0) {
@@ -163,14 +265,22 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange 
                     <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
                   </td>
                   <td class="whitespace-nowrap font-mono text-xs">{formatDate(tx.date)}</td>
-                  <td>{tx.description}</td>
+                  <td>
+                    <EditableDescriptionCell
+                      fid={tx.fid}
+                      description={tx.description}
+                      date={tx.date}
+                      postings={tx.postings}
+                      onSaved={onStatusChange}
+                    />
+                  </td>
                   <td class="text-sm text-base-content/70">{accountCell}</td>
                   <td class="text-right whitespace-nowrap font-mono text-sm">{amountCell}</td>
                 </tr>,
-                expanded === tx.fid && tx.postings && (
+                expanded === tx.fid && (
                   <tr key={key + "-detail"} class="bg-base-200">
                     <td colSpan={5} class="p-0">
-                      <PostingDetail postings={tx.postings} />
+                      <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
                     </td>
                   </tr>
                 ),
@@ -196,7 +306,15 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange 
             >
               <div class="card-body">
                 <div class="flex justify-between items-center gap-2">
-                  <span class="font-medium truncate">{tx.description}</span>
+                  <span class="font-medium truncate" onClick={(e) => e.stopPropagation()}>
+                    <EditableDescriptionCell
+                      fid={tx.fid}
+                      description={tx.description}
+                      date={tx.date}
+                      postings={tx.postings}
+                      onSaved={onStatusChange}
+                    />
+                  </span>
                   <div class="flex items-center gap-1 shrink-0">
                     <span class="whitespace-nowrap font-mono text-sm">{amountCell}</span>
                     <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
@@ -204,8 +322,8 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange 
                 </div>
                 <div class="text-xs text-base-content/60">{formatDate(tx.date)}</div>
                 <div class="text-xs text-base-content/60 truncate">{accountCell}</div>
-                {expanded === tx.fid && tx.postings && (
-                  <PostingDetail postings={tx.postings} />
+                {expanded === tx.fid && (
+                  <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
                 )}
               </div>
             </div>
