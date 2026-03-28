@@ -9,14 +9,14 @@ type Layout struct {
 
 // CalcLayout computes panel dimensions for a terminal of size w×h.
 // Left column width = clamp(30% of w, 25, 45). Right = remainder.
-// ContentHeight = h - 2 (1 line for tabbar, 1 for helpbar).
-func CalcLayout(w, h int) Layout {
+// ContentHeight = h - 1 (tabbar) - helpHeight.
+func CalcLayout(w, h, helpHeight int) Layout {
 	left := clamp(w*30/100, 25, 45)
 	right := w - left
 	if right < 0 {
 		right = 0
 	}
-	content := h - 2
+	content := h - 1 - helpHeight
 	if content < 0 {
 		content = 0
 	}

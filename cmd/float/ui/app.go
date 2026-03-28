@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -19,6 +20,7 @@ type Model struct {
 	width     int
 	height    int
 	activeTab int
+	helpModel help.Model
 	home      HomeTab
 	manager   ManagerTab
 	trends    TrendsTab
@@ -28,10 +30,11 @@ type Model struct {
 // New creates the root model with the given gRPC client.
 func New(client floatv1connect.LedgerServiceClient) Model {
 	return Model{
-		client:  client,
-		home:    NewHomeTab(client),
-		manager: NewManagerTab(client),
-		trends:  NewTrendsTab(client),
+		client:    client,
+		helpModel: NewHelpModel(),
+		home:      NewHomeTab(client),
+		manager:   NewManagerTab(client),
+		trends:    NewTrendsTab(client),
 	}
 }
 
@@ -39,15 +42,36 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(m.home.Init(), m.manager.Init(), m.trends.Init())
 }
 
+// activeKeyMap returns the help.KeyMap for the currently active tab.
+func (m Model) activeKeyMap() help.KeyMap {
+	switch m.activeTab {
+	case TabHome:
+		return m.home.KeyMap()
+	case TabManager:
+		return m.manager.KeyMap()
+	default:
+		return m.trends.KeyMap()
+	}
+}
+
+// resizeAll recomputes the layout using the current help height and updates
+// all tab sizes accordingly.
+func (m *Model) resizeAll() {
+	m.helpModel.SetWidth(m.width)
+	helpRendered := m.helpModel.View(m.activeKeyMap())
+	helpH := lipgloss.Height(helpRendered)
+	layout := CalcLayout(m.width, m.height, helpH)
+	m.home = m.home.SetSize(m.width, layout.ContentHeight)
+	m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
+	m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		layout := CalcLayout(m.width, m.height)
-		m.home = m.home.SetSize(m.width, layout.ContentHeight)
-		m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
-		m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
+		m.resizeAll()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -66,6 +90,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeTab = (m.activeTab + 1) % numTabs
 		case "shift+tab":
 			m.activeTab = (m.activeTab + numTabs - 1) % numTabs
+			return m, nil
+		case "?":
+			m.helpModel.ShowAll = !m.helpModel.ShowAll
+			m.resizeAll()
 			return m, nil
 		}
 		// Forward to active tab.
@@ -107,17 +135,7 @@ func (m Model) View() tea.View {
 	}
 
 	tabBar := RenderTabBar(m.activeTab, m.width)
-
-	var helpCtx HelpContext
-	switch m.activeTab {
-	case TabHome:
-		helpCtx = m.home.HelpContext()
-	case TabManager:
-		helpCtx = m.manager.HelpContext()
-	case TabTrends:
-		helpCtx = m.trends.HelpContext()
-	}
-	helpBar := RenderHelpBar(helpCtx, m.width)
+	helpBar := m.helpModel.View(m.activeKeyMap())
 
 	var content string
 	switch m.activeTab {

@@ -21,7 +21,7 @@ func TestCalcLayout(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := CalcLayout(tc.w, tc.h)
+			got := CalcLayout(tc.w, tc.h, 1)
 			if got.LeftWidth != tc.wantLeft {
 				t.Errorf("LeftWidth = %d, want %d", got.LeftWidth, tc.wantLeft)
 			}

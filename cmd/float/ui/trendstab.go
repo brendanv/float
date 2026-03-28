@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
@@ -50,8 +51,8 @@ func (m TrendsTab) Update(msg tea.Msg) (TrendsTab, tea.Cmd) {
 	}
 }
 
-func (m TrendsTab) HelpContext() HelpContext {
-	return HelpContext{ActiveTab: TabTrends}
+func (m TrendsTab) KeyMap() help.KeyMap {
+	return TrendsKeyMap{}
 }
 
 func (m TrendsTab) View() string {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -449,22 +450,18 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m HomeTab) HelpContext() HelpContext {
-	mode := homeModeDefault
+func (m HomeTab) KeyMap() help.KeyMap {
 	switch {
-	case m.addTxForm.Active() && m.addTxForm.EditMode():
-		mode = homeModeEditTx
 	case m.addTxForm.Active():
-		mode = homeModeAddTx
+		return HomeFormKeyMap{}
 	case m.confirmDeleteTx != nil:
-		mode = homeModeConfirmDelete
+		return HomeDeleteKeyMap{}
 	case m.filter.Active():
-		mode = homeModeFilter
-	}
-	return HelpContext{
-		ActiveTab:   TabHome,
-		HomeFocused: m.focused,
-		HomeMode:    mode,
+		return HomeFilterKeyMap{}
+	case m.focused == 1:
+		return HomeTxKeyMap{}
+	default:
+		return HomeDefaultKeyMap{}
 	}
 }
 
