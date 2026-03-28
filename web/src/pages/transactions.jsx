@@ -1,38 +1,32 @@
 import { useState } from "preact/hooks";
 import { ledgerClient } from "../client.js";
 import { useRpc } from "../hooks/use-rpc.js";
-import { PeriodSelector } from "../components/period-selector.jsx";
-import { FilterInput } from "../components/filter-input.jsx";
+import { SearchControls, DATE_PRESETS } from "../components/search-controls.jsx";
 import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { navigate } from "../router.jsx";
-
-function pad2(n) {
-  return n < 10 ? "0" + n : "" + n;
-}
 
 export function TransactionsPage({ params }) {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [filter, setFilter] = useState("");
+  const initialRange = DATE_PRESETS[0].fn(); // "This month"
+  const [dateFrom, setDateFrom] = useState(initialRange.from);
+  const [dateTo, setDateTo] = useState(initialRange.to);
+  const [account, setAccount] = useState(params?.account || "");
+  const [tag, setTag] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const accountFilter = params?.account || "";
-
-  const query = buildQuery(year, month, filter, accountFilter);
+  const query = buildQuery(dateFrom, dateTo, account, tag);
 
   const { data, loading, error } = useRpc(
     () => ledgerClient.listTransactions({ query }),
-    [year, month, filter, accountFilter, refreshKey]
+    [dateFrom, dateTo, account, tag, refreshKey]
   );
 
   const { data: accountsData } = useRpc(() => ledgerClient.listAccounts({}), []);
+  const { data: tagsData } = useRpc(() => ledgerClient.listTags({}), []);
 
-  function onPeriodChange(y, m) {
-    setYear(y);
-    setMonth(m);
+  function onDateRangeChange(from, to) {
+    setDateFrom(from);
+    setDateTo(to);
   }
 
   function onStatusChange() {
@@ -41,26 +35,23 @@ export function TransactionsPage({ params }) {
 
   return (
     <div>
-      {accountFilter && (
-        <div class="alert mb-4">
-          <span>Filtered to: <strong>{accountFilter}</strong></span>
-          <a
-            class="btn btn-ghost btn-xs"
-            href="#/transactions"
-            onClick={(e) => { e.preventDefault(); navigate("/transactions"); }}
-          >
-            clear
-          </a>
-        </div>
-      )}
-      <PeriodSelector year={year} month={month} onChange={onPeriodChange} />
-      <FilterInput value={filter} onChange={setFilter} />
+      <SearchControls
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        account={account}
+        tag={tag}
+        onDateRangeChange={onDateRangeChange}
+        onAccountChange={setAccount}
+        onTagChange={setTag}
+        accounts={accountsData?.accounts || []}
+        tags={tagsData?.tags || []}
+      />
       {loading && <Loading />}
       {error && <ErrorBanner error={error} />}
       {data && (
         <TransactionTable
           transactions={data.transactions || []}
-          focusedAccount={accountFilter}
+          focusedAccount={account}
           onStatusChange={onStatusChange}
           accounts={accountsData?.accounts || []}
         />
@@ -69,11 +60,10 @@ export function TransactionsPage({ params }) {
   );
 }
 
-function buildQuery(year, month, filter, account) {
-  const tokens = [`date:${year}-${pad2(month)}`];
-  if (account) tokens.push(account);
-  if (filter.trim()) {
-    tokens.push(...filter.trim().split(/\s+/));
-  }
+function buildQuery(dateFrom, dateTo, account, tag) {
+  const tokens = [];
+  if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
+  if (account) tokens.push(`acct:${account}`);
+  if (tag) tokens.push(`tag:${tag}`);
   return tokens;
 }

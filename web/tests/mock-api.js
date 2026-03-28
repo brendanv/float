@@ -122,6 +122,9 @@ export async function mockLedgerApi(page) {
       case "ListAccounts":
         body = { accounts: mockAccounts };
         break;
+      case "ListTags":
+        body = { tags: ["category", "memo", "reimbursable"] };
+        break;
       case "GetBalances":
         body = {
           report: {

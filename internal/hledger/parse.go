@@ -239,3 +239,16 @@ func parseAccountsFlat(text string) ([]*AccountNode, error) {
 	}
 	return nodes, nil
 }
+
+// parseTags parses `hledger tags` output: one tag name per line.
+// Filters out empty lines and the internal "fid" tag.
+func parseTags(data []byte) []string {
+	var tags []string
+	for _, line := range strings.Split(string(data), "\n") {
+		t := strings.TrimSpace(line)
+		if t != "" && t != "fid" {
+			tags = append(tags, t)
+		}
+	}
+	return tags
+}
