@@ -1,6 +1,6 @@
 ---
 name: web-screenshots
-description: Capture screenshots of the float web UI using Playwright. Use when the user wants to see what the web UI looks like, review UI changes visually, or share screenshots of a specific page. Tests run against a mocked API so no live floatd instance is required.
+description: Capture and display screenshots of the float web UI using Playwright with mocked API data (no live floatd needed). TRIGGER when the user asks to see the web UI, preview web UI changes, take a screenshot of a specific page, or visually review the interface. Output images inline or upload to paste service.
 ---
 
 # web-screenshots skill
