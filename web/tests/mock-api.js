@@ -82,6 +82,21 @@ export const mockTransactions = [
   },
 ];
 
+export const mockNetWorthSnapshots = [
+  { date: "2025-04-01", assets: [{ commodity: "USD", quantity: "9200.00" }], liabilities: [{ commodity: "USD", quantity: "-1100.00" }], netWorth: [{ commodity: "USD", quantity: "8100.00" }] },
+  { date: "2025-05-01", assets: [{ commodity: "USD", quantity: "9450.00" }], liabilities: [{ commodity: "USD", quantity: "-1050.00" }], netWorth: [{ commodity: "USD", quantity: "8400.00" }] },
+  { date: "2025-06-01", assets: [{ commodity: "USD", quantity: "9600.00" }], liabilities: [{ commodity: "USD", quantity: "-1000.00" }], netWorth: [{ commodity: "USD", quantity: "8600.00" }] },
+  { date: "2025-07-01", assets: [{ commodity: "USD", quantity: "9800.00" }], liabilities: [{ commodity: "USD", quantity: "-980.00" }], netWorth: [{ commodity: "USD", quantity: "8820.00" }] },
+  { date: "2025-08-01", assets: [{ commodity: "USD", quantity: "10100.00" }], liabilities: [{ commodity: "USD", quantity: "-950.00" }], netWorth: [{ commodity: "USD", quantity: "9150.00" }] },
+  { date: "2025-09-01", assets: [{ commodity: "USD", quantity: "10350.00" }], liabilities: [{ commodity: "USD", quantity: "-920.00" }], netWorth: [{ commodity: "USD", quantity: "9430.00" }] },
+  { date: "2025-10-01", assets: [{ commodity: "USD", quantity: "10600.00" }], liabilities: [{ commodity: "USD", quantity: "-900.00" }], netWorth: [{ commodity: "USD", quantity: "9700.00" }] },
+  { date: "2025-11-01", assets: [{ commodity: "USD", quantity: "10850.00" }], liabilities: [{ commodity: "USD", quantity: "-870.00" }], netWorth: [{ commodity: "USD", quantity: "9980.00" }] },
+  { date: "2025-12-01", assets: [{ commodity: "USD", quantity: "11100.00" }], liabilities: [{ commodity: "USD", quantity: "-840.00" }], netWorth: [{ commodity: "USD", quantity: "10260.00" }] },
+  { date: "2026-01-01", assets: [{ commodity: "USD", quantity: "11500.00" }], liabilities: [{ commodity: "USD", quantity: "-1230.00" }], netWorth: [{ commodity: "USD", quantity: "10270.00" }] },
+  { date: "2026-02-01", assets: [{ commodity: "USD", quantity: "11800.00" }], liabilities: [{ commodity: "USD", quantity: "-1230.00" }], netWorth: [{ commodity: "USD", quantity: "10570.00" }] },
+  { date: "2026-03-01", assets: [{ commodity: "USD", quantity: "12450.00" }], liabilities: [{ commodity: "USD", quantity: "-1230.00" }], netWorth: [{ commodity: "USD", quantity: "11220.00" }] },
+];
+
 /**
  * Intercept all LedgerService Connect RPC calls and return mock data.
  * @param {import('@playwright/test').Page} page
@@ -113,7 +128,7 @@ export async function mockLedgerApi(page) {
         body = { transactions: mockTransactions };
         break;
       case "GetNetWorthTimeseries":
-        body = { snapshots: [] };
+        body = { snapshots: mockNetWorthSnapshots };
         break;
       default:
         body = {};
