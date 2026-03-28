@@ -1,23 +1,12 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
-)
-
-type loadState int
-
-const (
-	stateLoading loadState = iota
-	stateLoaded
-	stateError
 )
 
 var accountTypeOrder = []string{"A", "L", "R", "X", "E"}
@@ -31,13 +20,10 @@ var accountTypeLabel = map[string]string{
 }
 
 type AccountsPanel struct {
-	width, height int
-	state         loadState
-	spinner       Spinner
-	accounts      []*floatv1.Account
-	balances      map[string][]*floatv1.Amount
-	errMsg        string
-	table         table.Model
+	panelBase
+	accounts []*floatv1.Account
+	balances map[string][]*floatv1.Amount
+	table    table.Model
 }
 
 func newAccountsTable() table.Model {
@@ -56,9 +42,8 @@ func newAccountsTable() table.Model {
 
 func NewAccountsPanel() AccountsPanel {
 	return AccountsPanel{
-		state:   stateLoading,
-		spinner: NewSpinner(),
-		table:   newAccountsTable(),
+		panelBase: newPanelBase(),
+		table:     newAccountsTable(),
 	}
 }
 
@@ -100,11 +85,6 @@ func (p *AccountsPanel) SetBalances(report *floatv1.BalanceReport) {
 	p.rebuildRows()
 }
 
-func (p *AccountsPanel) SetError(msg string) {
-	p.errMsg = msg
-	p.state = stateError
-}
-
 func (p *AccountsPanel) rebuildRows() {
 	grouped := groupedRows(p.accounts)
 	rows := make([]table.Row, 0, len(grouped))
@@ -131,8 +111,6 @@ func (p *AccountsPanel) Blur() {
 
 func (p *AccountsPanel) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
-	case spinner.TickMsg:
-		return p.spinner.Update(msg)
 	case tea.KeyMsg:
 		if p.state != stateLoaded {
 			return nil
@@ -141,7 +119,7 @@ func (p *AccountsPanel) Update(msg tea.Msg) tea.Cmd {
 		p.table, cmd = p.table.Update(msg)
 		return cmd
 	}
-	return nil
+	return p.handleSpinnerTick(msg)
 }
 
 type accountRow struct {
@@ -187,19 +165,9 @@ func (p AccountsPanel) View() string {
 
 	switch p.state {
 	case stateLoading:
-		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(p.spinner.View())
-
+		return p.renderLoading()
 	case stateError:
-		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(fmt.Sprintf("! %s\n\nPress r to retry", p.errMsg))
-
+		return p.renderError(true)
 	case stateLoaded:
 		return p.table.View()
 	}

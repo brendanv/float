@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -26,17 +25,13 @@ const (
 
 // NetWorthPanel displays a time-series line chart of assets, liabilities, and net worth.
 type NetWorthPanel struct {
-	width, height int
-	state         loadState
-	spinner       Spinner
-	snapshots     []*floatv1.NetWorthSnapshot
-	errMsg        string
+	panelBase
+	snapshots []*floatv1.NetWorthSnapshot
 }
 
 func NewNetWorthPanel() NetWorthPanel {
 	return NetWorthPanel{
-		state:   stateLoading,
-		spinner: NewSpinner(),
+		panelBase: newPanelBase(),
 	}
 }
 
@@ -50,16 +45,8 @@ func (p *NetWorthPanel) SetData(snapshots []*floatv1.NetWorthSnapshot) {
 	p.state = stateLoaded
 }
 
-func (p *NetWorthPanel) SetError(msg string) {
-	p.errMsg = msg
-	p.state = stateError
-}
-
 func (p *NetWorthPanel) Update(msg tea.Msg) tea.Cmd {
-	if sm, ok := msg.(spinner.TickMsg); ok {
-		return p.spinner.Update(sm)
-	}
-	return nil
+	return p.handleSpinnerTick(msg)
 }
 
 // signedAmountVal returns the raw (possibly negative) value of the first amount.
@@ -103,14 +90,9 @@ func (p NetWorthPanel) View() string {
 	}
 	switch p.state {
 	case stateLoading:
-		return lipgloss.NewStyle().
-			Width(p.width).Height(p.height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(p.spinner.View())
+		return p.renderLoading()
 	case stateError:
-		return lipgloss.NewStyle().
-			Width(p.width).Height(p.height).
-			Render(HelpStyle.Render("! " + p.errMsg))
+		return p.renderError(false)
 	case stateLoaded:
 		if len(p.snapshots) == 0 {
 			return lipgloss.NewStyle().

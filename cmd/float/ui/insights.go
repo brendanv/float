@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
@@ -19,18 +18,14 @@ var revenueBarStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{Light:
 
 // InsightsPanel displays a horizontal bar chart of income and expense sub-categories.
 type InsightsPanel struct {
-	width, height int
-	state         loadState
-	spinner       Spinner
-	expenseRows   []*floatv1.BalanceRow
-	revenueRows   []*floatv1.BalanceRow
-	errMsg        string
+	panelBase
+	expenseRows []*floatv1.BalanceRow
+	revenueRows []*floatv1.BalanceRow
 }
 
 func NewInsightsPanel() InsightsPanel {
 	return InsightsPanel{
-		state:   stateLoading,
-		spinner: NewSpinner(),
+		panelBase: newPanelBase(),
 	}
 }
 
@@ -57,16 +52,8 @@ func (p *InsightsPanel) SetData(report *floatv1.BalanceReport) {
 	}
 }
 
-func (p *InsightsPanel) SetError(msg string) {
-	p.errMsg = msg
-	p.state = stateError
-}
-
 func (p *InsightsPanel) Update(msg tea.Msg) tea.Cmd {
-	if sm, ok := msg.(spinner.TickMsg); ok {
-		return p.spinner.Update(sm)
-	}
-	return nil
+	return p.handleSpinnerTick(msg)
 }
 
 // primaryValue extracts the absolute numeric value of the first amount.
@@ -106,16 +93,9 @@ func (p InsightsPanel) View() string {
 	}
 	switch p.state {
 	case stateLoading:
-		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(p.spinner.View())
+		return p.renderLoading()
 	case stateError:
-		return lipgloss.NewStyle().
-			Width(p.width).
-			Height(p.height).
-			Render(HelpStyle.Render("! " + p.errMsg))
+		return p.renderError(false)
 	case stateLoaded:
 		if len(p.expenseRows) == 0 && len(p.revenueRows) == 0 {
 			return lipgloss.NewStyle().
