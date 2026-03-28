@@ -1,6 +1,6 @@
 ---
 name: creating-pastes
-description: Creates text pastes and uploads images to a self-hosted paste service via API. Use when the user wants to share text snippets, code, or image files via a paste URL, or when asked to paste/upload content to the paste service.
+description: Create a text paste or upload an image to the self-hosted paste service and return a shareable URL. TRIGGER when the user says "paste this", "share this as a link", "upload this image", "create a paste", or asks for a paste/upload URL. Requires $PASTE_URL, $PASTE_USER_ID, and $PASTE_API_KEY environment variables.
 ---
 
 ## Configuration (environment variables)

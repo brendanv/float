@@ -1,3 +1,8 @@
+---
+name: tui-preview
+description: Generate a preview image of the float TUI (terminal UI) and upload it to the paste service. TRIGGER when the user asks to see the TUI, preview TUI changes visually, capture a screenshot of the terminal interface, or share what the float TUI looks like. Requires tmux, freeze (via mise), a running floatd with data in $VAULT_DATA_DIR, and paste service credentials ($PASTE_URL, $PASTE_USER_ID, $PASTE_API_KEY).
+---
+
 # tui-preview skill
 
 Use this skill to generate preview images of the float TUI. It starts `floatd` and the `float` TUI in a tmux session, navigates to the requested view, captures the pane with `freeze`, and uploads the result via the paste service.
