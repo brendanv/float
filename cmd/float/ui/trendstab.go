@@ -2,7 +2,6 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 )
@@ -56,8 +55,5 @@ func (m TrendsTab) HelpContext() HelpContext {
 }
 
 func (m TrendsTab) View() string {
-	return lipgloss.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Render(m.netWorth.View())
+	return m.netWorth.View()
 }

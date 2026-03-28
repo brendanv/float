@@ -26,9 +26,14 @@ type HomeTab struct {
 	focused     int
 	// left column sub-layout dimensions (inner, after border)
 	leftInnerW  int
+	leftInnerH  int
 	accountsH   int
 	insightsH   int
 	showInsights bool
+
+	// right column inner dimensions (after border)
+	rightInnerW int
+	rightInnerH int
 
 	// delete confirmation state
 	confirmDeleteTx *floatv1.Transaction
@@ -57,13 +62,18 @@ func (m HomeTab) periodAndFilterQuery() []string {
 }
 
 func (m HomeTab) SetSize(w, h int) HomeTab {
-	layout := CalcLayout(w, h+2)
-	m.leftWidth = layout.LeftWidth
-	m.rightWidth = layout.RightWidth
+	// Compute column widths directly — no CalcLayout roundtrip needed.
+	m.leftWidth = clamp(w*30/100, 25, 45)
+	m.rightWidth = w - m.leftWidth
+	if m.rightWidth < 0 {
+		m.rightWidth = 0
+	}
 	m.height = h
 
+	// Left column: subtract border frame to get inner dimensions.
 	leftInnerW, leftInnerH := innerSize(m.leftWidth, m.height, BorderStyle)
 	m.leftInnerW = leftInnerW
+	m.leftInnerH = leftInnerH
 
 	// Left column sub-layout: accounts | period (1 line) | insights
 	m.showInsights = leftInnerH >= 15
@@ -86,7 +96,11 @@ func (m HomeTab) SetSize(w, h int) HomeTab {
 	m.period.SetWidth(leftInnerW)
 	m.insights.SetSize(leftInnerW, m.insightsH)
 
+	// Right column: subtract border frame and store inner dimensions.
 	rightInnerW, rightInnerH := innerSize(m.rightWidth, m.height, BorderStyle)
+	m.rightInnerW = rightInnerW
+	m.rightInnerH = rightInnerH
+
 	txH := rightInnerH
 	if m.filter.Active() {
 		txH--
@@ -257,13 +271,11 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			case "/":
 				if m.focused == 1 {
 					m.filter.Activate()
-					_, rightInnerH := innerSize(m.rightWidth, m.height, BorderStyle)
-					txH := rightInnerH - 1
+					txH := m.rightInnerH - 1
 					if txH < 0 {
 						txH = 0
 					}
-					rightInnerW, _ := innerSize(m.rightWidth, m.height, BorderStyle)
-					m.transactions.SetSize(rightInnerW, txH)
+					m.transactions.SetSize(m.rightInnerW, txH)
 					return m, nil
 				}
 			case "a":
@@ -295,9 +307,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 				cmd := m.filter.Deactivate()
 				m.query = nil
 				m.transactions.state = stateLoading
-				_, rightInnerH := innerSize(m.rightWidth, m.height, BorderStyle)
-				rightInnerW, _ := innerSize(m.rightWidth, m.height, BorderStyle)
-				m.transactions.SetSize(rightInnerW, rightInnerH)
+				m.transactions.SetSize(m.rightInnerW, m.rightInnerH)
 				return m, cmd
 			case "enter":
 				m.query = m.filter.Query()
@@ -326,12 +336,9 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 }
 
 func (m HomeTab) View() string {
-	leftInnerW, leftInnerH := innerSize(m.leftWidth, m.height, BorderStyle)
-	rightInnerW, rightInnerH := innerSize(m.rightWidth, m.height, BorderStyle)
-
-	// Build left column content as a vertical stack.
+	// Build left column content as a vertical stack using stored inner dimensions.
 	accountsView := lipgloss.NewStyle().
-		Width(leftInnerW).
+		Width(m.leftInnerW).
 		Height(m.accountsH).
 		Render(m.accounts.View())
 	periodView := m.period.View()
@@ -339,44 +346,44 @@ func (m HomeTab) View() string {
 	var leftContent string
 	if m.showInsights {
 		insightsView := lipgloss.NewStyle().
-			Width(leftInnerW).
+			Width(m.leftInnerW).
 			Height(m.insightsH).
 			Render(m.insights.View())
 		leftContent = lipgloss.JoinVertical(lipgloss.Left, accountsView, periodView, insightsView)
 	} else {
 		leftContent = lipgloss.JoinVertical(lipgloss.Left, accountsView, periodView)
 	}
-	// Pad to full height.
+	// Pad to full inner height.
 	leftContent = lipgloss.NewStyle().
-		Width(leftInnerW).
-		Height(leftInnerH).
+		Width(m.leftInnerW).
+		Height(m.leftInnerH).
 		Render(leftContent)
 
 	var rightContent string
 	switch {
 	case m.addTxForm.Active():
 		rightContent = lipgloss.NewStyle().
-			Width(rightInnerW).
-			Height(rightInnerH).
+			Width(m.rightInnerW).
+			Height(m.rightInnerH).
 			Render(m.addTxForm.View())
 	case m.confirmDeleteTx != nil:
 		rightContent = lipgloss.NewStyle().
-			Width(rightInnerW).
-			Height(rightInnerH).
-			Render(m.renderDeleteConfirm(rightInnerW))
+			Width(m.rightInnerW).
+			Height(m.rightInnerH).
+			Render(m.renderDeleteConfirm(m.rightInnerW))
 	case m.filter.Active():
 		txContent := lipgloss.NewStyle().
-			Width(rightInnerW).
-			Height(rightInnerH - 1).
+			Width(m.rightInnerW).
+			Height(m.rightInnerH - 1).
 			Render(m.transactions.View())
 		filterLine := lipgloss.NewStyle().
-			Width(rightInnerW).
+			Width(m.rightInnerW).
 			Render(m.filter.View())
 		rightContent = lipgloss.JoinVertical(lipgloss.Left, txContent, filterLine)
 	default:
 		rightContent = lipgloss.NewStyle().
-			Width(rightInnerW).
-			Height(rightInnerH).
+			Width(m.rightInnerW).
+			Height(m.rightInnerH).
 			Render(m.transactions.View())
 	}
 
