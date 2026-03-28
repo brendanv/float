@@ -211,6 +211,19 @@ func (c *Client) Accounts(ctx context.Context, tree bool) ([]*AccountNode, error
 	return parseAccountsFlat(string(stdout))
 }
 
+// Tags runs `hledger tags -f <journal>` and returns the list of tag names in use,
+// excluding the internal "fid" tag.
+func (c *Client) Tags(ctx context.Context) ([]string, error) {
+	args := []string{"tags", "-f", c.journal}
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger tags: %w", err))
+	}
+
+	return parseTags(stdout), nil
+}
+
 // PrintText runs `hledger print -f <journalFile>` and returns the plain-text
 // output. Used to normalize/canonicalize transaction text before appending to
 // real journal files.

@@ -81,6 +81,12 @@ message ListAccountsResponse {
   repeated Account accounts = 1;
 }
 
+message ListTagsRequest {}
+
+message ListTagsResponse {
+  repeated string tags = 1;
+}
+
 message DeleteTransactionRequest {
   string fid = 1;
 }
@@ -145,6 +151,7 @@ service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc ListTags(ListTagsRequest) returns (ListTagsResponse);
   rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);
   rpc ModifyTags(ModifyTagsRequest) returns (ModifyTagsResponse);
   rpc UpdateTransactionDate(UpdateTransactionDateRequest) returns (UpdateTransactionDateResponse);

@@ -48,6 +48,7 @@ func balancesKey(depth int, query []string) string {
 }
 
 const accountsKey = "accounts"
+const tagsKey = "tags"
 
 func netWorthKey(begin, end string) string {
 	return fmt.Sprintf("networth:%s:%s", begin, end)
@@ -93,6 +94,20 @@ func cachedNetWorth(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 		return nil, err
 	}
 	return val.(*hledger.BalanceSheetTimeseries), nil
+}
+
+// cachedTags fetches tag names from cache or hledger.
+func cachedTags(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([]string, error) {
+	if c == nil {
+		return hl.Tags(ctx)
+	}
+	val, err := c.Get(ctx, tagsKey, func(ctx context.Context) (any, error) {
+		return hl.Tags(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.([]string), nil
 }
 
 // cachedAccounts fetches accounts from cache or hledger.
@@ -179,6 +194,16 @@ func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1
 		accounts[i] = toProtoAccount(n)
 	}
 	return connect.NewResponse(&floatv1.ListAccountsResponse{Accounts: accounts}), nil
+}
+
+func (h *Handler) ListTags(ctx context.Context, req *connect.Request[floatv1.ListTagsRequest]) (*connect.Response[floatv1.ListTagsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	tags, err := cachedTags(ctx, h.cache, h.hl)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger tags failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.ListTagsResponse{Tags: tags}), nil
 }
 
 func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[floatv1.DeleteTransactionRequest]) (*connect.Response[floatv1.DeleteTransactionResponse], error) {
