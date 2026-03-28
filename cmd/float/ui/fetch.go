@@ -137,3 +137,59 @@ func FetchNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
 		return NetWorthMsg{Snapshots: resp.Msg.Snapshots}
 	}
 }
+
+// ManagerAccountsMsg carries accounts for the Manager tab.
+// Using a distinct type prevents HomeTab from consuming this message.
+type ManagerAccountsMsg struct {
+	Accounts []*floatv1.Account
+	Err      error
+}
+
+// ManagerBalancesMsg carries depth-0 balances for the account tree.
+type ManagerBalancesMsg struct {
+	Report *floatv1.BalanceReport
+	Err    error
+}
+
+// ManagerSummaryMsg carries depth-1 balances for the summary panel.
+type ManagerSummaryMsg struct {
+	Report *floatv1.BalanceReport
+	Err    error
+}
+
+// FetchManagerAccounts fetches all accounts and returns ManagerAccountsMsg.
+func FetchManagerAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListAccounts(context.Background(), connect.NewRequest(&floatv1.ListAccountsRequest{}))
+		if err != nil {
+			return ManagerAccountsMsg{Err: err}
+		}
+		return ManagerAccountsMsg{Accounts: resp.Msg.Accounts}
+	}
+}
+
+// FetchManagerBalances fetches depth-0 balances (all accounts) for tree display.
+func FetchManagerBalances(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetBalances(context.Background(), connect.NewRequest(&floatv1.GetBalancesRequest{
+			Depth: 0,
+		}))
+		if err != nil {
+			return ManagerBalancesMsg{Err: err}
+		}
+		return ManagerBalancesMsg{Report: resp.Msg.Report}
+	}
+}
+
+// FetchManagerSummary fetches depth-1 balances (top-level account type totals) for the summary panel.
+func FetchManagerSummary(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetBalances(context.Background(), connect.NewRequest(&floatv1.GetBalancesRequest{
+			Depth: 1,
+		}))
+		if err != nil {
+			return ManagerSummaryMsg{Err: err}
+		}
+		return ManagerSummaryMsg{Report: resp.Msg.Report}
+	}
+}
