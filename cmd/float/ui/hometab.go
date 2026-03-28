@@ -443,13 +443,21 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 }
 
 func (m HomeTab) HelpContext() HelpContext {
+	mode := homeModeDefault
+	switch {
+	case m.addTxForm.Active() && m.addTxForm.EditMode():
+		mode = homeModeEditTx
+	case m.addTxForm.Active():
+		mode = homeModeAddTx
+	case m.confirmDeleteTx != nil:
+		mode = homeModeConfirmDelete
+	case m.filter.Active():
+		mode = homeModeFilter
+	}
 	return HelpContext{
-		ActiveTab:           TabHome,
-		HomeFocused:         m.focused,
-		FilterActive:        m.filter.Active(),
-		AddTxActive:         m.addTxForm.Active() && !m.addTxForm.EditMode(),
-		EditTxActive:        m.addTxForm.Active() && m.addTxForm.EditMode(),
-		ConfirmDeleteActive: m.confirmDeleteTx != nil,
+		ActiveTab:   TabHome,
+		HomeFocused: m.focused,
+		HomeMode:    mode,
 	}
 }
 
