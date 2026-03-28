@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { ledgerClient } from "../client.js";
 import { formatAmounts, formatDate } from "../format.js";
 
 function firstQuantity(posting) {
@@ -53,22 +54,63 @@ function accountRegisterDisplay(tx, focusedAccount) {
   return { otherAccounts, amount };
 }
 
-function PostingDetail({ postings }) {
+function StatusBadge({ status }) {
+  if (status === "Pending") {
+    return <span class="badge badge-warning badge-xs ml-1" title="Pending (unreviewed)">!</span>;
+  }
+  return null;
+}
+
+function PostingDetail({ postings, fid, status, onStatusChange }) {
+  const [updating, setUpdating] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleToggle() {
+    if (!fid || updating) return;
+    const newStatus = status === "Cleared" ? "Pending" : "Cleared";
+    setUpdating(true);
+    setErr(null);
+    try {
+      await ledgerClient.updateTransactionStatus({ fid, status: newStatus });
+      if (onStatusChange) onStatusChange();
+    } catch (e) {
+      setErr(e.message || "Failed to update status");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  const buttonLabel = status === "Cleared" ? "Mark pending" : "Mark reviewed";
+
   return (
-    <table class="table table-xs mt-2">
-      <tbody>
-        {postings.map((p, i) => (
-          <tr key={i}>
-            <td class="pl-6 text-xs text-base-content/70">{p.account}</td>
-            <td class="text-right text-xs font-mono whitespace-nowrap">{formatAmounts(p.amounts)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div class="p-2">
+      <table class="table table-xs mt-2">
+        <tbody>
+          {postings.map((p, i) => (
+            <tr key={i}>
+              <td class="pl-6 text-xs text-base-content/70">{p.account}</td>
+              <td class="text-right text-xs font-mono whitespace-nowrap">{formatAmounts(p.amounts)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {fid && (
+        <div class="mt-2 pl-4 flex items-center gap-2">
+          <button
+            class="btn btn-xs btn-ghost"
+            onClick={handleToggle}
+            disabled={updating}
+          >
+            {updating ? <span class="loading loading-spinner loading-xs" /> : buttonLabel}
+          </button>
+          {err && <span class="text-error text-xs">{err}</span>}
+        </div>
+      )}
+    </div>
   );
 }
 
-export function TransactionTable({ transactions, focusedAccount }) {
+export function TransactionTable({ transactions, focusedAccount, onStatusChange }) {
   const [expanded, setExpanded] = useState(null);
 
   if (!transactions || transactions.length === 0) {
@@ -116,14 +158,22 @@ export function TransactionTable({ transactions, focusedAccount }) {
                   class="cursor-pointer hover"
                 >
                   <td class="whitespace-nowrap font-mono text-xs">{formatDate(tx.date)}</td>
-                  <td>{tx.description}</td>
+                  <td>
+                    {tx.description}
+                    <StatusBadge status={tx.status} />
+                  </td>
                   <td class="text-sm text-base-content/70">{accountCell}</td>
                   <td class="text-right whitespace-nowrap font-mono text-sm">{amountCell}</td>
                 </tr>,
                 expanded === tx.fid && tx.postings && (
                   <tr key={key + "-detail"} class="bg-base-200">
                     <td colSpan={4} class="p-0">
-                      <PostingDetail postings={tx.postings} />
+                      <PostingDetail
+                        postings={tx.postings}
+                        fid={tx.fid}
+                        status={tx.status}
+                        onStatusChange={onStatusChange}
+                      />
                     </td>
                   </tr>
                 ),
@@ -149,13 +199,21 @@ export function TransactionTable({ transactions, focusedAccount }) {
             >
               <div class="card-body">
                 <div class="flex justify-between items-baseline gap-2">
-                  <span class="font-medium truncate">{tx.description}</span>
+                  <span class="font-medium truncate">
+                    {tx.description}
+                    <StatusBadge status={tx.status} />
+                  </span>
                   <span class="whitespace-nowrap font-mono text-sm shrink-0">{amountCell}</span>
                 </div>
                 <div class="text-xs text-base-content/60">{formatDate(tx.date)}</div>
                 <div class="text-xs text-base-content/60 truncate">{accountCell}</div>
                 {expanded === tx.fid && tx.postings && (
-                  <PostingDetail postings={tx.postings} />
+                  <PostingDetail
+                    postings={tx.postings}
+                    fid={tx.fid}
+                    status={tx.status}
+                    onStatusChange={onStatusChange}
+                  />
                 )}
               </div>
             </div>

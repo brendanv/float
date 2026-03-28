@@ -287,6 +287,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		Description: req.Msg.Description,
 		Comment:     req.Msg.Comment,
 		Postings:    postings,
+		Status:      "Pending",
 	}
 
 	var fid string
@@ -361,10 +362,50 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	}), nil
 }
 
+func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Request[floatv1.UpdateTransactionStatusRequest]) (*connect.Response[floatv1.UpdateTransactionStatusResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	fid := req.Msg.Fid
+	if fid == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
+	}
+	switch req.Msg.Status {
+	case "", "Pending", "Cleared":
+		// valid
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid status %q: must be \"\", \"Pending\", or \"Cleared\"", req.Msg.Status))
+	}
+	err := h.lock.Do(ctx, func() error {
+		return journal.UpdateTransactionStatus(ctx, h.hl, h.dataDir, fid, req.Msg.Status)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "no transaction found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "update transaction status failed", "fid", fid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	txns, err := h.hl.Transactions(ctx, "tag:fid="+fid)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch transaction after status update failed", "fid", fid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if len(txns) == 0 {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after status update", fid))
+	}
+	return connect.NewResponse(&floatv1.UpdateTransactionStatusResponse{
+		Transaction: toProtoTransaction(txns[0]),
+	}), nil
+}
+
 func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 	postings := make([]*floatv1.Posting, len(t.Postings))
 	for i, p := range t.Postings {
 		postings[i] = toProtoPosting(p)
+	}
+	// Normalize hledger's "Unmarked" to "" for consistency with the proto contract.
+	status := t.Status
+	if status == "Unmarked" {
+		status = ""
 	}
 	return &floatv1.Transaction{
 		Fid:         t.FID,
@@ -372,6 +413,7 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 		Description: t.Description,
 		Comment:     t.Comment,
 		Postings:    postings,
+		Status:      status,
 	}
 }
 

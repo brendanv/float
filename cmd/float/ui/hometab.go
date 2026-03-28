@@ -38,6 +38,9 @@ type HomeTab struct {
 	// delete confirmation state
 	confirmDeleteTx *floatv1.Transaction
 	deleteErrMsg    string
+
+	// status update error
+	statusErrMsg string
 }
 
 func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
@@ -166,6 +169,14 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 		m.deleteErrMsg = ""
 		return m.refreshAll()
 
+	case UpdateTransactionStatusMsg:
+		if msg.Err != nil {
+			m.statusErrMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.statusErrMsg = ""
+		return m.refreshAll()
+
 	case AccountsMsg:
 		if msg.Err != nil {
 			m.accounts.SetError(msg.Err.Error())
@@ -279,6 +290,18 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 					if tx := m.transactions.SelectedTransaction(); tx != nil && tx.Fid != "" {
 						m.confirmDeleteTx = tx
 						m.deleteErrMsg = ""
+					}
+					return m, nil
+				}
+			case "c":
+				if m.focused == 1 {
+					if tx := m.transactions.SelectedTransaction(); tx != nil && tx.Fid != "" {
+						newStatus := "Cleared"
+						if tx.Status == "Cleared" {
+							newStatus = "Pending"
+						}
+						m.statusErrMsg = ""
+						return m, UpdateTransactionStatusCmd(m.client, tx.Fid, newStatus)
 					}
 					return m, nil
 				}

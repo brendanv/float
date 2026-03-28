@@ -64,29 +64,29 @@ func TestTransactionsPanel_ColumnWidths(t *testing.T) {
 		{
 			name:  "80 columns",
 			width: 80,
-			// remaining = 80 - 10 - 13 - 4 = 53
-			// descWidth = 53 * 40 / 100 = 21
-			// acctWidth = 53 - 21 = 32
-			wantDesc: 21,
-			wantAcct: 32,
+			// remaining = 80 - 2 (St) - 10 (Date) - 13 (Amount) - 4 (separators) = 51
+			// descWidth = 51 * 40 / 100 = 20
+			// acctWidth = 51 - 20 = 31
+			wantDesc: 20,
+			wantAcct: 31,
 		},
 		{
 			name:  "120 columns",
 			width: 120,
-			// remaining = 120 - 10 - 13 - 4 = 93
-			// descWidth = 93 * 40 / 100 = 37
-			// acctWidth = 93 - 37 = 56
-			wantDesc: 37,
-			wantAcct: 56,
+			// remaining = 120 - 2 - 10 - 13 - 4 = 91
+			// descWidth = 91 * 40 / 100 = 36
+			// acctWidth = 91 - 36 = 55
+			wantDesc: 36,
+			wantAcct: 55,
 		},
 		{
 			name:  "60 columns",
 			width: 60,
-			// remaining = 60 - 10 - 13 - 4 = 33
-			// descWidth = 33 * 40 / 100 = 13
-			// acctWidth = 33 - 13 = 20
-			wantDesc: 13,
-			wantAcct: 20,
+			// remaining = 60 - 2 - 10 - 13 - 4 = 31
+			// descWidth = 31 * 40 / 100 = 12
+			// acctWidth = 31 - 12 = 19
+			wantDesc: 12,
+			wantAcct: 19,
 		},
 	}
 
@@ -95,14 +95,15 @@ func TestTransactionsPanel_ColumnWidths(t *testing.T) {
 			p := newTransactionsPanel()
 			p.SetSize(tc.width, 20)
 			cols := p.table.Columns()
-			if len(cols) != 4 {
-				t.Fatalf("expected 4 columns, got %d", len(cols))
+			if len(cols) != 5 {
+				t.Fatalf("expected 5 columns, got %d", len(cols))
 			}
-			if cols[1].Width != tc.wantDesc {
-				t.Errorf("desc width: want %d, got %d", tc.wantDesc, cols[1].Width)
+			// Columns: [0]=St, [1]=Date, [2]=Description, [3]=Amount, [4]=Account
+			if cols[2].Width != tc.wantDesc {
+				t.Errorf("desc width: want %d, got %d", tc.wantDesc, cols[2].Width)
 			}
-			if cols[3].Width != tc.wantAcct {
-				t.Errorf("acct width: want %d, got %d", tc.wantAcct, cols[3].Width)
+			if cols[4].Width != tc.wantAcct {
+				t.Errorf("acct width: want %d, got %d", tc.wantAcct, cols[4].Width)
 			}
 		})
 	}
@@ -141,11 +142,12 @@ func TestTransactionsPanel_RebuildRows_Normal(t *testing.T) {
 	if len(p.rowToTx) != 2 {
 		t.Fatalf("expected 2 rowToTx entries, got %d", len(p.rowToTx))
 	}
-	if rows[0][0] != "2026-01-01" {
-		t.Errorf("expected date 2026-01-01, got %q", rows[0][0])
+	// Columns: [0]=St, [1]=Date, [2]=Description, [3]=Amount, [4]=Account
+	if rows[0][1] != "2026-01-01" {
+		t.Errorf("expected date 2026-01-01, got %q", rows[0][1])
 	}
-	if !strings.Contains(rows[0][3], "expenses:food") {
-		t.Errorf("expected expenses:food account, got %q", rows[0][3])
+	if !strings.Contains(rows[0][4], "expenses:food") {
+		t.Errorf("expected expenses:food account, got %q", rows[0][4])
 	}
 }
 

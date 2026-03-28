@@ -34,6 +34,7 @@ export const mockTransactions = [
     fid: "a1b2c3d4",
     date: "2026-03-25",
     description: "Whole Foods Market",
+    status: "Pending",
     postings: [
       { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "87.43" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-87.43" }] },
@@ -44,6 +45,7 @@ export const mockTransactions = [
     fid: "b2c3d4e5",
     date: "2026-03-24",
     description: "Monthly Salary",
+    status: "Cleared",
     postings: [
       { account: "assets:checking", amounts: [{ commodity: "$", quantity: "5200.00" }] },
       { account: "income:salary", amounts: [{ commodity: "$", quantity: "-5200.00" }] },
@@ -54,6 +56,7 @@ export const mockTransactions = [
     fid: "c3d4e5f6",
     date: "2026-03-22",
     description: "Chipotle",
+    status: "Pending",
     postings: [
       { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "14.75" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-14.75" }] },
@@ -64,6 +67,7 @@ export const mockTransactions = [
     fid: "d4e5f6g7",
     date: "2026-03-20",
     description: "Electric Bill",
+    status: "Cleared",
     postings: [
       { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "95.00" }] },
       { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-95.00" }] },
@@ -74,6 +78,7 @@ export const mockTransactions = [
     fid: "e5f6g7h8",
     date: "2026-03-18",
     description: "Trader Joe's",
+    status: "Pending",
     postings: [
       { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "62.18" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-62.18" }] },
@@ -129,6 +134,9 @@ export async function mockLedgerApi(page) {
         break;
       case "GetNetWorthTimeseries":
         body = { snapshots: mockNetWorthSnapshots };
+        break;
+      case "UpdateTransactionStatus":
+        body = {};
         break;
       default:
         body = {};
