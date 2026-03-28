@@ -4,6 +4,7 @@ import { AppShell } from "./components/app-shell.jsx";
 import { HomePage } from "./pages/home.jsx";
 import { TransactionsPage } from "./pages/transactions.jsx";
 import { AddTransactionPage } from "./pages/add-transaction.jsx";
+import { TrendsPage } from "./pages/trends.jsx";
 
 function App() {
   const { path, params } = useRoute();
@@ -18,6 +19,9 @@ function App() {
       break;
     case "/add":
       page = <AddTransactionPage />;
+      break;
+    case "/trends":
+      page = <TrendsPage />;
       break;
     default:
       page = <p>Page not found. <a href="#/">Go home</a></p>;

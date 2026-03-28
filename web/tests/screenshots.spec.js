@@ -26,3 +26,10 @@ test("add transaction page", async ({ page }) => {
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/add-transaction.png", fullPage: true });
 });
+
+test("trends page", async ({ page }) => {
+  await page.goto("/#/trends");
+  await page.waitForSelector(".trends-chart canvas", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: "test-results/trends.png", fullPage: true });
+});
