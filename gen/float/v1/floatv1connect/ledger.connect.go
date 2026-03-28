@@ -57,6 +57,9 @@ const (
 	// LedgerServiceAddTransactionProcedure is the fully-qualified name of the LedgerService's
 	// AddTransaction RPC.
 	LedgerServiceAddTransactionProcedure = "/float.v1.LedgerService/AddTransaction"
+	// LedgerServiceUpdateTransactionStatusProcedure is the fully-qualified name of the LedgerService's
+	// UpdateTransactionStatus RPC.
+	LedgerServiceUpdateTransactionStatusProcedure = "/float.v1.LedgerService/UpdateTransactionStatus"
 	// LedgerServiceGetNetWorthTimeseriesProcedure is the fully-qualified name of the LedgerService's
 	// GetNetWorthTimeseries RPC.
 	LedgerServiceGetNetWorthTimeseriesProcedure = "/float.v1.LedgerService/GetNetWorthTimeseries"
@@ -72,6 +75,7 @@ type LedgerServiceClient interface {
 	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
 	UpdateTransaction(context.Context, *connect.Request[v1.UpdateTransactionRequest]) (*connect.Response[v1.UpdateTransactionResponse], error)
 	AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error)
+	UpdateTransactionStatus(context.Context, *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error)
 	GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error)
 }
 
@@ -134,6 +138,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("AddTransaction")),
 			connect.WithClientOptions(opts...),
 		),
+		updateTransactionStatus: connect.NewClient[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse](
+			httpClient,
+			baseURL+LedgerServiceUpdateTransactionStatusProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UpdateTransactionStatus")),
+			connect.WithClientOptions(opts...),
+		),
 		getNetWorthTimeseries: connect.NewClient[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse](
 			httpClient,
 			baseURL+LedgerServiceGetNetWorthTimeseriesProcedure,
@@ -145,15 +155,16 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // ledgerServiceClient implements LedgerServiceClient.
 type ledgerServiceClient struct {
-	listTransactions      *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
-	getBalances           *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
-	listAccounts          *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	deleteTransaction     *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
-	modifyTags            *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
-	updateTransactionDate *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
-	updateTransaction     *connect.Client[v1.UpdateTransactionRequest, v1.UpdateTransactionResponse]
-	addTransaction        *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
-	getNetWorthTimeseries *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
+	listTransactions        *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
+	getBalances             *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
+	listAccounts            *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	deleteTransaction       *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
+	modifyTags              *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
+	updateTransactionDate   *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
+	updateTransaction       *connect.Client[v1.UpdateTransactionRequest, v1.UpdateTransactionResponse]
+	addTransaction          *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
+	updateTransactionStatus *connect.Client[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse]
+	getNetWorthTimeseries   *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -196,6 +207,11 @@ func (c *ledgerServiceClient) AddTransaction(ctx context.Context, req *connect.R
 	return c.addTransaction.CallUnary(ctx, req)
 }
 
+// UpdateTransactionStatus calls float.v1.LedgerService.UpdateTransactionStatus.
+func (c *ledgerServiceClient) UpdateTransactionStatus(ctx context.Context, req *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error) {
+	return c.updateTransactionStatus.CallUnary(ctx, req)
+}
+
 // GetNetWorthTimeseries calls float.v1.LedgerService.GetNetWorthTimeseries.
 func (c *ledgerServiceClient) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error) {
 	return c.getNetWorthTimeseries.CallUnary(ctx, req)
@@ -211,6 +227,7 @@ type LedgerServiceHandler interface {
 	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
 	UpdateTransaction(context.Context, *connect.Request[v1.UpdateTransactionRequest]) (*connect.Response[v1.UpdateTransactionResponse], error)
 	AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error)
+	UpdateTransactionStatus(context.Context, *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error)
 	GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error)
 }
 
@@ -269,6 +286,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("AddTransaction")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceUpdateTransactionStatusHandler := connect.NewUnaryHandler(
+		LedgerServiceUpdateTransactionStatusProcedure,
+		svc.UpdateTransactionStatus,
+		connect.WithSchema(ledgerServiceMethods.ByName("UpdateTransactionStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceGetNetWorthTimeseriesHandler := connect.NewUnaryHandler(
 		LedgerServiceGetNetWorthTimeseriesProcedure,
 		svc.GetNetWorthTimeseries,
@@ -293,6 +316,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceUpdateTransactionHandler.ServeHTTP(w, r)
 		case LedgerServiceAddTransactionProcedure:
 			ledgerServiceAddTransactionHandler.ServeHTTP(w, r)
+		case LedgerServiceUpdateTransactionStatusProcedure:
+			ledgerServiceUpdateTransactionStatusHandler.ServeHTTP(w, r)
 		case LedgerServiceGetNetWorthTimeseriesProcedure:
 			ledgerServiceGetNetWorthTimeseriesHandler.ServeHTTP(w, r)
 		default:
@@ -334,6 +359,10 @@ func (UnimplementedLedgerServiceHandler) UpdateTransaction(context.Context, *con
 
 func (UnimplementedLedgerServiceHandler) AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.AddTransaction is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UpdateTransactionStatus(context.Context, *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateTransactionStatus is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error) {

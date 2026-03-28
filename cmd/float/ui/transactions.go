@@ -23,6 +23,7 @@ func newTransactionsTable() table.Model {
 	s.Selected = s.Selected.Foreground(colorFocused).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
+			{Title: "St", Width: 2},
 			{Title: "Date", Width: 10},
 			{Title: "Description", Width: 20},
 			{Title: "Amount", Width: 13},
@@ -43,7 +44,7 @@ func newTransactionsPanel() TransactionsPanel {
 func (p *TransactionsPanel) SetSize(w, h int) {
 	p.width = w
 	p.height = h
-	remaining := w - 10 - 13 - 4
+	remaining := w - 2 - 10 - 13 - 4 // subtract St(2) + Date(10) + Amount(13) + separators(4)
 	if remaining < 2 {
 		remaining = 2
 	}
@@ -56,6 +57,7 @@ func (p *TransactionsPanel) SetSize(w, h int) {
 		acctWidth = 1
 	}
 	p.table.SetColumns([]table.Column{
+		{Title: "St", Width: 2},
 		{Title: "Date", Width: 10},
 		{Title: "Description", Width: descWidth},
 		{Title: "Amount", Width: 13},
@@ -86,10 +88,22 @@ func primaryPosting(tx *floatv1.Transaction) *floatv1.Posting {
 	return nil
 }
 
+func statusSymbol(status string) string {
+	switch status {
+	case "Pending":
+		return "!"
+	case "Cleared":
+		return "*"
+	default:
+		return " "
+	}
+}
+
 func (p *TransactionsPanel) rebuildRows() {
 	p.rowToTx = nil
 	var rows []table.Row
 	for i, tx := range p.transactions {
+		sym := statusSymbol(tx.Status)
 		if !p.splitView {
 			post := primaryPosting(tx)
 			acct := ""
@@ -98,11 +112,11 @@ func (p *TransactionsPanel) rebuildRows() {
 				acct = post.Account
 				amt = formatBalance(post.Amounts)
 			}
-			rows = append(rows, table.Row{tx.Date, tx.Description, amt, acct})
+			rows = append(rows, table.Row{sym, tx.Date, tx.Description, amt, acct})
 			p.rowToTx = append(p.rowToTx, i)
 		} else {
 			for _, post := range tx.Postings {
-				rows = append(rows, table.Row{tx.Date, tx.Description, formatBalance(post.Amounts), post.Account})
+				rows = append(rows, table.Row{sym, tx.Date, tx.Description, formatBalance(post.Amounts), post.Account})
 				p.rowToTx = append(p.rowToTx, i)
 			}
 		}

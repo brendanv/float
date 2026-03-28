@@ -24,6 +24,7 @@ type TransactionInput struct {
 	Comment     string // optional transaction-level comment (without "; " prefix)
 	Postings    []PostingInput
 	FID         string // optional; if empty, AppendTransaction mints a new fid
+	Status      string // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
 }
 
 // draftFormat renders a TransactionInput + fid as minimal hledger journal text.
@@ -35,7 +36,14 @@ func draftFormat(tx TransactionInput, fid string) string {
 	if tx.Comment != "" {
 		commentPart += " " + tx.Comment
 	}
-	fmt.Fprintf(&b, "%s %s  ; %s\n", tx.Date.Format("2006-01-02"), tx.Description, commentPart)
+	statusPart := ""
+	switch tx.Status {
+	case "Pending":
+		statusPart = "! "
+	case "Cleared":
+		statusPart = "* "
+	}
+	fmt.Fprintf(&b, "%s %s%s  ; %s\n", tx.Date.Format("2006-01-02"), statusPart, tx.Description, commentPart)
 	for _, p := range tx.Postings {
 		if p.Amount == "" {
 			fmt.Fprintf(&b, "    %s\n", p.Account)

@@ -105,6 +105,20 @@ func DeleteTransactionCmd(client floatv1connect.LedgerServiceClient, fid string)
 	}
 }
 
+type UpdateTransactionStatusMsg struct {
+	Err error
+}
+
+func UpdateTransactionStatusCmd(client floatv1connect.LedgerServiceClient, fid, status string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.UpdateTransactionStatus(context.Background(), connect.NewRequest(&floatv1.UpdateTransactionStatusRequest{
+			Fid:    fid,
+			Status: status,
+		}))
+		return UpdateTransactionStatusMsg{Err: err}
+	}
+}
+
 type InsightsMsg struct {
 	Report *floatv1.BalanceReport
 	Err    error

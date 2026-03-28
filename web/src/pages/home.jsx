@@ -17,6 +17,7 @@ export function HomePage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [txRefreshKey, setTxRefreshKey] = useState(0);
 
   const periodQuery = [`date:${year}-${pad2(month)}`];
 
@@ -25,12 +26,16 @@ export function HomePage() {
   const accountBalances = useRpc(() => ledgerClient.getBalances({}), []);
   const txns = useRpc(
     () => ledgerClient.listTransactions({ query: periodQuery }),
-    [year, month]
+    [year, month, txRefreshKey]
   );
 
   function onPeriodChange(y, m) {
     setYear(y);
     setMonth(m);
+  }
+
+  function onStatusChange() {
+    setTxRefreshKey((k) => k + 1);
   }
 
   const balanceRows = balances.data?.report?.rows || [];
@@ -70,7 +75,7 @@ export function HomePage() {
               {txns.loading && <Loading />}
               {txns.error && <ErrorBanner error={txns.error} />}
               {txns.data && (
-                <TransactionTable transactions={txns.data.transactions || []} />
+                <TransactionTable transactions={txns.data.transactions || []} onStatusChange={onStatusChange} />
               )}
             </div>
           </div>

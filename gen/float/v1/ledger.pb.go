@@ -140,6 +140,7 @@ type Transaction struct {
 	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
 	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`
 	Postings      []*Posting             `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`
+	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"` // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -207,6 +208,13 @@ func (x *Transaction) GetPostings() []*Posting {
 		return x.Postings
 	}
 	return nil
+}
+
+func (x *Transaction) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
 }
 
 type BalanceRow struct {
@@ -1373,6 +1381,102 @@ func (x *UpdateTransactionResponse) GetTransaction() *Transaction {
 	return nil
 }
 
+type UpdateTransactionStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"` // "Pending", "Cleared", or "" (Unmarked)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTransactionStatusRequest) Reset() {
+	*x = UpdateTransactionStatusRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTransactionStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTransactionStatusRequest) ProtoMessage() {}
+
+func (x *UpdateTransactionStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTransactionStatusRequest.ProtoReflect.Descriptor instead.
+func (*UpdateTransactionStatusRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *UpdateTransactionStatusRequest) GetFid() string {
+	if x != nil {
+		return x.Fid
+	}
+	return ""
+}
+
+func (x *UpdateTransactionStatusRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+type UpdateTransactionStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transaction   *Transaction           `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTransactionStatusResponse) Reset() {
+	*x = UpdateTransactionStatusResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTransactionStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTransactionStatusResponse) ProtoMessage() {}
+
+func (x *UpdateTransactionStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTransactionStatusResponse.ProtoReflect.Descriptor instead.
+func (*UpdateTransactionStatusResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *UpdateTransactionStatusResponse) GetTransaction() *Transaction {
+	if x != nil {
+		return x.Transaction
+	}
+	return nil
+}
+
 var File_float_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_float_v1_ledger_proto_rawDesc = "" +
@@ -1384,13 +1488,14 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\aPosting\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12*\n" +
 	"\aamounts\x18\x02 \x03(\v2\x10.float.v1.AmountR\aamounts\x12\x18\n" +
-	"\acomment\x18\x03 \x01(\tR\acomment\"\x9e\x01\n" +
+	"\acomment\x18\x03 \x01(\tR\acomment\"\xb6\x01\n" +
 	"\vTransaction\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x18\n" +
 	"\acomment\x18\x04 \x01(\tR\acomment\x12-\n" +
-	"\bpostings\x18\x05 \x03(\v2\x11.float.v1.PostingR\bpostings\"\x90\x01\n" +
+	"\bpostings\x18\x05 \x03(\v2\x11.float.v1.PostingR\bpostings\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\"\x90\x01\n" +
 	"\n" +
 	"BalanceRow\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12\x1b\n" +
@@ -1459,7 +1564,12 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\acomment\x18\x04 \x01(\tR\acomment\x122\n" +
 	"\bpostings\x18\x05 \x03(\v2\x16.float.v1.PostingInputR\bpostings\"T\n" +
 	"\x19UpdateTransactionResponse\x127\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction2\xb3\x06\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"J\n" +
+	"\x1eUpdateTransactionStatusRequest\x12\x10\n" +
+	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\"Z\n" +
+	"\x1fUpdateTransactionStatusResponse\x127\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction2\xa3\a\n" +
 	"\rLedgerService\x12Y\n" +
 	"\x10ListTransactions\x12!.float.v1.ListTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12J\n" +
 	"\vGetBalances\x12\x1c.float.v1.GetBalancesRequest\x1a\x1d.float.v1.GetBalancesResponse\x12M\n" +
@@ -1469,7 +1579,8 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"ModifyTags\x12\x1b.float.v1.ModifyTagsRequest\x1a\x1c.float.v1.ModifyTagsResponse\x12h\n" +
 	"\x15UpdateTransactionDate\x12&.float.v1.UpdateTransactionDateRequest\x1a'.float.v1.UpdateTransactionDateResponse\x12\\\n" +
 	"\x11UpdateTransaction\x12\".float.v1.UpdateTransactionRequest\x1a#.float.v1.UpdateTransactionResponse\x12S\n" +
-	"\x0eAddTransaction\x12\x1f.float.v1.AddTransactionRequest\x1a .float.v1.AddTransactionResponse\x12h\n" +
+	"\x0eAddTransaction\x12\x1f.float.v1.AddTransactionRequest\x1a .float.v1.AddTransactionResponse\x12n\n" +
+	"\x17UpdateTransactionStatus\x12(.float.v1.UpdateTransactionStatusRequest\x1a).float.v1.UpdateTransactionStatusResponse\x12h\n" +
 	"\x15GetNetWorthTimeseries\x12&.float.v1.GetNetWorthTimeseriesRequest\x1a'.float.v1.GetNetWorthTimeseriesResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
 
 var (
@@ -1484,35 +1595,37 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_float_v1_ledger_proto_goTypes = []any{
-	(*Amount)(nil),                        // 0: float.v1.Amount
-	(*Posting)(nil),                       // 1: float.v1.Posting
-	(*Transaction)(nil),                   // 2: float.v1.Transaction
-	(*BalanceRow)(nil),                    // 3: float.v1.BalanceRow
-	(*BalanceReport)(nil),                 // 4: float.v1.BalanceReport
-	(*Account)(nil),                       // 5: float.v1.Account
-	(*NetWorthSnapshot)(nil),              // 6: float.v1.NetWorthSnapshot
-	(*GetNetWorthTimeseriesRequest)(nil),  // 7: float.v1.GetNetWorthTimeseriesRequest
-	(*GetNetWorthTimeseriesResponse)(nil), // 8: float.v1.GetNetWorthTimeseriesResponse
-	(*ListTransactionsRequest)(nil),       // 9: float.v1.ListTransactionsRequest
-	(*ListTransactionsResponse)(nil),      // 10: float.v1.ListTransactionsResponse
-	(*GetBalancesRequest)(nil),            // 11: float.v1.GetBalancesRequest
-	(*GetBalancesResponse)(nil),           // 12: float.v1.GetBalancesResponse
-	(*ListAccountsRequest)(nil),           // 13: float.v1.ListAccountsRequest
-	(*ListAccountsResponse)(nil),          // 14: float.v1.ListAccountsResponse
-	(*DeleteTransactionRequest)(nil),      // 15: float.v1.DeleteTransactionRequest
-	(*DeleteTransactionResponse)(nil),     // 16: float.v1.DeleteTransactionResponse
-	(*ModifyTagsRequest)(nil),             // 17: float.v1.ModifyTagsRequest
-	(*ModifyTagsResponse)(nil),            // 18: float.v1.ModifyTagsResponse
-	(*UpdateTransactionDateRequest)(nil),  // 19: float.v1.UpdateTransactionDateRequest
-	(*UpdateTransactionDateResponse)(nil), // 20: float.v1.UpdateTransactionDateResponse
-	(*PostingInput)(nil),                  // 21: float.v1.PostingInput
-	(*AddTransactionRequest)(nil),         // 22: float.v1.AddTransactionRequest
-	(*AddTransactionResponse)(nil),        // 23: float.v1.AddTransactionResponse
-	(*UpdateTransactionRequest)(nil),      // 24: float.v1.UpdateTransactionRequest
-	(*UpdateTransactionResponse)(nil),     // 25: float.v1.UpdateTransactionResponse
-	nil,                                   // 26: float.v1.ModifyTagsRequest.TagsEntry
+	(*Amount)(nil),                          // 0: float.v1.Amount
+	(*Posting)(nil),                         // 1: float.v1.Posting
+	(*Transaction)(nil),                     // 2: float.v1.Transaction
+	(*BalanceRow)(nil),                      // 3: float.v1.BalanceRow
+	(*BalanceReport)(nil),                   // 4: float.v1.BalanceReport
+	(*Account)(nil),                         // 5: float.v1.Account
+	(*NetWorthSnapshot)(nil),                // 6: float.v1.NetWorthSnapshot
+	(*GetNetWorthTimeseriesRequest)(nil),    // 7: float.v1.GetNetWorthTimeseriesRequest
+	(*GetNetWorthTimeseriesResponse)(nil),   // 8: float.v1.GetNetWorthTimeseriesResponse
+	(*ListTransactionsRequest)(nil),         // 9: float.v1.ListTransactionsRequest
+	(*ListTransactionsResponse)(nil),        // 10: float.v1.ListTransactionsResponse
+	(*GetBalancesRequest)(nil),              // 11: float.v1.GetBalancesRequest
+	(*GetBalancesResponse)(nil),             // 12: float.v1.GetBalancesResponse
+	(*ListAccountsRequest)(nil),             // 13: float.v1.ListAccountsRequest
+	(*ListAccountsResponse)(nil),            // 14: float.v1.ListAccountsResponse
+	(*DeleteTransactionRequest)(nil),        // 15: float.v1.DeleteTransactionRequest
+	(*DeleteTransactionResponse)(nil),       // 16: float.v1.DeleteTransactionResponse
+	(*ModifyTagsRequest)(nil),               // 17: float.v1.ModifyTagsRequest
+	(*ModifyTagsResponse)(nil),              // 18: float.v1.ModifyTagsResponse
+	(*UpdateTransactionDateRequest)(nil),    // 19: float.v1.UpdateTransactionDateRequest
+	(*UpdateTransactionDateResponse)(nil),   // 20: float.v1.UpdateTransactionDateResponse
+	(*PostingInput)(nil),                    // 21: float.v1.PostingInput
+	(*AddTransactionRequest)(nil),           // 22: float.v1.AddTransactionRequest
+	(*AddTransactionResponse)(nil),          // 23: float.v1.AddTransactionResponse
+	(*UpdateTransactionRequest)(nil),        // 24: float.v1.UpdateTransactionRequest
+	(*UpdateTransactionResponse)(nil),       // 25: float.v1.UpdateTransactionResponse
+	(*UpdateTransactionStatusRequest)(nil),  // 26: float.v1.UpdateTransactionStatusRequest
+	(*UpdateTransactionStatusResponse)(nil), // 27: float.v1.UpdateTransactionStatusResponse
+	nil,                                     // 28: float.v1.ModifyTagsRequest.TagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
@@ -1527,35 +1640,38 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	2,  // 9: float.v1.ListTransactionsResponse.transactions:type_name -> float.v1.Transaction
 	4,  // 10: float.v1.GetBalancesResponse.report:type_name -> float.v1.BalanceReport
 	5,  // 11: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	26, // 12: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	28, // 12: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
 	2,  // 13: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
 	21, // 14: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
 	2,  // 15: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
 	21, // 16: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
 	2,  // 17: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
-	9,  // 18: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
-	11, // 19: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
-	13, // 20: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
-	15, // 21: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
-	17, // 22: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
-	19, // 23: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
-	24, // 24: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
-	22, // 25: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
-	7,  // 26: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
-	10, // 27: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	12, // 28: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	14, // 29: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	16, // 30: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	18, // 31: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	20, // 32: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	25, // 33: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
-	23, // 34: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	8,  // 35: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	27, // [27:36] is the sub-list for method output_type
-	18, // [18:27] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	2,  // 18: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
+	9,  // 19: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
+	11, // 20: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
+	13, // 21: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
+	15, // 22: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
+	17, // 23: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
+	19, // 24: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
+	24, // 25: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
+	22, // 26: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
+	26, // 27: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
+	7,  // 28: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
+	10, // 29: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	12, // 30: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	14, // 31: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	16, // 32: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	18, // 33: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	20, // 34: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	25, // 35: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	23, // 36: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	27, // 37: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
+	8,  // 38: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	29, // [29:39] is the sub-list for method output_type
+	19, // [19:29] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_float_v1_ledger_proto_init() }
@@ -1569,7 +1685,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   27,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

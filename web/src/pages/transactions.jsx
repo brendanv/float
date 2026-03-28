@@ -17,6 +17,7 @@ export function TransactionsPage({ params }) {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [filter, setFilter] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const accountFilter = params?.account || "";
 
@@ -24,12 +25,16 @@ export function TransactionsPage({ params }) {
 
   const { data, loading, error } = useRpc(
     () => ledgerClient.listTransactions({ query }),
-    [year, month, filter, accountFilter]
+    [year, month, filter, accountFilter, refreshKey]
   );
 
   function onPeriodChange(y, m) {
     setYear(y);
     setMonth(m);
+  }
+
+  function onStatusChange() {
+    setRefreshKey((k) => k + 1);
   }
 
   return (
@@ -50,7 +55,7 @@ export function TransactionsPage({ params }) {
       <FilterInput value={filter} onChange={setFilter} />
       {loading && <Loading />}
       {error && <ErrorBanner error={error} />}
-      {data && <TransactionTable transactions={data.transactions || []} focusedAccount={accountFilter} />}
+      {data && <TransactionTable transactions={data.transactions || []} focusedAccount={accountFilter} onStatusChange={onStatusChange} />}
     </div>
   );
 }
