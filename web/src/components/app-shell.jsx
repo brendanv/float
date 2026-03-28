@@ -1,5 +1,7 @@
 import { navigate } from "../router.jsx";
 
+const manageRoutes = ["/prices"];
+
 function NavLink({ href, label, current }) {
   const active = current === href;
   return (
@@ -14,6 +16,20 @@ function NavLink({ href, label, current }) {
       >
         {label}
       </a>
+    </li>
+  );
+}
+
+function ManageDropdown({ current }) {
+  const active = manageRoutes.includes(current);
+  return (
+    <li>
+      <details>
+        <summary class={active ? "active" : ""}>Manage</summary>
+        <ul class="bg-base-100 rounded-box z-10 w-36 shadow">
+          <NavLink href="/prices" label="Prices" current={current} />
+        </ul>
+      </details>
     </li>
   );
 }
@@ -37,6 +53,7 @@ export function AppShell({ children, currentPath }) {
             <NavLink href="/" label="Home" current={currentPath} />
             <NavLink href="/transactions" label="Transactions" current={currentPath} />
             <NavLink href="/trends" label="Trends" current={currentPath} />
+            <ManageDropdown current={currentPath} />
             <NavLink href="/add" label="Add" current={currentPath} />
           </ul>
         </div>

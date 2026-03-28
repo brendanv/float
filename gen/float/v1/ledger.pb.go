@@ -1557,6 +1557,346 @@ func (x *UpdateTransactionStatusResponse) GetTransaction() *Transaction {
 	return nil
 }
 
+type PriceDirective struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pid           string                 `protobuf:"bytes,1,opt,name=pid,proto3" json:"pid,omitempty"`             // 8-char hex; empty if no pid comment
+	Date          string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"`           // "YYYY-MM-DD"
+	Commodity     string                 `protobuf:"bytes,3,opt,name=commodity,proto3" json:"commodity,omitempty"` // commodity being priced, e.g. "AAPL"
+	Price         *Amount                `protobuf:"bytes,4,opt,name=price,proto3" json:"price,omitempty"`         // price amount, e.g. {commodity: "USD", quantity: "178.50"}
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PriceDirective) Reset() {
+	*x = PriceDirective{}
+	mi := &file_float_v1_ledger_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PriceDirective) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PriceDirective) ProtoMessage() {}
+
+func (x *PriceDirective) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PriceDirective.ProtoReflect.Descriptor instead.
+func (*PriceDirective) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *PriceDirective) GetPid() string {
+	if x != nil {
+		return x.Pid
+	}
+	return ""
+}
+
+func (x *PriceDirective) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *PriceDirective) GetCommodity() string {
+	if x != nil {
+		return x.Commodity
+	}
+	return ""
+}
+
+func (x *PriceDirective) GetPrice() *Amount {
+	if x != nil {
+		return x.Price
+	}
+	return nil
+}
+
+type ListPricesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPricesRequest) Reset() {
+	*x = ListPricesRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPricesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPricesRequest) ProtoMessage() {}
+
+func (x *ListPricesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPricesRequest.ProtoReflect.Descriptor instead.
+func (*ListPricesRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{31}
+}
+
+type ListPricesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Prices        []*PriceDirective      `protobuf:"bytes,1,rep,name=prices,proto3" json:"prices,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPricesResponse) Reset() {
+	*x = ListPricesResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPricesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPricesResponse) ProtoMessage() {}
+
+func (x *ListPricesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPricesResponse.ProtoReflect.Descriptor instead.
+func (*ListPricesResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ListPricesResponse) GetPrices() []*PriceDirective {
+	if x != nil {
+		return x.Prices
+	}
+	return nil
+}
+
+type AddPriceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Date          string                 `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`           // "YYYY-MM-DD"; empty = today
+	Commodity     string                 `protobuf:"bytes,2,opt,name=commodity,proto3" json:"commodity,omitempty"` // commodity being priced, e.g. "AAPL"
+	Quantity      string                 `protobuf:"bytes,3,opt,name=quantity,proto3" json:"quantity,omitempty"`   // price amount, e.g. "178.50"
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`   // price commodity, e.g. "USD"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddPriceRequest) Reset() {
+	*x = AddPriceRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddPriceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddPriceRequest) ProtoMessage() {}
+
+func (x *AddPriceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddPriceRequest.ProtoReflect.Descriptor instead.
+func (*AddPriceRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *AddPriceRequest) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *AddPriceRequest) GetCommodity() string {
+	if x != nil {
+		return x.Commodity
+	}
+	return ""
+}
+
+func (x *AddPriceRequest) GetQuantity() string {
+	if x != nil {
+		return x.Quantity
+	}
+	return ""
+}
+
+func (x *AddPriceRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+type AddPriceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Price         *PriceDirective        `protobuf:"bytes,1,opt,name=price,proto3" json:"price,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddPriceResponse) Reset() {
+	*x = AddPriceResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddPriceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddPriceResponse) ProtoMessage() {}
+
+func (x *AddPriceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddPriceResponse.ProtoReflect.Descriptor instead.
+func (*AddPriceResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *AddPriceResponse) GetPrice() *PriceDirective {
+	if x != nil {
+		return x.Price
+	}
+	return nil
+}
+
+type DeletePriceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Pid           string                 `protobuf:"bytes,1,opt,name=pid,proto3" json:"pid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeletePriceRequest) Reset() {
+	*x = DeletePriceRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeletePriceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeletePriceRequest) ProtoMessage() {}
+
+func (x *DeletePriceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeletePriceRequest.ProtoReflect.Descriptor instead.
+func (*DeletePriceRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *DeletePriceRequest) GetPid() string {
+	if x != nil {
+		return x.Pid
+	}
+	return ""
+}
+
+type DeletePriceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeletePriceResponse) Reset() {
+	*x = DeletePriceResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeletePriceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeletePriceResponse) ProtoMessage() {}
+
+func (x *DeletePriceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeletePriceResponse.ProtoReflect.Descriptor instead.
+func (*DeletePriceResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{36}
+}
+
 var File_float_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_float_v1_ledger_proto_rawDesc = "" +
@@ -1652,7 +1992,25 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\"Z\n" +
 	"\x1fUpdateTransactionStatusResponse\x127\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction2\xe6\a\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"|\n" +
+	"\x0ePriceDirective\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\tR\x03pid\x12\x12\n" +
+	"\x04date\x18\x02 \x01(\tR\x04date\x12\x1c\n" +
+	"\tcommodity\x18\x03 \x01(\tR\tcommodity\x12&\n" +
+	"\x05price\x18\x04 \x01(\v2\x10.float.v1.AmountR\x05price\"\x13\n" +
+	"\x11ListPricesRequest\"F\n" +
+	"\x12ListPricesResponse\x120\n" +
+	"\x06prices\x18\x01 \x03(\v2\x18.float.v1.PriceDirectiveR\x06prices\"{\n" +
+	"\x0fAddPriceRequest\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x12\x1c\n" +
+	"\tcommodity\x18\x02 \x01(\tR\tcommodity\x12\x1a\n" +
+	"\bquantity\x18\x03 \x01(\tR\bquantity\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\"B\n" +
+	"\x10AddPriceResponse\x12.\n" +
+	"\x05price\x18\x01 \x01(\v2\x18.float.v1.PriceDirectiveR\x05price\"&\n" +
+	"\x12DeletePriceRequest\x12\x10\n" +
+	"\x03pid\x18\x01 \x01(\tR\x03pid\"\x15\n" +
+	"\x13DeletePriceResponse2\xbe\t\n" +
 	"\rLedgerService\x12Y\n" +
 	"\x10ListTransactions\x12!.float.v1.ListTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12J\n" +
 	"\vGetBalances\x12\x1c.float.v1.GetBalancesRequest\x1a\x1d.float.v1.GetBalancesResponse\x12M\n" +
@@ -1665,7 +2023,11 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x11UpdateTransaction\x12\".float.v1.UpdateTransactionRequest\x1a#.float.v1.UpdateTransactionResponse\x12S\n" +
 	"\x0eAddTransaction\x12\x1f.float.v1.AddTransactionRequest\x1a .float.v1.AddTransactionResponse\x12n\n" +
 	"\x17UpdateTransactionStatus\x12(.float.v1.UpdateTransactionStatusRequest\x1a).float.v1.UpdateTransactionStatusResponse\x12h\n" +
-	"\x15GetNetWorthTimeseries\x12&.float.v1.GetNetWorthTimeseriesRequest\x1a'.float.v1.GetNetWorthTimeseriesResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
+	"\x15GetNetWorthTimeseries\x12&.float.v1.GetNetWorthTimeseriesRequest\x1a'.float.v1.GetNetWorthTimeseriesResponse\x12G\n" +
+	"\n" +
+	"ListPrices\x12\x1b.float.v1.ListPricesRequest\x1a\x1c.float.v1.ListPricesResponse\x12A\n" +
+	"\bAddPrice\x12\x19.float.v1.AddPriceRequest\x1a\x1a.float.v1.AddPriceResponse\x12J\n" +
+	"\vDeletePrice\x12\x1c.float.v1.DeletePriceRequest\x1a\x1d.float.v1.DeletePriceResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
 
 var (
 	file_float_v1_ledger_proto_rawDescOnce sync.Once
@@ -1679,7 +2041,7 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_float_v1_ledger_proto_goTypes = []any{
 	(*Amount)(nil),                          // 0: float.v1.Amount
 	(*Posting)(nil),                         // 1: float.v1.Posting
@@ -1711,7 +2073,14 @@ var file_float_v1_ledger_proto_goTypes = []any{
 	(*UpdateTransactionResponse)(nil),       // 27: float.v1.UpdateTransactionResponse
 	(*UpdateTransactionStatusRequest)(nil),  // 28: float.v1.UpdateTransactionStatusRequest
 	(*UpdateTransactionStatusResponse)(nil), // 29: float.v1.UpdateTransactionStatusResponse
-	nil,                                     // 30: float.v1.ModifyTagsRequest.TagsEntry
+	(*PriceDirective)(nil),                  // 30: float.v1.PriceDirective
+	(*ListPricesRequest)(nil),               // 31: float.v1.ListPricesRequest
+	(*ListPricesResponse)(nil),              // 32: float.v1.ListPricesResponse
+	(*AddPriceRequest)(nil),                 // 33: float.v1.AddPriceRequest
+	(*AddPriceResponse)(nil),                // 34: float.v1.AddPriceResponse
+	(*DeletePriceRequest)(nil),              // 35: float.v1.DeletePriceRequest
+	(*DeletePriceResponse)(nil),             // 36: float.v1.DeletePriceResponse
+	nil,                                     // 37: float.v1.ModifyTagsRequest.TagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
@@ -1726,40 +2095,49 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	2,  // 9: float.v1.ListTransactionsResponse.transactions:type_name -> float.v1.Transaction
 	4,  // 10: float.v1.GetBalancesResponse.report:type_name -> float.v1.BalanceReport
 	5,  // 11: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	30, // 12: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	37, // 12: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
 	2,  // 13: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
 	23, // 14: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
 	2,  // 15: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
 	23, // 16: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
 	2,  // 17: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
 	2,  // 18: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
-	9,  // 19: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
-	11, // 20: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
-	13, // 21: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
-	15, // 22: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
-	17, // 23: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
-	19, // 24: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
-	21, // 25: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
-	26, // 26: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
-	24, // 27: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
-	28, // 28: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
-	7,  // 29: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
-	10, // 30: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	12, // 31: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	14, // 32: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	16, // 33: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
-	18, // 34: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	20, // 35: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	22, // 36: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	27, // 37: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
-	25, // 38: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	29, // 39: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
-	8,  // 40: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	30, // [30:41] is the sub-list for method output_type
-	19, // [19:30] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	0,  // 19: float.v1.PriceDirective.price:type_name -> float.v1.Amount
+	30, // 20: float.v1.ListPricesResponse.prices:type_name -> float.v1.PriceDirective
+	30, // 21: float.v1.AddPriceResponse.price:type_name -> float.v1.PriceDirective
+	9,  // 22: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
+	11, // 23: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
+	13, // 24: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
+	15, // 25: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
+	17, // 26: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
+	19, // 27: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
+	21, // 28: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
+	26, // 29: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
+	24, // 30: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
+	28, // 31: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
+	7,  // 32: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
+	31, // 33: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
+	33, // 34: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
+	35, // 35: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
+	10, // 36: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	12, // 37: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	14, // 38: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	16, // 39: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
+	18, // 40: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	20, // 41: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	22, // 42: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	27, // 43: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	25, // 44: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	29, // 45: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
+	8,  // 46: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	32, // 47: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
+	34, // 48: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
+	36, // 49: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
+	36, // [36:50] is the sub-list for method output_type
+	22, // [22:36] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_float_v1_ledger_proto_init() }
@@ -1773,7 +2151,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

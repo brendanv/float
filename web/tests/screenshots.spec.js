@@ -33,3 +33,10 @@ test("trends page", async ({ page }) => {
   await page.waitForTimeout(1000);
   await page.screenshot({ path: "test-results/trends.png", fullPage: true });
 });
+
+test("prices page", async ({ page }) => {
+  await page.goto("/#/prices");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "test-results/prices.png", fullPage: true });
+});

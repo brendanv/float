@@ -490,3 +490,82 @@ func toProtoAmounts(amounts []hledger.Amount) []*floatv1.Amount {
 	}
 	return result
 }
+
+func toProtoPriceDirective(p journal.Price) *floatv1.PriceDirective {
+	return &floatv1.PriceDirective{
+		Pid:       p.PID,
+		Date:      p.Date,
+		Commodity: p.Commodity,
+		Price: &floatv1.Amount{
+			Commodity: p.Currency,
+			Quantity:  p.Quantity,
+		},
+	}
+}
+
+func (h *Handler) ListPrices(ctx context.Context, _ *connect.Request[floatv1.ListPricesRequest]) (*connect.Response[floatv1.ListPricesResponse], error) {
+	prices, err := journal.ListPrices(h.dataDir)
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "list prices failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	out := make([]*floatv1.PriceDirective, len(prices))
+	for i, p := range prices {
+		out[i] = toProtoPriceDirective(p)
+	}
+	return connect.NewResponse(&floatv1.ListPricesResponse{Prices: out}), nil
+}
+
+func (h *Handler) AddPrice(ctx context.Context, req *connect.Request[floatv1.AddPriceRequest]) (*connect.Response[floatv1.AddPriceResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.Commodity == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("commodity is required"))
+	}
+	if req.Msg.Quantity == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("quantity is required"))
+	}
+	if req.Msg.Currency == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("currency is required"))
+	}
+	date := req.Msg.Date
+	if date == "" {
+		date = time.Now().Format("2006-01-02")
+	}
+
+	var pid string
+	err := h.lock.Do(ctx, func() error {
+		var e error
+		pid, e = journal.AppendPrice(h.dataDir, date, req.Msg.Commodity, req.Msg.Quantity, req.Msg.Currency)
+		return e
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "add price failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	price := journal.Price{
+		PID:       pid,
+		Date:      date,
+		Commodity: req.Msg.Commodity,
+		Quantity:  req.Msg.Quantity,
+		Currency:  req.Msg.Currency,
+	}
+	return connect.NewResponse(&floatv1.AddPriceResponse{Price: toProtoPriceDirective(price)}), nil
+}
+
+func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.DeletePriceRequest]) (*connect.Response[floatv1.DeletePriceResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.Pid == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pid is required"))
+	}
+	err := h.lock.Do(ctx, func() error {
+		return journal.DeletePrice(h.dataDir, req.Msg.Pid)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "delete price failed", "pid", req.Msg.Pid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.DeletePriceResponse{}), nil
+}

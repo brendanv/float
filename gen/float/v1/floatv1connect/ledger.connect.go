@@ -65,6 +65,14 @@ const (
 	// LedgerServiceGetNetWorthTimeseriesProcedure is the fully-qualified name of the LedgerService's
 	// GetNetWorthTimeseries RPC.
 	LedgerServiceGetNetWorthTimeseriesProcedure = "/float.v1.LedgerService/GetNetWorthTimeseries"
+	// LedgerServiceListPricesProcedure is the fully-qualified name of the LedgerService's ListPrices
+	// RPC.
+	LedgerServiceListPricesProcedure = "/float.v1.LedgerService/ListPrices"
+	// LedgerServiceAddPriceProcedure is the fully-qualified name of the LedgerService's AddPrice RPC.
+	LedgerServiceAddPriceProcedure = "/float.v1.LedgerService/AddPrice"
+	// LedgerServiceDeletePriceProcedure is the fully-qualified name of the LedgerService's DeletePrice
+	// RPC.
+	LedgerServiceDeletePriceProcedure = "/float.v1.LedgerService/DeletePrice"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -80,6 +88,9 @@ type LedgerServiceClient interface {
 	AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error)
 	UpdateTransactionStatus(context.Context, *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error)
 	GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error)
+	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
+	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
+	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -159,6 +170,24 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("GetNetWorthTimeseries")),
 			connect.WithClientOptions(opts...),
 		),
+		listPrices: connect.NewClient[v1.ListPricesRequest, v1.ListPricesResponse](
+			httpClient,
+			baseURL+LedgerServiceListPricesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListPrices")),
+			connect.WithClientOptions(opts...),
+		),
+		addPrice: connect.NewClient[v1.AddPriceRequest, v1.AddPriceResponse](
+			httpClient,
+			baseURL+LedgerServiceAddPriceProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("AddPrice")),
+			connect.WithClientOptions(opts...),
+		),
+		deletePrice: connect.NewClient[v1.DeletePriceRequest, v1.DeletePriceResponse](
+			httpClient,
+			baseURL+LedgerServiceDeletePriceProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -175,6 +204,9 @@ type ledgerServiceClient struct {
 	addTransaction          *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
 	updateTransactionStatus *connect.Client[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse]
 	getNetWorthTimeseries   *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
+	listPrices              *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
+	addPrice                *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
+	deletePrice             *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -232,6 +264,21 @@ func (c *ledgerServiceClient) GetNetWorthTimeseries(ctx context.Context, req *co
 	return c.getNetWorthTimeseries.CallUnary(ctx, req)
 }
 
+// ListPrices calls float.v1.LedgerService.ListPrices.
+func (c *ledgerServiceClient) ListPrices(ctx context.Context, req *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error) {
+	return c.listPrices.CallUnary(ctx, req)
+}
+
+// AddPrice calls float.v1.LedgerService.AddPrice.
+func (c *ledgerServiceClient) AddPrice(ctx context.Context, req *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error) {
+	return c.addPrice.CallUnary(ctx, req)
+}
+
+// DeletePrice calls float.v1.LedgerService.DeletePrice.
+func (c *ledgerServiceClient) DeletePrice(ctx context.Context, req *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error) {
+	return c.deletePrice.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -245,6 +292,9 @@ type LedgerServiceHandler interface {
 	AddTransaction(context.Context, *connect.Request[v1.AddTransactionRequest]) (*connect.Response[v1.AddTransactionResponse], error)
 	UpdateTransactionStatus(context.Context, *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error)
 	GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error)
+	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
+	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
+	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -320,6 +370,24 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("GetNetWorthTimeseries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceListPricesHandler := connect.NewUnaryHandler(
+		LedgerServiceListPricesProcedure,
+		svc.ListPrices,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListPrices")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceAddPriceHandler := connect.NewUnaryHandler(
+		LedgerServiceAddPriceProcedure,
+		svc.AddPrice,
+		connect.WithSchema(ledgerServiceMethods.ByName("AddPrice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceDeletePriceHandler := connect.NewUnaryHandler(
+		LedgerServiceDeletePriceProcedure,
+		svc.DeletePrice,
+		connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -344,6 +412,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceUpdateTransactionStatusHandler.ServeHTTP(w, r)
 		case LedgerServiceGetNetWorthTimeseriesProcedure:
 			ledgerServiceGetNetWorthTimeseriesHandler.ServeHTTP(w, r)
+		case LedgerServiceListPricesProcedure:
+			ledgerServiceListPricesHandler.ServeHTTP(w, r)
+		case LedgerServiceAddPriceProcedure:
+			ledgerServiceAddPriceHandler.ServeHTTP(w, r)
+		case LedgerServiceDeletePriceProcedure:
+			ledgerServiceDeletePriceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -395,4 +469,16 @@ func (UnimplementedLedgerServiceHandler) UpdateTransactionStatus(context.Context
 
 func (UnimplementedLedgerServiceHandler) GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetNetWorthTimeseries is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListPrices is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.AddPrice is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeletePrice is not implemented"))
 }

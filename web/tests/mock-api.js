@@ -87,6 +87,15 @@ export const mockTransactions = [
   },
 ];
 
+export const mockPrices = [
+  { pid: "a1b2c3d4", date: "2026-01-02", commodity: "AAPL", price: { commodity: "USD", quantity: "182.63" } },
+  { pid: "b2c3d4e5", date: "2026-01-02", commodity: "MSFT", price: { commodity: "USD", quantity: "425.22" } },
+  { pid: "c3d4e5f6", date: "2026-02-03", commodity: "AAPL", price: { commodity: "USD", quantity: "188.44" } },
+  { pid: "d4e5f6a7", date: "2026-02-03", commodity: "MSFT", price: { commodity: "USD", quantity: "415.10" } },
+  { pid: "e5f6a7b8", date: "2026-03-01", commodity: "AAPL", price: { commodity: "USD", quantity: "178.50" } },
+  { pid: "f6a7b8c9", date: "2026-03-01", commodity: "MSFT", price: { commodity: "USD", quantity: "398.75" } },
+];
+
 export const mockNetWorthSnapshots = [
   { date: "2025-04-01", assets: [{ commodity: "USD", quantity: "9200.00" }], liabilities: [{ commodity: "USD", quantity: "-1100.00" }], netWorth: [{ commodity: "USD", quantity: "8100.00" }] },
   { date: "2025-05-01", assets: [{ commodity: "USD", quantity: "9450.00" }], liabilities: [{ commodity: "USD", quantity: "-1050.00" }], netWorth: [{ commodity: "USD", quantity: "8400.00" }] },
@@ -139,6 +148,15 @@ export async function mockLedgerApi(page) {
         body = { snapshots: mockNetWorthSnapshots };
         break;
       case "UpdateTransactionStatus":
+        body = {};
+        break;
+      case "ListPrices":
+        body = { prices: mockPrices };
+        break;
+      case "AddPrice":
+        body = { price: { pid: "new00001", date: reqBody.date || "2026-03-28", commodity: reqBody.commodity, price: { commodity: reqBody.currency, quantity: reqBody.quantity } } };
+        break;
+      case "DeletePrice":
         body = {};
         break;
       default:

@@ -147,6 +147,36 @@ message UpdateTransactionStatusResponse {
   Transaction transaction = 1;
 }
 
+message PriceDirective {
+  string pid = 1;       // 8-char hex; empty if no pid comment
+  string date = 2;      // "YYYY-MM-DD"
+  string commodity = 3; // commodity being priced, e.g. "AAPL"
+  Amount price = 4;     // price amount, e.g. {commodity: "USD", quantity: "178.50"}
+}
+
+message ListPricesRequest {}
+
+message ListPricesResponse {
+  repeated PriceDirective prices = 1;
+}
+
+message AddPriceRequest {
+  string date = 1;      // "YYYY-MM-DD"; empty = today
+  string commodity = 2; // commodity being priced, e.g. "AAPL"
+  string quantity = 3;  // price amount, e.g. "178.50"
+  string currency = 4;  // price commodity, e.g. "USD"
+}
+
+message AddPriceResponse {
+  PriceDirective price = 1;
+}
+
+message DeletePriceRequest {
+  string pid = 1;
+}
+
+message DeletePriceResponse {}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
@@ -159,4 +189,7 @@ service LedgerService {
   rpc AddTransaction(AddTransactionRequest) returns (AddTransactionResponse);
   rpc UpdateTransactionStatus(UpdateTransactionStatusRequest) returns (UpdateTransactionStatusResponse);
   rpc GetNetWorthTimeseries(GetNetWorthTimeseriesRequest) returns (GetNetWorthTimeseriesResponse);
+  rpc ListPrices(ListPricesRequest) returns (ListPricesResponse);
+  rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
+  rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);
 }
