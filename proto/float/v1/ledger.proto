@@ -22,6 +22,7 @@ message Transaction {
   string comment = 4;
   repeated Posting postings = 5;
   string status = 6; // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
+  map<string, string> tags = 7; // non-fid tags on the transaction
 }
 
 message BalanceRow {

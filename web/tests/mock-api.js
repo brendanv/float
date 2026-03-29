@@ -39,7 +39,7 @@ export const mockTransactions = [
       { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "87.43" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-87.43" }] },
     ],
-    tags: [],
+    tags: { reimbursable: "" },
   },
   {
     fid: "a1b2c3d5",
@@ -50,7 +50,7 @@ export const mockTransactions = [
       { account: "expenses:shopping", amounts: [{ commodity: "$", quantity: "34.99" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-34.99" }] },
     ],
-    tags: [],
+    tags: { project: "home-office", reimbursable: "" },
   },
   {
     fid: "b2c3d4e5",
@@ -61,7 +61,7 @@ export const mockTransactions = [
       { account: "assets:checking", amounts: [{ commodity: "$", quantity: "5200.00" }] },
       { account: "income:salary", amounts: [{ commodity: "$", quantity: "-5200.00" }] },
     ],
-    tags: [],
+    tags: {},
   },
   {
     fid: "c3d4e5f6",
@@ -72,7 +72,7 @@ export const mockTransactions = [
       { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "14.75" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-14.75" }] },
     ],
-    tags: [],
+    tags: {},
   },
   {
     fid: "c3d4e5f7",
@@ -83,7 +83,7 @@ export const mockTransactions = [
       { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "6.50" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-6.50" }] },
     ],
-    tags: [],
+    tags: {},
   },
   {
     fid: "c3d4e5f8",
@@ -94,7 +94,7 @@ export const mockTransactions = [
       { account: "expenses:transport", amounts: [{ commodity: "$", quantity: "3.25" }] },
       { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-3.25" }] },
     ],
-    tags: [],
+    tags: {},
   },
   {
     fid: "d4e5f6g7",
@@ -105,7 +105,7 @@ export const mockTransactions = [
       { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "95.00" }] },
       { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-95.00" }] },
     ],
-    tags: [],
+    tags: {},
   },
   {
     fid: "e5f6g7h8",
@@ -116,7 +116,7 @@ export const mockTransactions = [
       { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "62.18" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-62.18" }] },
     ],
-    tags: [],
+    tags: {},
   },
 ];
 

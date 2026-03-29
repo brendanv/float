@@ -140,7 +140,8 @@ type Transaction struct {
 	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
 	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`
 	Postings      []*Posting             `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`
-	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"` // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
+	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`                                                                       // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
+	Tags          map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // non-fid tags on the transaction
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -215,6 +216,13 @@ func (x *Transaction) GetStatus() string {
 		return x.Status
 	}
 	return ""
+}
+
+func (x *Transaction) GetTags() map[string]string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
 }
 
 type BalanceRow struct {
@@ -1908,14 +1916,18 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\aPosting\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12*\n" +
 	"\aamounts\x18\x02 \x03(\v2\x10.float.v1.AmountR\aamounts\x12\x18\n" +
-	"\acomment\x18\x03 \x01(\tR\acomment\"\xb6\x01\n" +
+	"\acomment\x18\x03 \x01(\tR\acomment\"\xa4\x02\n" +
 	"\vTransaction\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x18\n" +
 	"\acomment\x18\x04 \x01(\tR\acomment\x12-\n" +
 	"\bpostings\x18\x05 \x03(\v2\x11.float.v1.PostingR\bpostings\x12\x16\n" +
-	"\x06status\x18\x06 \x01(\tR\x06status\"\x90\x01\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\x123\n" +
+	"\x04tags\x18\a \x03(\v2\x1f.float.v1.Transaction.TagsEntryR\x04tags\x1a7\n" +
+	"\tTagsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x90\x01\n" +
 	"\n" +
 	"BalanceRow\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12\x1b\n" +
@@ -2041,7 +2053,7 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_float_v1_ledger_proto_goTypes = []any{
 	(*Amount)(nil),                          // 0: float.v1.Amount
 	(*Posting)(nil),                         // 1: float.v1.Posting
@@ -2080,64 +2092,66 @@ var file_float_v1_ledger_proto_goTypes = []any{
 	(*AddPriceResponse)(nil),                // 34: float.v1.AddPriceResponse
 	(*DeletePriceRequest)(nil),              // 35: float.v1.DeletePriceRequest
 	(*DeletePriceResponse)(nil),             // 36: float.v1.DeletePriceResponse
-	nil,                                     // 37: float.v1.ModifyTagsRequest.TagsEntry
+	nil,                                     // 37: float.v1.Transaction.TagsEntry
+	nil,                                     // 38: float.v1.ModifyTagsRequest.TagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
 	1,  // 1: float.v1.Transaction.postings:type_name -> float.v1.Posting
-	0,  // 2: float.v1.BalanceRow.amounts:type_name -> float.v1.Amount
-	3,  // 3: float.v1.BalanceReport.rows:type_name -> float.v1.BalanceRow
-	0,  // 4: float.v1.BalanceReport.total:type_name -> float.v1.Amount
-	0,  // 5: float.v1.NetWorthSnapshot.assets:type_name -> float.v1.Amount
-	0,  // 6: float.v1.NetWorthSnapshot.liabilities:type_name -> float.v1.Amount
-	0,  // 7: float.v1.NetWorthSnapshot.net_worth:type_name -> float.v1.Amount
-	6,  // 8: float.v1.GetNetWorthTimeseriesResponse.snapshots:type_name -> float.v1.NetWorthSnapshot
-	2,  // 9: float.v1.ListTransactionsResponse.transactions:type_name -> float.v1.Transaction
-	4,  // 10: float.v1.GetBalancesResponse.report:type_name -> float.v1.BalanceReport
-	5,  // 11: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	37, // 12: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
-	2,  // 13: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
-	23, // 14: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
-	2,  // 15: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
-	23, // 16: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
-	2,  // 17: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
-	2,  // 18: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
-	0,  // 19: float.v1.PriceDirective.price:type_name -> float.v1.Amount
-	30, // 20: float.v1.ListPricesResponse.prices:type_name -> float.v1.PriceDirective
-	30, // 21: float.v1.AddPriceResponse.price:type_name -> float.v1.PriceDirective
-	9,  // 22: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
-	11, // 23: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
-	13, // 24: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
-	15, // 25: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
-	17, // 26: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
-	19, // 27: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
-	21, // 28: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
-	26, // 29: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
-	24, // 30: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
-	28, // 31: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
-	7,  // 32: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
-	31, // 33: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
-	33, // 34: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
-	35, // 35: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
-	10, // 36: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	12, // 37: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	14, // 38: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	16, // 39: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
-	18, // 40: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	20, // 41: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	22, // 42: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	27, // 43: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
-	25, // 44: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	29, // 45: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
-	8,  // 46: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	32, // 47: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
-	34, // 48: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
-	36, // 49: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
-	36, // [36:50] is the sub-list for method output_type
-	22, // [22:36] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	37, // 2: float.v1.Transaction.tags:type_name -> float.v1.Transaction.TagsEntry
+	0,  // 3: float.v1.BalanceRow.amounts:type_name -> float.v1.Amount
+	3,  // 4: float.v1.BalanceReport.rows:type_name -> float.v1.BalanceRow
+	0,  // 5: float.v1.BalanceReport.total:type_name -> float.v1.Amount
+	0,  // 6: float.v1.NetWorthSnapshot.assets:type_name -> float.v1.Amount
+	0,  // 7: float.v1.NetWorthSnapshot.liabilities:type_name -> float.v1.Amount
+	0,  // 8: float.v1.NetWorthSnapshot.net_worth:type_name -> float.v1.Amount
+	6,  // 9: float.v1.GetNetWorthTimeseriesResponse.snapshots:type_name -> float.v1.NetWorthSnapshot
+	2,  // 10: float.v1.ListTransactionsResponse.transactions:type_name -> float.v1.Transaction
+	4,  // 11: float.v1.GetBalancesResponse.report:type_name -> float.v1.BalanceReport
+	5,  // 12: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
+	38, // 13: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	2,  // 14: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
+	23, // 15: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
+	2,  // 16: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
+	23, // 17: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
+	2,  // 18: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
+	2,  // 19: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
+	0,  // 20: float.v1.PriceDirective.price:type_name -> float.v1.Amount
+	30, // 21: float.v1.ListPricesResponse.prices:type_name -> float.v1.PriceDirective
+	30, // 22: float.v1.AddPriceResponse.price:type_name -> float.v1.PriceDirective
+	9,  // 23: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
+	11, // 24: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
+	13, // 25: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
+	15, // 26: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
+	17, // 27: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
+	19, // 28: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
+	21, // 29: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
+	26, // 30: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
+	24, // 31: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
+	28, // 32: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
+	7,  // 33: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
+	31, // 34: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
+	33, // 35: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
+	35, // 36: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
+	10, // 37: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	12, // 38: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	14, // 39: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	16, // 40: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
+	18, // 41: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	20, // 42: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	22, // 43: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	27, // 44: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	25, // 45: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	29, // 46: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
+	8,  // 47: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	32, // 48: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
+	34, // 49: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
+	36, // 50: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
+	37, // [37:51] is the sub-list for method output_type
+	23, // [23:37] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_float_v1_ledger_proto_init() }
@@ -2151,7 +2165,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   38,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
