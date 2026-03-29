@@ -146,32 +146,30 @@ export function SearchControls({
     <div class="mb-4 space-y-2">
       {/* Date range row */}
       <div class="flex flex-wrap items-center gap-2">
-        <div class="flex items-center gap-1">
-          <label class="text-sm opacity-60 shrink-0">From</label>
+        <div class="join">
           <input
             type="date"
-            class="input input-bordered input-sm"
+            class="input input-bordered input-sm join-item"
             value={dateFrom}
+            placeholder="From"
             onInput={(e) => onDateRangeChange(e.target.value, dateTo)}
           />
-        </div>
-        <div class="flex items-center gap-1">
-          <label class="text-sm opacity-60 shrink-0">To</label>
           <input
             type="date"
-            class="input input-bordered input-sm"
+            class="input input-bordered input-sm join-item"
             value={dateTo ? isoExclusiveToInclusive(dateTo) : ""}
+            placeholder="To"
             onInput={(e) => {
               const v = e.target.value;
               onDateRangeChange(dateFrom, v ? inclusiveToExclusiveTo(v) : "");
             }}
           />
         </div>
-        <div class="flex flex-wrap gap-1">
+        <div class="join flex-wrap">
           {DATE_PRESETS.map((p) => (
             <button
               key={p.label}
-              class={`btn btn-xs ${activePreset === p.label ? "btn-primary" : "btn-ghost"}`}
+              class={`btn btn-sm join-item ${activePreset === p.label ? "btn-primary" : ""}`}
               onClick={() => applyPreset(p)}
             >
               {p.label}
@@ -182,41 +180,54 @@ export function SearchControls({
 
       {/* Filter dropdowns row */}
       <div class="flex flex-wrap gap-2">
-        <select
-          class="select select-bordered select-sm"
-          value={account}
-          onChange={(e) => onAccountChange(e.target.value)}
-        >
-          <option value="">All accounts</option>
-          {(accounts || []).map((a) => (
-            <option key={a.fullName} value={a.fullName}>
-              {a.fullName}
-            </option>
-          ))}
-        </select>
+        <div class="join">
+          <select
+            class="select select-bordered select-sm join-item"
+            value={account}
+            onChange={(e) => onAccountChange(e.target.value)}
+          >
+            <option value="">All accounts</option>
+            {(accounts || []).map((a) => (
+              <option key={a.fullName} value={a.fullName}>
+                {a.fullName}
+              </option>
+            ))}
+          </select>
 
-        <select
-          class="select select-bordered select-sm"
-          value={tag}
-          onChange={(e) => onTagChange(e.target.value)}
-        >
-          <option value="">Any tag</option>
-          {(tags || []).map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          <select
+            class="select select-bordered select-sm join-item"
+            value={tag}
+            onChange={(e) => onTagChange(e.target.value)}
+          >
+            <option value="">Any tag</option>
+            {(tags || []).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <select
-          class="select select-bordered select-sm"
-          value={status}
-          onChange={(e) => onStatusChange(e.target.value)}
-        >
-          <option value="">All statuses</option>
-          <option value="reviewed">Reviewed</option>
-          <option value="unreviewed">Unreviewed</option>
-        </select>
+        <div class="join">
+          <button
+            class={`btn btn-sm join-item ${!status ? "btn-active" : ""}`}
+            onClick={() => onStatusChange("")}
+          >
+            All
+          </button>
+          <button
+            class={`btn btn-sm join-item ${status === "reviewed" ? "btn-active" : ""}`}
+            onClick={() => onStatusChange("reviewed")}
+          >
+            Reviewed
+          </button>
+          <button
+            class={`btn btn-sm join-item ${status === "unreviewed" ? "btn-active" : ""}`}
+            onClick={() => onStatusChange("unreviewed")}
+          >
+            Unreviewed
+          </button>
+        </div>
       </div>
 
       {/* Active filter chips */}
