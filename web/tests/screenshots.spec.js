@@ -40,3 +40,26 @@ test("prices page", async ({ page }) => {
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/prices.png", fullPage: true });
 });
+
+test("hamburger icon - closed state", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/");
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/hamburger-closed.png", clip: { x: 0, y: 0, width: 390, height: 80 } });
+});
+
+test("hamburger icon - open state", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/");
+  await page.waitForTimeout(400);
+  // Dismiss any Vite error overlay
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  // Check the swap checkbox directly to toggle to open state
+  await page.evaluate(() => {
+    const cb = document.querySelector("label.swap-rotate input[type=checkbox]");
+    if (cb) { cb.checked = true; cb.dispatchEvent(new Event("change")); }
+  });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/hamburger-open.png", clip: { x: 0, y: 0, width: 390, height: 80 } });
+});
