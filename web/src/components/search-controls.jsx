@@ -8,6 +8,20 @@ function fmtDate(y, m, d) {
   return `${y}-${pad2(m)}-${pad2(d)}`;
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
+
+function shiftMonth(dateFrom, delta) {
+  const d = new Date(dateFrom + "T00:00:00");
+  d.setMonth(d.getMonth() + delta);
+  d.setDate(1);
+  const y = d.getFullYear(), m = d.getMonth() + 1;
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  return { from: fmtDate(y, m, 1), to: fmtDate(ny, nm, 1) };
+}
+
+const PERIOD_BAR_PRESETS = ["This month", "Last month", "This year", "Last year"];
+
 // Returns { from, to } where to is exclusive (first day after range).
 function thisMonth() {
   const now = new Date();
@@ -55,6 +69,50 @@ export const DATE_PRESETS = [
   { label: "Last year", fn: lastYear },
   { label: "All", fn: () => ({ from: "", to: "" }) },
 ];
+
+export function PeriodBar({ dateFrom, dateTo, onChange }) {
+  const presets = DATE_PRESETS.filter(p => PERIOD_BAR_PRESETS.includes(p.label));
+
+  function activePresetLabel() {
+    for (const p of presets) {
+      const { from, to } = p.fn();
+      if (from === dateFrom && to === dateTo) return p.label;
+    }
+    return null;
+  }
+
+  const activeLabel = activePresetLabel();
+
+  function displayLabel() {
+    if (activeLabel) return activeLabel;
+    if (!dateFrom) return "";
+    const d = new Date(dateFrom + "T00:00:00");
+    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  return (
+    <div class="flex items-center gap-2 flex-wrap mb-4">
+      <button class="btn btn-sm btn-ghost" onClick={() => { const r = shiftMonth(dateFrom, -1); onChange(r.from, r.to); }}>‹</button>
+      <span class="text-sm font-medium min-w-32 text-center">{displayLabel()}</span>
+      <button class="btn btn-sm btn-ghost" onClick={() => { const r = shiftMonth(dateFrom, 1); onChange(r.from, r.to); }}>›</button>
+      <div class="flex gap-1 ml-2">
+        {presets.map((p) => {
+          const { from, to } = p.fn();
+          const isActive = from === dateFrom && to === dateTo;
+          return (
+            <button
+              key={p.label}
+              class={`btn btn-xs ${isActive ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => onChange(from, to)}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function SearchControls({
   dateFrom,

@@ -4,39 +4,20 @@ import { useRpc } from "../hooks/use-rpc.js";
 import { AccountList } from "../components/account-list.jsx";
 import { BalanceSummary } from "../components/balance-summary.jsx";
 import { InsightsChart } from "../components/insights-chart.jsx";
-import { TransactionTable } from "../components/transaction-table.jsx";
-import { PeriodSelector } from "../components/period-selector.jsx";
+import { DATE_PRESETS, PeriodBar } from "../components/search-controls.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 
-function pad2(n) {
-  return n < 10 ? "0" + n : "" + n;
-}
-
 export function HomePage() {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [txRefreshKey, setTxRefreshKey] = useState(0);
+  const initial = DATE_PRESETS[0].fn();
+  const [dateFrom, setDateFrom] = useState(initial.from);
+  const [dateTo, setDateTo] = useState(initial.to);
 
-  const periodQuery = [`date:${year}-${pad2(month)}`];
+  const periodQuery = dateFrom && dateTo ? [`date:${dateFrom}..${dateTo}`] : [];
 
   const accounts = useRpc(() => ledgerClient.listAccounts({}), []);
   const balances = useRpc(() => ledgerClient.getBalances({ depth: 1 }), []);
   const accountBalances = useRpc(() => ledgerClient.getBalances({}), []);
-  const txns = useRpc(
-    () => ledgerClient.listTransactions({ query: periodQuery }),
-    [year, month, txRefreshKey]
-  );
-
-  function onPeriodChange(y, m) {
-    setYear(y);
-    setMonth(m);
-  }
-
-  function onStatusChange() {
-    setTxRefreshKey((k) => k + 1);
-  }
 
   const balanceRows = balances.data?.report?.rows || [];
   const allAccounts = accounts.data?.accounts || [];
@@ -45,39 +26,25 @@ export function HomePage() {
 
   return (
     <div>
-      <PeriodSelector year={year} month={month} onChange={onPeriodChange} />
+      <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
       <BalanceSummary balanceRows={balanceRows} />
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="lg:col-span-1 space-y-6">
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              {accounts.loading && <Loading />}
-              {accounts.error && <ErrorBanner error={accounts.error} />}
-              {accounts.data && (
-                <AccountList
-                  accounts={sidebarAccounts}
-                  balanceRows={accountBalanceRows}
-                />
-              )}
-            </div>
-          </div>
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <InsightsChart periodQuery={periodQuery} />
-            </div>
+        <div class="card bg-base-100 shadow-sm lg:col-span-1">
+          <div class="card-body p-4">
+            {accounts.loading && <Loading />}
+            {accounts.error && <ErrorBanner error={accounts.error} />}
+            {accounts.data && (
+              <AccountList
+                accounts={sidebarAccounts}
+                balanceRows={accountBalanceRows}
+              />
+            )}
           </div>
         </div>
-        <div class="lg:col-span-2">
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-              <h4 class="card-title text-base mb-2">Transactions</h4>
-              {txns.loading && <Loading />}
-              {txns.error && <ErrorBanner error={txns.error} />}
-              {txns.data && (
-                <TransactionTable transactions={txns.data.transactions || []} onStatusChange={onStatusChange} />
-              )}
-            </div>
+        <div class="card bg-base-100 shadow-sm lg:col-span-2">
+          <div class="card-body p-4">
+            <InsightsChart periodQuery={periodQuery} />
           </div>
         </div>
       </div>
