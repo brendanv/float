@@ -248,7 +248,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
   return (
     <div>
       {/* Desktop table */}
-      <div class="hidden sm:block overflow-x-auto">
+      <div class="hidden sm:block overflow-x-auto overflow-y-auto max-h-[calc(100vh-14rem)]">
         <table class="table table-pin-rows table-zebra table-sm w-full">
           <thead>
             <tr>
@@ -261,7 +261,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
           {dateGroups.map((group) => [
             <thead key={"date-" + group.date}>
               <tr>
-                <th colSpan={4} class="font-mono text-xs font-normal text-base-content/60">
+                <th colSpan={4} class="font-mono text-[10px] font-normal text-base-content/60 py-0.5">
                   {formatDate(group.date)}
                 </th>
               </tr>
@@ -310,9 +310,9 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
       </div>
 
       {/* Mobile cards */}
-      <div class="sm:hidden space-y-2">
+      <div class="sm:hidden space-y-2 overflow-y-auto max-h-[calc(100vh-14rem)]">
         {dateGroups.map((group) => [
-          <div key={"date-" + group.date} class="sticky top-0 z-[1] py-1 px-1 font-mono text-xs font-semibold text-base-content/60 bg-base-100">
+          <div key={"date-" + group.date} class="sticky top-0 z-[1] py-0.5 px-1 font-mono text-[10px] font-semibold text-base-content/60 bg-base-100">
             {formatDate(group.date)}
           </div>,
           ...group.txs.map(({ tx, index }) => {
