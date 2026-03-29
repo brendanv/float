@@ -119,9 +119,11 @@ export function SearchControls({
   dateTo,
   account,
   tag,
+  status,
   onDateRangeChange,
   onAccountChange,
   onTagChange,
+  onStatusChange,
   accounts,
   tags,
 }) {
@@ -205,10 +207,20 @@ export function SearchControls({
             </option>
           ))}
         </select>
+
+        <select
+          class="select select-bordered select-sm"
+          value={status}
+          onChange={(e) => onStatusChange(e.target.value)}
+        >
+          <option value="">All statuses</option>
+          <option value="reviewed">Reviewed</option>
+          <option value="unreviewed">Unreviewed</option>
+        </select>
       </div>
 
       {/* Active filter chips */}
-      {(account || tag || !activePreset) && (
+      {(account || tag || status || !activePreset) && (
         <div class="flex flex-wrap gap-1">
           {account && (
             <div class="badge badge-neutral gap-1">
@@ -229,6 +241,18 @@ export function SearchControls({
                 class="cursor-pointer opacity-60 hover:opacity-100"
                 onClick={() => onTagChange("")}
                 aria-label="Clear tag filter"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+          {status && (
+            <div class="badge badge-neutral gap-1">
+              {status === "reviewed" ? "Reviewed" : "Unreviewed"}
+              <button
+                class="cursor-pointer opacity-60 hover:opacity-100"
+                onClick={() => onStatusChange("")}
+                aria-label="Clear status filter"
               >
                 ✕
               </button>

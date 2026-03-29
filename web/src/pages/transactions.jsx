@@ -12,13 +12,14 @@ export function TransactionsPage({ params }) {
   const [dateTo, setDateTo] = useState(initialRange.to);
   const [account, setAccount] = useState(params?.account || "");
   const [tag, setTag] = useState("");
+  const [status, setStatus] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const query = buildQuery(dateFrom, dateTo, account, tag);
+  const query = buildQuery(dateFrom, dateTo, account, tag, status);
 
   const { data, loading, error } = useRpc(
     () => ledgerClient.listTransactions({ query }),
-    [dateFrom, dateTo, account, tag, refreshKey]
+    [dateFrom, dateTo, account, tag, status, refreshKey]
   );
 
   const { data: accountsData } = useRpc(() => ledgerClient.listAccounts({}), []);
@@ -40,9 +41,11 @@ export function TransactionsPage({ params }) {
         dateTo={dateTo}
         account={account}
         tag={tag}
+        status={status}
         onDateRangeChange={onDateRangeChange}
         onAccountChange={setAccount}
         onTagChange={setTag}
+        onStatusChange={setStatus}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
       />
@@ -60,10 +63,12 @@ export function TransactionsPage({ params }) {
   );
 }
 
-function buildQuery(dateFrom, dateTo, account, tag) {
+function buildQuery(dateFrom, dateTo, account, tag, status) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (account) tokens.push(`acct:${account}`);
   if (tag) tokens.push(`tag:${tag}`);
+  if (status === "reviewed") tokens.push("status:*");
+  if (status === "unreviewed") tokens.push("not:status:*");
   return tokens;
 }
