@@ -187,7 +187,7 @@ export function TrendsPage() {
 
       {!timeseries.loading && !timeseries.error && (
         <>
-          <div class="stats stats-horizontal shadow w-full">
+          <div class="stats shadow w-full">
             <StatCard
               title="Current Net Worth"
               value={currentNetWorth !== null ? formatCurrency(currentNetWorth) : "—"}

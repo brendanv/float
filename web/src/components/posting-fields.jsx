@@ -96,7 +96,7 @@ export function PostingFields({ postings, onChange, accounts }) {
             placeholder={i === postings.length - 1 ? "Auto-balance" : "Amount"}
             value={p.amount}
             onInput={(e) => update(i, "amount", e.target.value)}
-            class="input input-bordered input-sm w-32 shrink-0"
+            class="input input-bordered input-sm w-24 sm:w-32 shrink-0"
           />
           <button
             class="btn btn-ghost btn-sm shrink-0"

@@ -34,6 +34,14 @@ function ManageDropdown({ current }) {
   );
 }
 
+function HamburgerIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+}
+
 export function AppShell({ children, currentPath }) {
   return (
     <div class="min-h-screen bg-base-200">
@@ -49,7 +57,24 @@ export function AppShell({ children, currentPath }) {
           </a>
         </div>
         <div class="navbar-end">
-          <ul class="menu menu-horizontal px-1">
+          {/* Mobile hamburger menu */}
+          <div class="dropdown dropdown-end sm:hidden">
+            <div tabIndex={0} role="button" class="btn btn-ghost btn-square">
+              <HamburgerIcon />
+            </div>
+            <ul
+              tabIndex={0}
+              class="menu menu-sm dropdown-content bg-base-100 rounded-box z-10 mt-3 w-52 shadow"
+            >
+              <NavLink href="/" label="Home" current={currentPath} />
+              <NavLink href="/transactions" label="Transactions" current={currentPath} />
+              <NavLink href="/trends" label="Trends" current={currentPath} />
+              <ManageDropdown current={currentPath} />
+              <NavLink href="/add" label="Add" current={currentPath} />
+            </ul>
+          </div>
+          {/* Desktop menu */}
+          <ul class="menu menu-horizontal px-1 hidden sm:flex">
             <NavLink href="/" label="Home" current={currentPath} />
             <NavLink href="/transactions" label="Transactions" current={currentPath} />
             <NavLink href="/trends" label="Trends" current={currentPath} />

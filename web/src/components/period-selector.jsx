@@ -23,7 +23,7 @@ export function PeriodSelector({ year, month, onChange }) {
         <button class="btn btn-ghost btn-sm join-item" onClick={prev}>
           &lsaquo;
         </button>
-        <button class="btn btn-ghost btn-sm join-item pointer-events-none min-w-40 font-semibold">
+        <button class="btn btn-ghost btn-sm join-item pointer-events-none min-w-32 sm:min-w-40 font-semibold">
           {monthName(month)} {year}
         </button>
         <button class="btn btn-ghost btn-sm join-item" onClick={next}>
