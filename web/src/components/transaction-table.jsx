@@ -233,22 +233,42 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
     return generalDisplay(tx);
   }
 
+  // Build a flat list of date-header + transaction items for rendering
+  const rows = [];
+  let lastDate = null;
+  for (const tx of transactions) {
+    if (tx.date !== lastDate) {
+      rows.push({ type: "date", date: tx.date });
+      lastDate = tx.date;
+    }
+    rows.push({ type: "tx", tx });
+  }
+
   return (
     <div>
       {/* Desktop table */}
       <div class="hidden sm:block overflow-x-auto">
-        <table class="table table-zebra table-sm w-full">
+        <table class="table table-pin-rows table-zebra table-sm w-full">
           <thead>
             <tr>
               <th class="w-8"></th>
-              <th>Date</th>
               <th>Description</th>
               <th>{isAccountRegister ? "Other accounts" : "From \u2192 To"}</th>
               <th class="text-right">Amount</th>
             </tr>
           </thead>
           <tbody>
-            {transactions.map((tx) => {
+            {rows.map((row) => {
+              if (row.type === "date") {
+                return (
+                  <tr key={"date-" + row.date} class="sticky top-9 z-[1] bg-base-200 hover:bg-base-200">
+                    <td colSpan={4} class="py-1 font-mono text-xs font-semibold text-base-content/60">
+                      {formatDate(row.date)}
+                    </td>
+                  </tr>
+                );
+              }
+              const { tx } = row;
               const display = resolveDisplay(tx);
               const accountCell = isAccountRegister
                 ? (display?.otherAccounts || "")
@@ -264,7 +284,6 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                   <td class="w-8 pr-0">
                     <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
                   </td>
-                  <td class="whitespace-nowrap font-mono text-xs">{formatDate(tx.date)}</td>
                   <td>
                     <EditableDescriptionCell
                       fid={tx.fid}
@@ -279,7 +298,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                 </tr>,
                 expanded === tx.fid && (
                   <tr key={key + "-detail"} class="bg-base-200">
-                    <td colSpan={5} class="p-0">
+                    <td colSpan={4} class="p-0">
                       <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
                     </td>
                   </tr>
@@ -292,7 +311,15 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
 
       {/* Mobile cards */}
       <div class="sm:hidden space-y-2">
-        {transactions.map((tx) => {
+        {rows.map((row) => {
+          if (row.type === "date") {
+            return (
+              <div key={"date-" + row.date} class="sticky top-0 z-[1] py-1 px-1 font-mono text-xs font-semibold text-base-content/60 bg-base-100">
+                {formatDate(row.date)}
+              </div>
+            );
+          }
+          const { tx } = row;
           const display = resolveDisplay(tx);
           const accountCell = isAccountRegister
             ? (display?.otherAccounts || "")
@@ -320,7 +347,6 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                     <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
                   </div>
                 </div>
-                <div class="text-xs text-base-content/60">{formatDate(tx.date)}</div>
                 <div class="text-xs text-base-content/60 truncate">{accountCell}</div>
                 {expanded === tx.fid && (
                   <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
