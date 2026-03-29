@@ -51,7 +51,7 @@ export function PricesPage() {
         <div class="card-body">
           <h3 class="card-title text-base">Add Price</h3>
           <form onSubmit={handleSubmit} class="flex flex-wrap gap-3 items-end">
-            <label class="form-control w-36">
+            <label class="form-control w-full sm:w-36">
               <div class="label"><span class="label-text">Date</span></div>
               <input
                 type="date"
@@ -61,7 +61,7 @@ export function PricesPage() {
                 required
               />
             </label>
-            <label class="form-control w-32">
+            <label class="form-control w-full sm:w-32">
               <div class="label"><span class="label-text">Commodity</span></div>
               <input
                 type="text"
@@ -72,7 +72,7 @@ export function PricesPage() {
                 required
               />
             </label>
-            <label class="form-control w-32">
+            <label class="form-control w-full sm:w-32">
               <div class="label"><span class="label-text">Price</span></div>
               <input
                 type="text"
@@ -83,7 +83,7 @@ export function PricesPage() {
                 required
               />
             </label>
-            <label class="form-control w-24">
+            <label class="form-control w-full sm:w-24">
               <div class="label"><span class="label-text">Currency</span></div>
               <input
                 type="text"

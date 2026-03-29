@@ -31,7 +31,7 @@ function BarChart({ rows, colorClass }) {
                 style={{ width: pct + "%" }}
               />
             </div>
-            <span class="flex-none w-24 text-right text-xs font-mono">
+            <span class="flex-none w-20 sm:w-24 text-right text-xs font-mono">
               {formatAmounts(row.amounts)}
             </span>
           </div>
