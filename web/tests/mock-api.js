@@ -42,6 +42,17 @@ export const mockTransactions = [
     tags: [],
   },
   {
+    fid: "a1b2c3d5",
+    date: "2026-03-25",
+    description: "Amazon",
+    status: "Pending",
+    postings: [
+      { account: "expenses:shopping", amounts: [{ commodity: "$", quantity: "34.99" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-34.99" }] },
+    ],
+    tags: [],
+  },
+  {
     fid: "b2c3d4e5",
     date: "2026-03-24",
     description: "Monthly Salary",
@@ -60,6 +71,28 @@ export const mockTransactions = [
     postings: [
       { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "14.75" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-14.75" }] },
+    ],
+    tags: [],
+  },
+  {
+    fid: "c3d4e5f7",
+    date: "2026-03-22",
+    description: "Starbucks",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "6.50" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-6.50" }] },
+    ],
+    tags: [],
+  },
+  {
+    fid: "c3d4e5f8",
+    date: "2026-03-22",
+    description: "Metro Transit",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:transport", amounts: [{ commodity: "$", quantity: "3.25" }] },
+      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-3.25" }] },
     ],
     tags: [],
   },

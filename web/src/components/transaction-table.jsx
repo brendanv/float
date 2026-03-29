@@ -233,102 +233,124 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
     return generalDisplay(tx);
   }
 
+  // Group transactions by date for DaisyUI alternating thead/tbody pattern
+  const dateGroups = [];
+  let currentGroup = null;
+  for (const tx of transactions) {
+    if (!currentGroup || tx.date !== currentGroup.date) {
+      currentGroup = { date: tx.date, txs: [] };
+      dateGroups.push(currentGroup);
+    }
+    currentGroup.txs.push(tx);
+  }
+
   return (
     <div>
       {/* Desktop table */}
       <div class="hidden sm:block overflow-x-auto">
-        <table class="table table-zebra table-sm w-full">
+        <table class="table table-pin-rows table-zebra table-sm w-full">
           <thead>
             <tr>
               <th class="w-8"></th>
-              <th>Date</th>
               <th>Description</th>
               <th>{isAccountRegister ? "Other accounts" : "From \u2192 To"}</th>
               <th class="text-right">Amount</th>
             </tr>
           </thead>
-          <tbody>
-            {transactions.map((tx) => {
-              const display = resolveDisplay(tx);
-              const accountCell = isAccountRegister
-                ? (display?.otherAccounts || "")
-                : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
-              const amountCell = display?.amount || "";
-              const key = tx.fid || tx.date + tx.description;
-              return [
-                <tr
-                  key={key}
-                  onClick={() => toggle(tx.fid)}
-                  class="cursor-pointer hover"
-                >
-                  <td class="w-8 pr-0">
-                    <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
-                  </td>
-                  <td class="whitespace-nowrap font-mono text-xs">{formatDate(tx.date)}</td>
-                  <td>
-                    <EditableDescriptionCell
-                      fid={tx.fid}
-                      description={tx.description}
-                      date={tx.date}
-                      postings={tx.postings}
-                      onSaved={onStatusChange}
-                    />
-                  </td>
-                  <td class="text-sm text-base-content/70">{accountCell}</td>
-                  <td class="text-right whitespace-nowrap font-mono text-sm">{amountCell}</td>
-                </tr>,
-                expanded === tx.fid && (
-                  <tr key={key + "-detail"} class="bg-base-200">
-                    <td colSpan={5} class="p-0">
-                      <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
+          {dateGroups.map((group) => [
+            <thead key={"date-" + group.date}>
+              <tr>
+                <th colSpan={4} class="font-mono text-xs font-normal text-base-content/60">
+                  {formatDate(group.date)}
+                </th>
+              </tr>
+            </thead>,
+            <tbody key={"body-" + group.date}>
+              {group.txs.map((tx) => {
+                const display = resolveDisplay(tx);
+                const accountCell = isAccountRegister
+                  ? (display?.otherAccounts || "")
+                  : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
+                const amountCell = display?.amount || "";
+                const key = tx.fid || tx.date + tx.description;
+                return [
+                  <tr
+                    key={key}
+                    onClick={() => toggle(tx.fid)}
+                    class="cursor-pointer hover"
+                  >
+                    <td class="w-8 pr-0">
+                      <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
                     </td>
-                  </tr>
-                ),
-              ];
-            })}
-          </tbody>
+                    <td>
+                      <EditableDescriptionCell
+                        fid={tx.fid}
+                        description={tx.description}
+                        date={tx.date}
+                        postings={tx.postings}
+                        onSaved={onStatusChange}
+                      />
+                    </td>
+                    <td class="text-sm text-base-content/70">{accountCell}</td>
+                    <td class="text-right whitespace-nowrap font-mono text-sm">{amountCell}</td>
+                  </tr>,
+                  expanded === tx.fid && (
+                    <tr key={key + "-detail"} class="bg-base-200">
+                      <td colSpan={4} class="p-0">
+                        <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
+                      </td>
+                    </tr>
+                  ),
+                ];
+              })}
+            </tbody>,
+          ])}
         </table>
       </div>
 
       {/* Mobile cards */}
       <div class="sm:hidden space-y-2">
-        {transactions.map((tx) => {
-          const display = resolveDisplay(tx);
-          const accountCell = isAccountRegister
-            ? (display?.otherAccounts || "")
-            : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
-          const amountCell = display?.amount || "";
-          return (
-            <div
-              key={tx.fid || tx.date + tx.description}
-              class="card card-compact bg-base-100 shadow-sm border border-base-200 cursor-pointer"
-              onClick={() => toggle(tx.fid)}
-            >
-              <div class="card-body">
-                <div class="flex justify-between items-center gap-2">
-                  <span class="font-medium truncate" onClick={(e) => e.stopPropagation()}>
-                    <EditableDescriptionCell
-                      fid={tx.fid}
-                      description={tx.description}
-                      date={tx.date}
-                      postings={tx.postings}
-                      onSaved={onStatusChange}
-                    />
-                  </span>
-                  <div class="flex items-center gap-1 shrink-0">
-                    <span class="whitespace-nowrap font-mono text-sm">{amountCell}</span>
-                    <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
+        {dateGroups.map((group) => [
+          <div key={"date-" + group.date} class="sticky top-0 z-[1] py-1 px-1 font-mono text-xs font-semibold text-base-content/60 bg-base-100">
+            {formatDate(group.date)}
+          </div>,
+          ...group.txs.map((tx) => {
+            const display = resolveDisplay(tx);
+            const accountCell = isAccountRegister
+              ? (display?.otherAccounts || "")
+              : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
+            const amountCell = display?.amount || "";
+            return (
+              <div
+                key={tx.fid || tx.date + tx.description}
+                class="card card-compact bg-base-100 shadow-sm border border-base-200 cursor-pointer"
+                onClick={() => toggle(tx.fid)}
+              >
+                <div class="card-body">
+                  <div class="flex justify-between items-center gap-2">
+                    <span class="font-medium truncate" onClick={(e) => e.stopPropagation()}>
+                      <EditableDescriptionCell
+                        fid={tx.fid}
+                        description={tx.description}
+                        date={tx.date}
+                        postings={tx.postings}
+                        onSaved={onStatusChange}
+                      />
+                    </span>
+                    <div class="flex items-center gap-1 shrink-0">
+                      <span class="whitespace-nowrap font-mono text-sm">{amountCell}</span>
+                      <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
+                    </div>
                   </div>
+                  <div class="text-xs text-base-content/60 truncate">{accountCell}</div>
+                  {expanded === tx.fid && (
+                    <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
+                  )}
                 </div>
-                <div class="text-xs text-base-content/60">{formatDate(tx.date)}</div>
-                <div class="text-xs text-base-content/60 truncate">{accountCell}</div>
-                {expanded === tx.fid && (
-                  <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
-                )}
               </div>
-            </div>
-          );
-        })}
+            );
+          }),
+        ])}
       </div>
     </div>
   );
