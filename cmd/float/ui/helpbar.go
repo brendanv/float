@@ -36,8 +36,9 @@ var (
 	keyAddPosting = key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "add posting"))
 	keyDelPosting = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "del posting"))
 	keySubmit     = key.NewBinding(key.WithKeys("shift+enter"), key.WithHelp("shift+enter", "submit"))
-	keyConfirm    = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
-	keySearch     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
+	keyConfirm        = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
+	keySearch         = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
+	keyStatusFilter   = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "reviewed filter"))
 )
 
 // HomeDefaultKeyMap is for the home tab with the accounts panel focused.
@@ -64,7 +65,7 @@ func (HomeTxKeyMap) FullHelp() [][]key.Binding {
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
 		{keySwitch, keyNav},
 		{keyAdd, keyEdit, keyDelete, keyReview, keySplit},
-		{keyFilter, keyPeriod, keyRetry},
+		{keyFilter, keyStatusFilter, keyPeriod, keyRetry},
 	}
 }
 

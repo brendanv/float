@@ -42,6 +42,8 @@ type HomeTab struct {
 
 	// status update error
 	statusErrMsg string
+
+	statusFilter string // "", "reviewed", or "unreviewed"
 }
 
 func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
@@ -62,6 +64,12 @@ func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
 func (m HomeTab) periodAndFilterQuery() []string {
 	q := []string{m.period.Query()}
 	q = append(q, m.query...)
+	switch m.statusFilter {
+	case "reviewed":
+		q = append(q, "status:*")
+	case "unreviewed":
+		q = append(q, "not:status:*")
+	}
 	return q
 }
 
@@ -107,6 +115,9 @@ func (m HomeTab) SetSize(w, h int) HomeTab {
 
 	txH := rightInnerH
 	if m.filter.Active() {
+		txH--
+	}
+	if m.statusFilter != "" {
 		txH--
 	}
 	if txH < 0 {
@@ -306,6 +317,30 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 					}
 					return m, nil
 				}
+			case "v":
+				if m.focused == 1 {
+					switch m.statusFilter {
+					case "":
+						m.statusFilter = "reviewed"
+					case "reviewed":
+						m.statusFilter = "unreviewed"
+					default:
+						m.statusFilter = ""
+					}
+					txH := m.rightInnerH
+					if m.filter.Active() {
+						txH--
+					}
+					if m.statusFilter != "" {
+						txH--
+					}
+					if txH < 0 {
+						txH = 0
+					}
+					m.transactions.SetSize(m.rightInnerW, txH)
+					m.transactions.state = stateLoading
+					return m, FetchTransactions(m.client, m.periodAndFilterQuery())
+				}
 			}
 		}
 
@@ -380,19 +415,37 @@ func (m HomeTab) View() string {
 			Height(m.rightInnerH).
 			Render(m.renderDeleteConfirm(m.rightInnerW))
 	case m.filter.Active():
+		txH := m.rightInnerH - 1
+		if m.statusFilter != "" {
+			txH--
+		}
 		txContent := lipgloss.NewStyle().
 			Width(m.rightInnerW).
-			Height(m.rightInnerH - 1).
+			Height(txH).
 			Render(m.transactions.View())
 		filterLine := lipgloss.NewStyle().
 			Width(m.rightInnerW).
 			Render(m.filter.View())
-		rightContent = lipgloss.JoinVertical(lipgloss.Left, txContent, filterLine)
+		if m.statusFilter != "" {
+			statusLine := m.renderStatusFilterLine()
+			rightContent = lipgloss.JoinVertical(lipgloss.Left, statusLine, txContent, filterLine)
+		} else {
+			rightContent = lipgloss.JoinVertical(lipgloss.Left, txContent, filterLine)
+		}
 	default:
-		rightContent = lipgloss.NewStyle().
-			Width(m.rightInnerW).
-			Height(m.rightInnerH).
-			Render(m.transactions.View())
+		if m.statusFilter != "" {
+			statusLine := m.renderStatusFilterLine()
+			txContent := lipgloss.NewStyle().
+				Width(m.rightInnerW).
+				Height(m.rightInnerH - 1).
+				Render(m.transactions.View())
+			rightContent = lipgloss.JoinVertical(lipgloss.Left, statusLine, txContent)
+		} else {
+			rightContent = lipgloss.NewStyle().
+				Width(m.rightInnerW).
+				Height(m.rightInnerH).
+				Render(m.transactions.View())
+		}
 	}
 
 	leftBorder := BorderStyle
@@ -448,6 +501,17 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	lines = append(lines, HelpStyle.Render("  Press y to confirm, esc to cancel"))
 
 	return strings.Join(lines, "\n")
+}
+
+func (m HomeTab) renderStatusFilterLine() string {
+	label := "[ Reviewed ]"
+	if m.statusFilter == "unreviewed" {
+		label = "[ Unreviewed ]"
+	}
+	return lipgloss.NewStyle().
+		Foreground(colorFocused).
+		Width(m.rightInnerW).
+		Render(label)
 }
 
 func (m HomeTab) KeyMap() help.KeyMap {
