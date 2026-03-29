@@ -131,11 +131,22 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	total := int32(len(txns))
+	if req.Msg.Offset > 0 {
+		if int(req.Msg.Offset) >= len(txns) {
+			txns = nil
+		} else {
+			txns = txns[req.Msg.Offset:]
+		}
+	}
+	if req.Msg.Limit > 0 && int(req.Msg.Limit) < len(txns) {
+		txns = txns[:req.Msg.Limit]
+	}
 	proto := make([]*floatv1.Transaction, len(txns))
 	for i, t := range txns {
 		proto[i] = toProtoTransaction(t)
 	}
-	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto}), nil
+	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto, Total: total}), nil
 }
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
