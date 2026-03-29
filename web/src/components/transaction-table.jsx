@@ -236,12 +236,13 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
   // Group transactions by date for DaisyUI alternating thead/tbody pattern
   const dateGroups = [];
   let currentGroup = null;
+  let txIndex = 0;
   for (const tx of transactions) {
     if (!currentGroup || tx.date !== currentGroup.date) {
       currentGroup = { date: tx.date, txs: [] };
       dateGroups.push(currentGroup);
     }
-    currentGroup.txs.push(tx);
+    currentGroup.txs.push({ tx, index: txIndex++ });
   }
 
   return (
@@ -266,13 +267,13 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
               </tr>
             </thead>,
             <tbody key={"body-" + group.date}>
-              {group.txs.map((tx) => {
+              {group.txs.map(({ tx, index }) => {
                 const display = resolveDisplay(tx);
                 const accountCell = isAccountRegister
                   ? (display?.otherAccounts || "")
                   : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
                 const amountCell = display?.amount || "";
-                const key = tx.fid || tx.date + tx.description;
+                const key = tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index;
                 return [
                   <tr
                     key={key}
@@ -314,7 +315,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
           <div key={"date-" + group.date} class="sticky top-0 z-[1] py-1 px-1 font-mono text-xs font-semibold text-base-content/60 bg-base-100">
             {formatDate(group.date)}
           </div>,
-          ...group.txs.map((tx) => {
+          ...group.txs.map(({ tx, index }) => {
             const display = resolveDisplay(tx);
             const accountCell = isAccountRegister
               ? (display?.otherAccounts || "")
@@ -322,7 +323,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
             const amountCell = display?.amount || "";
             return (
               <div
-                key={tx.fid || tx.date + tx.description}
+                key={tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index}
                 class="card card-compact bg-base-100 shadow-sm border border-base-200 cursor-pointer"
                 onClick={() => toggle(tx.fid)}
               >
