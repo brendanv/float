@@ -291,6 +291,15 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                         postings={tx.postings}
                         onSaved={onStatusChange}
                       />
+                      {tx.tags && Object.keys(tx.tags).length > 0 && (
+                        <span class="ml-2 inline-flex flex-wrap gap-1">
+                          {Object.entries(tx.tags).map(([k, v]) => (
+                            <span key={k} class="badge badge-soft badge-sm badge-primary">
+                              {v ? `${k}:${v}` : k}
+                            </span>
+                          ))}
+                        </span>
+                      )}
                     </td>
                     <td class="text-sm text-base-content/70">{accountCell}</td>
                     <td class="text-right whitespace-nowrap font-mono text-sm">{amountCell}</td>
@@ -344,6 +353,15 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                     </div>
                   </div>
                   <div class="text-xs text-base-content/60 truncate">{accountCell}</div>
+                  {tx.tags && Object.keys(tx.tags).length > 0 && (
+                    <div class="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(tx.tags).map(([k, v]) => (
+                        <span key={k} class="badge badge-soft badge-sm badge-primary">
+                          {v ? `${k}:${v}` : k}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {expanded === tx.fid && (
                     <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
                   )}

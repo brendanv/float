@@ -432,6 +432,12 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 	if status == "Unmarked" {
 		status = ""
 	}
+	tags := make(map[string]string, len(t.Tags))
+	for _, kv := range t.Tags {
+		if kv[0] != "fid" {
+			tags[kv[0]] = kv[1]
+		}
+	}
 	return &floatv1.Transaction{
 		Fid:         t.FID,
 		Date:        t.Date,
@@ -439,6 +445,7 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 		Comment:     t.Comment,
 		Postings:    postings,
 		Status:      status,
+		Tags:        tags,
 	}
 }
 
