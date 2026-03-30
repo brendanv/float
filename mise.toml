@@ -47,8 +47,9 @@ description = "Full pre-commit gate: lint + vet + test"
 depends = ["lint", "vet", "test"]
 
 [tasks.build]
-description = "Generate JS protobuf code, build web UI, and compile floatd"
-run = "cd web && bunx buf generate --template buf.gen.yaml ../proto && bun run build && cd .. && go build -o floatd ./cmd/floatd/"
+description = "Regenerate protobuf code, build web UI, and compile floatd"
+depends = ["proto-gen"]
+run = "cd web && bun run build && cd .. && go build -o floatd ./cmd/floatd/"
 
 [tasks.floatctl]
 description = "Run floatctl"
@@ -61,7 +62,8 @@ air -c cmd/floatd/.air.toml -- --data-dir "${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}" $
 """
 
 [tasks.proto-gen]
-description = "Regenerate Go code from .proto files"
+description = "Regenerate Go and JS protobuf code from .proto files"
+depends = ["web-gen"]
 run = "buf generate"
 
 [tasks.grpc-balances]
@@ -130,10 +132,12 @@ run = "cd web && bunx buf generate --template buf.gen.yaml ../proto"
 
 [tasks.web-build]
 description = "Generate JS protobuf code and build web UI for production"
-run = "cd web && bunx buf generate --template buf.gen.yaml ../proto && bun run build"
+depends = ["web-gen"]
+run = "cd web && bun run build"
 
 [tasks.web-dev]
-description = "Start Vite dev server for web UI"
+description = "Generate JS protobuf code and start Vite dev server for web UI"
+depends = ["web-gen"]
 run = "cd web && bun run dev"
 
 [tasks.float]

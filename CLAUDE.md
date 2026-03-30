@@ -10,8 +10,7 @@ Three binaries: `floatd` (gRPC server + embedded web UI), `float` (CLI gRPC clie
 mise run test        # go test ./...
 mise run lint        # golangci-lint run ./...
 mise run check       # lint + test
-mise run proto-gen   # buf generate (after editing .proto files)
-mise run web-gen     # JS protobuf client (after editing .proto files)
+mise run proto-gen   # buf generate for Go + JS (after editing .proto files)
 mise run web-build   # build web UI → internal/webui/dist/
 mise run build       # web UI + compile floatd
 mise run web-dev     # Vite dev server on :5173 (proxies API to floatd on :8080)
