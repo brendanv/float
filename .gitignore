@@ -22,3 +22,5 @@ internal/webui/dist/
 # Playwright
 web/test-results/
 web/playwright-report/
+
+.claude/worktrees
