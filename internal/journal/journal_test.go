@@ -146,6 +146,20 @@ func TestFormatViaHledger(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "comment on separate line from fid",
+			fid:  "cc003300",
+			tx: journal.TransactionInput{
+				Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+				Description: "GROCERIES",
+				Comment:     "category:food",
+				Postings: []journal.PostingInput{
+					{Account: "expenses:food", Amount: "$30.00"},
+					{Account: "assets:checking"},
+				},
+			},
+			contains: []string{"fid:cc003300", "category:food"},
+		},
 	}
 	c := mustHledger(t)
 	for _, tt := range tests {
@@ -161,6 +175,15 @@ func TestFormatViaHledger(t *testing.T) {
 			}
 			if !strings.HasSuffix(out, "\n") {
 				t.Errorf("output does not end with newline: %q", out)
+			}
+			if tt.tx.Comment != "" {
+				headerLine := strings.SplitN(out, "\n", 2)[0]
+				if strings.Contains(headerLine, tt.tx.Comment) {
+					t.Errorf("comment %q should not appear on header line: %q", tt.tx.Comment, headerLine)
+				}
+				if !strings.Contains(out, "\n    ; "+tt.tx.Comment) && !strings.Contains(out, "\n; "+tt.tx.Comment) {
+					t.Errorf("comment %q not found on separate indented line:\n%s", tt.tx.Comment, out)
+				}
 			}
 		})
 	}

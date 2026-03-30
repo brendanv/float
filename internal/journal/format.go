@@ -32,10 +32,6 @@ type TransactionInput struct {
 // Used internally as input to FormatViaHledger.
 func draftFormat(tx TransactionInput, fid string) string {
 	var b strings.Builder
-	commentPart := "fid:" + fid
-	if tx.Comment != "" {
-		commentPart += " " + tx.Comment
-	}
 	statusPart := ""
 	switch tx.Status {
 	case "Pending":
@@ -43,7 +39,10 @@ func draftFormat(tx TransactionInput, fid string) string {
 	case "Cleared":
 		statusPart = "* "
 	}
-	fmt.Fprintf(&b, "%s %s%s  ; %s\n", tx.Date.Format("2006-01-02"), statusPart, tx.Description, commentPart)
+	fmt.Fprintf(&b, "%s %s%s  ; fid:%s\n", tx.Date.Format("2006-01-02"), statusPart, tx.Description, fid)
+	if tx.Comment != "" {
+		fmt.Fprintf(&b, "    ; %s\n", tx.Comment)
+	}
 	for _, p := range tx.Postings {
 		if p.Amount == "" {
 			fmt.Fprintf(&b, "    %s\n", p.Account)
