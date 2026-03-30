@@ -339,7 +339,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	txns, err := h.hl.Transactions(ctx, "tag:fid="+fid)
+	txns, err := h.hl.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		logger.ErrorContext(ctx, "fetch new transaction failed", "fid", fid, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -422,7 +422,7 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 		logger.ErrorContext(ctx, "update transaction status failed", "fid", fid, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	txns, err := h.hl.Transactions(ctx, "tag:fid="+fid)
+	txns, err := h.hl.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		logger.ErrorContext(ctx, "fetch transaction after status update failed", "fid", fid, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -447,9 +447,7 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 	}
 	tags := make(map[string]string, len(t.Tags))
 	for _, kv := range t.Tags {
-		if kv[0] != "fid" {
-			tags[kv[0]] = kv[1]
-		}
+		tags[kv[0]] = kv[1]
 	}
 	return &floatv1.Transaction{
 		Fid:         t.FID,

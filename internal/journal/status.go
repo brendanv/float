@@ -14,8 +14,9 @@ import (
 // headerStatusRe matches a transaction header line, capturing:
 //  1. The date prefix (e.g. "2026-01-05 ")
 //  2. An optional status marker ("! " or "* ")
-//  3. The rest of the line (description + inline comment)
-var headerStatusRe = regexp.MustCompile(`^(\d{4}[/\-]\d{2}[/\-]\d{2} )(?:([!*]) )?(.*)$`)
+//  3. An optional code field (e.g. "(a1b2c3d4) ")
+//  4. The rest of the line (description + inline comment)
+var headerStatusRe = regexp.MustCompile(`^(\d{4}[/\-]\d{2}[/\-]\d{2} )(?:([!*]) )?(\([0-9a-f]{8}\) )?(.*)$`)
 
 // UpdateTransactionStatus changes the hledger status marker on the transaction
 // identified by fid. newStatus must be "", "Pending", or "Cleared".
@@ -28,7 +29,7 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 		return fmt.Errorf("journal: update-status: invalid status %q (must be \"\", \"Pending\", or \"Cleared\")", newStatus)
 	}
 
-	txns, err := client.Transactions(ctx, "tag:fid="+fid)
+	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return fmt.Errorf("journal: update-status: lookup fid %q: %w", fid, err)
 	}
@@ -58,7 +59,7 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 	}
 
 	// Sanity check: must be a transaction header containing the fid.
-	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "fid:"+fid) {
+	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "("+fid+")") {
 		return fmt.Errorf("journal: update-status: line %d in %s does not match expected transaction header for fid %q", headerLine, sourceFile, fid)
 	}
 
@@ -68,7 +69,8 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 		return fmt.Errorf("journal: update-status: cannot parse header line %d in %s", headerLine, sourceFile)
 	}
 	datePart := m[1]  // e.g. "2026-01-05 "
-	rest := m[3]      // description + inline comment
+	codePart := m[3]  // e.g. "(a1b2c3d4) " or ""
+	rest := m[4]      // description + inline comment
 
 	marker := ""
 	switch newStatus {
@@ -77,7 +79,7 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 	case "Cleared":
 		marker = "* "
 	}
-	lines[headerIdx] = datePart + marker + rest
+	lines[headerIdx] = datePart + marker + codePart + rest
 
 	newContent := strings.Join(lines, "\n")
 	if err := os.WriteFile(sourceFile, []byte(newContent), 0644); err != nil {

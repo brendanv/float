@@ -53,7 +53,7 @@ func TestModifyTags(t *testing.T) {
 		}
 
 		// Verify new tags are present via hledger query.
-		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions after modify-tags: %v", err)
 		}
@@ -69,9 +69,6 @@ func TestModifyTags(t *testing.T) {
 		}
 		if tagMap["source"] != "manual" {
 			t.Errorf("source tag = %q, want %q", tagMap["source"], "manual")
-		}
-		if tagMap["fid"] != fid {
-			t.Errorf("fid tag = %q, want %q", tagMap["fid"], fid)
 		}
 	})
 
@@ -111,7 +108,7 @@ func TestModifyTags(t *testing.T) {
 			t.Fatalf("hledger check after second modify-tags: %v", err)
 		}
 
-		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions after second modify-tags: %v", err)
 		}
@@ -127,9 +124,6 @@ func TestModifyTags(t *testing.T) {
 		}
 		if _, ok := tagMap["source"]; ok {
 			t.Errorf("source tag should have been removed, got %q", tagMap["source"])
-		}
-		if tagMap["fid"] != fid {
-			t.Errorf("fid tag = %q, want %q", tagMap["fid"], fid)
 		}
 	})
 
@@ -164,7 +158,7 @@ func TestModifyTags(t *testing.T) {
 			t.Fatalf("hledger check: %v", err)
 		}
 
-		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions: %v", err)
 		}
@@ -210,7 +204,7 @@ func TestModifyTags(t *testing.T) {
 		}
 
 		// Verify only one non-fid tag comment line exists in the file.
-		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions: %v", err)
 		}
@@ -261,7 +255,7 @@ func TestModifyTags(t *testing.T) {
 			t.Fatalf("hledger check after clear: %v", err)
 		}
 
-		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions after clear: %v", err)
 		}
@@ -274,9 +268,6 @@ func TestModifyTags(t *testing.T) {
 		}
 		if _, ok := tagMap["category"]; ok {
 			t.Errorf("category tag should have been removed, got %q", tagMap["category"])
-		}
-		if tagMap["fid"] != fid {
-			t.Errorf("fid tag = %q, want %q", tagMap["fid"], fid)
 		}
 	})
 
@@ -310,8 +301,8 @@ func TestModifyTags(t *testing.T) {
 			t.Fatalf("ReadFile: %v", err)
 		}
 		content := string(data)
-		if !strings.Contains(content, "fid:"+fid) {
-			t.Errorf("fid tag not found in file after ModifyTags:\n%s", content)
+		if !strings.Contains(content, "("+fid+")") {
+			t.Errorf("fid code not found in file after ModifyTags:\n%s", content)
 		}
 		// The new tag should be on a separate comment line.
 		if !strings.Contains(content, "category:groceries") {
@@ -329,7 +320,7 @@ func TestModifyTagsTwoSpaceIndent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "2026/03.journal"),
-		[]byte("2026-03-01 Whole Foods  ; fid:3a4591b0\n  expenses:food  $31.50\n  assets:checking\n"), 0644); err != nil {
+		[]byte("2026-03-01 (3a4591b0) Whole Foods\n  expenses:food  $31.50\n  assets:checking\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	client := mustHledgerClient(t, dir)
@@ -348,7 +339,7 @@ func TestModifyTagsTwoSpaceIndent(t *testing.T) {
 		t.Fatalf("hledger check after clear: %v", err)
 	}
 
-	txns, err := client.Transactions(t.Context(), "tag:fid=3a4591b0")
+	txns, err := client.Transactions(t.Context(), "code:3a4591b0")
 	if err != nil {
 		t.Fatalf("Transactions: %v", err)
 	}
@@ -371,33 +362,33 @@ func TestStripNonFidTagsFromHeaderLine(t *testing.T) {
 	}{
 		{
 			name: "fid only",
-			line: "2026-01-15 Test  ; fid:abc12345",
+			line: "2026-01-15 (abc12345) Test",
 			fid:  "abc12345",
-			want: "2026-01-15 Test  ; fid:abc12345",
+			want: "2026-01-15 (abc12345) Test",
 		},
 		{
 			name: "fid with trailing tag",
-			line: "2026-01-15 Test  ; fid:abc12345, category:food",
+			line: "2026-01-15 (abc12345) Test  ; category:food",
 			fid:  "abc12345",
-			want: "2026-01-15 Test  ; fid:abc12345",
+			want: "2026-01-15 (abc12345) Test",
 		},
 		{
 			name: "fid with multiple trailing tags",
-			line: "2026-01-15 Test  ; fid:abc12345, category:food, source:manual",
+			line: "2026-01-15 (abc12345) Test  ; category:food, source:manual",
 			fid:  "abc12345",
-			want: "2026-01-15 Test  ; fid:abc12345",
+			want: "2026-01-15 (abc12345) Test",
 		},
 		{
 			name: "fid with free text preserved",
-			line: "2026-01-15 Test  ; fid:abc12345 imported",
+			line: "2026-01-15 (abc12345) Test  ; imported",
 			fid:  "abc12345",
-			want: "2026-01-15 Test  ; fid:abc12345 imported",
+			want: "2026-01-15 (abc12345) Test  ; imported",
 		},
 		{
 			name: "no comment",
-			line: "2026-01-15 Test",
+			line: "2026-01-15 (abc12345) Test",
 			fid:  "abc12345",
-			want: "2026-01-15 Test",
+			want: "2026-01-15 (abc12345) Test",
 		},
 	}
 	for _, tt := range tests {

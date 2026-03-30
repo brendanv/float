@@ -106,7 +106,7 @@ func TestFormatViaHledger(t *testing.T) {
 					{Account: "assets:checking", Amount: "-$45.00"},
 				},
 			},
-			contains: []string{"2026-01-15 AMAZON", "fid:bb002200", "expenses:shopping", "45.00"},
+			contains: []string{"2026-01-15", "(bb002200)", "AMAZON", "expenses:shopping", "45.00"},
 		},
 		{
 			name: "auto-balance posting",
@@ -132,7 +132,7 @@ func TestFormatViaHledger(t *testing.T) {
 					{Account: "income:salary"},
 				},
 			},
-			contains: []string{"fid:aa001100"},
+			contains: []string{"(aa001100)"},
 		},
 		{
 			name: "output ends with newline",
@@ -158,7 +158,7 @@ func TestFormatViaHledger(t *testing.T) {
 					{Account: "assets:checking"},
 				},
 			},
-			contains: []string{"fid:cc003300", "category:food"},
+			contains: []string{"(cc003300)", "category:food"},
 		},
 	}
 	c := mustHledger(t)
@@ -356,8 +356,8 @@ func TestAppendTransaction(t *testing.T) {
 				if !strings.Contains(content, "AMAZON MARKETPLACE") {
 					t.Error("transaction description not found in file")
 				}
-				if !strings.Contains(content, "fid:"+fids[0]) {
-					t.Error("fid tag not found in file")
+				if !strings.Contains(content, "("+fids[0]+")") {
+					t.Error("fid code not found in file")
 				}
 				if !strings.Contains(content, "2026-01-15") {
 					t.Error("ISO date not found in file")
@@ -464,7 +464,7 @@ func TestAppendTransaction(t *testing.T) {
 // ---- Migration tests ----
 
 func TestMigrateFIDs(t *testing.T) {
-	fidRe := regexp.MustCompile(`fid:[0-9a-f]{8}`)
+	fidRe := regexp.MustCompile(`\([0-9a-f]{8}\)`)
 
 	tests := []struct {
 		name     string
@@ -487,32 +487,35 @@ func TestMigrateFIDs(t *testing.T) {
 			check: func(t *testing.T, dir string) {
 				data, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
 				if matches := fidRe.FindAllString(string(data), -1); len(matches) != 2 {
-					t.Errorf("expected 2 fid tags, found %d:\n%s", len(matches), data)
+					t.Errorf("expected 2 fid codes, found %d:\n%s", len(matches), data)
 				}
 			},
 		},
 		{
-			name:     "skips transactions that already have fid",
+			name:     "migrates old fid tag to code field",
 			includes: []string{"2026/01.journal"},
 			files: map[string]string{
 				"2026/01.journal": "2026/01/05 PAYROLL  ; fid:aa001100\n    assets:checking  $3500.00\n    income:salary\n",
 			},
-			wantN: 0,
+			wantN: 1,
 			check: func(t *testing.T, dir string) {
-				original := "2026/01/05 PAYROLL  ; fid:aa001100\n    assets:checking  $3500.00\n    income:salary\n"
 				data, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
-				if string(data) != original {
-					t.Errorf("file was modified unexpectedly:\n%s", data)
+				content := string(data)
+				if !strings.Contains(content, "(aa001100)") {
+					t.Errorf("expected code field (aa001100) in file:\n%s", content)
+				}
+				if strings.Contains(content, "fid:aa001100") {
+					t.Errorf("old fid tag should have been removed:\n%s", content)
 				}
 			},
 		},
 		{
-			name:     "tags only untagged in mixed file",
+			name:     "migrates all in mixed file",
 			includes: []string{"2026/01.journal"},
 			files: map[string]string{
 				"2026/01.journal": "2026/01/05 PAYROLL  ; fid:aa001100\n    assets:checking  $3500.00\n    income:salary\n\n2026/01/10 AMAZON  ; fid:bb002200\n    expenses:shopping  $45.00\n    assets:checking\n\n2026/01/15 WHOLE FOODS\n    expenses:food  $30.00\n    assets:checking\n",
 			},
-			wantN: 1,
+			wantN: 3,
 		},
 		{
 			name:     "generated fid is valid hex",
@@ -524,7 +527,7 @@ func TestMigrateFIDs(t *testing.T) {
 			check: func(t *testing.T, dir string) {
 				data, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
 				if m := fidRe.FindString(string(data)); m == "" {
-					t.Errorf("no valid fid tag found:\n%s", data)
+					t.Errorf("no valid fid code found:\n%s", data)
 				}
 			},
 		},

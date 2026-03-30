@@ -47,8 +47,8 @@ func mustHandler(t *testing.T, data map[string][]byte) *serverledger.Handler {
 
 const printJSON = `[
   {
-    "tcode": "",
-    "tcomment": "fid:aa001100\n",
+    "tcode": "aa001100",
+    "tcomment": "",
     "tdate": "2026-01-05",
     "tdate2": null,
     "tdescription": "PAYROLL DIRECT DEPOSIT",
@@ -79,7 +79,7 @@ const printJSON = `[
     ],
     "tprecedingcomment": "",
     "tstatus": "Unmarked",
-    "ttags": [["fid", "aa001100"]],
+    "ttags": [],
     "tsourcepos": [{"sourceName": "simple.journal", "sourceLine": 1, "sourceColumn": 1}, {"sourceName": "simple.journal", "sourceLine": 4, "sourceColumn": 1}]
   }
 ]`
@@ -386,7 +386,7 @@ func TestDeleteTransactionHandler(t *testing.T) {
 		}
 
 		// Verify gone.
-		txns, err := c.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := c.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions after delete: %v", err)
 		}
@@ -589,7 +589,7 @@ func TestAddTransactionHandler(t *testing.T) {
 		}
 
 		// Verify it's in the journal.
-		txns, err := c.Transactions(t.Context(), "tag:fid="+got.Fid)
+		txns, err := c.Transactions(t.Context(), "code:"+got.Fid)
 		if err != nil {
 			t.Fatalf("Transactions lookup: %v", err)
 		}
@@ -971,7 +971,7 @@ func TestModifyTagsHandler(t *testing.T) {
 			t.Fatalf("ModifyTags: %v", err)
 		}
 
-		txns, err := c.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := c.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions after modify-tags: %v", err)
 		}
@@ -985,9 +985,7 @@ func TestModifyTagsHandler(t *testing.T) {
 		if tagMap["category"] != "household" {
 			t.Errorf("category = %q, want %q", tagMap["category"], "household")
 		}
-		if tagMap["fid"] != fid {
-			t.Errorf("fid = %q, want %q", tagMap["fid"], fid)
-		}
+
 	})
 }
 
@@ -1179,7 +1177,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 		}
 
 		// Confirm only one transaction exists with this fid.
-		txns, err := c.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := c.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions: %v", err)
 		}

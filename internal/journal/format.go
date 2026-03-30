@@ -39,7 +39,7 @@ func draftFormat(tx TransactionInput, fid string) string {
 	case "Cleared":
 		statusPart = "* "
 	}
-	fmt.Fprintf(&b, "%s %s%s  ; fid:%s\n", tx.Date.Format("2006-01-02"), statusPart, tx.Description, fid)
+	fmt.Fprintf(&b, "%s %s(%s) %s\n", tx.Date.Format("2006-01-02"), statusPart, fid, tx.Description)
 	if tx.Comment != "" {
 		fmt.Fprintf(&b, "    ; %s\n", tx.Comment)
 	}

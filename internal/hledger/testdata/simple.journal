@@ -3,22 +3,22 @@ account expenses:shopping
 account expenses:food
 account income:salary
 
-2026/01/05 PAYROLL DIRECT DEPOSIT  ; fid:aa001100
+2026/01/05 (aa001100) PAYROLL DIRECT DEPOSIT
     assets:checking     $3500.00
     income:salary
 
-2026/01/15 AMAZON MARKETPLACE  ; fid:bb002200
+2026/01/15 (bb002200) AMAZON MARKETPLACE
     expenses:shopping   $45.00
     assets:checking
 
-2026/01/20 WHOLE FOODS  ; fid:cc003300
+2026/01/20 (cc003300) WHOLE FOODS
     expenses:food       $120.00
     assets:checking
 
-2026/02/01 AMAZON PRIME  ; fid:dd004400
+2026/02/01 (dd004400) AMAZON PRIME
     expenses:shopping   $15.00
     assets:checking
 
-2026/02/05 PAYROLL DIRECT DEPOSIT  ; fid:ee005500
+2026/02/05 (ee005500) PAYROLL DIRECT DEPOSIT
     assets:checking     $3500.00
     income:salary

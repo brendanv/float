@@ -66,7 +66,7 @@ data/
 
 `internal/journal/` handles text-level file manipulation (no accounting semantics). See `internal/journal/CLAUDE.md`.
 
-Every float-written transaction gets a `fid` tag (8-char UUID prefix): `; fid:a1b2c3d4`. Lookups use `tag:fid=a1b2c3d4`.
+Every float-written transaction gets a code field (8-char UUID prefix): `(a1b2c3d4)`. Lookups use `code:a1b2c3d4`.
 
 ### API Layer
 

@@ -76,7 +76,7 @@ func TestUpdateTransactionStatus(t *testing.T) {
 			}
 
 			// Re-fetch and verify status.
-			txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+			txns, err := client.Transactions(t.Context(), "code:"+fid)
 			if err != nil {
 				t.Fatalf("Transactions after update: %v", err)
 			}
@@ -114,7 +114,7 @@ func TestUpdateTransactionStatus(t *testing.T) {
 			t.Fatalf("UpdateTransactionStatus: %v", err)
 		}
 
-		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions after update: %v", err)
 		}

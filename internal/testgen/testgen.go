@@ -50,7 +50,7 @@ type Options struct {
 	// Any non-zero value produces identical output on each call with the same options.
 	Seed int64
 
-	// WithFIDs attaches ; fid:XXXXXXXX tags to each transaction header.
+	// WithFIDs attaches (XXXXXXXX) code fields to each transaction header.
 	// Enabled by default.
 	WithFIDs bool
 }
@@ -137,7 +137,7 @@ func Generate(opts Options) string {
 
 		if o.WithFIDs {
 			fid := randomFID(rng)
-			fmt.Fprintf(&b, "%s %s  ; fid:%s\n", date.Format("2006-01-02"), desc, fid)
+			fmt.Fprintf(&b, "%s (%s) %s\n", date.Format("2006-01-02"), fid, desc)
 		} else {
 			fmt.Fprintf(&b, "%s %s\n", date.Format("2006-01-02"), desc)
 		}
@@ -224,7 +224,7 @@ func GenerateDataDir(t testing.TB, opts Options) string {
 		var sb strings.Builder
 		if o.WithFIDs {
 			fid := randomFID(rng)
-			fmt.Fprintf(&sb, "%s %s  ; fid:%s\n", date.Format("2006-01-02"), desc, fid)
+			fmt.Fprintf(&sb, "%s (%s) %s\n", date.Format("2006-01-02"), fid, desc)
 		} else {
 			fmt.Fprintf(&sb, "%s %s\n", date.Format("2006-01-02"), desc)
 		}

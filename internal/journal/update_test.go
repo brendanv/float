@@ -257,7 +257,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		// Ensure only one transaction exists with this fid.
-		txns, err := client.Transactions(t.Context(), "tag:fid="+fid)
+		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions: %v", err)
 		}

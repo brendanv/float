@@ -55,8 +55,8 @@ type Transaction struct {
 	// programmatically constructed transactions.
 	SourcePos [2]SourcePos `json:"tsourcepos"`
 
-	// FID is the value of the "fid" tag (e.g. "aa001100"), extracted from Tags.
-	// Empty string if no fid tag is present.
+	// FID is the transaction code (e.g. "aa001100"), extracted from Code.
+	// Empty string if no code is present.
 	FID string `json:"-"`
 }
 

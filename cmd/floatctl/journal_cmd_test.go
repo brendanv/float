@@ -63,8 +63,8 @@ func TestRunJournalLookupFound(t *testing.T) {
 				continue
 			}
 			for _, jline := range strings.Split(string(data), "\n") {
-				if idx := strings.Index(jline, "fid:"); idx >= 0 {
-					fid = jline[idx+4 : idx+12]
+				if idx := strings.Index(jline, "("); idx >= 0 && idx+9 < len(jline) && jline[idx+9] == ')' {
+					fid = jline[idx+1 : idx+9]
 					break
 				}
 			}
@@ -199,8 +199,8 @@ func TestRunJournalAuditDuplicateFID(t *testing.T) {
 	dir := t.TempDir()
 	// Two transactions in the same file with the same FID
 	journalContent := "2026/01.journal"
-	txns := "2026-01-01 TEST A  ; fid:aa001100\n    expenses:misc  $1.00\n    assets:checking\n\n" +
-		"2026-01-02 TEST B  ; fid:aa001100\n    expenses:misc  $2.00\n    assets:checking\n"
+	txns := "2026-01-01 (aa001100) TEST A\n    expenses:misc  $1.00\n    assets:checking\n\n" +
+		"2026-01-02 (aa001100) TEST B\n    expenses:misc  $2.00\n    assets:checking\n"
 	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +352,7 @@ func TestRunJournalAdd(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !strings.Contains(out, "added transaction with fid:") {
+		if !strings.Contains(out, "added transaction with code:") {
 			t.Errorf("expected fid in output, got: %s", out)
 		}
 
@@ -507,8 +507,8 @@ func extractFirstFID(t *testing.T, dir string) string {
 				continue
 			}
 			for _, jline := range strings.Split(string(data), "\n") {
-				if idx := strings.Index(jline, "fid:"); idx >= 0 {
-					return jline[idx+4 : idx+12]
+				if idx := strings.Index(jline, "("); idx >= 0 && idx+9 < len(jline) && jline[idx+9] == ')' {
+					return jline[idx+1 : idx+9]
 				}
 			}
 		}

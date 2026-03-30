@@ -21,7 +21,7 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 		return hledger.Transaction{}, fmt.Errorf("journal: update-date: invalid date %q: must be YYYY-MM-DD", newDate)
 	}
 
-	txns, err := client.Transactions(ctx, "tag:fid="+fid)
+	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return hledger.Transaction{}, fmt.Errorf("journal: update-date: lookup fid %q: %w", fid, err)
 	}
@@ -36,10 +36,7 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 
 	t := txns[0]
 
-	// Build the TransactionInput, stripping the fid tag from the comment
-	// so draftFormat doesn't duplicate it when re-rendering.
-	comment := fidTagRe.ReplaceAllString(strings.TrimSpace(t.Comment), "")
-	comment = strings.TrimSpace(comment)
+	comment := strings.TrimSpace(t.Comment)
 
 	var postings []PostingInput
 	for _, p := range t.Postings {
@@ -71,7 +68,7 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 		return hledger.Transaction{}, fmt.Errorf("journal: update-date: append: %w", err)
 	}
 
-	updated, err := client.Transactions(ctx, "tag:fid="+fid)
+	updated, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return hledger.Transaction{}, fmt.Errorf("journal: update-date: re-fetch fid %q: %w", fid, err)
 	}

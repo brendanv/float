@@ -26,7 +26,7 @@ var commentLineRe = regexp.MustCompile(`^\s*;`)
 // identified by fid. tags is the complete desired set of non-fid tags.
 // Callers must wrap in txlock.Do().
 func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string, tags map[string]string) error {
-	txns, err := client.Transactions(ctx, "tag:fid="+fid)
+	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return fmt.Errorf("journal: modify-tags: lookup fid %q: %w", fid, err)
 	}
@@ -56,7 +56,7 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 	}
 
 	// Sanity check: the header line should contain the fid.
-	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "fid:"+fid) {
+	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "("+fid+")") {
 		return fmt.Errorf("journal: modify-tags: line %d in %s does not match expected transaction header for fid %q", headerLine, sourceFile, fid)
 	}
 
@@ -112,8 +112,6 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 	return nil
 }
 
-// stripNonFidTagsFromHeaderLine removes all tag:value patterns from the inline comment
-// on a transaction header date line, preserving the fid tag and any non-tag comment text.
 func stripNonFidTagsFromHeaderLine(line, fid string) string {
 	semiIdx := strings.Index(line, ";")
 	if semiIdx < 0 {
@@ -123,19 +121,16 @@ func stripNonFidTagsFromHeaderLine(line, fid string) string {
 	prefix := line[:semiIdx+1]
 	comment := line[semiIdx+1:]
 
-	// Remove fid temporarily, strip remaining tags, then restore fid.
-	fidTag := "fid:" + fid
-	commentWithoutFid := strings.Replace(comment, fidTag, "", 1)
-	commentStripped := anyTagRe.ReplaceAllString(commentWithoutFid, "")
-
-	// Clean up orphaned commas and normalize whitespace.
+	// Strip all tags from the inline comment.
+	commentStripped := anyTagRe.ReplaceAllString(comment, "")
 	commentStripped = strings.ReplaceAll(commentStripped, ",", " ")
 	commentStripped = strings.Join(strings.Fields(commentStripped), " ")
 
 	if commentStripped != "" {
-		return prefix + " " + fidTag + " " + commentStripped
+		return prefix + " " + commentStripped
 	}
-	return prefix + " " + fidTag
+	// Comment was entirely tags — remove the entire inline comment.
+	return strings.TrimRight(line[:semiIdx], " ")
 }
 
 // stripTagsFromCommentLine removes all tag:value patterns from a comment line.

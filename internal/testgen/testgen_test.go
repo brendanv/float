@@ -3,6 +3,7 @@ package testgen_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -60,8 +61,8 @@ func TestGenerate(t *testing.T) {
 			name: "fid tags present when WithFIDs true",
 			opts: testgen.Options{Seed: 1, NumTxns: 3, WithFIDs: true},
 			check: func(t *testing.T, out string) {
-				if !strings.Contains(out, "fid:") {
-					t.Error("output missing fid: tags")
+				if !strings.Contains(out, "(") || !regexp.MustCompile(`\([0-9a-f]{8}\)`).MatchString(out) {
+					t.Error("output missing (code) fields")
 				}
 			},
 		},
@@ -69,8 +70,8 @@ func TestGenerate(t *testing.T) {
 			name: "fid tags absent when WithFIDs false",
 			opts: testgen.Options{Seed: 1, NumTxns: 3, WithFIDs: false},
 			check: func(t *testing.T, out string) {
-				if strings.Contains(out, "fid:") {
-					t.Error("output contains fid: tags when WithFIDs is false")
+				if regexp.MustCompile(`\([0-9a-f]{8}\)`).MatchString(out) {
+					t.Error("output contains (code) fields when WithFIDs is false")
 				}
 			},
 		},

@@ -50,7 +50,7 @@ func TestDeleteTransaction(t *testing.T) {
 		}
 
 		// Verify it's present.
-		rows, err := client.Register(t.Context(), "tag:fid="+fid)
+		rows, err := client.Register(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Register after add: %v", err)
 		}
@@ -69,7 +69,7 @@ func TestDeleteTransaction(t *testing.T) {
 		}
 
 		// Verify it's gone.
-		rows, err = client.Register(t.Context(), "tag:fid="+fid)
+		rows, err = client.Register(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Register after delete: %v", err)
 		}

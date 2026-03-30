@@ -181,7 +181,7 @@ func runJournalLookup(args []string) error {
 		return err
 	}
 
-	txns, err := c.Transactions(context.Background(), "tag:fid="+fid)
+	txns, err := c.Transactions(context.Background(), "code:"+fid)
 	if err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ type auditResult struct {
 }
 
 var journalIncludeRe = regexp.MustCompile(`^include\s+(.+)`)
-var journalFIDRe = regexp.MustCompile(`fid:([0-9a-f]{8})`)
+var journalFIDRe = regexp.MustCompile(`\(([0-9a-f]{8})\)`)
 
 func runJournalAudit(args []string) error {
 	fset := flag.NewFlagSet("journal audit", flag.ExitOnError)
@@ -518,7 +518,7 @@ func runJournalAdd(args []string) error {
 	}); err != nil {
 		return err
 	}
-	fmt.Printf("added transaction with fid: %s\n", fid)
+	fmt.Printf("added transaction with code: %s\n", fid)
 	return nil
 }
 

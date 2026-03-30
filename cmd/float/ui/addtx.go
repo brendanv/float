@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -14,13 +13,9 @@ import (
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
-	"github.com/brendanv/float/internal/hledger"
 )
 
 const maxSuggestions = 6
-
-// fidTagRe strips "fid:xxxxxxxx" from comment strings in the UI layer.
-var fidTagRe = regexp.MustCompile(fmt.Sprintf(`fid:[0-9a-f]{%d}`, hledger.FIDLen))
 
 // postingField holds the inputs for a single posting row.
 type postingField struct {
@@ -181,9 +176,7 @@ func (f *AddTxForm) ActivateEdit(tx *floatv1.Transaction) {
 	f.descInput.SetValue(tx.Description)
 	f.descInput.SetWidth(f.headerInputW)
 
-	// Strip fid tag from comment before showing it
-	cleanComment := fidTagRe.ReplaceAllString(strings.TrimSpace(tx.Comment), "")
-	cleanComment = strings.TrimSpace(cleanComment)
+	cleanComment := strings.TrimSpace(tx.Comment)
 	f.commentInput.Reset()
 	f.commentInput.SetValue(cleanComment)
 	f.commentInput.SetWidth(f.headerInputW)

@@ -16,7 +16,7 @@ import (
 // Returns an error if the fid is not found or if file I/O fails.
 // Callers must wrap this in txlock.Do().
 func DeleteTransaction(ctx context.Context, client *hledger.Client, dataDir, fid string) error {
-	txns, err := client.Transactions(ctx, "tag:fid="+fid)
+	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return fmt.Errorf("journal: delete: lookup fid %q: %w", fid, err)
 	}
@@ -56,7 +56,7 @@ func removeTransactionAtLine(path string, headerLine int, fid string) error {
 	}
 
 	// Sanity check: the line should be a transaction header containing the fid.
-	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "fid:"+fid) {
+	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "("+fid+")") {
 		return fmt.Errorf("journal: delete: line %d in %s does not match expected transaction header for fid %q", headerLine, path, fid)
 	}
 

@@ -15,7 +15,7 @@ import (
 // If newDate is empty, the existing transaction date is kept.
 // Callers must wrap in txlock.Do().
 func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid, description, newDate, comment string, postings []PostingInput) (hledger.Transaction, error) {
-	txns, err := client.Transactions(ctx, "tag:fid="+fid)
+	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return hledger.Transaction{}, fmt.Errorf("journal: update: lookup fid %q: %w", fid, err)
 	}
@@ -47,10 +47,7 @@ func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 		}
 	}
 
-	// Strip any fid tag from the caller-supplied comment so AppendTransaction
-	// doesn't produce a duplicate when it re-embeds the fid.
-	cleanComment := fidTagRe.ReplaceAllString(strings.TrimSpace(comment), "")
-	cleanComment = strings.TrimSpace(cleanComment)
+	cleanComment := strings.TrimSpace(comment)
 
 	input := TransactionInput{
 		Date:        parsedDate,
@@ -69,7 +66,7 @@ func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 		return hledger.Transaction{}, fmt.Errorf("journal: update: append: %w", err)
 	}
 
-	updated, err := client.Transactions(ctx, "tag:fid="+fid)
+	updated, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return hledger.Transaction{}, fmt.Errorf("journal: update: re-fetch fid %q: %w", fid, err)
 	}

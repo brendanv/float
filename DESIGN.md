@@ -84,25 +84,25 @@ include 2026/*.journal
 
 ### Transaction IDs
 
-Every transaction managed by float carries a `fid` (float ID) tag — a short unique identifier minted at creation time:
+Every transaction managed by float carries a transaction code — a short unique identifier minted at creation time, stored in hledger's native code field:
 
 ```journal
-2026/02/15 AMAZON MARKETPLACE  ; fid:a1b2c3d4
+2026/02/15 (a1b2c3d4) AMAZON MARKETPLACE
     expenses:shopping    $25.00
     assets:checking
 ```
 
 - IDs are generated for every write path: import, manual entry, split, etc.
 - Format: first 8 characters of a UUID4, keeping journal files human-readable.
-- hledger natively supports tag queries (`hledger reg tag:fid=a1b2c3d4`), so `fid` integrates cleanly with all existing query commands.
-- On first startup against a pre-existing journal, float runs a one-time migration pass to add `fid` tags to all untagged transactions.
+- hledger natively supports code queries (`hledger reg code:a1b2c3d4`), and exposes the code as `tcode` in JSON output.
+- On first startup against a pre-existing journal, float runs a one-time migration pass to add codes to all untagged transactions and convert any legacy `; fid:` tags to code fields.
 
 ### Write Flow
 
 Every mutation follows the same pattern:
 
 1. Acquire an in-process `sync.Mutex`
-2. Write changes to the journal file(s), minting `fid` tags for any new transactions
+2. Write changes to the journal file(s), minting codes for any new transactions
 3. Run `hledger check -f main.journal` to validate
 4. If invalid: revert file changes, return error
 5. Git commit with a descriptive message (see Git Snapshots below)
@@ -116,7 +116,7 @@ Git commits are **per API operation**, not periodic. Every successful write thro
 - `AddTransaction` → `"add: AMAZON MARKETPLACE 2026-02-15"`
 - `ImportCSV` → `"import: 47 transactions from Chase Checking"`
 - `ApplyRuleRetroactively` → `"rule: recategorize 12 txns to expenses:shopping"`
-- `DeleteTransaction` → `"delete: AMAZON MARKETPLACE 2026-02-15 (fid:a1b2c3d4)"`
+- `DeleteTransaction` → `"delete: AMAZON MARKETPLACE 2026-02-15 (a1b2c3d4)"`
 
 This gives every mutation a clean, instantly-reversible snapshot. Bulk operations (imports, retroactive rules) are atomic — one commit for the entire batch.
 
@@ -130,7 +130,7 @@ Performance: `git add + commit` adds ~50-100ms per write, which is negligible fo
 
 ## Import Pipeline
 
-float uses hledger for CSV parsing (column mapping, date format conversion, categorization via rules files), but handles deduplication, file routing, and `fid` tagging itself.
+float uses hledger for CSV parsing (column mapping, date format conversion, categorization via rules files), but handles deduplication, file routing, and code-field tagging itself.
 
 ### hledger Rules Files
 
@@ -157,7 +157,7 @@ if PAYROLL
 3. float parses the stdout output into individual transactions
 4. **Dedup pass**: compare candidates against existing transactions (see Duplicate Detection below)
 5. User reviews the preview in the UI/CLI — net-new transactions are shown, potential duplicates are flagged separately for confirmation
-6. On confirmation, float groups transactions by month and appends to the correct `YYYY/MM.journal` files, minting `fid` tags and `import` tags (see below)
+6. On confirmation, float groups transactions by month and appends to the correct `YYYY/MM.journal` files, minting transaction codes and `import` tags (see below)
 7. If the year directory or month file doesn't exist yet, float creates it and adds the necessary `include` directive to `main.journal`
 8. Validate with `hledger check`, git commit (`"import: 47 transactions from Chase Checking"`)
 

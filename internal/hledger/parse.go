@@ -87,19 +87,7 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 		return nil, fmt.Errorf("parseTransactions: %w", err)
 	}
 	for i := range txns {
-		for _, tag := range txns[i].Tags {
-			if tag[0] == "fid" {
-				// hledger extends tag values to end of line unless terminated by
-				// a comma, so the value may include trailing comment text
-				// (e.g. "908dc69c my note"). Extract only the 8-char hex prefix.
-				v := tag[1]
-				if len(v) > FIDLen {
-					v = v[:FIDLen]
-				}
-				txns[i].FID = v
-				break
-			}
-		}
+		txns[i].FID = txns[i].Code
 	}
 	return txns, nil
 }
@@ -241,12 +229,12 @@ func parseAccountsFlat(text string) ([]*AccountNode, error) {
 }
 
 // parseTags parses `hledger tags` output: one tag name per line.
-// Filters out empty lines and the internal "fid" tag.
+// Filters out empty lines.
 func parseTags(data []byte) []string {
 	var tags []string
 	for _, line := range strings.Split(string(data), "\n") {
 		t := strings.TrimSpace(line)
-		if t != "" && t != "fid" {
+		if t != "" {
 			tags = append(tags, t)
 		}
 	}
