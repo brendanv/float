@@ -624,7 +624,8 @@ func (x *ListTransactionsRequest) GetOffset() int32 {
 type ListTransactionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Transactions  []*Transaction         `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
-	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"` // total matching transactions (before limit/offset)
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`                    // total matching transactions (before limit/offset)
+	HasNext       bool                   `protobuf:"varint,3,opt,name=has_next,json=hasNext,proto3" json:"has_next,omitempty"` // true if there are more transactions after this page
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -671,6 +672,13 @@ func (x *ListTransactionsResponse) GetTotal() int32 {
 		return x.Total
 	}
 	return 0
+}
+
+func (x *ListTransactionsResponse) GetHasNext() bool {
+	if x != nil {
+		return x.HasNext
+	}
+	return false
 }
 
 type GetBalancesRequest struct {
@@ -1966,10 +1974,11 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x17ListTransactionsRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x03(\tR\x05query\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"k\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x86\x01\n" +
 	"\x18ListTransactionsResponse\x129\n" +
 	"\ftransactions\x18\x01 \x03(\v2\x15.float.v1.TransactionR\ftransactions\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"@\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x19\n" +
+	"\bhas_next\x18\x03 \x01(\bR\ahasNext\"@\n" +
 	"\x12GetBalancesRequest\x12\x14\n" +
 	"\x05depth\x18\x01 \x01(\x05R\x05depth\x12\x14\n" +
 	"\x05query\x18\x02 \x03(\tR\x05query\"F\n" +

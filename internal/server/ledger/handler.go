@@ -139,14 +139,16 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 			txns = txns[req.Msg.Offset:]
 		}
 	}
+	hasNext := false
 	if req.Msg.Limit > 0 && int(req.Msg.Limit) < len(txns) {
 		txns = txns[:req.Msg.Limit]
+		hasNext = true
 	}
 	proto := make([]*floatv1.Transaction, len(txns))
 	for i, t := range txns {
 		proto[i] = toProtoTransaction(t)
 	}
-	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto, Total: total}), nil
+	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto, Total: total, HasNext: hasNext}), nil
 }
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {

@@ -51,6 +51,7 @@ export function TransactionsPage({ params }) {
   }
 
   const total = data?.total ?? 0;
+  const hasNext = data?.hasNext ?? false;
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const rangeEnd = Math.min((page + 1) * PAGE_SIZE, total);
@@ -98,7 +99,7 @@ export function TransactionsPage({ params }) {
                 </span>
                 <button
                   onClick={() => setPage((p) => p + 1)}
-                  disabled={page >= totalPages - 1}
+                  disabled={!hasNext}
                   class="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed"
                 >
                   Next
