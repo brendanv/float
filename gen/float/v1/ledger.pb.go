@@ -571,7 +571,9 @@ func (x *GetNetWorthTimeseriesResponse) GetSnapshots() []*NetWorthSnapshot {
 
 type ListTransactionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         []string               `protobuf:"bytes,1,rep,name=query,proto3" json:"query,omitempty"` // hledger query tokens (optional)
+	Query         []string               `protobuf:"bytes,1,rep,name=query,proto3" json:"query,omitempty"`    // hledger query tokens (optional)
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`   // max transactions to return; 0 = no limit
+	Offset        int32                  `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"` // number of transactions to skip
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -613,9 +615,25 @@ func (x *ListTransactionsRequest) GetQuery() []string {
 	return nil
 }
 
+func (x *ListTransactionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListTransactionsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
 type ListTransactionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Transactions  []*Transaction         `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`                    // total matching transactions (before limit/offset)
+	HasNext       bool                   `protobuf:"varint,3,opt,name=has_next,json=hasNext,proto3" json:"has_next,omitempty"` // true if there are more transactions after this page
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -655,6 +673,20 @@ func (x *ListTransactionsResponse) GetTransactions() []*Transaction {
 		return x.Transactions
 	}
 	return nil
+}
+
+func (x *ListTransactionsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListTransactionsResponse) GetHasNext() bool {
+	if x != nil {
+		return x.HasNext
+	}
+	return false
 }
 
 type GetBalancesRequest struct {
@@ -1950,11 +1982,15 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x05begin\x18\x01 \x01(\tR\x05begin\x12\x10\n" +
 	"\x03end\x18\x02 \x01(\tR\x03end\"Y\n" +
 	"\x1dGetNetWorthTimeseriesResponse\x128\n" +
-	"\tsnapshots\x18\x01 \x03(\v2\x1a.float.v1.NetWorthSnapshotR\tsnapshots\"/\n" +
+	"\tsnapshots\x18\x01 \x03(\v2\x1a.float.v1.NetWorthSnapshotR\tsnapshots\"]\n" +
 	"\x17ListTransactionsRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x03(\tR\x05query\"U\n" +
+	"\x05query\x18\x01 \x03(\tR\x05query\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x86\x01\n" +
 	"\x18ListTransactionsResponse\x129\n" +
-	"\ftransactions\x18\x01 \x03(\v2\x15.float.v1.TransactionR\ftransactions\"@\n" +
+	"\ftransactions\x18\x01 \x03(\v2\x15.float.v1.TransactionR\ftransactions\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x19\n" +
+	"\bhas_next\x18\x03 \x01(\bR\ahasNext\"@\n" +
 	"\x12GetBalancesRequest\x12\x14\n" +
 	"\x05depth\x18\x01 \x01(\x05R\x05depth\x12\x14\n" +
 	"\x05query\x18\x02 \x03(\tR\x05query\"F\n" +

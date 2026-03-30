@@ -61,10 +61,14 @@ message GetNetWorthTimeseriesResponse {
 
 message ListTransactionsRequest {
   repeated string query = 1; // hledger query tokens (optional)
+  int32 limit = 2;           // max transactions to return; 0 = no limit
+  int32 offset = 3;          // number of transactions to skip
 }
 
 message ListTransactionsResponse {
   repeated Transaction transactions = 1;
+  int32 total = 2;    // total matching transactions (before limit/offset)
+  bool has_next = 3;  // true if there are more transactions after this page
 }
 
 message GetBalancesRequest {
