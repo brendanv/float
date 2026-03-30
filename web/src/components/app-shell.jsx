@@ -1,8 +1,7 @@
+import { House, List, TrendingUp, Tag, PlusCircle, Menu } from "lucide-preact";
 import { navigate } from "../router.jsx";
 
-const manageRoutes = ["/prices"];
-
-function NavLink({ href, label, current }) {
+function NavLink({ href, label, icon: Icon, current }) {
   const active = current === href;
   return (
     <li>
@@ -12,34 +11,30 @@ function NavLink({ href, label, current }) {
         onClick={(e) => {
           e.preventDefault();
           navigate(href);
+          // Close drawer on mobile after navigation
+          const drawer = document.getElementById("nav-drawer");
+          if (drawer) drawer.checked = false;
         }}
       >
+        <Icon size={18} />
         {label}
       </a>
     </li>
   );
 }
 
-function ManageDropdown({ current }) {
-  const active = manageRoutes.includes(current);
-  return (
-    <li>
-      <details>
-        <summary class={active ? "active" : ""}>Manage</summary>
-        <ul class="bg-base-100 rounded-box z-10 w-36 shadow">
-          <NavLink href="/prices" label="Prices" current={current} />
-        </ul>
-      </details>
-    </li>
-  );
-}
-
-
 export function AppShell({ children, currentPath }) {
   return (
-    <div class="min-h-screen bg-base-200">
-      <div class="navbar bg-base-100 shadow-sm">
-        <div class="navbar-start">
+    <div class="drawer lg:drawer-open">
+      <input id="nav-drawer" type="checkbox" class="drawer-toggle" />
+
+      {/* Main content */}
+      <div class="drawer-content flex flex-col min-h-screen bg-base-200">
+        {/* Mobile top navbar */}
+        <div class="navbar bg-base-100 shadow-sm lg:hidden">
+          <label for="nav-drawer" class="btn btn-ghost">
+            <Menu size={24} />
+          </label>
           <a
             href="#/"
             class="btn btn-ghost gap-2 text-xl"
@@ -49,42 +44,39 @@ export function AppShell({ children, currentPath }) {
             float
           </a>
         </div>
-        <div class="navbar-end">
-          {/* Mobile hamburger menu */}
-          <div class="dropdown dropdown-end sm:hidden">
-            <label tabIndex={0} class="btn btn-circle swap swap-rotate">
-              <input type="checkbox" />
-              <svg class="swap-off fill-current" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 512 512">
-                <path d="M64,384H448V341.33H64Zm0-106.67H448V234.67H64ZM64,128v42.67H448V128Z" />
-              </svg>
-              <svg class="swap-on fill-current" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 512 512">
-                <polygon points="400 145.49 366.51 112 256 222.51 145.49 112 112 145.49 222.51 256 112 366.51 145.49 400 256 289.49 366.51 400 400 366.51 289.49 256 400 145.49" />
-              </svg>
-            </label>
-            <ul
-              tabIndex={0}
-              class="menu menu-sm dropdown-content bg-base-100 rounded-box z-10 mt-3 w-52 shadow"
-            >
-              <NavLink href="/" label="Home" current={currentPath} />
-              <NavLink href="/transactions" label="Transactions" current={currentPath} />
-              <NavLink href="/trends" label="Trends" current={currentPath} />
-              <ManageDropdown current={currentPath} />
-              <NavLink href="/add" label="Add" current={currentPath} />
-            </ul>
-          </div>
-          {/* Desktop menu */}
-          <ul class="menu menu-horizontal px-1 hidden sm:flex">
-            <NavLink href="/" label="Home" current={currentPath} />
-            <NavLink href="/transactions" label="Transactions" current={currentPath} />
-            <NavLink href="/trends" label="Trends" current={currentPath} />
-            <ManageDropdown current={currentPath} />
-            <NavLink href="/add" label="Add" current={currentPath} />
-          </ul>
-        </div>
+
+        {/* Page content */}
+        <main class="container mx-auto px-4 py-6 max-w-7xl flex-1">
+          {children}
+        </main>
       </div>
-      <main class="container mx-auto px-4 py-6 max-w-7xl">
-        {children}
-      </main>
+
+      {/* Sidebar */}
+      <div class="drawer-side z-40">
+        <label for="nav-drawer" class="drawer-overlay" />
+        <aside class="bg-base-100 min-h-screen w-64 flex flex-col border-r border-base-300">
+          {/* Brand */}
+          <div class="p-4 border-b border-base-300">
+            <a
+              href="#/"
+              class="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              onClick={(e) => { e.preventDefault(); navigate("/"); }}
+            >
+              <img src="/icon.png" alt="" class="h-9 w-9 rounded" />
+              <span class="text-xl font-semibold">float</span>
+            </a>
+          </div>
+
+          {/* Navigation */}
+          <ul class="menu p-3 flex-1 gap-1">
+            <NavLink href="/" label="Home" icon={House} current={currentPath} />
+            <NavLink href="/transactions" label="Transactions" icon={List} current={currentPath} />
+            <NavLink href="/trends" label="Trends" icon={TrendingUp} current={currentPath} />
+            <NavLink href="/prices" label="Prices" icon={Tag} current={currentPath} />
+            <NavLink href="/add" label="Add Transaction" icon={PlusCircle} current={currentPath} />
+          </ul>
+        </aside>
+      </div>
     </div>
   );
 }
