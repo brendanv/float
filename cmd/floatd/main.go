@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"github.com/brendanv/float/internal/cache"
 	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/txlock"
@@ -62,6 +64,20 @@ func main() {
 	}
 
 	lock := txlock.New(*dataDir, hl)
+
+	var backfillCount int
+	if err := lock.Do(context.Background(), func() error {
+		n, err := journal.MigrateFIDs(*dataDir)
+		backfillCount = n
+		return err
+	}); err != nil {
+		slog.Error("fid backfill", "error", err)
+		os.Exit(1)
+	}
+	if backfillCount > 0 {
+		slog.Info("fid backfill: assigned codes to transactions", "count", backfillCount)
+	}
+
 	c := cache.New[any](lock.Generation)
 	handler := serverledger.NewHandler(hl, lock, *dataDir, c)
 	mux := http.NewServeMux()
