@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 )
@@ -88,6 +89,18 @@ func primaryPosting(tx *floatv1.Transaction) *floatv1.Posting {
 	return nil
 }
 
+func formatDescription(tx *floatv1.Transaction) string {
+	if tx.Payee != nil {
+		payee := lipgloss.NewStyle().Bold(true).Render(tx.GetPayee())
+		if tx.Note != nil {
+			note := lipgloss.NewStyle().Foreground(colorHelp).Render("· " + tx.GetNote())
+			return payee + " " + note
+		}
+		return payee
+	}
+	return tx.Description
+}
+
 func statusSymbol(status string) string {
 	switch status {
 	case "Pending":
@@ -112,11 +125,11 @@ func (p *TransactionsPanel) rebuildRows() {
 				acct = post.Account
 				amt = formatBalance(post.Amounts)
 			}
-			rows = append(rows, table.Row{sym, tx.Date, tx.Description, amt, acct})
+			rows = append(rows, table.Row{sym, tx.Date, formatDescription(tx), amt, acct})
 			p.rowToTx = append(p.rowToTx, i)
 		} else {
 			for _, post := range tx.Postings {
-				rows = append(rows, table.Row{sym, tx.Date, tx.Description, formatBalance(post.Amounts), post.Account})
+				rows = append(rows, table.Row{sym, tx.Date, formatDescription(tx), formatBalance(post.Amounts), post.Account})
 				p.rowToTx = append(p.rowToTx, i)
 			}
 		}
