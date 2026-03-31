@@ -23,6 +23,8 @@ message Transaction {
   repeated Posting postings = 5;
   string status = 6; // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
   map<string, string> tags = 7; // non-fid tags on the transaction
+  optional string payee = 8; // part before "|" in description; nil if no "|"
+  optional string note = 9;  // part after "|" in description; nil if no "|"
 }
 
 message BalanceRow {
@@ -125,6 +127,7 @@ message AddTransactionRequest {
   string date = 2; // "YYYY-MM-DD"; empty = today
   string comment = 3;
   repeated PostingInput postings = 4;
+  string payee = 5; // optional; if set, description becomes "payee | description"
 }
 
 message AddTransactionResponse {
@@ -137,6 +140,7 @@ message UpdateTransactionRequest {
   string date = 3; // "YYYY-MM-DD"; empty = keep existing date
   string comment = 4; // optional; replaces existing non-fid comment
   repeated PostingInput postings = 5; // required; replaces all existing postings
+  string payee = 6; // optional; if set, description becomes "payee | description"
 }
 
 message UpdateTransactionResponse {

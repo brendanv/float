@@ -432,6 +432,57 @@ func TestTransactionFID(t *testing.T) {
 	}
 }
 
+func TestTransactionPayeeNote(t *testing.T) {
+	const versionResp = "hledger 1.52, linux-x86_64\n"
+	const printJSON = `[
+		{"tindex":1,"tdate":"2026-01-05","tdate2":null,"tdescription":"Acme Corp | Monthly invoice","tcode":"aa001100","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
+		{"tindex":2,"tdate":"2026-01-15","tdate2":null,"tdescription":"AMAZON","tcode":"","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
+		{"tindex":3,"tdate":"2026-01-20","tdate2":null,"tdescription":"Shop | ","tcode":"","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]}
+	]`
+
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		return []byte(printJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	result, err := c.Transactions(t.Context())
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if len(result) != 3 {
+		t.Fatalf("expected 3 transactions, got %d", len(result))
+	}
+
+	ptr := func(s string) *string { return &s }
+
+	tests := []struct {
+		name      string
+		idx       int
+		wantPayee *string
+		wantNote  *string
+	}{
+		{name: "with pipe", idx: 0, wantPayee: ptr("Acme Corp"), wantNote: ptr("Monthly invoice")},
+		{name: "no pipe", idx: 1, wantPayee: nil, wantNote: nil},
+		{name: "pipe with empty note", idx: 2, wantPayee: ptr("Shop"), wantNote: ptr("")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := result[tt.idx]
+			if (got.Payee == nil) != (tt.wantPayee == nil) || (got.Payee != nil && *got.Payee != *tt.wantPayee) {
+				t.Errorf("Payee = %v, want %v", got.Payee, tt.wantPayee)
+			}
+			if (got.Note == nil) != (tt.wantNote == nil) || (got.Note != nil && *got.Note != *tt.wantNote) {
+				t.Errorf("Note = %v, want %v", got.Note, tt.wantNote)
+			}
+		})
+	}
+}
+
 func TestBalanceSheetTimeseries(t *testing.T) {
 	c := mustClient(t, "simple.journal")
 	ts, err := c.BalanceSheetTimeseries(t.Context(), "", "")

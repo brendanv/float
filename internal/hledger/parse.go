@@ -81,6 +81,17 @@ func parseRegisterRows(data []byte) ([]RegisterRow, error) {
 	return rows, nil
 }
 
+// splitPayeeNote splits an hledger description on the first "|".
+// If no "|" is present, both payee and note equal the full description.
+func splitPayeeNote(desc string) (payee, note *string) {
+	if i := strings.Index(desc, "|"); i >= 0 {
+		p := strings.TrimSpace(desc[:i])
+		n := strings.TrimSpace(desc[i+1:])
+		return &p, &n
+	}
+	return nil, nil
+}
+
 func parseTransactions(data []byte) ([]Transaction, error) {
 	var txns []Transaction
 	if err := json.Unmarshal(data, &txns); err != nil {
@@ -88,6 +99,7 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 	}
 	for i := range txns {
 		txns[i].FID = txns[i].Code
+		txns[i].Payee, txns[i].Note = splitPayeeNote(txns[i].Description)
 	}
 	return txns, nil
 }

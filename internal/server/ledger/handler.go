@@ -320,9 +320,13 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 			Comment: p.Comment,
 		}
 	}
+	desc := req.Msg.Description
+	if req.Msg.Payee != "" {
+		desc = req.Msg.Payee + " | " + desc
+	}
 	tx := journal.TransactionInput{
 		Date:        date,
-		Description: req.Msg.Description,
+		Description: desc,
 		Comment:     req.Msg.Comment,
 		Postings:    postings,
 		Status:      "Pending",
@@ -379,10 +383,15 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 		}
 	}
 
+	desc := req.Msg.Description
+	if req.Msg.Payee != "" {
+		desc = req.Msg.Payee + " | " + desc
+	}
+
 	var updated hledger.Transaction
 	err := h.lock.Do(ctx, func() error {
 		var e error
-		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, req.Msg.Description, req.Msg.Date, req.Msg.Comment, postings)
+		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, postings)
 		return e
 	})
 	if err != nil {
@@ -457,6 +466,9 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 		Postings:    postings,
 		Status:      status,
 		Tags:        tags,
+		Payee:       t.Payee,
+		Note:        t.Note,
+
 	}
 }
 

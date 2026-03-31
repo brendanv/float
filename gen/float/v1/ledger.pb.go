@@ -142,6 +142,8 @@ type Transaction struct {
 	Postings      []*Posting             `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`
 	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`                                                                       // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
 	Tags          map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // non-fid tags on the transaction
+	Payee         *string                `protobuf:"bytes,8,opt,name=payee,proto3,oneof" json:"payee,omitempty"`                                                                   // part before "|" in description; nil if no "|"
+	Note          *string                `protobuf:"bytes,9,opt,name=note,proto3,oneof" json:"note,omitempty"`                                                                     // part after "|" in description; nil if no "|"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,6 +225,20 @@ func (x *Transaction) GetTags() map[string]string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *Transaction) GetPayee() string {
+	if x != nil && x.Payee != nil {
+		return *x.Payee
+	}
+	return ""
+}
+
+func (x *Transaction) GetNote() string {
+	if x != nil && x.Note != nil {
+		return *x.Note
+	}
+	return ""
 }
 
 type BalanceRow struct {
@@ -1275,6 +1291,7 @@ type AddTransactionRequest struct {
 	Date          string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"` // "YYYY-MM-DD"; empty = today
 	Comment       string                 `protobuf:"bytes,3,opt,name=comment,proto3" json:"comment,omitempty"`
 	Postings      []*PostingInput        `protobuf:"bytes,4,rep,name=postings,proto3" json:"postings,omitempty"`
+	Payee         string                 `protobuf:"bytes,5,opt,name=payee,proto3" json:"payee,omitempty"` // optional; if set, description becomes "payee | description"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1337,6 +1354,13 @@ func (x *AddTransactionRequest) GetPostings() []*PostingInput {
 	return nil
 }
 
+func (x *AddTransactionRequest) GetPayee() string {
+	if x != nil {
+		return x.Payee
+	}
+	return ""
+}
+
 type AddTransactionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Transaction   *Transaction           `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
@@ -1388,6 +1412,7 @@ type UpdateTransactionRequest struct {
 	Date          string                 `protobuf:"bytes,3,opt,name=date,proto3" json:"date,omitempty"`               // "YYYY-MM-DD"; empty = keep existing date
 	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`         // optional; replaces existing non-fid comment
 	Postings      []*PostingInput        `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`       // required; replaces all existing postings
+	Payee         string                 `protobuf:"bytes,6,opt,name=payee,proto3" json:"payee,omitempty"`             // optional; if set, description becomes "payee | description"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1455,6 +1480,13 @@ func (x *UpdateTransactionRequest) GetPostings() []*PostingInput {
 		return x.Postings
 	}
 	return nil
+}
+
+func (x *UpdateTransactionRequest) GetPayee() string {
+	if x != nil {
+		return x.Payee
+	}
+	return ""
 }
 
 type UpdateTransactionResponse struct {
@@ -1948,7 +1980,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\aPosting\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12*\n" +
 	"\aamounts\x18\x02 \x03(\v2\x10.float.v1.AmountR\aamounts\x12\x18\n" +
-	"\acomment\x18\x03 \x01(\tR\acomment\"\xa4\x02\n" +
+	"\acomment\x18\x03 \x01(\tR\acomment\"\xeb\x02\n" +
 	"\vTransaction\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12 \n" +
@@ -1956,10 +1988,14 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\acomment\x18\x04 \x01(\tR\acomment\x12-\n" +
 	"\bpostings\x18\x05 \x03(\v2\x11.float.v1.PostingR\bpostings\x12\x16\n" +
 	"\x06status\x18\x06 \x01(\tR\x06status\x123\n" +
-	"\x04tags\x18\a \x03(\v2\x1f.float.v1.Transaction.TagsEntryR\x04tags\x1a7\n" +
+	"\x04tags\x18\a \x03(\v2\x1f.float.v1.Transaction.TagsEntryR\x04tags\x12\x19\n" +
+	"\x05payee\x18\b \x01(\tH\x00R\x05payee\x88\x01\x01\x12\x17\n" +
+	"\x04note\x18\t \x01(\tH\x01R\x04note\x88\x01\x01\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x90\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\b\n" +
+	"\x06_payeeB\a\n" +
+	"\x05_note\"\x90\x01\n" +
 	"\n" +
 	"BalanceRow\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12\x1b\n" +
@@ -2020,20 +2056,22 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\fPostingInput\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x16\n" +
 	"\x06amount\x18\x02 \x01(\tR\x06amount\x12\x18\n" +
-	"\acomment\x18\x03 \x01(\tR\acomment\"\x9b\x01\n" +
+	"\acomment\x18\x03 \x01(\tR\acomment\"\xb1\x01\n" +
 	"\x15AddTransactionRequest\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12\x18\n" +
 	"\acomment\x18\x03 \x01(\tR\acomment\x122\n" +
-	"\bpostings\x18\x04 \x03(\v2\x16.float.v1.PostingInputR\bpostings\"Q\n" +
+	"\bpostings\x18\x04 \x03(\v2\x16.float.v1.PostingInputR\bpostings\x12\x14\n" +
+	"\x05payee\x18\x05 \x01(\tR\x05payee\"Q\n" +
 	"\x16AddTransactionResponse\x127\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"\xb0\x01\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"\xc6\x01\n" +
 	"\x18UpdateTransactionRequest\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x12\n" +
 	"\x04date\x18\x03 \x01(\tR\x04date\x12\x18\n" +
 	"\acomment\x18\x04 \x01(\tR\acomment\x122\n" +
-	"\bpostings\x18\x05 \x03(\v2\x16.float.v1.PostingInputR\bpostings\"T\n" +
+	"\bpostings\x18\x05 \x03(\v2\x16.float.v1.PostingInputR\bpostings\x12\x14\n" +
+	"\x05payee\x18\x06 \x01(\tR\x05payee\"T\n" +
 	"\x19UpdateTransactionResponse\x127\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"J\n" +
 	"\x1eUpdateTransactionStatusRequest\x12\x10\n" +
@@ -2195,6 +2233,7 @@ func file_float_v1_ledger_proto_init() {
 	if File_float_v1_ledger_proto != nil {
 		return
 	}
+	file_float_v1_ledger_proto_msgTypes[2].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

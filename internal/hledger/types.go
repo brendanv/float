@@ -58,6 +58,13 @@ type Transaction struct {
 	// FID is the transaction code (e.g. "aa001100"), extracted from Code.
 	// Empty string if no code is present.
 	FID string `json:"-"`
+
+	// Payee is the part before the first "|" in Description (trimmed).
+	// Nil if no "|" is present.
+	Payee *string `json:"-"`
+	// Note is the part after the first "|" in Description (trimmed).
+	// Nil if no "|" is present.
+	Note *string `json:"-"`
 }
 
 // RegisterRow is one row from `hledger reg -O json`.
