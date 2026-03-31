@@ -109,6 +109,8 @@ func TestTransactionsPanel_ColumnWidths(t *testing.T) {
 	}
 }
 
+func strPtr(s string) *string { return &s }
+
 func makeSampleTransactions() []*floatv1.Transaction {
 	return []*floatv1.Transaction{
 		{
@@ -127,6 +129,50 @@ func makeSampleTransactions() []*floatv1.Transaction {
 				{Account: "assets:checking", Amounts: []*floatv1.Amount{{Quantity: "2000.00", Commodity: "USD"}}},
 			},
 		},
+	}
+}
+
+func TestFormatDescription(t *testing.T) {
+	tests := []struct {
+		name        string
+		tx          *floatv1.Transaction
+		wantPayee   string
+		wantNote    string
+		wantPlain   string
+	}{
+		{
+			name:      "no payee shows plain description",
+			tx:        &floatv1.Transaction{Description: "Groceries"},
+			wantPlain: "Groceries",
+		},
+		{
+			name:      "payee and note",
+			tx:        &floatv1.Transaction{Description: "Shop | weekly run", Payee: strPtr("Shop"), Note: strPtr("weekly run")},
+			wantPayee: "Shop",
+			wantNote:  "weekly run",
+		},
+		{
+			name:      "payee without note",
+			tx:        &floatv1.Transaction{Description: "Shop", Payee: strPtr("Shop")},
+			wantPayee: "Shop",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := formatDescription(tc.tx)
+			if tc.wantPlain != "" {
+				if result != tc.wantPlain {
+					t.Errorf("expected plain %q, got %q", tc.wantPlain, result)
+				}
+				return
+			}
+			if !strings.Contains(result, tc.wantPayee) {
+				t.Errorf("expected payee %q in result %q", tc.wantPayee, result)
+			}
+			if tc.wantNote != "" && !strings.Contains(result, tc.wantNote) {
+				t.Errorf("expected note %q in result %q", tc.wantNote, result)
+			}
+		})
 	}
 }
 
