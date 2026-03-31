@@ -44,6 +44,9 @@ const (
 	LedgerServiceListAccountsProcedure = "/float.v1.LedgerService/ListAccounts"
 	// LedgerServiceListTagsProcedure is the fully-qualified name of the LedgerService's ListTags RPC.
 	LedgerServiceListTagsProcedure = "/float.v1.LedgerService/ListTags"
+	// LedgerServiceListPayeesProcedure is the fully-qualified name of the LedgerService's ListPayees
+	// RPC.
+	LedgerServiceListPayeesProcedure = "/float.v1.LedgerService/ListPayees"
 	// LedgerServiceDeleteTransactionProcedure is the fully-qualified name of the LedgerService's
 	// DeleteTransaction RPC.
 	LedgerServiceDeleteTransactionProcedure = "/float.v1.LedgerService/DeleteTransaction"
@@ -81,6 +84,7 @@ type LedgerServiceClient interface {
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
+	ListPayees(context.Context, *connect.Request[v1.ListPayeesRequest]) (*connect.Response[v1.ListPayeesResponse], error)
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
 	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
 	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
@@ -126,6 +130,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceListTagsProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("ListTags")),
+			connect.WithClientOptions(opts...),
+		),
+		listPayees: connect.NewClient[v1.ListPayeesRequest, v1.ListPayeesResponse](
+			httpClient,
+			baseURL+LedgerServiceListPayeesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListPayees")),
 			connect.WithClientOptions(opts...),
 		),
 		deleteTransaction: connect.NewClient[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse](
@@ -197,6 +207,7 @@ type ledgerServiceClient struct {
 	getBalances             *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
 	listAccounts            *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
 	listTags                *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
+	listPayees              *connect.Client[v1.ListPayeesRequest, v1.ListPayeesResponse]
 	deleteTransaction       *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
 	modifyTags              *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
 	updateTransactionDate   *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
@@ -227,6 +238,11 @@ func (c *ledgerServiceClient) ListAccounts(ctx context.Context, req *connect.Req
 // ListTags calls float.v1.LedgerService.ListTags.
 func (c *ledgerServiceClient) ListTags(ctx context.Context, req *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error) {
 	return c.listTags.CallUnary(ctx, req)
+}
+
+// ListPayees calls float.v1.LedgerService.ListPayees.
+func (c *ledgerServiceClient) ListPayees(ctx context.Context, req *connect.Request[v1.ListPayeesRequest]) (*connect.Response[v1.ListPayeesResponse], error) {
+	return c.listPayees.CallUnary(ctx, req)
 }
 
 // DeleteTransaction calls float.v1.LedgerService.DeleteTransaction.
@@ -285,6 +301,7 @@ type LedgerServiceHandler interface {
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
+	ListPayees(context.Context, *connect.Request[v1.ListPayeesRequest]) (*connect.Response[v1.ListPayeesResponse], error)
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
 	ModifyTags(context.Context, *connect.Request[v1.ModifyTagsRequest]) (*connect.Response[v1.ModifyTagsResponse], error)
 	UpdateTransactionDate(context.Context, *connect.Request[v1.UpdateTransactionDateRequest]) (*connect.Response[v1.UpdateTransactionDateResponse], error)
@@ -326,6 +343,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceListTagsProcedure,
 		svc.ListTags,
 		connect.WithSchema(ledgerServiceMethods.ByName("ListTags")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceListPayeesHandler := connect.NewUnaryHandler(
+		LedgerServiceListPayeesProcedure,
+		svc.ListPayees,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListPayees")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceDeleteTransactionHandler := connect.NewUnaryHandler(
@@ -398,6 +421,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceListAccountsHandler.ServeHTTP(w, r)
 		case LedgerServiceListTagsProcedure:
 			ledgerServiceListTagsHandler.ServeHTTP(w, r)
+		case LedgerServiceListPayeesProcedure:
+			ledgerServiceListPayeesHandler.ServeHTTP(w, r)
 		case LedgerServiceDeleteTransactionProcedure:
 			ledgerServiceDeleteTransactionHandler.ServeHTTP(w, r)
 		case LedgerServiceModifyTagsProcedure:
@@ -441,6 +466,10 @@ func (UnimplementedLedgerServiceHandler) ListAccounts(context.Context, *connect.
 
 func (UnimplementedLedgerServiceHandler) ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListTags is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListPayees(context.Context, *connect.Request[v1.ListPayeesRequest]) (*connect.Response[v1.ListPayeesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListPayees is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error) {

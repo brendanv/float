@@ -1225,3 +1225,77 @@ func TestUpdateTransactionHandler(t *testing.T) {
 	})
 }
 
+const payeesText = "Acme Corp\nGrocery Store\n"
+
+func TestListPayees(t *testing.T) {
+	h := mustHandler(t, map[string][]byte{
+		"payees": []byte(payeesText),
+	})
+
+	resp, err := h.ListPayees(t.Context(), connect.NewRequest(&floatv1.ListPayeesRequest{}))
+	if err != nil {
+		t.Fatalf("ListPayees: %v", err)
+	}
+
+	payees := resp.Msg.Payees
+	if len(payees) != 2 {
+		t.Fatalf("expected 2 payees, got %d", len(payees))
+	}
+	if payees[0] != "Acme Corp" {
+		t.Errorf("payees[0] = %q, want %q", payees[0], "Acme Corp")
+	}
+	if payees[1] != "Grocery Store" {
+		t.Errorf("payees[1] = %q, want %q", payees[1], "Grocery Store")
+	}
+}
+
+func TestListPayees_HledgerError(t *testing.T) {
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", errorRunner(t))
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", nil)
+	_, err = h.ListPayees(t.Context(), connect.NewRequest(&floatv1.ListPayeesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestListPayees_CacheHit(t *testing.T) {
+	var calls atomic.Int64
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		calls.Add(1)
+		return []byte(payeesText), nil, nil
+	}
+	h, _ := mustHandlerWithCache(t, runner)
+
+	req := connect.NewRequest(&floatv1.ListPayeesRequest{})
+	if _, err := h.ListPayees(t.Context(), req); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	if _, err := h.ListPayees(t.Context(), req); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+
+	if calls.Load() != 1 {
+		t.Errorf("hledger called %d times, want 1", calls.Load())
+	}
+}
+
+func TestListPayees_CacheError(t *testing.T) {
+	h, _ := mustHandlerWithCache(t, errorRunner(t))
+	_, err := h.ListPayees(t.Context(), connect.NewRequest(&floatv1.ListPayeesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+

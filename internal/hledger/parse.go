@@ -252,3 +252,16 @@ func parseTags(data []byte) []string {
 	}
 	return tags
 }
+
+// parsePayees parses `hledger payees` output: one payee name per line.
+// Filters out empty lines.
+func parsePayees(data []byte) []string {
+	var payees []string
+	for _, line := range strings.Split(string(data), "\n") {
+		p := strings.TrimSpace(line)
+		if p != "" {
+			payees = append(payees, p)
+		}
+	}
+	return payees
+}
