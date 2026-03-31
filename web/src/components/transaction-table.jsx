@@ -97,11 +97,11 @@ function StatusButton({ fid, status, onStatusChange }) {
   );
 }
 
-function EditableDescriptionCell({ fid, description, date, postings, onSaved }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(description);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+function EditableDescriptionCell({ fid, description, date, postings, payee, note, onSaved }) {
+   const [editing, setEditing] = useState(false);
+   const [draft, setDraft] = useState(description);
+   const [saving, setSaving] = useState(false);
+   const [error, setError] = useState(null);
 
   async function save() {
     if (draft.trim() === description) { setEditing(false); return; }
@@ -155,7 +155,14 @@ function EditableDescriptionCell({ fid, description, date, postings, onSaved }) 
       class="cursor-text hover:underline decoration-dotted"
       title="Click to edit description"
     >
-      {description}
+      {payee && note ? (
+        <>
+          <strong>{payee}</strong>
+          <span class="text-base-content/60"> · {note}</span>
+        </>
+      ) : (
+        description
+      )}
     </span>
   );
 }
@@ -289,6 +296,8 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                         description={tx.description}
                         date={tx.date}
                         postings={tx.postings}
+                        payee={tx.payee}
+                        note={tx.note}
                         onSaved={onStatusChange}
                       />
                       {tx.tags && Object.keys(tx.tags).length > 0 && (
@@ -344,6 +353,8 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                         description={tx.description}
                         date={tx.date}
                         postings={tx.postings}
+                        payee={tx.payee}
+                        note={tx.note}
                         onSaved={onStatusChange}
                       />
                     </span>
