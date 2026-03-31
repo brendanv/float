@@ -224,6 +224,18 @@ func (c *Client) Tags(ctx context.Context) ([]string, error) {
 	return parseTags(stdout), nil
 }
 
+// Payees runs `hledger payees -f <journal>` and returns the list of unique payees.
+func (c *Client) Payees(ctx context.Context) ([]string, error) {
+	args := []string{"payees", "-f", c.journal}
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger payees: %w", err))
+	}
+
+	return parsePayees(stdout), nil
+}
+
 // PrintText runs `hledger print -f <journalFile>` and returns the plain-text
 // output. Used to normalize/canonicalize transaction text before appending to
 // real journal files.

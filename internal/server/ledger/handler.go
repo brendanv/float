@@ -49,6 +49,7 @@ func balancesKey(depth int, query []string) string {
 
 const accountsKey = "accounts"
 const tagsKey = "tags"
+const payeesKey = "payees"
 
 func netWorthKey(begin, end string) string {
 	return fmt.Sprintf("networth:%s:%s", begin, end)
@@ -103,6 +104,20 @@ func cachedTags(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([
 	}
 	val, err := c.Get(ctx, tagsKey, func(ctx context.Context) (any, error) {
 		return hl.Tags(ctx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.([]string), nil
+}
+
+// cachedPayees fetches payee names from cache or hledger.
+func cachedPayees(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([]string, error) {
+	if c == nil {
+		return hl.Payees(ctx)
+	}
+	val, err := c.Get(ctx, payeesKey, func(ctx context.Context) (any, error) {
+		return hl.Payees(ctx)
 	})
 	if err != nil {
 		return nil, err
@@ -217,6 +232,16 @@ func (h *Handler) ListTags(ctx context.Context, req *connect.Request[floatv1.Lis
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(&floatv1.ListTagsResponse{Tags: tags}), nil
+}
+
+func (h *Handler) ListPayees(ctx context.Context, req *connect.Request[floatv1.ListPayeesRequest]) (*connect.Response[floatv1.ListPayeesResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	payees, err := cachedPayees(ctx, h.cache, h.hl)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger payees failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.ListPayeesResponse{Payees: payees}), nil
 }
 
 func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[floatv1.DeleteTransactionRequest]) (*connect.Response[floatv1.DeleteTransactionResponse], error) {

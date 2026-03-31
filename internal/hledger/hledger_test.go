@@ -624,3 +624,61 @@ func TestTags(t *testing.T) {
 		}
 	})
 }
+
+func TestPayees(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   []string
+	}{
+		{
+			name:   "filters empty lines",
+			output: "Acme Corp\nGrocery Store\n\n",
+			want:   []string{"Acme Corp", "Grocery Store"},
+		},
+		{
+			name:   "empty output",
+			output: "",
+			want:   nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payeesOutput := tt.output
+			runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+				if len(args) > 0 && args[0] == "--version" {
+					return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+				}
+				return []byte(payeesOutput), nil, nil
+			}
+			c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+			if err != nil {
+				t.Fatalf("NewWithRunner: %v", err)
+			}
+			got, err := c.Payees(t.Context())
+			if err != nil {
+				t.Fatalf("Payees: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i, w := range tt.want {
+				if got[i] != w {
+					t.Errorf("payees[%d] = %q, want %q", i, got[i], w)
+				}
+			}
+		})
+	}
+
+	// Integration smoke test: Payees() against the real journal runs without error.
+	t.Run("integration", func(t *testing.T) {
+		c, err := hledger.New("hledger", "testdata/simple.journal")
+		if err != nil {
+			t.Skip("hledger binary not available:", err)
+		}
+		_, err = c.Payees(t.Context())
+		if err != nil {
+			t.Fatalf("Payees: %v", err)
+		}
+	})
+}
