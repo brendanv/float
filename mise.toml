@@ -128,6 +128,7 @@ run = "cd web && bun install"
 
 [tasks.web-gen]
 description = "Generate JS protobuf code from .proto files"
+depends = ["web-install"]
 run = "cd web && bunx buf generate --template buf.gen.yaml ../proto"
 
 [tasks.web-build]
