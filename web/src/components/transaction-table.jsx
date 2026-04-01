@@ -2,6 +2,7 @@ import { useState, useRef } from "preact/hooks";
 import { ledgerClient } from "../client.js";
 import { formatAmounts, formatDate } from "../format.js";
 import { PostingFields } from "./posting-fields.jsx";
+import { navigate } from "../router.jsx";
 
 function firstQuantity(posting) {
   if (!posting.amounts || posting.amounts.length === 0) return 0;
@@ -155,10 +156,14 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
       class="cursor-text hover:underline decoration-dotted"
       title="Click to edit description"
     >
-      {payee && note ? (
+      {payee ? (
         <>
-          <strong>{payee}</strong>
-          <span class="text-base-content/60"> · {note}</span>
+          <strong
+            class="cursor-pointer hover:underline"
+            onClick={(e) => { e.stopPropagation(); navigate("/transactions?payee=" + encodeURIComponent(payee)); }}
+            title={"Show all transactions for " + payee}
+          >{payee}</strong>
+          {note && <span class="text-base-content/60"> · {note}</span>}
         </>
       ) : (
         description
