@@ -33,7 +33,9 @@ export const mockTransactions = [
   {
     fid: "a1b2c3d4",
     date: "2026-03-25",
-    description: "Whole Foods Market",
+    description: "Whole Foods Market | weekly groceries",
+    payee: "Whole Foods Market",
+    note: "weekly groceries",
     status: "Pending",
     postings: [
       { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "87.43" }] },
@@ -44,7 +46,9 @@ export const mockTransactions = [
   {
     fid: "a1b2c3d5",
     date: "2026-03-25",
-    description: "Amazon",
+    description: "Amazon | desk lamp",
+    payee: "Amazon",
+    note: "desk lamp",
     status: "Pending",
     postings: [
       { account: "expenses:shopping", amounts: [{ commodity: "$", quantity: "34.99" }] },
@@ -55,7 +59,9 @@ export const mockTransactions = [
   {
     fid: "b2c3d4e5",
     date: "2026-03-24",
-    description: "Monthly Salary",
+    description: "Acme Corp | March salary",
+    payee: "Acme Corp",
+    note: "March salary",
     status: "Cleared",
     postings: [
       { account: "assets:checking", amounts: [{ commodity: "$", quantity: "5200.00" }] },
@@ -66,7 +72,9 @@ export const mockTransactions = [
   {
     fid: "c3d4e5f6",
     date: "2026-03-22",
-    description: "Chipotle",
+    description: "Chipotle | lunch",
+    payee: "Chipotle",
+    note: "lunch",
     status: "Pending",
     postings: [
       { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "14.75" }] },
@@ -77,7 +85,9 @@ export const mockTransactions = [
   {
     fid: "c3d4e5f7",
     date: "2026-03-22",
-    description: "Starbucks",
+    description: "Starbucks | morning coffee",
+    payee: "Starbucks",
+    note: "morning coffee",
     status: "Cleared",
     postings: [
       { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "6.50" }] },
@@ -110,7 +120,9 @@ export const mockTransactions = [
   {
     fid: "e5f6g7h8",
     date: "2026-03-18",
-    description: "Trader Joe's",
+    description: "Whole Foods Market | produce run",
+    payee: "Whole Foods Market",
+    note: "produce run",
     status: "Pending",
     postings: [
       { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "62.18" }] },
