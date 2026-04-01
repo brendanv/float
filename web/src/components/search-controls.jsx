@@ -120,10 +120,12 @@ export function SearchControls({
   account,
   tag,
   status,
+  payee,
   onDateRangeChange,
   onAccountChange,
   onTagChange,
   onStatusChange,
+  onPayeeChange,
   accounts,
   tags,
 }) {
@@ -231,8 +233,20 @@ export function SearchControls({
       </div>
 
       {/* Active filter chips */}
-      {(account || tag || status || !activePreset) && (
+      {(account || tag || status || payee || !activePreset) && (
         <div class="flex flex-wrap gap-1">
+          {payee && (
+            <div class="badge badge-neutral gap-1">
+              payee: {payee}
+              <button
+                class="cursor-pointer opacity-60 hover:opacity-100"
+                onClick={() => onPayeeChange("")}
+                aria-label="Clear payee filter"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {account && (
             <div class="badge badge-neutral gap-1">
               acct: {account}

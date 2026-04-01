@@ -15,10 +15,11 @@ export function TransactionsPage({ params }) {
   const [account, setAccount] = useState(params?.account || "");
   const [tag, setTag] = useState("");
   const [status, setStatus] = useState("");
+  const [payee, setPayee] = useState(params?.payee || "");
   const [refreshKey, setRefreshKey] = useState(0);
   const [page, setPage] = useState(0);
 
-  const query = buildQuery(dateFrom, dateTo, account, tag, status);
+  const query = buildQuery(dateFrom, dateTo, account, tag, status, payee);
 
   const { data, loading, error } = useRpc(
     () =>
@@ -27,7 +28,7 @@ export function TransactionsPage({ params }) {
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       }),
-    [dateFrom, dateTo, account, tag, status, refreshKey, page]
+    [dateFrom, dateTo, account, tag, status, payee, refreshKey, page]
   );
 
   const { data: accountsData } = useRpc(() => ledgerClient.listAccounts({}), []);
@@ -64,10 +65,12 @@ export function TransactionsPage({ params }) {
         account={account}
         tag={tag}
         status={status}
+        payee={payee}
         onDateRangeChange={onDateRangeChange}
         onAccountChange={onFilterChange(setAccount)}
         onTagChange={onFilterChange(setTag)}
         onStatusChange={onFilterChange(setStatus)}
+        onPayeeChange={onFilterChange(setPayee)}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
       />
@@ -113,11 +116,12 @@ export function TransactionsPage({ params }) {
   );
 }
 
-function buildQuery(dateFrom, dateTo, account, tag, status) {
+function buildQuery(dateFrom, dateTo, account, tag, status, payee) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (account) tokens.push(`acct:${account}`);
   if (tag) tokens.push(`tag:${tag}`);
+  if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
   return tokens;
