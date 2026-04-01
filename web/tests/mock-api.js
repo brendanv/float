@@ -186,9 +186,22 @@ export async function mockLedgerApi(page) {
           },
         };
         break;
-      case "ListTransactions":
-        body = { transactions: mockTransactions };
+      case "ListTransactions": {
+        let txs = mockTransactions;
+        const query = reqBody.query || [];
+        for (const token of query) {
+          if (token.startsWith("payee:")) {
+            const payeeFilter = token.slice("payee:".length).toLowerCase();
+            txs = txs.filter((tx) => tx.payee && tx.payee.toLowerCase().includes(payeeFilter));
+          }
+          if (token.startsWith("acct:")) {
+            const acctFilter = token.slice("acct:".length).toLowerCase();
+            txs = txs.filter((tx) => tx.postings && tx.postings.some((p) => p.account.toLowerCase().includes(acctFilter)));
+          }
+        }
+        body = { transactions: txs };
         break;
+      }
       case "GetNetWorthTimeseries":
         body = { snapshots: mockNetWorthSnapshots };
         break;
