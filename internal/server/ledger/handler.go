@@ -469,6 +469,59 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 	}), nil
 }
 
+func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request[floatv1.BulkEditTransactionsRequest]) (*connect.Response[floatv1.BulkEditTransactionsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if len(req.Msg.Fids) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fids is required and must be non-empty"))
+	}
+	for _, fid := range req.Msg.Fids {
+		if fid == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fids must not contain empty strings"))
+		}
+	}
+	if addKey := req.Msg.GetAddTagKey(); strings.HasPrefix(addKey, hledger.HiddenMetaPrefix) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("add_tag_key must not start with %q", hledger.HiddenMetaPrefix))
+	}
+	if removeKey := req.Msg.GetRemoveTagKey(); strings.HasPrefix(removeKey, hledger.HiddenMetaPrefix) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("remove_tag_key must not start with %q", hledger.HiddenMetaPrefix))
+	}
+
+	err := h.lock.Do(ctx, func() error {
+		return journal.BulkEditTransactions(
+			ctx, h.hl, h.dataDir,
+			req.Msg.Fids,
+			req.Msg.Reviewed,
+			req.Msg.GetAddTagKey(),
+			req.Msg.GetAddTagValue(),
+			req.Msg.GetRemoveTagKey(),
+			req.Msg.SetPayee,
+		)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "no transaction found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "bulk edit transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	result := make([]*floatv1.Transaction, 0, len(req.Msg.Fids))
+	for _, fid := range req.Msg.Fids {
+		txns, err := h.hl.Transactions(ctx, "code:"+fid)
+		if err != nil {
+			logger.ErrorContext(ctx, "fetch transaction after bulk edit failed", "fid", fid, "error", err)
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		if len(txns) == 0 {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after bulk edit", fid))
+		}
+		result = append(result, toProtoTransaction(txns[0]))
+	}
+	return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{
+		Transactions: result,
+	}), nil
+}
+
 func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 	postings := make([]*floatv1.Posting, len(t.Postings))
 	for i, p := range t.Postings {

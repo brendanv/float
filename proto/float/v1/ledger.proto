@@ -192,6 +192,30 @@ message DeletePriceRequest {
 
 message DeletePriceResponse {}
 
+message BulkEditTransactionsRequest {
+  repeated string fids = 1; // required; non-empty list of FIDs to modify
+
+  // reviewed: if set, marks (true) or clears (false) the Cleared status (* marker).
+  // Absent = no change. Matches TUI filter "status:*" / "not:status:*".
+  optional bool reviewed = 2;
+
+  // add_tag: if add_tag_key is non-empty, adds or replaces this tag on every transaction.
+  // Key must not start with "float-".
+  optional string add_tag_key   = 3;
+  optional string add_tag_value = 4;
+
+  // remove_tag_key: if non-empty, removes this tag key from every transaction.
+  // Key must not start with "float-".
+  optional string remove_tag_key = 5;
+
+  // set_payee: if present, sets the payee (empty string clears it). Absent = no change.
+  optional string set_payee = 6;
+}
+
+message BulkEditTransactionsResponse {
+  repeated Transaction transactions = 1; // updated state for each FID, in request order
+}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
@@ -208,4 +232,5 @@ service LedgerService {
   rpc ListPrices(ListPricesRequest) returns (ListPricesResponse);
   rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
   rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);
+  rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
 }

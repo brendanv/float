@@ -2049,6 +2049,141 @@ func (*DeletePriceResponse) Descriptor() ([]byte, []int) {
 	return file_float_v1_ledger_proto_rawDescGZIP(), []int{38}
 }
 
+type BulkEditTransactionsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Fids  []string               `protobuf:"bytes,1,rep,name=fids,proto3" json:"fids,omitempty"` // required; non-empty list of FIDs to modify
+	// reviewed: if set, marks (true) or clears (false) the Cleared status (* marker).
+	// Absent = no change. Matches TUI filter "status:*" / "not:status:*".
+	Reviewed *bool `protobuf:"varint,2,opt,name=reviewed,proto3,oneof" json:"reviewed,omitempty"`
+	// add_tag: if add_tag_key is non-empty, adds or replaces this tag on every transaction.
+	// Key must not start with "float-".
+	AddTagKey   *string `protobuf:"bytes,3,opt,name=add_tag_key,json=addTagKey,proto3,oneof" json:"add_tag_key,omitempty"`
+	AddTagValue *string `protobuf:"bytes,4,opt,name=add_tag_value,json=addTagValue,proto3,oneof" json:"add_tag_value,omitempty"`
+	// remove_tag_key: if non-empty, removes this tag key from every transaction.
+	// Key must not start with "float-".
+	RemoveTagKey *string `protobuf:"bytes,5,opt,name=remove_tag_key,json=removeTagKey,proto3,oneof" json:"remove_tag_key,omitempty"`
+	// set_payee: if present, sets the payee (empty string clears it). Absent = no change.
+	SetPayee      *string `protobuf:"bytes,6,opt,name=set_payee,json=setPayee,proto3,oneof" json:"set_payee,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkEditTransactionsRequest) Reset() {
+	*x = BulkEditTransactionsRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkEditTransactionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkEditTransactionsRequest) ProtoMessage() {}
+
+func (x *BulkEditTransactionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkEditTransactionsRequest.ProtoReflect.Descriptor instead.
+func (*BulkEditTransactionsRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *BulkEditTransactionsRequest) GetFids() []string {
+	if x != nil {
+		return x.Fids
+	}
+	return nil
+}
+
+func (x *BulkEditTransactionsRequest) GetReviewed() bool {
+	if x != nil && x.Reviewed != nil {
+		return *x.Reviewed
+	}
+	return false
+}
+
+func (x *BulkEditTransactionsRequest) GetAddTagKey() string {
+	if x != nil && x.AddTagKey != nil {
+		return *x.AddTagKey
+	}
+	return ""
+}
+
+func (x *BulkEditTransactionsRequest) GetAddTagValue() string {
+	if x != nil && x.AddTagValue != nil {
+		return *x.AddTagValue
+	}
+	return ""
+}
+
+func (x *BulkEditTransactionsRequest) GetRemoveTagKey() string {
+	if x != nil && x.RemoveTagKey != nil {
+		return *x.RemoveTagKey
+	}
+	return ""
+}
+
+func (x *BulkEditTransactionsRequest) GetSetPayee() string {
+	if x != nil && x.SetPayee != nil {
+		return *x.SetPayee
+	}
+	return ""
+}
+
+type BulkEditTransactionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Transactions  []*Transaction         `protobuf:"bytes,1,rep,name=transactions,proto3" json:"transactions,omitempty"` // updated state for each FID, in request order
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BulkEditTransactionsResponse) Reset() {
+	*x = BulkEditTransactionsResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BulkEditTransactionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BulkEditTransactionsResponse) ProtoMessage() {}
+
+func (x *BulkEditTransactionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BulkEditTransactionsResponse.ProtoReflect.Descriptor instead.
+func (*BulkEditTransactionsResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *BulkEditTransactionsResponse) GetTransactions() []*Transaction {
+	if x != nil {
+		return x.Transactions
+	}
+	return nil
+}
+
 var File_float_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_float_v1_ledger_proto_rawDesc = "" +
@@ -2179,7 +2314,22 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x05price\x18\x01 \x01(\v2\x18.float.v1.PriceDirectiveR\x05price\"&\n" +
 	"\x12DeletePriceRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\tR\x03pid\"\x15\n" +
-	"\x13DeletePriceResponse2\x87\n" +
+	"\x13DeletePriceResponse\"\xbd\x02\n" +
+	"\x1bBulkEditTransactionsRequest\x12\x12\n" +
+	"\x04fids\x18\x01 \x03(\tR\x04fids\x12\x1f\n" +
+	"\breviewed\x18\x02 \x01(\bH\x00R\breviewed\x88\x01\x01\x12#\n" +
+	"\vadd_tag_key\x18\x03 \x01(\tH\x01R\taddTagKey\x88\x01\x01\x12'\n" +
+	"\radd_tag_value\x18\x04 \x01(\tH\x02R\vaddTagValue\x88\x01\x01\x12)\n" +
+	"\x0eremove_tag_key\x18\x05 \x01(\tH\x03R\fremoveTagKey\x88\x01\x01\x12 \n" +
+	"\tset_payee\x18\x06 \x01(\tH\x04R\bsetPayee\x88\x01\x01B\v\n" +
+	"\t_reviewedB\x0e\n" +
+	"\f_add_tag_keyB\x10\n" +
+	"\x0e_add_tag_valueB\x11\n" +
+	"\x0f_remove_tag_keyB\f\n" +
+	"\n" +
+	"_set_payee\"Y\n" +
+	"\x1cBulkEditTransactionsResponse\x129\n" +
+	"\ftransactions\x18\x01 \x03(\v2\x15.float.v1.TransactionR\ftransactions2\xee\n" +
 	"\n" +
 	"\rLedgerService\x12Y\n" +
 	"\x10ListTransactions\x12!.float.v1.ListTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12J\n" +
@@ -2199,7 +2349,8 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\n" +
 	"ListPrices\x12\x1b.float.v1.ListPricesRequest\x1a\x1c.float.v1.ListPricesResponse\x12A\n" +
 	"\bAddPrice\x12\x19.float.v1.AddPriceRequest\x1a\x1a.float.v1.AddPriceResponse\x12J\n" +
-	"\vDeletePrice\x12\x1c.float.v1.DeletePriceRequest\x1a\x1d.float.v1.DeletePriceResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
+	"\vDeletePrice\x12\x1c.float.v1.DeletePriceRequest\x1a\x1d.float.v1.DeletePriceResponse\x12e\n" +
+	"\x14BulkEditTransactions\x12%.float.v1.BulkEditTransactionsRequest\x1a&.float.v1.BulkEditTransactionsResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
 
 var (
 	file_float_v1_ledger_proto_rawDescOnce sync.Once
@@ -2213,7 +2364,7 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_float_v1_ledger_proto_goTypes = []any{
 	(*Amount)(nil),                          // 0: float.v1.Amount
 	(*Posting)(nil),                         // 1: float.v1.Posting
@@ -2254,13 +2405,15 @@ var file_float_v1_ledger_proto_goTypes = []any{
 	(*AddPriceResponse)(nil),                // 36: float.v1.AddPriceResponse
 	(*DeletePriceRequest)(nil),              // 37: float.v1.DeletePriceRequest
 	(*DeletePriceResponse)(nil),             // 38: float.v1.DeletePriceResponse
-	nil,                                     // 39: float.v1.Transaction.TagsEntry
-	nil,                                     // 40: float.v1.ModifyTagsRequest.TagsEntry
+	(*BulkEditTransactionsRequest)(nil),     // 39: float.v1.BulkEditTransactionsRequest
+	(*BulkEditTransactionsResponse)(nil),    // 40: float.v1.BulkEditTransactionsResponse
+	nil,                                     // 41: float.v1.Transaction.TagsEntry
+	nil,                                     // 42: float.v1.ModifyTagsRequest.TagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
 	1,  // 1: float.v1.Transaction.postings:type_name -> float.v1.Posting
-	39, // 2: float.v1.Transaction.tags:type_name -> float.v1.Transaction.TagsEntry
+	41, // 2: float.v1.Transaction.tags:type_name -> float.v1.Transaction.TagsEntry
 	0,  // 3: float.v1.BalanceRow.amounts:type_name -> float.v1.Amount
 	3,  // 4: float.v1.BalanceReport.rows:type_name -> float.v1.BalanceRow
 	0,  // 5: float.v1.BalanceReport.total:type_name -> float.v1.Amount
@@ -2271,7 +2424,7 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	2,  // 10: float.v1.ListTransactionsResponse.transactions:type_name -> float.v1.Transaction
 	4,  // 11: float.v1.GetBalancesResponse.report:type_name -> float.v1.BalanceReport
 	5,  // 12: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	40, // 13: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	42, // 13: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
 	2,  // 14: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
 	25, // 15: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
 	2,  // 16: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
@@ -2281,41 +2434,44 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 20: float.v1.PriceDirective.price:type_name -> float.v1.Amount
 	32, // 21: float.v1.ListPricesResponse.prices:type_name -> float.v1.PriceDirective
 	32, // 22: float.v1.AddPriceResponse.price:type_name -> float.v1.PriceDirective
-	9,  // 23: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
-	11, // 24: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
-	13, // 25: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
-	15, // 26: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
-	17, // 27: float.v1.LedgerService.ListPayees:input_type -> float.v1.ListPayeesRequest
-	19, // 28: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
-	21, // 29: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
-	23, // 30: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
-	28, // 31: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
-	26, // 32: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
-	30, // 33: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
-	7,  // 34: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
-	33, // 35: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
-	35, // 36: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
-	37, // 37: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
-	10, // 38: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	12, // 39: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	14, // 40: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	16, // 41: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
-	18, // 42: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
-	20, // 43: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	22, // 44: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	24, // 45: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	29, // 46: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
-	27, // 47: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	31, // 48: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
-	8,  // 49: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	34, // 50: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
-	36, // 51: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
-	38, // 52: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
-	38, // [38:53] is the sub-list for method output_type
-	23, // [23:38] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	2,  // 23: float.v1.BulkEditTransactionsResponse.transactions:type_name -> float.v1.Transaction
+	9,  // 24: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
+	11, // 25: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
+	13, // 26: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
+	15, // 27: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
+	17, // 28: float.v1.LedgerService.ListPayees:input_type -> float.v1.ListPayeesRequest
+	19, // 29: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
+	21, // 30: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
+	23, // 31: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
+	28, // 32: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
+	26, // 33: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
+	30, // 34: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
+	7,  // 35: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
+	33, // 36: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
+	35, // 37: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
+	37, // 38: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
+	39, // 39: float.v1.LedgerService.BulkEditTransactions:input_type -> float.v1.BulkEditTransactionsRequest
+	10, // 40: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	12, // 41: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	14, // 42: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	16, // 43: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
+	18, // 44: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
+	20, // 45: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	22, // 46: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	24, // 47: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	29, // 48: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	27, // 49: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	31, // 50: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
+	8,  // 51: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	34, // 52: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
+	36, // 53: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
+	38, // 54: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
+	40, // 55: float.v1.LedgerService.BulkEditTransactions:output_type -> float.v1.BulkEditTransactionsResponse
+	40, // [40:56] is the sub-list for method output_type
+	24, // [24:40] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_float_v1_ledger_proto_init() }
@@ -2324,13 +2480,14 @@ func file_float_v1_ledger_proto_init() {
 		return
 	}
 	file_float_v1_ledger_proto_msgTypes[2].OneofWrappers = []any{}
+	file_float_v1_ledger_proto_msgTypes[39].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   41,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
