@@ -76,6 +76,12 @@ const (
 	// LedgerServiceDeletePriceProcedure is the fully-qualified name of the LedgerService's DeletePrice
 	// RPC.
 	LedgerServiceDeletePriceProcedure = "/float.v1.LedgerService/DeletePrice"
+	// LedgerServiceListSnapshotsProcedure is the fully-qualified name of the LedgerService's
+	// ListSnapshots RPC.
+	LedgerServiceListSnapshotsProcedure = "/float.v1.LedgerService/ListSnapshots"
+	// LedgerServiceRestoreSnapshotProcedure is the fully-qualified name of the LedgerService's
+	// RestoreSnapshot RPC.
+	LedgerServiceRestoreSnapshotProcedure = "/float.v1.LedgerService/RestoreSnapshot"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -95,6 +101,8 @@ type LedgerServiceClient interface {
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
+	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
+	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -198,6 +206,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
 			connect.WithClientOptions(opts...),
 		),
+		listSnapshots: connect.NewClient[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse](
+			httpClient,
+			baseURL+LedgerServiceListSnapshotsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListSnapshots")),
+			connect.WithClientOptions(opts...),
+		),
+		restoreSnapshot: connect.NewClient[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse](
+			httpClient,
+			baseURL+LedgerServiceRestoreSnapshotProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -218,6 +238,8 @@ type ledgerServiceClient struct {
 	listPrices              *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
 	addPrice                *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
 	deletePrice             *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
+	listSnapshots           *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
+	restoreSnapshot         *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -295,6 +317,16 @@ func (c *ledgerServiceClient) DeletePrice(ctx context.Context, req *connect.Requ
 	return c.deletePrice.CallUnary(ctx, req)
 }
 
+// ListSnapshots calls float.v1.LedgerService.ListSnapshots.
+func (c *ledgerServiceClient) ListSnapshots(ctx context.Context, req *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error) {
+	return c.listSnapshots.CallUnary(ctx, req)
+}
+
+// RestoreSnapshot calls float.v1.LedgerService.RestoreSnapshot.
+func (c *ledgerServiceClient) RestoreSnapshot(ctx context.Context, req *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error) {
+	return c.restoreSnapshot.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -312,6 +344,8 @@ type LedgerServiceHandler interface {
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
+	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
+	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -411,6 +445,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceListSnapshotsHandler := connect.NewUnaryHandler(
+		LedgerServiceListSnapshotsProcedure,
+		svc.ListSnapshots,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListSnapshots")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceRestoreSnapshotHandler := connect.NewUnaryHandler(
+		LedgerServiceRestoreSnapshotProcedure,
+		svc.RestoreSnapshot,
+		connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -443,6 +489,10 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceAddPriceHandler.ServeHTTP(w, r)
 		case LedgerServiceDeletePriceProcedure:
 			ledgerServiceDeletePriceHandler.ServeHTTP(w, r)
+		case LedgerServiceListSnapshotsProcedure:
+			ledgerServiceListSnapshotsHandler.ServeHTTP(w, r)
+		case LedgerServiceRestoreSnapshotProcedure:
+			ledgerServiceRestoreSnapshotHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -510,4 +560,12 @@ func (UnimplementedLedgerServiceHandler) AddPrice(context.Context, *connect.Requ
 
 func (UnimplementedLedgerServiceHandler) DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeletePrice is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListSnapshots is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RestoreSnapshot is not implemented"))
 }

@@ -10,4 +10,6 @@ Serializes all journal mutations. Every write to `.journal` files must go throug
 4. If `fn` fails or `hledger check` fails: revert all journal files from snapshot, return error
 5. On success: bump atomic generation counter (triggers full cache flush in `internal/cache/`)
 
-`TxLock` does not commit to git — the caller (`LedgerService`) is responsible for calling `internal/gitsnap/` after a successful `Do`. Files created by `fn` that weren't in the snapshot are deleted on revert.
+After a successful write and generation bump, `TxLock` calls `gitsnap.Commit()` if a `Repo` has been configured via `SetSnap()`. Git commit failure is non-fatal (logged as a warning). Files created by `fn` that weren't in the snapshot are deleted on revert.
+
+`BumpGeneration()` can be called directly (without a write) to invalidate the cache after out-of-band file changes, such as a git restore.

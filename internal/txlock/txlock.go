@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
 )
@@ -21,11 +22,24 @@ type TxLock struct {
 	dataDir string
 	client  *hledger.Client
 	gen     atomic.Uint64
+	snap    *gitsnap.Repo // nil = no git integration
 }
 
 // New creates a TxLock for the given data directory and hledger client.
 func New(dataDir string, client *hledger.Client) *TxLock {
 	return &TxLock{dataDir: dataDir, client: client}
+}
+
+// SetSnap configures a gitsnap.Repo that will be committed after each
+// successful write. Must be called before any Do() calls.
+func (l *TxLock) SetSnap(snap *gitsnap.Repo) {
+	l.snap = snap
+}
+
+// BumpGeneration increments the generation counter without performing a write.
+// Used to invalidate the cache after out-of-band file changes (e.g. git restore).
+func (l *TxLock) BumpGeneration() uint64 {
+	return l.gen.Add(1)
 }
 
 // Generation returns the current generation counter value.
@@ -70,6 +84,13 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 
 	gen := l.gen.Add(1)
 	logger.Info("txlock: write committed", "generation", gen)
+	if l.snap != nil {
+		if err := l.snap.Commit(ctx, "float: write"); err != nil {
+			// Git commit failure is non-fatal: the journal write already succeeded
+			// and passed hledger check. Log a warning and continue.
+			logger.Warn("txlock: git commit failed", "error", err)
+		}
+	}
 	return nil
 }
 

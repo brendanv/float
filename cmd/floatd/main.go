@@ -16,6 +16,7 @@ import (
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/cache"
 	"github.com/brendanv/float/internal/config"
+	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/middleware"
@@ -65,6 +66,17 @@ func main() {
 
 	lock := txlock.New(*dataDir, hl)
 
+	snap, err := gitsnap.New(*dataDir)
+	if err != nil {
+		slog.Error("gitsnap init", "error", err)
+		os.Exit(1)
+	}
+	if err := snap.RecoverUncommitted(context.Background()); err != nil {
+		// Non-fatal: log a warning and continue startup.
+		slog.Warn("gitsnap: recovery snapshot failed", "error", err)
+	}
+	lock.SetSnap(snap)
+
 	var backfillCount int
 	if err := lock.Do(context.Background(), func() error {
 		n, err := journal.MigrateFIDs(*dataDir)
@@ -79,7 +91,7 @@ func main() {
 	}
 
 	c := cache.New[any](lock.Generation)
-	handler := serverledger.NewHandler(hl, lock, *dataDir, c)
+	handler := serverledger.NewHandler(hl, lock, *dataDir, c, snap)
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,

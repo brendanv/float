@@ -14,7 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
+
 	"github.com/brendanv/float/internal/config"
+	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/txlock"
@@ -75,6 +78,18 @@ func init() {
 			Name:     "audit",
 			Synopsis: "Audit journal integrity: check includes exist, FIDs are unique, no orphaned files",
 			Run:      runJournalAudit,
+		},
+		&Command{
+			Group:    "journal",
+			Name:     "snapshots",
+			Synopsis: "List recent git snapshots for the data directory",
+			Run:      runJournalSnapshots,
+		},
+		&Command{
+			Group:    "journal",
+			Name:     "restore",
+			Synopsis: "Restore the data directory to a previous git snapshot",
+			Run:      runJournalRestore,
 		},
 	)
 }
@@ -716,4 +731,70 @@ func hledgerTxnToInput(t hledger.Transaction) (journal.TransactionInput, error) 
 		Comment:     strings.TrimSpace(t.Comment),
 		Postings:    postings,
 	}, nil
+}
+
+func runJournalSnapshots(args []string) error {
+	fset := flag.NewFlagSet("journal snapshots", flag.ExitOnError)
+	limit := fset.Int("limit", 50, "maximum number of snapshots to return")
+	fset.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: floatctl journal snapshots <data-dir> [--limit N]")
+		fset.PrintDefaults()
+	}
+	if len(args) < 1 {
+		fset.Usage()
+		return fmt.Errorf("missing <data-dir> argument")
+	}
+	dataDir := args[0]
+	if err := fset.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	repo, err := gitsnap.New(dataDir)
+	if err != nil {
+		return fmt.Errorf("open git repo: %w", err)
+	}
+	snaps, err := repo.List(context.Background(), *limit)
+	if err != nil {
+		return fmt.Errorf("list snapshots: %w", err)
+	}
+
+	type jsonSnap struct {
+		Hash      string `json:"hash"`
+		Message   string `json:"message"`
+		Timestamp string `json:"timestamp"`
+	}
+	out := make([]jsonSnap, len(snaps))
+	for i, s := range snaps {
+		out[i] = jsonSnap{
+			Hash:      s.Hash,
+			Message:   s.Message,
+			Timestamp: s.Timestamp.Format(time.RFC3339),
+		}
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+func runJournalRestore(args []string) error {
+	fset := flag.NewFlagSet("journal restore", flag.ExitOnError)
+	fset.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: floatctl journal restore <data-dir> <hash>")
+	}
+	if len(args) < 2 {
+		fset.Usage()
+		return fmt.Errorf("missing arguments: need <data-dir> and <hash>")
+	}
+	dataDir := args[0]
+	hash := args[1]
+
+	repo, err := gitsnap.New(dataDir)
+	if err != nil {
+		return fmt.Errorf("open git repo: %w", err)
+	}
+	if err := repo.Restore(context.Background(), hash); err != nil {
+		return fmt.Errorf("restore: %w", err)
+	}
+	fmt.Printf("restored to %s\n", hash)
+	return nil
 }
