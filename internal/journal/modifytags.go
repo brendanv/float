@@ -212,6 +212,26 @@ func ModifyFloatMeta(ctx context.Context, client *hledger.Client, dataDir, fid s
 	return nil
 }
 
+// freeTextComment extracts the free-text portion from a parsed hledger Transaction.Comment.
+// Hledger includes tag:value lines verbatim in the comment string; this strips them so the
+// result contains only human-written text suitable for use in TransactionInput.Comment.
+func freeTextComment(comment string) string {
+	var lines []string
+	for _, line := range strings.Split(strings.TrimSpace(comment), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Skip lines whose entire content is one or more tag:value patterns.
+		stripped := anyTagRe.ReplaceAllString(line, "")
+		stripped = strings.TrimSpace(strings.ReplaceAll(stripped, ",", " "))
+		if stripped != "" {
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 func stripNonFidTagsFromHeaderLine(line, fid string) string {
 	semiIdx := strings.Index(line, ";")
 	if semiIdx < 0 {

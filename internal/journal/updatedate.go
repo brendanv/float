@@ -36,7 +36,7 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 
 	t := txns[0]
 
-	comment := strings.TrimSpace(t.Comment)
+	comment := freeTextComment(t.Comment)
 
 	var postings []PostingInput
 	for _, p := range t.Postings {
@@ -58,6 +58,8 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 		Comment:     comment,
 		Postings:    postings,
 		FID:         fid,
+		Status:      t.Status,
+		FloatMeta:   t.FloatMeta,
 	}
 
 	if err := DeleteTransaction(ctx, client, dataDir, fid); err != nil {
