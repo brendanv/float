@@ -1,0 +1,14 @@
+account assets:checking
+account expenses:shopping
+account expenses:food
+
+2026-01-15 (aa001100) Amazon
+    ; category:food
+    ; float-import-id:batch123
+    ; float-updated-at:2026-01-15T10:00:00Z
+    expenses:shopping    $45.00
+    assets:checking
+
+2026-01-20 (bb002200) Whole Foods
+    expenses:food    $30.00
+    assets:checking

@@ -625,6 +625,91 @@ func TestTags(t *testing.T) {
 	})
 }
 
+func TestTransactionHiddenMeta(t *testing.T) {
+	t.Run("unit_parses_hidden_meta_from_tags", func(t *testing.T) {
+		const versionResp = "hledger 1.52, linux-x86_64\n"
+		// Simulate hledger JSON output where one transaction has float- tags mixed with a user tag.
+		const printJSON = `[
+			{"tindex":1,"tdate":"2026-01-15","tdate2":null,"tdescription":"Amazon","tcode":"aa001100","tcomment":"","ttags":[["category","food"],["float-import-id","batch123"],["float-updated-at","2026-01-15T10:00:00Z"]],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
+			{"tindex":2,"tdate":"2026-01-20","tdate2":null,"tdescription":"Whole Foods","tcode":"bb002200","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]}
+		]`
+
+		runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+			if len(args) > 0 && args[0] == "--version" {
+				return []byte(versionResp), nil, nil
+			}
+			return []byte(printJSON), nil, nil
+		}
+		c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+		if err != nil {
+			t.Fatalf("NewWithRunner: %v", err)
+		}
+		txns, err := c.Transactions(t.Context())
+		if err != nil {
+			t.Fatalf("Transactions: %v", err)
+		}
+		if len(txns) != 2 {
+			t.Fatalf("expected 2 transactions, got %d", len(txns))
+		}
+
+		// First transaction: should have hidden meta and still have all tags.
+		tx := txns[0]
+		if tx.HiddenMeta == nil {
+			t.Fatal("HiddenMeta is nil, expected non-nil")
+		}
+		if tx.HiddenMeta["float-import-id"] != "batch123" {
+			t.Errorf("float-import-id = %q, want %q", tx.HiddenMeta["float-import-id"], "batch123")
+		}
+		if tx.HiddenMeta["float-updated-at"] != "2026-01-15T10:00:00Z" {
+			t.Errorf("float-updated-at = %q, want %q", tx.HiddenMeta["float-updated-at"], "2026-01-15T10:00:00Z")
+		}
+		// HiddenMeta should NOT include user tag.
+		if _, ok := tx.HiddenMeta["category"]; ok {
+			t.Errorf("category should not be in HiddenMeta")
+		}
+		// Raw Tags should still include all tags (including float- ones).
+		tagMap := make(map[string]string)
+		for _, kv := range tx.Tags {
+			tagMap[kv[0]] = kv[1]
+		}
+		if tagMap["category"] != "food" {
+			t.Errorf("category tag in Tags = %q, want %q", tagMap["category"], "food")
+		}
+
+		// Second transaction: no hidden meta.
+		if txns[1].HiddenMeta != nil {
+			t.Errorf("expected nil HiddenMeta for transaction without float- tags, got %v", txns[1].HiddenMeta)
+		}
+	})
+
+	t.Run("integration_parses_hidden_meta_from_fixture", func(t *testing.T) {
+		c, err := hledger.New("hledger", "testdata/hiddenmeta.journal")
+		if err != nil {
+			t.Skip("hledger binary not available:", err)
+		}
+		txns, err := c.Transactions(t.Context())
+		if err != nil {
+			t.Fatalf("Transactions: %v", err)
+		}
+		if len(txns) != 2 {
+			t.Fatalf("expected 2 transactions, got %d", len(txns))
+		}
+		tx := txns[0]
+		if tx.HiddenMeta == nil {
+			t.Fatal("HiddenMeta is nil for first transaction")
+		}
+		if tx.HiddenMeta["float-import-id"] != "batch123" {
+			t.Errorf("float-import-id = %q, want %q", tx.HiddenMeta["float-import-id"], "batch123")
+		}
+		if tx.HiddenMeta["float-updated-at"] != "2026-01-15T10:00:00Z" {
+			t.Errorf("float-updated-at = %q, want %q", tx.HiddenMeta["float-updated-at"], "2026-01-15T10:00:00Z")
+		}
+		if txns[1].HiddenMeta != nil {
+			t.Errorf("second transaction should have no hidden meta, got %v", txns[1].HiddenMeta)
+		}
+	})
+}
+
 func TestPayees(t *testing.T) {
 	tests := []struct {
 		name   string

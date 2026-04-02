@@ -1299,3 +1299,42 @@ func TestListPayees_CacheError(t *testing.T) {
 	}
 }
 
+func TestListTransactions_HiddenMetaFiltered(t *testing.T) {
+	// A transaction with both user tags and float- hidden meta tags.
+	const jsonWithHiddenMeta = `[{
+		"tcode": "aa001100",
+		"tcomment": "",
+		"tdate": "2026-01-05",
+		"tdate2": null,
+		"tdescription": "PAYROLL",
+		"tindex": 1,
+		"tpostings": [],
+		"tprecedingcomment": "",
+		"tstatus": "Unmarked",
+		"ttags": [["category","income"],["float-import-id","batch42"],["float-updated-at","2026-01-05T00:00:00Z"]],
+		"tsourcepos": [{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]
+	}]`
+
+	h := mustHandler(t, map[string][]byte{"print": []byte(jsonWithHiddenMeta)})
+	resp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	if len(resp.Msg.Transactions) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+	}
+	tags := resp.Msg.Transactions[0].Tags
+
+	// User tag must be present.
+	if tags["category"] != "income" {
+		t.Errorf("tags[category] = %q, want %q", tags["category"], "income")
+	}
+	// Hidden meta tags must NOT appear in the proto tags map.
+	if _, ok := tags["float-import-id"]; ok {
+		t.Errorf("float-import-id should be filtered from proto tags, but was present: %q", tags["float-import-id"])
+	}
+	if _, ok := tags["float-updated-at"]; ok {
+		t.Errorf("float-updated-at should be filtered from proto tags, but was present: %q", tags["float-updated-at"])
+	}
+}
+
