@@ -50,6 +50,20 @@ test("transactions page - payee filter", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-payee-filter.png", fullPage: true });
 });
 
+test("transactions page - bulk edit toolbar", async ({ page }) => {
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Check the first three transaction checkboxes
+  const checkboxes = await page.locator("tbody input[type=checkbox]").all();
+  for (const cb of checkboxes.slice(0, 3)) {
+    await cb.click();
+  }
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/transactions-bulk-edit.png", fullPage: true });
+});
+
 test("hamburger icon - closed state", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
