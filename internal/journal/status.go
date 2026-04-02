@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
@@ -87,5 +88,15 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 	}
 
 	slogctx.FromContext(ctx).Info("journal: transaction status updated", "fid", fid, "status", newStatus, "file", sourceFile)
+
+	// Stamp the last-updated timestamp. Merge with existing FloatMeta so other keys are preserved.
+	meta := make(map[string]string, len(txn.FloatMeta)+1)
+	for k, v := range txn.FloatMeta {
+		meta[k] = v
+	}
+	meta[hledger.HiddenMetaPrefix+"updated-at"] = time.Now().UTC().Format(time.RFC3339)
+	if err := ModifyFloatMeta(ctx, client, dataDir, fid, meta); err != nil {
+		return fmt.Errorf("journal: update-status: stamp timestamp: %w", err)
+	}
 	return nil
 }

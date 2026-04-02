@@ -42,8 +42,11 @@ func draftFormat(tx TransactionInput, fid string) string {
 		statusPart = "* "
 	}
 	fmt.Fprintf(&b, "%s %s(%s) %s\n", tx.Date.Format("2006-01-02"), statusPart, fid, tx.Description)
-	if tx.Comment != "" {
-		fmt.Fprintf(&b, "    ; %s\n", tx.Comment)
+	for _, line := range strings.Split(tx.Comment, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			fmt.Fprintf(&b, "    ; %s\n", line)
+		}
 	}
 	if len(tx.FloatMeta) > 0 {
 		keys := make([]string, 0, len(tx.FloatMeta))

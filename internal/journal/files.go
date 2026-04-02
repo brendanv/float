@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
@@ -69,6 +70,12 @@ func AppendTransaction(ctx context.Context, client *hledger.Client, dataDir stri
 	if fid == "" {
 		fid = MintFID()
 	}
+
+	// Stamp the last-updated timestamp on every write.
+	if tx.FloatMeta == nil {
+		tx.FloatMeta = make(map[string]string)
+	}
+	tx.FloatMeta[hledger.HiddenMetaPrefix+"updated-at"] = time.Now().UTC().Format(time.RFC3339)
 
 	text, err := FormatViaHledger(ctx, client, tx, fid)
 	if err != nil {
