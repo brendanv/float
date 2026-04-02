@@ -311,7 +311,7 @@ func TestModifyTags(t *testing.T) {
 	})
 }
 
-func TestModifyTagsPreservesHiddenMeta(t *testing.T) {
+func TestModifyTagsPreservesFloatMeta(t *testing.T) {
 	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 20, NumTxns: 1, WithFIDs: true})
 	client := mustHledgerClient(t, dir)
 
@@ -322,7 +322,7 @@ func TestModifyTagsPreservesHiddenMeta(t *testing.T) {
 			{Account: "expenses:food", Amount: "$10.00"},
 			{Account: "assets:checking"},
 		},
-		HiddenMeta: map[string]string{
+		FloatMeta: map[string]string{
 			"float-import-id": "batch999",
 		},
 	}
@@ -358,7 +358,7 @@ func TestModifyTagsPreservesHiddenMeta(t *testing.T) {
 	}
 }
 
-func TestModifyHiddenMeta(t *testing.T) {
+func TestModifyFloatMeta(t *testing.T) {
 	t.Run("sets_hidden_meta", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 21, NumTxns: 1, WithFIDs: true})
 		client := mustHledgerClient(t, dir)
@@ -376,11 +376,11 @@ func TestModifyHiddenMeta(t *testing.T) {
 			t.Fatalf("AppendTransaction: %v", err)
 		}
 
-		if err := ModifyHiddenMeta(t.Context(), client, dir, fid, map[string]string{
+		if err := ModifyFloatMeta(t.Context(), client, dir, fid, map[string]string{
 			"float-import-id":  "batch42",
 			"float-updated-at": "2026-02-05T00:00:00Z",
 		}); err != nil {
-			t.Fatalf("ModifyHiddenMeta: %v", err)
+			t.Fatalf("ModifyFloatMeta: %v", err)
 		}
 		if err := client.Check(t.Context()); err != nil {
 			t.Fatalf("hledger check: %v", err)
@@ -393,11 +393,11 @@ func TestModifyHiddenMeta(t *testing.T) {
 		if len(txns) != 1 {
 			t.Fatalf("expected 1 transaction, got %d", len(txns))
 		}
-		if txns[0].HiddenMeta["float-import-id"] != "batch42" {
-			t.Errorf("float-import-id = %q, want %q", txns[0].HiddenMeta["float-import-id"], "batch42")
+		if txns[0].FloatMeta["float-import-id"] != "batch42" {
+			t.Errorf("float-import-id = %q, want %q", txns[0].FloatMeta["float-import-id"], "batch42")
 		}
-		if txns[0].HiddenMeta["float-updated-at"] != "2026-02-05T00:00:00Z" {
-			t.Errorf("float-updated-at = %q, want %q", txns[0].HiddenMeta["float-updated-at"], "2026-02-05T00:00:00Z")
+		if txns[0].FloatMeta["float-updated-at"] != "2026-02-05T00:00:00Z" {
+			t.Errorf("float-updated-at = %q, want %q", txns[0].FloatMeta["float-updated-at"], "2026-02-05T00:00:00Z")
 		}
 	})
 
@@ -424,8 +424,8 @@ func TestModifyHiddenMeta(t *testing.T) {
 		}
 
 		// Now set hidden meta — user tags must survive.
-		if err := ModifyHiddenMeta(t.Context(), client, dir, fid, map[string]string{"float-import-id": "batchABC"}); err != nil {
-			t.Fatalf("ModifyHiddenMeta: %v", err)
+		if err := ModifyFloatMeta(t.Context(), client, dir, fid, map[string]string{"float-import-id": "batchABC"}); err != nil {
+			t.Fatalf("ModifyFloatMeta: %v", err)
 		}
 		if err := client.Check(t.Context()); err != nil {
 			t.Fatalf("hledger check: %v", err)
@@ -443,7 +443,7 @@ func TestModifyHiddenMeta(t *testing.T) {
 			tagMap[kv[0]] = kv[1]
 		}
 		if tagMap["category"] != "groceries" {
-			t.Errorf("category = %q, want %q (user tag should survive ModifyHiddenMeta)", tagMap["category"], "groceries")
+			t.Errorf("category = %q, want %q (user tag should survive ModifyFloatMeta)", tagMap["category"], "groceries")
 		}
 		if tagMap["float-import-id"] != "batchABC" {
 			t.Errorf("float-import-id = %q, want %q", tagMap["float-import-id"], "batchABC")
@@ -461,15 +461,15 @@ func TestModifyHiddenMeta(t *testing.T) {
 				{Account: "expenses:food", Amount: "$6.00"},
 				{Account: "assets:checking"},
 			},
-			HiddenMeta: map[string]string{"float-import-id": "old-batch"},
+			FloatMeta: map[string]string{"float-import-id": "old-batch"},
 		}
 		fid, err := AppendTransaction(t.Context(), client, dir, tx)
 		if err != nil {
 			t.Fatalf("AppendTransaction: %v", err)
 		}
 
-		if err := ModifyHiddenMeta(t.Context(), client, dir, fid, map[string]string{"float-import-id": "new-batch"}); err != nil {
-			t.Fatalf("ModifyHiddenMeta: %v", err)
+		if err := ModifyFloatMeta(t.Context(), client, dir, fid, map[string]string{"float-import-id": "new-batch"}); err != nil {
+			t.Fatalf("ModifyFloatMeta: %v", err)
 		}
 		if err := client.Check(t.Context()); err != nil {
 			t.Fatalf("hledger check: %v", err)
@@ -482,8 +482,8 @@ func TestModifyHiddenMeta(t *testing.T) {
 		if len(txns) != 1 {
 			t.Fatalf("expected 1 transaction, got %d", len(txns))
 		}
-		if txns[0].HiddenMeta["float-import-id"] != "new-batch" {
-			t.Errorf("float-import-id = %q, want %q", txns[0].HiddenMeta["float-import-id"], "new-batch")
+		if txns[0].FloatMeta["float-import-id"] != "new-batch" {
+			t.Errorf("float-import-id = %q, want %q", txns[0].FloatMeta["float-import-id"], "new-batch")
 		}
 	})
 
@@ -498,15 +498,15 @@ func TestModifyHiddenMeta(t *testing.T) {
 				{Account: "expenses:food", Amount: "$5.00"},
 				{Account: "assets:checking"},
 			},
-			HiddenMeta: map[string]string{"float-import-id": "will-be-removed"},
+			FloatMeta: map[string]string{"float-import-id": "will-be-removed"},
 		}
 		fid, err := AppendTransaction(t.Context(), client, dir, tx)
 		if err != nil {
 			t.Fatalf("AppendTransaction: %v", err)
 		}
 
-		if err := ModifyHiddenMeta(t.Context(), client, dir, fid, map[string]string{}); err != nil {
-			t.Fatalf("ModifyHiddenMeta clear: %v", err)
+		if err := ModifyFloatMeta(t.Context(), client, dir, fid, map[string]string{}); err != nil {
+			t.Fatalf("ModifyFloatMeta clear: %v", err)
 		}
 		if err := client.Check(t.Context()); err != nil {
 			t.Fatalf("hledger check: %v", err)
@@ -519,8 +519,8 @@ func TestModifyHiddenMeta(t *testing.T) {
 		if len(txns) != 1 {
 			t.Fatalf("expected 1 transaction, got %d", len(txns))
 		}
-		if txns[0].HiddenMeta != nil {
-			t.Errorf("expected nil HiddenMeta after clearing, got %v", txns[0].HiddenMeta)
+		if txns[0].FloatMeta != nil {
+			t.Errorf("expected nil FloatMeta after clearing, got %v", txns[0].FloatMeta)
 		}
 		for _, kv := range txns[0].Tags {
 			if strings.HasPrefix(kv[0], "float-") {
@@ -532,7 +532,7 @@ func TestModifyHiddenMeta(t *testing.T) {
 	t.Run("not_found", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 25, NumTxns: 1, WithFIDs: true})
 		client := mustHledgerClient(t, dir)
-		err := ModifyHiddenMeta(t.Context(), client, dir, "00000000", map[string]string{"float-x": "y"})
+		err := ModifyFloatMeta(t.Context(), client, dir, "00000000", map[string]string{"float-x": "y"})
 		if err == nil {
 			t.Fatal("expected error for non-existent fid, got nil")
 		}
@@ -542,7 +542,7 @@ func TestModifyHiddenMeta(t *testing.T) {
 	})
 }
 
-func TestIsHiddenMetaLine(t *testing.T) {
+func TestIsFloatMetaLine(t *testing.T) {
 	tests := []struct {
 		name string
 		line string
@@ -591,9 +591,9 @@ func TestIsHiddenMetaLine(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isHiddenMetaLine(tt.line)
+			got := isFloatMetaLine(tt.line)
 			if got != tt.want {
-				t.Errorf("isHiddenMetaLine(%q) = %v, want %v", tt.line, got, tt.want)
+				t.Errorf("isFloatMetaLine(%q) = %v, want %v", tt.line, got, tt.want)
 			}
 		})
 	}

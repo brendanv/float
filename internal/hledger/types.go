@@ -71,10 +71,10 @@ type Transaction struct {
 	// Nil if no "|" is present.
 	Note *string `json:"-"`
 
-	// HiddenMeta contains tags whose keys start with HiddenMetaPrefix.
+	// FloatMeta contains tags whose keys start with HiddenMetaPrefix.
 	// These are internal float metadata, not exposed via the gRPC API.
 	// Nil if no hidden meta tags are present.
-	HiddenMeta map[string]string `json:"-"`
+	FloatMeta map[string]string `json:"-"`
 }
 
 // RegisterRow is one row from `hledger reg -O json`.

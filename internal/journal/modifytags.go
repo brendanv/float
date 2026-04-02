@@ -22,19 +22,19 @@ var anyTagRe = regexp.MustCompile(`[A-Za-z][A-Za-z0-9_-]*:[^\s,;]*`)
 // commentLineRe matches a line that is a hledger comment (starts with optional whitespace then ;).
 var commentLineRe = regexp.MustCompile(`^\s*;`)
 
-// hiddenMetaTagRe matches a float- hidden-meta tag pattern within a comment string.
-var hiddenMetaTagRe = regexp.MustCompile(`float-[A-Za-z0-9_-]+:[^\s,;]*`)
+// floatMetaTagRe matches a float- hidden-meta tag pattern within a comment string.
+var floatMetaTagRe = regexp.MustCompile(`float-[A-Za-z0-9_-]+:[^\s,;]*`)
 
-// isHiddenMetaLine reports whether the comment line contains only float- hidden meta tags
+// isFloatMetaLine reports whether the comment line contains only float- hidden meta tags
 // and no other text content. Used to identify lines that should be preserved by ModifyTags
-// and removed by ModifyHiddenMeta.
-func isHiddenMetaLine(line string) bool {
+// and removed by ModifyFloatMeta.
+func isFloatMetaLine(line string) bool {
 	semiIdx := strings.Index(line, ";")
 	if semiIdx < 0 {
 		return false
 	}
 	comment := line[semiIdx+1:]
-	stripped := hiddenMetaTagRe.ReplaceAllString(comment, "")
+	stripped := floatMetaTagRe.ReplaceAllString(comment, "")
 	stripped = strings.ReplaceAll(stripped, ",", " ")
 	stripped = strings.Join(strings.Fields(stripped), " ")
 	return stripped == ""
@@ -94,7 +94,7 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 
 	for i := headerIdx + 1; i < headerEnd; i++ {
 		if commentLineRe.MatchString(lines[i]) {
-			if isHiddenMetaLine(lines[i]) {
+			if isFloatMetaLine(lines[i]) {
 				// Preserve hidden meta lines unchanged — ModifyTags must not touch them.
 				newLines = append(newLines, lines[i])
 			} else {
@@ -133,11 +133,11 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 	return nil
 }
 
-// ModifyHiddenMeta replaces all hidden-meta tags (those with hledger.HiddenMetaPrefix) on the
+// ModifyFloatMeta replaces all hidden-meta tags (those with hledger.HiddenMetaPrefix) on the
 // transaction identified by fid. meta is the complete desired set; keys must include the
 // "float-" prefix. User-visible tags and free-text comments are preserved unchanged.
 // Callers must wrap in txlock.Do().
-func ModifyHiddenMeta(ctx context.Context, client *hledger.Client, dataDir, fid string, meta map[string]string) error {
+func ModifyFloatMeta(ctx context.Context, client *hledger.Client, dataDir, fid string, meta map[string]string) error {
 	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return fmt.Errorf("journal: modify-hidden-meta: lookup fid %q: %w", fid, err)
@@ -182,7 +182,7 @@ func ModifyHiddenMeta(ctx context.Context, client *hledger.Client, dataDir, fid 
 	newLines = append(newLines, lines[:headerIdx+1]...)
 
 	for i := headerIdx + 1; i < headerEnd; i++ {
-		if commentLineRe.MatchString(lines[i]) && isHiddenMetaLine(lines[i]) {
+		if commentLineRe.MatchString(lines[i]) && isFloatMetaLine(lines[i]) {
 			// Drop existing hidden meta lines — they will be replaced below.
 			continue
 		}

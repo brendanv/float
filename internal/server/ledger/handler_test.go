@@ -1299,9 +1299,9 @@ func TestListPayees_CacheError(t *testing.T) {
 	}
 }
 
-func TestListTransactions_HiddenMetaFiltered(t *testing.T) {
+func TestListTransactions_FloatMetaFiltered(t *testing.T) {
 	// A transaction with both user tags and float- hidden meta tags.
-	const jsonWithHiddenMeta = `[{
+	const jsonWithFloatMeta = `[{
 		"tcode": "aa001100",
 		"tcomment": "",
 		"tdate": "2026-01-05",
@@ -1315,7 +1315,7 @@ func TestListTransactions_HiddenMetaFiltered(t *testing.T) {
 		"tsourcepos": [{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]
 	}]`
 
-	h := mustHandler(t, map[string][]byte{"print": []byte(jsonWithHiddenMeta)})
+	h := mustHandler(t, map[string][]byte{"print": []byte(jsonWithFloatMeta)})
 	resp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
 	if err != nil {
 		t.Fatalf("ListTransactions: %v", err)

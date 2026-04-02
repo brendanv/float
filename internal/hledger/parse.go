@@ -102,10 +102,10 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 		txns[i].Payee, txns[i].Note = splitPayeeNote(txns[i].Description)
 		for _, kv := range txns[i].Tags {
 			if strings.HasPrefix(kv[0], HiddenMetaPrefix) {
-				if txns[i].HiddenMeta == nil {
-					txns[i].HiddenMeta = make(map[string]string)
+				if txns[i].FloatMeta == nil {
+					txns[i].FloatMeta = make(map[string]string)
 				}
-				txns[i].HiddenMeta[kv[0]] = kv[1]
+				txns[i].FloatMeta[kv[0]] = kv[1]
 			}
 		}
 	}

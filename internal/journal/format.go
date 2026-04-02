@@ -26,7 +26,7 @@ type TransactionInput struct {
 	Postings    []PostingInput
 	FID         string            // optional; if empty, AppendTransaction mints a new fid
 	Status      string            // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
-	HiddenMeta  map[string]string // optional internal metadata; keys must have hledger.HiddenMetaPrefix
+	FloatMeta   map[string]string // optional internal metadata; keys must have hledger.HiddenMetaPrefix
 }
 
 // draftFormat renders a TransactionInput + fid as minimal hledger journal text.
@@ -45,14 +45,14 @@ func draftFormat(tx TransactionInput, fid string) string {
 	if tx.Comment != "" {
 		fmt.Fprintf(&b, "    ; %s\n", tx.Comment)
 	}
-	if len(tx.HiddenMeta) > 0 {
-		keys := make([]string, 0, len(tx.HiddenMeta))
-		for k := range tx.HiddenMeta {
+	if len(tx.FloatMeta) > 0 {
+		keys := make([]string, 0, len(tx.FloatMeta))
+		for k := range tx.FloatMeta {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			fmt.Fprintf(&b, "    ; %s:%s\n", k, tx.HiddenMeta[k])
+			fmt.Fprintf(&b, "    ; %s:%s\n", k, tx.FloatMeta[k])
 		}
 	}
 	for _, p := range tx.Postings {

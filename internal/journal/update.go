@@ -56,7 +56,7 @@ func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 		Postings:    postings,
 		FID:         fid,
 		Status:      t.Status,
-		HiddenMeta:  t.HiddenMeta,
+		FloatMeta:   t.FloatMeta,
 	}
 
 	if err := DeleteTransaction(ctx, client, dataDir, fid); err != nil {
