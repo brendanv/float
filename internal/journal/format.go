@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,8 +24,9 @@ type TransactionInput struct {
 	Description string
 	Comment     string // optional transaction-level comment (without "; " prefix)
 	Postings    []PostingInput
-	FID         string // optional; if empty, AppendTransaction mints a new fid
-	Status      string // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
+	FID         string            // optional; if empty, AppendTransaction mints a new fid
+	Status      string            // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
+	FloatMeta   map[string]string // optional internal metadata; keys must have hledger.HiddenMetaPrefix
 }
 
 // draftFormat renders a TransactionInput + fid as minimal hledger journal text.
@@ -42,6 +44,16 @@ func draftFormat(tx TransactionInput, fid string) string {
 	fmt.Fprintf(&b, "%s %s(%s) %s\n", tx.Date.Format("2006-01-02"), statusPart, fid, tx.Description)
 	if tx.Comment != "" {
 		fmt.Fprintf(&b, "    ; %s\n", tx.Comment)
+	}
+	if len(tx.FloatMeta) > 0 {
+		keys := make([]string, 0, len(tx.FloatMeta))
+		for k := range tx.FloatMeta {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(&b, "    ; %s:%s\n", k, tx.FloatMeta[k])
+		}
 	}
 	for _, p := range tx.Postings {
 		if p.Amount == "" {

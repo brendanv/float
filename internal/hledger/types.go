@@ -5,6 +5,11 @@ import "encoding/json"
 // FIDLen is the length in characters of a float transaction ID (fid tag).
 const FIDLen = 8
 
+// HiddenMetaPrefix is the tag key prefix reserved for float internal metadata.
+// Tags with this prefix are stored in the journal but filtered from the gRPC API.
+// Example: "float-import-id", "float-updated-at".
+const HiddenMetaPrefix = "float-"
+
 type AmountQuantity struct {
 	DecimalMantissa int64   `json:"decimalMantissa"`
 	DecimalPlaces   int     `json:"decimalPlaces"`
@@ -65,6 +70,11 @@ type Transaction struct {
 	// Note is the part after the first "|" in Description (trimmed).
 	// Nil if no "|" is present.
 	Note *string `json:"-"`
+
+	// FloatMeta contains tags whose keys start with HiddenMetaPrefix.
+	// These are internal float metadata, not exposed via the gRPC API.
+	// Nil if no hidden meta tags are present.
+	FloatMeta map[string]string `json:"-"`
 }
 
 // RegisterRow is one row from `hledger reg -O json`.

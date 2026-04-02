@@ -481,7 +481,9 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 	}
 	tags := make(map[string]string, len(t.Tags))
 	for _, kv := range t.Tags {
-		tags[kv[0]] = kv[1]
+		if !strings.HasPrefix(kv[0], hledger.HiddenMetaPrefix) {
+			tags[kv[0]] = kv[1]
+		}
 	}
 	return &floatv1.Transaction{
 		Fid:         t.FID,

@@ -100,6 +100,14 @@ func parseTransactions(data []byte) ([]Transaction, error) {
 	for i := range txns {
 		txns[i].FID = txns[i].Code
 		txns[i].Payee, txns[i].Note = splitPayeeNote(txns[i].Description)
+		for _, kv := range txns[i].Tags {
+			if strings.HasPrefix(kv[0], HiddenMetaPrefix) {
+				if txns[i].FloatMeta == nil {
+					txns[i].FloatMeta = make(map[string]string)
+				}
+				txns[i].FloatMeta[kv[0]] = kv[1]
+			}
+		}
 	}
 	return txns, nil
 }
