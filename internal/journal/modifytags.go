@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
@@ -135,7 +136,14 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 	}
 
 	slogctx.FromContext(ctx).Info("journal: transaction tags modified", "fid", fid, "file", sourceFile)
-	return nil
+
+	// Stamp the last-updated timestamp. Merge with existing FloatMeta so other keys are preserved.
+	meta := make(map[string]string, len(txn.FloatMeta)+1)
+	for k, v := range txn.FloatMeta {
+		meta[k] = v
+	}
+	meta[hledger.HiddenMetaPrefix+"updated-at"] = time.Now().UTC().Format(time.RFC3339)
+	return ModifyFloatMeta(ctx, client, dataDir, fid, meta)
 }
 
 // ModifyFloatMeta replaces all hidden-meta tags (those with hledger.HiddenMetaPrefix) on the

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/testgen"
 )
 
@@ -30,7 +31,7 @@ func TestBulkEditTransactions_Reviewed(t *testing.T) {
 		wantStatus string
 	}{
 		{"mark_reviewed", "", true, "Cleared"},
-		{"unmark_reviewed", "Cleared", false, "Unmarked"},
+		{"unmark_reviewed_to_pending", "Cleared", false, "Pending"},
 		{"mark_already_cleared", "Cleared", true, "Cleared"},
 	}
 
@@ -356,5 +357,127 @@ func TestBulkEditTransactions_CombinedOperations(t *testing.T) {
 	}
 	if got.Note == nil || *got.Note != "Purchase" {
 		t.Errorf("note = %v, want %q", got.Note, "Purchase")
+	}
+}
+
+func TestBulkEditTransactions_StampsUpdatedAt(t *testing.T) {
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 360, NumTxns: 1, WithFIDs: true})
+	client := mustHledgerClient(t, dir)
+
+	tx := TransactionInput{
+		Date:        time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+		Description: "STAMP TEST",
+		Postings: []PostingInput{
+			{Account: "expenses:food", Amount: "$10.00"},
+			{Account: "assets:checking"},
+		},
+	}
+	fid, err := AppendTransaction(t.Context(), client, dir, tx)
+	if err != nil {
+		t.Fatalf("AppendTransaction: %v", err)
+	}
+
+	if err := BulkEditTransactions(t.Context(), client, dir, []string{fid}, nil, "category", "food", "", nil); err != nil {
+		t.Fatalf("BulkEditTransactions: %v", err)
+	}
+
+	txns, err := client.Transactions(t.Context(), "code:"+fid)
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if _, ok := txns[0].FloatMeta[hledger.HiddenMetaPrefix+"updated-at"]; !ok {
+		t.Error("float-updated-at not stamped after bulk edit")
+	}
+}
+
+func TestUpdateTransactionPayee(t *testing.T) {
+	tests := []struct {
+		name        string
+		initialDesc string
+		newPayee    string
+		wantPayee   *string
+		wantNote    *string
+	}{
+		{
+			name:        "set_payee_on_plain_description",
+			initialDesc: "Some Transaction",
+			newPayee:    "Acme Corp",
+			wantPayee:   ptr("Acme Corp"),
+			wantNote:    ptr("Some Transaction"),
+		},
+		{
+			name:        "replace_payee",
+			initialDesc: "Old Payee | The Note",
+			newPayee:    "New Payee",
+			wantPayee:   ptr("New Payee"),
+			wantNote:    ptr("The Note"),
+		},
+		{
+			// Clearing payee leaves just the note as the description (no "|"), so hledger
+			// does not split payee/note — both are nil.
+			name:        "clear_payee",
+			initialDesc: "Old Payee | The Note",
+			newPayee:    "",
+			wantPayee:   nil,
+			wantNote:    nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 370, NumTxns: 1, WithFIDs: true})
+			client := mustHledgerClient(t, dir)
+
+			tx := TransactionInput{
+				Date:        time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+				Description: tc.initialDesc,
+				Postings: []PostingInput{
+					{Account: "expenses:food", Amount: "$25.00"},
+					{Account: "assets:checking"},
+				},
+			}
+			fid, err := AppendTransaction(t.Context(), client, dir, tx)
+			if err != nil {
+				t.Fatalf("AppendTransaction: %v", err)
+			}
+
+			got, err := UpdateTransactionPayee(t.Context(), client, dir, fid, tc.newPayee)
+			if err != nil {
+				t.Fatalf("UpdateTransactionPayee: %v", err)
+			}
+
+			if err := client.Check(t.Context()); err != nil {
+				t.Fatalf("hledger check: %v", err)
+			}
+
+			if tc.wantPayee == nil {
+				if got.Payee != nil {
+					t.Errorf("payee = %q, want nil", *got.Payee)
+				}
+			} else {
+				if got.Payee == nil {
+					t.Errorf("payee = nil, want %q", *tc.wantPayee)
+				} else if *got.Payee != *tc.wantPayee {
+					t.Errorf("payee = %q, want %q", *got.Payee, *tc.wantPayee)
+				}
+			}
+
+			if tc.wantNote == nil {
+				if got.Note != nil {
+					t.Errorf("note = %q, want nil", *got.Note)
+				}
+			} else {
+				if got.Note == nil {
+					t.Errorf("note = nil, want %q", *tc.wantNote)
+				} else if *got.Note != *tc.wantNote {
+					t.Errorf("note = %q, want %q", *got.Note, *tc.wantNote)
+				}
+			}
+
+			// Verify float-updated-at is stamped.
+			if _, ok := got.FloatMeta[hledger.HiddenMetaPrefix+"updated-at"]; !ok {
+				t.Error("float-updated-at not stamped after UpdateTransactionPayee")
+			}
+		})
 	}
 }
