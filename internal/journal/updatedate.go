@@ -3,7 +3,6 @@ package journal
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/brendanv/float/internal/hledger"
@@ -11,9 +10,8 @@ import (
 )
 
 // UpdateTransactionDate changes the date of the transaction identified by fid to newDate
-// ("YYYY-MM-DD"). It deletes the transaction from its current file and re-appends it to
-// the correct month file for the new date, preserving all postings, comment, non-fid tags,
-// and the original fid.
+// ("YYYY-MM-DD"). It replaces the transaction in the journal, moving it to a new month
+// file if the date crosses a month boundary. All other fields are preserved.
 // Callers must wrap in txlock.Do().
 func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir, fid, newDate string) (hledger.Transaction, error) {
 	parsedDate, err := time.Parse("2006-01-02", newDate)
@@ -35,39 +33,16 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 	}
 
 	t := txns[0]
+	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
-	comment := freeTextComment(t.Comment)
-
-	var postings []PostingInput
-	for _, p := range t.Postings {
-		var amtStr string
-		if len(p.Amounts) > 0 {
-			a := p.Amounts[0]
-			amtStr = fmt.Sprintf("%s%.2f", a.Commodity, a.Quantity.FloatingPoint)
-		}
-		postings = append(postings, PostingInput{
-			Account: p.Account,
-			Amount:  amtStr,
-			Comment: strings.TrimSpace(p.Comment),
-		})
+	input, err := inputFromTransaction(t)
+	if err != nil {
+		return hledger.Transaction{}, fmt.Errorf("journal: update-date: %w", err)
 	}
+	input.Date = parsedDate
 
-	input := TransactionInput{
-		Date:        parsedDate,
-		Description: t.Description,
-		Comment:     comment,
-		Postings:    postings,
-		FID:         fid,
-		Status:      t.Status,
-		FloatMeta:   t.FloatMeta,
-	}
-
-	if err := DeleteTransaction(ctx, client, dataDir, fid); err != nil {
-		return hledger.Transaction{}, fmt.Errorf("journal: update-date: delete: %w", err)
-	}
-
-	if _, err := AppendTransaction(ctx, client, dataDir, input); err != nil {
-		return hledger.Transaction{}, fmt.Errorf("journal: update-date: append: %w", err)
+	if _, err := WriteTransaction(ctx, client, dataDir, input, src); err != nil {
+		return hledger.Transaction{}, fmt.Errorf("journal: update-date: write: %w", err)
 	}
 
 	updated, err := client.Transactions(ctx, "code:"+fid)

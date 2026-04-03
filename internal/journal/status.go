@@ -3,21 +3,10 @@ package journal
 import (
 	"context"
 	"fmt"
-	"os"
-	"regexp"
-	"strings"
-	"time"
 
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
 )
-
-// headerStatusRe matches a transaction header line, capturing:
-//  1. The date prefix (e.g. "2026-01-05 ")
-//  2. An optional status marker ("! " or "* ")
-//  3. An optional code field (e.g. "(a1b2c3d4) ")
-//  4. The rest of the line (description + inline comment)
-var headerStatusRe = regexp.MustCompile(`^(\d{4}[/\-]\d{2}[/\-]\d{2} )(?:([!*]) )?(\([0-9a-f]{8}\) )?(.*)$`)
 
 // UpdateTransactionStatus changes the hledger status marker on the transaction
 // identified by fid. newStatus must be "", "Pending", or "Cleared".
@@ -43,60 +32,19 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 		return fmt.Errorf("journal: update-status: fid %q matched %d transactions (corrupt journal — run audit)", fid, len(txns))
 	}
 
-	txn := txns[0]
-	sourceFile := txn.SourcePos[0].File
-	headerLine := txn.SourcePos[0].Line // 1-indexed
+	t := txns[0]
+	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
-	data, err := os.ReadFile(sourceFile)
+	input, err := inputFromTransaction(t)
 	if err != nil {
-		return fmt.Errorf("journal: update-status: read %s: %w", sourceFile, err)
+		return fmt.Errorf("journal: update-status: %w", err)
+	}
+	input.Status = newStatus
+
+	if _, err := WriteTransaction(ctx, client, dataDir, input, src); err != nil {
+		return fmt.Errorf("journal: update-status: write: %w", err)
 	}
 
-	lines := strings.Split(string(data), "\n")
-	headerIdx := headerLine - 1 // 0-indexed
-
-	if headerIdx < 0 || headerIdx >= len(lines) {
-		return fmt.Errorf("journal: update-status: source line %d out of range in %s", headerLine, sourceFile)
-	}
-
-	// Sanity check: must be a transaction header containing the fid.
-	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "("+fid+")") {
-		return fmt.Errorf("journal: update-status: line %d in %s does not match expected transaction header for fid %q", headerLine, sourceFile, fid)
-	}
-
-	// Parse and rewrite the header line with the new status marker.
-	m := headerStatusRe.FindStringSubmatch(lines[headerIdx])
-	if m == nil {
-		return fmt.Errorf("journal: update-status: cannot parse header line %d in %s", headerLine, sourceFile)
-	}
-	datePart := m[1]  // e.g. "2026-01-05 "
-	codePart := m[3]  // e.g. "(a1b2c3d4) " or ""
-	rest := m[4]      // description + inline comment
-
-	marker := ""
-	switch newStatus {
-	case "Pending":
-		marker = "! "
-	case "Cleared":
-		marker = "* "
-	}
-	lines[headerIdx] = datePart + marker + codePart + rest
-
-	newContent := strings.Join(lines, "\n")
-	if err := os.WriteFile(sourceFile, []byte(newContent), 0644); err != nil {
-		return fmt.Errorf("journal: update-status: write %s: %w", sourceFile, err)
-	}
-
-	slogctx.FromContext(ctx).Info("journal: transaction status updated", "fid", fid, "status", newStatus, "file", sourceFile)
-
-	// Stamp the last-updated timestamp. Merge with existing FloatMeta so other keys are preserved.
-	meta := make(map[string]string, len(txn.FloatMeta)+1)
-	for k, v := range txn.FloatMeta {
-		meta[k] = v
-	}
-	meta[hledger.HiddenMetaPrefix+"updated-at"] = time.Now().UTC().Format(time.RFC3339)
-	if err := ModifyFloatMeta(ctx, client, dataDir, fid, meta); err != nil {
-		return fmt.Errorf("journal: update-status: stamp timestamp: %w", err)
-	}
+	slogctx.FromContext(ctx).Info("journal: transaction status updated", "fid", fid, "status", newStatus)
 	return nil
 }
