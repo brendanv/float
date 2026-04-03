@@ -641,51 +641,215 @@ func TestModifyTagsTwoSpaceIndent(t *testing.T) {
 	}
 }
 
-func TestStripNonFidTagsFromHeaderLine(t *testing.T) {
+func TestStripHeaderInlineComment(t *testing.T) {
 	tests := []struct {
-		name string
-		line string
-		fid  string
-		want string
+		name          string
+		line          string
+		wantClean     string
+		wantFreeText  string
 	}{
 		{
-			name: "fid only",
-			line: "2026-01-15 (abc12345) Test",
-			fid:  "abc12345",
-			want: "2026-01-15 (abc12345) Test",
+			name:         "no comment",
+			line:         "2026-01-15 (abc12345) Test",
+			wantClean:    "2026-01-15 (abc12345) Test",
+			wantFreeText: "",
 		},
 		{
-			name: "fid with trailing tag",
-			line: "2026-01-15 (abc12345) Test  ; category:food",
-			fid:  "abc12345",
-			want: "2026-01-15 (abc12345) Test",
+			name:         "tag-only inline comment",
+			line:         "2026-01-15 (abc12345) Test  ; category:food",
+			wantClean:    "2026-01-15 (abc12345) Test",
+			wantFreeText: "",
 		},
 		{
-			name: "fid with multiple trailing tags",
-			line: "2026-01-15 (abc12345) Test  ; category:food, source:manual",
-			fid:  "abc12345",
-			want: "2026-01-15 (abc12345) Test",
+			name:         "multiple tags inline comment",
+			line:         "2026-01-15 (abc12345) Test  ; category:food, source:manual",
+			wantClean:    "2026-01-15 (abc12345) Test",
+			wantFreeText: "",
 		},
 		{
-			name: "fid with free text preserved",
-			line: "2026-01-15 (abc12345) Test  ; imported",
-			fid:  "abc12345",
-			want: "2026-01-15 (abc12345) Test  ; imported",
+			name:         "free text inline comment moved out",
+			line:         "2026-01-15 (abc12345) Test  ; imported",
+			wantClean:    "2026-01-15 (abc12345) Test",
+			wantFreeText: "imported",
 		},
 		{
-			name: "no comment",
-			line: "2026-01-15 (abc12345) Test",
-			fid:  "abc12345",
-			want: "2026-01-15 (abc12345) Test",
+			name:         "mixed free text and tag: free text returned, tag dropped",
+			line:         "2026-01-15 (abc12345) Test  ; imported category:food",
+			wantClean:    "2026-01-15 (abc12345) Test",
+			wantFreeText: "imported",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := stripNonFidTagsFromHeaderLine(tt.line, tt.fid)
-			if got != tt.want {
-				t.Errorf("stripNonFidTagsFromHeaderLine() = %q, want %q", got, tt.want)
+			gotClean, gotFreeText := stripHeaderInlineComment(tt.line)
+			if gotClean != tt.wantClean {
+				t.Errorf("stripHeaderInlineComment() cleanLine = %q, want %q", gotClean, tt.wantClean)
+			}
+			if gotFreeText != tt.wantFreeText {
+				t.Errorf("stripHeaderInlineComment() freeText = %q, want %q", gotFreeText, tt.wantFreeText)
 			}
 		})
+	}
+}
+
+func TestModifyTagsOrdering(t *testing.T) {
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 30, NumTxns: 1, WithFIDs: true})
+	client := mustHledgerClient(t, dir)
+
+	tx := TransactionInput{
+		Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+		Description: "ORDERING TEST",
+		Comment:     "my note",
+		Postings: []PostingInput{
+			{Account: "expenses:food", Amount: "$10.00"},
+			{Account: "assets:checking"},
+		},
+		FloatMeta: map[string]string{
+			"float-import-id": "batch1",
+		},
+	}
+	fid, err := AppendTransaction(t.Context(), client, dir, tx)
+	if err != nil {
+		t.Fatalf("AppendTransaction: %v", err)
+	}
+
+	if err := ModifyTags(t.Context(), client, dir, fid, map[string]string{"category": "food"}); err != nil {
+		t.Fatalf("ModifyTags: %v", err)
+	}
+
+	if err := client.Check(t.Context()); err != nil {
+		t.Fatalf("hledger check: %v", err)
+	}
+
+	// Read the raw file and verify line ordering: free-text → user-tag → float-meta → posting.
+	txns, err := client.Transactions(t.Context(), "code:"+fid)
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if len(txns) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txns))
+	}
+
+	sourceFile := txns[0].SourcePos[0].File
+	data, err := os.ReadFile(sourceFile)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	content := string(data)
+	noteIdx := strings.Index(content, "my note")
+	tagIdx := strings.Index(content, "category:food")
+	metaIdx := strings.Index(content, "float-import-id:")
+	postingIdx := strings.Index(content, "expenses:food")
+
+	if noteIdx < 0 {
+		t.Fatalf("free-text comment 'my note' not found in file:\n%s", content)
+	}
+	if tagIdx < 0 {
+		t.Fatalf("user tag 'category:food' not found in file:\n%s", content)
+	}
+	if metaIdx < 0 {
+		t.Fatalf("float meta 'float-import-id:' not found in file:\n%s", content)
+	}
+	if postingIdx < 0 {
+		t.Fatalf("posting 'expenses:food' not found in file:\n%s", content)
+	}
+
+	// Verify canonical ordering: free-text < user-tag < float-meta < posting.
+	if noteIdx > tagIdx {
+		t.Errorf("free-text comment appears after user tag (want: free-text first):\n%s", content)
+	}
+	if tagIdx > metaIdx {
+		t.Errorf("user tag appears after float-meta (want: user-tag before float-meta):\n%s", content)
+	}
+	if metaIdx > postingIdx {
+		t.Errorf("float-meta appears after posting (want: float-meta before postings):\n%s", content)
+	}
+}
+
+func TestModifyTagsMovesHeaderInlineComment(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte("include 2026/01.journal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Hand-crafted transaction with a free-text inline comment on the header line.
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"),
+		[]byte("2026-01-20 (aabbccdd) INLINE NOTE  ; a note here\n    expenses:food  $5.00\n    assets:checking\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	client := mustHledgerClient(t, dir)
+
+	if err := ModifyTags(t.Context(), client, dir, "aabbccdd", map[string]string{"category": "food"}); err != nil {
+		t.Fatalf("ModifyTags: %v", err)
+	}
+	if err := client.Check(t.Context()); err != nil {
+		t.Fatalf("hledger check: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Header line must not contain a semicolon.
+	if strings.Contains(lines[0], ";") {
+		t.Errorf("header line still has inline comment: %q", lines[0])
+	}
+	// The note should appear as a separate comment line.
+	if !strings.Contains(content, "\n    ; a note here\n") {
+		t.Errorf("inline note not moved to separate comment line:\n%s", content)
+	}
+	// The user tag must also be present.
+	if !strings.Contains(content, "category:food") {
+		t.Errorf("user tag missing:\n%s", content)
+	}
+}
+
+func TestModifyFloatMetaMovesHeaderInlineComment(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte("include 2026/02.journal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Hand-crafted transaction with a free-text inline comment on the header line.
+	if err := os.WriteFile(filepath.Join(dir, "2026/02.journal"),
+		[]byte("2026-02-10 (11223344) INLINE META  ; a legacy note\n    expenses:misc  $3.00\n    assets:checking\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	client := mustHledgerClient(t, dir)
+
+	if err := ModifyFloatMeta(t.Context(), client, dir, "11223344", map[string]string{"float-import-id": "batch99"}); err != nil {
+		t.Fatalf("ModifyFloatMeta: %v", err)
+	}
+	if err := client.Check(t.Context()); err != nil {
+		t.Fatalf("hledger check: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "2026/02.journal"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	lines := strings.Split(content, "\n")
+
+	// Header line must not contain a semicolon.
+	if strings.Contains(lines[0], ";") {
+		t.Errorf("header line still has inline comment: %q", lines[0])
+	}
+	// The note should appear as a separate comment line.
+	if !strings.Contains(content, "\n    ; a legacy note\n") {
+		t.Errorf("inline note not moved to separate comment line:\n%s", content)
+	}
+	// The float meta must be present.
+	if !strings.Contains(content, "float-import-id:batch99") {
+		t.Errorf("float-meta missing:\n%s", content)
 	}
 }
 

@@ -84,33 +84,38 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 		headerEnd++
 	}
 
-	// Strip non-fid tags from the inline comment on the header date line.
-	lines[headerIdx] = stripNonFidTagsFromHeaderLine(lines[headerIdx], fid)
+	// Strip the entire inline comment from the header line.
+	// Any free text found there becomes the first comment line below the header.
+	cleanHeader, headerFreeText := stripHeaderInlineComment(lines[headerIdx])
 
-	// Build new line list: process header comment lines (headerIdx+1 to headerEnd).
-	// Hidden meta lines are preserved unchanged; other comment lines have user tags stripped.
-	newLines := make([]string, 0, len(lines))
-	newLines = append(newLines, lines[:headerIdx+1]...)
-
+	// Walk the comment block, separating free-text lines from hidden-meta lines.
+	// User-tag-only lines are dropped (they will be replaced by the new tags below).
+	var freeTextLines []string
+	var floatMetaLines []string
+	if headerFreeText != "" {
+		freeTextLines = append(freeTextLines, "    ; "+headerFreeText)
+	}
 	for i := headerIdx + 1; i < headerEnd; i++ {
-		if commentLineRe.MatchString(lines[i]) {
-			if isFloatMetaLine(lines[i]) {
-				// Preserve hidden meta lines unchanged — ModifyTags must not touch them.
-				newLines = append(newLines, lines[i])
-			} else {
-				stripped := stripTagsFromCommentLine(lines[i])
-				if stripped != "" {
-					newLines = append(newLines, stripped)
-				}
-				// else: line was all tags — drop it entirely
-			}
+		if !commentLineRe.MatchString(lines[i]) {
+			// blank or non-comment line in the header block — drop it
+			continue
+		}
+		if isFloatMetaLine(lines[i]) {
+			floatMetaLines = append(floatMetaLines, lines[i])
 		} else {
-			// blank lines or other non-comment lines in header block
-			newLines = append(newLines, lines[i])
+			stripped := stripTagsFromCommentLine(lines[i])
+			if stripped != "" {
+				freeTextLines = append(freeTextLines, stripped)
+			}
+			// else: line was all user-tags — drop it (will be replaced below)
 		}
 	}
 
-	// Append new user tags, one per line (sorted for deterministic output).
+	// Reconstruct: header → free-text comments → user tags → hidden meta → postings.
+	newLines := make([]string, 0, len(lines))
+	newLines = append(newLines, lines[:headerIdx]...)
+	newLines = append(newLines, cleanHeader)
+	newLines = append(newLines, freeTextLines...)
 	if len(tags) > 0 {
 		keys := make([]string, 0, len(tags))
 		for k := range tags {
@@ -121,7 +126,7 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 			newLines = append(newLines, "    ; "+k+":"+tags[k])
 		}
 	}
-
+	newLines = append(newLines, floatMetaLines...)
 	newLines = append(newLines, lines[headerEnd:]...)
 	newContent := strings.Join(newLines, "\n")
 
@@ -177,9 +182,18 @@ func ModifyFloatMeta(ctx context.Context, client *hledger.Client, dataDir, fid s
 		headerEnd++
 	}
 
+	// Strip the entire inline comment from the header line.
+	// Any free text found there becomes the first comment line below the header.
+	cleanHeader, headerFreeText := stripHeaderInlineComment(lines[headerIdx])
+
 	// Build new line list: drop hidden meta lines; preserve everything else.
+	// If the header had inline free text, prepend it as the first comment line.
 	newLines := make([]string, 0, len(lines))
-	newLines = append(newLines, lines[:headerIdx+1]...)
+	newLines = append(newLines, lines[:headerIdx]...)
+	newLines = append(newLines, cleanHeader)
+	if headerFreeText != "" {
+		newLines = append(newLines, "    ; "+headerFreeText)
+	}
 
 	for i := headerIdx + 1; i < headerEnd; i++ {
 		if commentLineRe.MatchString(lines[i]) && isFloatMetaLine(lines[i]) {
@@ -232,25 +246,24 @@ func freeTextComment(comment string) string {
 	return strings.Join(lines, "\n")
 }
 
-func stripNonFidTagsFromHeaderLine(line, fid string) string {
+// stripHeaderInlineComment removes the entire inline comment from a transaction header line.
+// It returns the clean header (no "; ..." suffix) and any free-text content that was in the
+// inline comment (tags are dropped; free text is returned so callers can prepend it as a
+// separate comment line). If there is no inline comment, freeText is "".
+func stripHeaderInlineComment(line string) (cleanLine, freeText string) {
 	semiIdx := strings.Index(line, ";")
 	if semiIdx < 0 {
-		return line
+		return line, ""
 	}
 
-	prefix := line[:semiIdx+1]
 	comment := line[semiIdx+1:]
 
-	// Strip all tags from the inline comment.
+	// Strip tags; any remaining text is the free-text portion.
 	commentStripped := anyTagRe.ReplaceAllString(comment, "")
 	commentStripped = strings.ReplaceAll(commentStripped, ",", " ")
 	commentStripped = strings.Join(strings.Fields(commentStripped), " ")
 
-	if commentStripped != "" {
-		return prefix + " " + commentStripped
-	}
-	// Comment was entirely tags — remove the entire inline comment.
-	return strings.TrimRight(line[:semiIdx], " ")
+	return strings.TrimRight(line[:semiIdx], " "), commentStripped
 }
 
 // stripTagsFromCommentLine removes all tag:value patterns from a comment line.
