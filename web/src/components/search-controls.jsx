@@ -315,11 +315,8 @@ export function SearchControls({
             )}
           </div>
         )}
-      </div>
 
-      {/* Filter dropdowns row */}
-      <div class="flex flex-wrap gap-2">
-        <div class="join">
+        <div class="join ml-1">
           <select
             class="select select-bordered select-sm join-item"
             value={account}
