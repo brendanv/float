@@ -267,7 +267,6 @@ export function TransactionsPage({ params }) {
         onDateRangeChange={onDateRangeChange}
         onAccountChange={onFilterChange(setAccount)}
         onTagChange={onFilterChange(setTag)}
-        onStatusChange={onFilterChange(setStatus)}
         onPayeeChange={onFilterChange(setPayee)}
         onQuickFilter={applyQuickFilter}
         accounts={accountsData?.accounts || []}

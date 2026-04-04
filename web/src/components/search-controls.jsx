@@ -87,36 +87,32 @@ export const DATE_PRESETS = [
   { label: "All", fn: () => ({ from: "", to: "" }) },
 ];
 
-// Quick filter presets: each returns the complete filter state to apply.
+// Quick filter presets for the status/workflow axis.
+// apply(currentFilters) returns the new full filter state.
+// isActive(currentFilters) returns true when this preset matches the current state.
 export const QUICK_FILTERS = [
   {
-    label: "All unreviewed",
-    description: "All unreviewed transactions across all time",
-    getFilters: () => ({ dateFrom: "", dateTo: "", status: "unreviewed", account: "", tag: "", payee: "" }),
+    label: "All",
+    apply: (f) => ({ ...f, status: "", payee: f.payee === PAYEE_NONE ? "" : f.payee }),
+    isActive: (f) => !f.status && f.payee !== PAYEE_NONE,
   },
   {
-    label: "Unreviewed this month",
-    description: "Unreviewed transactions from this month",
-    getFilters: () => ({ ...thisMonth(), status: "unreviewed", account: "", tag: "", payee: "" }),
+    label: "Reviewed",
+    apply: (f) => ({ ...f, status: "reviewed", payee: f.payee === PAYEE_NONE ? "" : f.payee }),
+    isActive: (f) => f.status === "reviewed",
   },
   {
-    label: "Unreviewed last month",
-    description: "Unreviewed transactions from last month",
-    getFilters: () => ({ ...lastMonth(), status: "unreviewed", account: "", tag: "", payee: "" }),
+    label: "Unreviewed",
+    apply: (f) => ({ ...f, status: "unreviewed", payee: f.payee === PAYEE_NONE ? "" : f.payee }),
+    isActive: (f) => f.status === "unreviewed",
   },
   {
     label: "No payee set",
     description: "Transactions without a payee assigned",
-    getFilters: () => ({ dateFrom: "", dateTo: "", status: "", account: "", tag: "", payee: PAYEE_NONE }),
+    apply: (f) => ({ ...f, status: "", payee: PAYEE_NONE }),
+    isActive: (f) => f.payee === PAYEE_NONE,
   },
 ];
-
-function quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee }) {
-  const t = qf.getFilters();
-  return t.dateFrom === dateFrom && t.dateTo === dateTo &&
-    t.status === status && t.account === account &&
-    t.tag === tag && t.payee === payee;
-}
 
 // Format a date range for display in the date picker button.
 function formatDateRange(dateFrom, dateTo) {
@@ -205,7 +201,6 @@ export function SearchControls({
   onDateRangeChange,
   onAccountChange,
   onTagChange,
-  onStatusChange,
   onPayeeChange,
   onQuickFilter,
   accounts,
@@ -225,9 +220,8 @@ export function SearchControls({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const activeQuickFilter = QUICK_FILTERS.find(
-    qf => quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee })
-  );
+  const currentFilters = { dateFrom, dateTo, account, tag, status, payee };
+  const activeQuickFilter = QUICK_FILTERS.find(qf => qf.isActive(currentFilters));
 
   function shiftDate(delta) {
     const now = new Date();
@@ -295,22 +289,22 @@ export function SearchControls({
         {onQuickFilter && (
           <div class="relative ml-1" ref={quickRef}>
             <button
-              class={`btn btn-sm gap-1 ${activeQuickFilter ? "btn-primary" : "btn-ghost"}`}
+              class={`btn btn-sm gap-1 ${activeQuickFilter?.label !== "All" ? "btn-primary" : "btn-ghost"}`}
               onClick={() => { setQuickOpen(o => !o); setDateOpen(false); }}
             >
-              {activeQuickFilter ? activeQuickFilter.label : "Quick filters"}
+              {activeQuickFilter?.label ?? "Filter"}
               <span class="opacity-40 text-xs">▾</span>
             </button>
             {quickOpen && (
               <div class="absolute top-full left-0 z-50 mt-1 w-56 bg-base-100 border border-base-300 rounded-box shadow-lg py-1">
                 {QUICK_FILTERS.map(qf => {
-                  const isActive = quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee });
+                  const isActive = qf.isActive(currentFilters);
                   return (
                     <button
                       key={qf.label}
                       class={`w-full text-left px-4 py-1.5 text-sm hover:bg-base-200 flex justify-between items-center${isActive ? " font-semibold" : ""}`}
-                      onClick={() => { onQuickFilter(qf.getFilters()); setQuickOpen(false); }}
-                      title={qf.description}
+                      onClick={() => { onQuickFilter(qf.apply(currentFilters)); setQuickOpen(false); }}
+                      title={qf.description ?? qf.label}
                     >
                       {qf.label}
                       {isActive && <span class="text-primary text-xs">✓</span>}
@@ -347,15 +341,10 @@ export function SearchControls({
             ))}
           </select>
         </div>
-        <div class="join">
-          <button class={`btn btn-sm join-item ${!status ? "btn-active" : ""}`} onClick={() => onStatusChange("")}>All</button>
-          <button class={`btn btn-sm join-item ${status === "reviewed" ? "btn-active" : ""}`} onClick={() => onStatusChange("reviewed")}>Reviewed</button>
-          <button class={`btn btn-sm join-item ${status === "unreviewed" ? "btn-active" : ""}`} onClick={() => onStatusChange("unreviewed")}>Unreviewed</button>
-        </div>
       </div>
 
       {/* Active filter chips */}
-      {(account || tag || status || payee) && (
+      {(account || tag || payee) && (
         <div class="flex flex-wrap gap-1">
           {payee && (
             <div class="badge badge-neutral gap-1">
@@ -373,12 +362,6 @@ export function SearchControls({
             <div class="badge badge-neutral gap-1">
               tag: {tag}
               <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onTagChange("")} aria-label="Clear tag filter">✕</button>
-            </div>
-          )}
-          {status && (
-            <div class="badge badge-neutral gap-1">
-              {status === "reviewed" ? "Reviewed" : "Unreviewed"}
-              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onStatusChange("")} aria-label="Clear status filter">✕</button>
             </div>
           )}
         </div>
