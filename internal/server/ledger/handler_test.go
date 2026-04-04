@@ -1338,3 +1338,395 @@ func TestListTransactions_FloatMetaFiltered(t *testing.T) {
 	}
 }
 
+func TestBulkEditTransactionsHandler(t *testing.T) {
+	// appendTx is a helper that adds a transaction and returns its FID.
+	appendTx := func(t *testing.T, c *hledger.Client, dir string, tx journal.TransactionInput) string {
+		t.Helper()
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, tx)
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+		return fid
+	}
+
+	baseTx := func(desc string) journal.TransactionInput {
+		return journal.TransactionInput{
+			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+			Description: desc,
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "assets:checking"},
+			},
+		}
+	}
+
+	t.Run("empty_fids", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 200, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids:       []string{},
+			Operations: []*floatv1.BulkEditOperation{{Operation: &floatv1.BulkEditOperation_MarkReviewed{MarkReviewed: &floatv1.MarkReviewedOperation{Reviewed: true}}}},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("empty_operations", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 201, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids:       []string{"aa001100"},
+			Operations: []*floatv1.BulkEditOperation{},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("add_tag_empty_key", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 202, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{"aa001100"},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_AddTag{AddTag: &floatv1.AddTagOperation{Key: "", Value: "v"}}},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("add_tag_reserved_prefix", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 203, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{"aa001100"},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_AddTag{AddTag: &floatv1.AddTagOperation{Key: "float-custom", Value: "v"}}},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("remove_tag_empty_key", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 204, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{"aa001100"},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_RemoveTag{RemoveTag: &floatv1.RemoveTagOperation{Key: ""}}},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("set_payee_empty_payee", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 205, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{"aa001100"},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_SetPayee{SetPayee: &floatv1.SetPayeeOperation{Payee: ""}}},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("unknown_fid", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 206, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{"00000000"},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_MarkReviewed{MarkReviewed: &floatv1.MarkReviewedOperation{Reviewed: true}}},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v, want NotFound", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("mark_reviewed_true", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 207, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		fid1 := appendTx(t, c, dir, baseTx("MARK REVIEWED 1"))
+		fid2 := appendTx(t, c, dir, baseTx("MARK REVIEWED 2"))
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid1, fid2},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_MarkReviewed{MarkReviewed: &floatv1.MarkReviewedOperation{Reviewed: true}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 2 {
+			t.Fatalf("expected 2 transactions, got %d", len(resp.Msg.Transactions))
+		}
+		for _, tx := range resp.Msg.Transactions {
+			if tx.Status != "Cleared" {
+				t.Errorf("Status = %q, want %q", tx.Status, "Cleared")
+			}
+		}
+		// Verify FIDs are in the same order as input.
+		if resp.Msg.Transactions[0].Fid != fid1 {
+			t.Errorf("Transactions[0].Fid = %q, want %q", resp.Msg.Transactions[0].Fid, fid1)
+		}
+		if resp.Msg.Transactions[1].Fid != fid2 {
+			t.Errorf("Transactions[1].Fid = %q, want %q", resp.Msg.Transactions[1].Fid, fid2)
+		}
+	})
+
+	t.Run("mark_reviewed_false", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 208, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		tx := baseTx("MARK UNREVIEWED")
+		tx.Status = "Cleared"
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_MarkReviewed{MarkReviewed: &floatv1.MarkReviewedOperation{Reviewed: false}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		if resp.Msg.Transactions[0].Status != "" {
+			t.Errorf("Status = %q, want %q", resp.Msg.Transactions[0].Status, "")
+		}
+	})
+
+	t.Run("add_tag", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 209, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		fid1 := appendTx(t, c, dir, baseTx("ADD TAG 1"))
+		fid2 := appendTx(t, c, dir, baseTx("ADD TAG 2"))
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid1, fid2},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_AddTag{AddTag: &floatv1.AddTagOperation{Key: "category", Value: "food"}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 2 {
+			t.Fatalf("expected 2 transactions, got %d", len(resp.Msg.Transactions))
+		}
+		for i, tx := range resp.Msg.Transactions {
+			if tx.Tags["category"] != "food" {
+				t.Errorf("Transactions[%d].Tags[category] = %q, want %q", i, tx.Tags["category"], "food")
+			}
+		}
+	})
+
+	t.Run("remove_tag", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 210, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		tx := baseTx("REMOVE TAG")
+		tx.Tags = map[string]string{"category": "food", "keep": "yes"}
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_RemoveTag{RemoveTag: &floatv1.RemoveTagOperation{Key: "category"}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		got := resp.Msg.Transactions[0]
+		if _, ok := got.Tags["category"]; ok {
+			t.Errorf("tag 'category' should have been removed, but is still present: %q", got.Tags["category"])
+		}
+		if got.Tags["keep"] != "yes" {
+			t.Errorf("tag 'keep' = %q, want %q", got.Tags["keep"], "yes")
+		}
+	})
+
+	t.Run("set_payee", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 211, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		// Transaction with an existing note — payee should be set while note is preserved.
+		tx := baseTx("Groceries")
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_SetPayee{SetPayee: &floatv1.SetPayeeOperation{Payee: "Costco"}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		got := resp.Msg.Transactions[0]
+		if got.Payee == nil || *got.Payee != "Costco" {
+			t.Errorf("Payee = %v, want %q", got.Payee, "Costco")
+		}
+		// The original description had no "|", so note should be empty.
+		if got.Note == nil || *got.Note != "" {
+			t.Errorf("Note = %v, want empty string (no note in original)", got.Note)
+		}
+	})
+
+	t.Run("set_payee_preserves_note", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 212, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		tx := baseTx("OldPayee | my note")
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_SetPayee{SetPayee: &floatv1.SetPayeeOperation{Payee: "NewPayee"}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		got := resp.Msg.Transactions[0]
+		if got.Payee == nil || *got.Payee != "NewPayee" {
+			t.Errorf("Payee = %v, want %q", got.Payee, "NewPayee")
+		}
+		if got.Note == nil || *got.Note != "my note" {
+			t.Errorf("Note = %v, want %q", got.Note, "my note")
+		}
+	})
+
+	t.Run("clear_payee", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 213, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		tx := baseTx("SomePayee | original note")
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_ClearPayee{ClearPayee: &floatv1.ClearPayeeOperation{}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		got := resp.Msg.Transactions[0]
+		// After clearing payee, description becomes just the note; no "|" means no payee/note split.
+		if got.Payee != nil {
+			t.Errorf("Payee = %v, want nil after clear", got.Payee)
+		}
+	})
+
+	t.Run("multiple_operations_applied_atomically", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 214, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		tx := baseTx("MULTI OP")
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_MarkReviewed{MarkReviewed: &floatv1.MarkReviewedOperation{Reviewed: true}}},
+				{Operation: &floatv1.BulkEditOperation_AddTag{AddTag: &floatv1.AddTagOperation{Key: "category", Value: "misc"}}},
+				{Operation: &floatv1.BulkEditOperation_SetPayee{SetPayee: &floatv1.SetPayeeOperation{Payee: "Acme"}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		got := resp.Msg.Transactions[0]
+		if got.Status != "Cleared" {
+			t.Errorf("Status = %q, want %q", got.Status, "Cleared")
+		}
+		if got.Tags["category"] != "misc" {
+			t.Errorf("Tags[category] = %q, want %q", got.Tags["category"], "misc")
+		}
+		if got.Payee == nil || *got.Payee != "Acme" {
+			t.Errorf("Payee = %v, want %q", got.Payee, "Acme")
+		}
+	})
+}
+

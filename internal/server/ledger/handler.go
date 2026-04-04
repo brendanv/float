@@ -626,3 +626,116 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 	}
 	return connect.NewResponse(&floatv1.DeletePriceResponse{}), nil
 }
+
+func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request[floatv1.BulkEditTransactionsRequest]) (*connect.Response[floatv1.BulkEditTransactionsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+
+	if len(req.Msg.Fids) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fids must not be empty"))
+	}
+	if len(req.Msg.Operations) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("operations must not be empty"))
+	}
+	for i, op := range req.Msg.Operations {
+		switch v := op.Operation.(type) {
+		case *floatv1.BulkEditOperation_MarkReviewed:
+			// no additional validation needed
+		case *floatv1.BulkEditOperation_AddTag:
+			if v.AddTag.Key == "" {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: add_tag key must not be empty", i))
+			}
+			if strings.HasPrefix(v.AddTag.Key, hledger.HiddenMetaPrefix) {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: add_tag key must not use reserved prefix %q", i, hledger.HiddenMetaPrefix))
+			}
+		case *floatv1.BulkEditOperation_RemoveTag:
+			if v.RemoveTag.Key == "" {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: remove_tag key must not be empty", i))
+			}
+		case *floatv1.BulkEditOperation_SetPayee:
+			if v.SetPayee.Payee == "" {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: set_payee payee must not be empty", i))
+			}
+		case *floatv1.BulkEditOperation_ClearPayee:
+			// no additional validation needed
+		default:
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: unrecognized or missing operation type", i))
+		}
+	}
+
+	err := h.lock.Do(ctx, func() error {
+		for _, fid := range req.Msg.Fids {
+			txns, err := h.hl.Transactions(ctx, "code:"+fid)
+			if err != nil {
+				return fmt.Errorf("bulk-edit: lookup fid %q: %w", fid, err)
+			}
+			if len(txns) == 0 {
+				return fmt.Errorf("bulk-edit: no transaction found with fid %q", fid)
+			}
+			if len(txns) > 1 {
+				return fmt.Errorf("bulk-edit: fid %q matched %d transactions (corrupt journal — run audit)", fid, len(txns))
+			}
+			t := txns[0]
+			src := &journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
+			input, err := journal.InputFromTransaction(t)
+			if err != nil {
+				return fmt.Errorf("bulk-edit: fid %q: %w", fid, err)
+			}
+
+			for _, op := range req.Msg.Operations {
+				switch v := op.Operation.(type) {
+				case *floatv1.BulkEditOperation_MarkReviewed:
+					if v.MarkReviewed.Reviewed {
+						input.Status = "Cleared"
+					} else {
+						input.Status = ""
+					}
+				case *floatv1.BulkEditOperation_AddTag:
+					if input.Tags == nil {
+						input.Tags = make(map[string]string)
+					}
+					input.Tags[v.AddTag.Key] = v.AddTag.Value
+				case *floatv1.BulkEditOperation_RemoveTag:
+					delete(input.Tags, v.RemoveTag.Key)
+				case *floatv1.BulkEditOperation_SetPayee:
+					note := ""
+					if t.Note != nil {
+						note = *t.Note
+					}
+					input.Description = v.SetPayee.Payee + " | " + note
+				case *floatv1.BulkEditOperation_ClearPayee:
+					note := ""
+					if t.Note != nil {
+						note = *t.Note
+					}
+					input.Description = note
+				}
+			}
+
+			if _, err := journal.WriteTransaction(ctx, h.hl, h.dataDir, input, src); err != nil {
+				return fmt.Errorf("bulk-edit: fid %q: write: %w", fid, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "no transaction found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "bulk edit transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	results := make([]*floatv1.Transaction, 0, len(req.Msg.Fids))
+	for _, fid := range req.Msg.Fids {
+		txns, err := h.hl.Transactions(ctx, "code:"+fid)
+		if err != nil {
+			logger.ErrorContext(ctx, "bulk edit: fetch after update failed", "fid", fid, "error", err)
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		if len(txns) == 0 {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after bulk edit", fid))
+		}
+		results = append(results, toProtoTransaction(txns[0]))
+	}
+	return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{Transactions: results}), nil
+}

@@ -384,7 +384,7 @@ func TestInputFromTransaction(t *testing.T) {
 	dir := setupWriteDir(t)
 	c := mustHledgerClient(t, dir)
 
-	// Write a full transaction and round-trip through inputFromTransaction.
+	// Write a full transaction and round-trip through InputFromTransaction.
 	tx := TransactionInput{
 		Date:        time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC),
 		Description: "ROUNDTRIP TEST",
@@ -410,9 +410,9 @@ func TestInputFromTransaction(t *testing.T) {
 		t.Fatalf("expected 1 transaction, got %d", len(txns))
 	}
 
-	input, err := inputFromTransaction(txns[0])
+	input, err := InputFromTransaction(txns[0])
 	if err != nil {
-		t.Fatalf("inputFromTransaction: %v", err)
+		t.Fatalf("InputFromTransaction: %v", err)
 	}
 
 	if input.Description != "ROUNDTRIP TEST" {

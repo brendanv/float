@@ -29,7 +29,7 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 	t := txns[0]
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
-	input, err := inputFromTransaction(t)
+	input, err := InputFromTransaction(t)
 	if err != nil {
 		return fmt.Errorf("journal: modify-tags: %w", err)
 	}
@@ -64,7 +64,7 @@ func ModifyFloatMeta(ctx context.Context, client *hledger.Client, dataDir, fid s
 	t := txns[0]
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
-	input, err := inputFromTransaction(t)
+	input, err := InputFromTransaction(t)
 	if err != nil {
 		return fmt.Errorf("journal: modify-hidden-meta: %w", err)
 	}

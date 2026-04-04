@@ -35,7 +35,7 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 	t := txns[0]
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
-	input, err := inputFromTransaction(t)
+	input, err := InputFromTransaction(t)
 	if err != nil {
 		return fmt.Errorf("journal: update-status: %w", err)
 	}

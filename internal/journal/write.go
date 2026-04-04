@@ -81,9 +81,9 @@ func WriteTransaction(ctx context.Context, client *hledger.Client, dataDir strin
 	return fid, nil
 }
 
-// inputFromTransaction builds a TransactionInput from a looked-up hledger.Transaction,
+// InputFromTransaction builds a TransactionInput from a looked-up hledger.Transaction,
 // preserving all fields. Callers override specific fields before calling WriteTransaction.
-func inputFromTransaction(t hledger.Transaction) (TransactionInput, error) {
+func InputFromTransaction(t hledger.Transaction) (TransactionInput, error) {
 	date, err := time.Parse("2006-01-02", t.Date)
 	if err != nil {
 		return TransactionInput{}, fmt.Errorf("journal: parse date %q: %w", t.Date, err)
