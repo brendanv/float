@@ -42,6 +42,15 @@ test("prices page", async ({ page }) => {
   await page.screenshot({ path: "test-results/prices.png", fullPage: true });
 });
 
+test("transactions page - mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/transactions");
+  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/transactions-mobile.png", fullPage: true });
+});
+
 test("transactions page - payee filter", async ({ page }) => {
   await page.goto("/#/transactions?payee=Whole+Foods+Market");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
