@@ -42,6 +42,27 @@ test("prices page", async ({ page }) => {
   await page.screenshot({ path: "test-results/prices.png", fullPage: true });
 });
 
+test("transactions page - filter dropdown open", async ({ page }) => {
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Click the quick filter dropdown button (last btn-ghost/btn-primary in the first row)
+  const filterBtn = page.locator("button").filter({ hasText: /^(All|Reviewed|Unreviewed|No payee set|Filter)\s*▾?$/ }).first();
+  await filterBtn.click();
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/transactions-filter-open.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 300 } });
+});
+
+test("transactions page - mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/transactions");
+  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/transactions-mobile.png", fullPage: true });
+});
+
 test("transactions page - payee filter", async ({ page }) => {
   await page.goto("/#/transactions?payee=Whole+Foods+Market");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});

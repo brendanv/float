@@ -19,6 +19,9 @@ web/src/gen/
 internal/webui/dist/*
 !internal/webui/dist/.gitkeep
 
+# npm artifacts (project uses bun)
+web/package-lock.json
+
 # Playwright
 web/test-results/
 web/playwright-report/

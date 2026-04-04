@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { ledgerClient } from "../client.js";
 import { useRpc } from "../hooks/use-rpc.js";
-import { SearchControls, DATE_PRESETS } from "../components/search-controls.jsx";
+import { SearchControls, DATE_PRESETS, PAYEE_NONE } from "../components/search-controls.jsx";
 import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -236,6 +236,17 @@ export function TransactionsPage({ params }) {
     setRefreshKey((k) => k + 1);
   }
 
+  function applyQuickFilter(filters) {
+    setDateFrom(filters.dateFrom);
+    setDateTo(filters.dateTo);
+    setAccount(filters.account);
+    setTag(filters.tag);
+    setStatus(filters.status);
+    setPayee(filters.payee);
+    setPage(0);
+    setSelectedFids(new Set());
+  }
+
   const total = data?.total ?? 0;
   const hasNext = data?.hasNext ?? false;
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -256,8 +267,8 @@ export function TransactionsPage({ params }) {
         onDateRangeChange={onDateRangeChange}
         onAccountChange={onFilterChange(setAccount)}
         onTagChange={onFilterChange(setTag)}
-        onStatusChange={onFilterChange(setStatus)}
         onPayeeChange={onFilterChange(setPayee)}
+        onQuickFilter={applyQuickFilter}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
       />
@@ -318,7 +329,8 @@ function buildQuery(dateFrom, dateTo, account, tag, status, payee) {
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (account) tokens.push(`acct:${account}`);
   if (tag) tokens.push(`tag:${tag}`);
-  if (payee) tokens.push(`payee:${payee}`);
+  if (payee === PAYEE_NONE) tokens.push("not:payee:.+");
+  else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
   return tokens;
