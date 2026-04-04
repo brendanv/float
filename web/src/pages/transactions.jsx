@@ -5,8 +5,6 @@ import { SearchControls, DATE_PRESETS } from "../components/search-controls.jsx"
 import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { formatAmounts } from "../format.js";
-
 const PAGE_SIZE = 50;
 
 function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSelection }) {
@@ -20,6 +18,7 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
 
   const selectedTxs = transactions.filter((tx) => selectedFids.has(tx.fid));
   const count = selectedTxs.length;
+  const fids = selectedTxs.map((tx) => tx.fid);
 
   // Collect union of all tag keys across selected transactions
   const availableTagKeys = [...new Set(selectedTxs.flatMap((tx) => Object.keys(tx.tags || {})))].sort();
@@ -33,13 +32,11 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
     setError(null);
   }
 
-  async function runBulk(fn) {
+  async function runBulk(operations) {
     setWorking(true);
     setError(null);
     try {
-      for (const tx of selectedTxs) {
-        await fn(tx);
-      }
+      await ledgerClient.bulkEditTransactions({ fids, operations });
       cancelMode();
       onActionComplete();
     } catch (err) {
@@ -49,32 +46,23 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
     }
   }
 
-  function bulkMarkStatus(status) {
-    return runBulk((tx) => ledgerClient.updateTransactionStatus({ fid: tx.fid, status }));
+  function bulkMarkStatus(reviewed) {
+    return runBulk([{ markReviewed: { reviewed } }]);
   }
 
   function bulkAddTag() {
     if (!tagKey.trim()) return;
-    return runBulk((tx) => ledgerClient.modifyTags({ fid: tx.fid, tags: { ...(tx.tags || {}), [tagKey.trim()]: tagValue.trim() } }));
+    return runBulk([{ addTag: { key: tagKey.trim(), value: tagValue.trim() } }]);
   }
 
   function bulkRemoveTag() {
     if (!removeTagKey) return;
-    return runBulk((tx) => {
-      const next = Object.fromEntries(Object.entries(tx.tags || {}).filter(([k]) => k !== removeTagKey));
-      return ledgerClient.modifyTags({ fid: tx.fid, tags: next });
-    });
+    return runBulk([{ removeTag: { key: removeTagKey } }]);
   }
 
   function bulkSetPayee() {
     if (!payee.trim()) return;
-    return runBulk((tx) => ledgerClient.updateTransaction({
-      fid: tx.fid,
-      description: tx.description,
-      date: tx.date,
-      postings: (tx.postings || []).map((p) => ({ account: p.account, amount: formatAmounts(p.amounts) })),
-      payee: payee.trim(),
-    }));
+    return runBulk([{ setPayee: { payee: payee.trim() } }]);
   }
 
   return (
@@ -88,7 +76,7 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
           <button
             class="btn btn-xs btn-ghost"
             disabled={working}
-            onClick={() => bulkMarkStatus("Cleared")}
+            onClick={() => bulkMarkStatus(true)}
             title="Mark selected as reviewed"
           >
             Mark reviewed
@@ -96,7 +84,7 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
           <button
             class="btn btn-xs btn-ghost"
             disabled={working}
-            onClick={() => bulkMarkStatus("Pending")}
+            onClick={() => bulkMarkStatus(false)}
             title="Mark selected as unreviewed"
           >
             Mark unreviewed
