@@ -70,6 +70,32 @@ export const DATE_PRESETS = [
   { label: "All", fn: () => ({ from: "", to: "" }) },
 ];
 
+// Quick filter presets: each returns the complete filter state to apply.
+export const QUICK_FILTERS = [
+  {
+    label: "All unreviewed",
+    description: "All unreviewed transactions across all time",
+    getFilters: () => ({ dateFrom: "", dateTo: "", status: "unreviewed", account: "", tag: "", payee: "" }),
+  },
+  {
+    label: "Unreviewed this month",
+    description: "Unreviewed transactions from this month",
+    getFilters: () => ({ ...thisMonth(), status: "unreviewed", account: "", tag: "", payee: "" }),
+  },
+  {
+    label: "Unreviewed last month",
+    description: "Unreviewed transactions from last month",
+    getFilters: () => ({ ...lastMonth(), status: "unreviewed", account: "", tag: "", payee: "" }),
+  },
+];
+
+function quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee }) {
+  const t = qf.getFilters();
+  return t.dateFrom === dateFrom && t.dateTo === dateTo &&
+    t.status === status && t.account === account &&
+    t.tag === tag && t.payee === payee;
+}
+
 export function PeriodBar({ dateFrom, dateTo, onChange }) {
   const presets = DATE_PRESETS.filter(p => PERIOD_BAR_PRESETS.includes(p.label));
 
@@ -126,6 +152,7 @@ export function SearchControls({
   onTagChange,
   onStatusChange,
   onPayeeChange,
+  onQuickFilter,
   accounts,
   tags,
 }) {
@@ -146,6 +173,26 @@ export function SearchControls({
 
   return (
     <div class="mb-4 space-y-2">
+      {/* Quick filters row */}
+      {onQuickFilter && (
+        <div class="flex flex-wrap items-center gap-1">
+          <span class="text-xs text-base-content/50 mr-1 shrink-0">Quick:</span>
+          {QUICK_FILTERS.map((qf) => {
+            const isActive = quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee });
+            return (
+              <button
+                key={qf.label}
+                class={`btn btn-xs ${isActive ? "btn-primary" : "btn-ghost"}`}
+                onClick={() => onQuickFilter(qf.getFilters())}
+                title={qf.description}
+              >
+                {qf.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Date range row */}
       <div class="flex flex-wrap items-center gap-2">
         <div class="join">

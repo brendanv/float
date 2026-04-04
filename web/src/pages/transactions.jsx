@@ -236,6 +236,17 @@ export function TransactionsPage({ params }) {
     setRefreshKey((k) => k + 1);
   }
 
+  function applyQuickFilter(filters) {
+    setDateFrom(filters.dateFrom);
+    setDateTo(filters.dateTo);
+    setAccount(filters.account);
+    setTag(filters.tag);
+    setStatus(filters.status);
+    setPayee(filters.payee);
+    setPage(0);
+    setSelectedFids(new Set());
+  }
+
   const total = data?.total ?? 0;
   const hasNext = data?.hasNext ?? false;
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -258,6 +269,7 @@ export function TransactionsPage({ params }) {
         onTagChange={onFilterChange(setTag)}
         onStatusChange={onFilterChange(setStatus)}
         onPayeeChange={onFilterChange(setPayee)}
+        onQuickFilter={applyQuickFilter}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
       />
