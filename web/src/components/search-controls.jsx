@@ -61,6 +61,19 @@ function lastYear() {
   return { from: fmtDate(y - 1, 1, 1), to: fmtDate(y, 1, 1) };
 }
 
+function last30Days() {
+  const now = new Date();
+  const past = new Date(now);
+  past.setDate(past.getDate() - 30);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  function fmt(d) { return fmtDate(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+  return { from: fmt(past), to: fmt(tomorrow) };
+}
+
+// Sentinel value for the payee filter meaning "transactions with no payee set".
+export const PAYEE_NONE = "\x00none";
+
 export const DATE_PRESETS = [
   { label: "This month", fn: thisMonth },
   { label: "Last month", fn: lastMonth },
@@ -86,6 +99,16 @@ export const QUICK_FILTERS = [
     label: "Unreviewed last month",
     description: "Unreviewed transactions from last month",
     getFilters: () => ({ ...lastMonth(), status: "unreviewed", account: "", tag: "", payee: "" }),
+  },
+  {
+    label: "Last 30 days",
+    description: "All transactions from the last 30 days",
+    getFilters: () => ({ ...last30Days(), status: "", account: "", tag: "", payee: "" }),
+  },
+  {
+    label: "No payee set",
+    description: "Transactions without a payee assigned",
+    getFilters: () => ({ dateFrom: "", dateTo: "", status: "", account: "", tag: "", payee: PAYEE_NONE }),
   },
 ];
 
@@ -284,7 +307,7 @@ export function SearchControls({
         <div class="flex flex-wrap gap-1">
           {payee && (
             <div class="badge badge-neutral gap-1">
-              payee: {payee}
+              {payee === PAYEE_NONE ? "no payee set" : `payee: ${payee}`}
               <button
                 class="cursor-pointer opacity-60 hover:opacity-100"
                 onClick={() => onPayeeChange("")}
