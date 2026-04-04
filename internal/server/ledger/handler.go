@@ -12,6 +12,7 @@ import (
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/cache"
+	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/slogctx"
@@ -25,11 +26,11 @@ type Handler struct {
 	lock    *txlock.TxLock
 	dataDir string
 	cache   *cache.Cache[any] // nil = bypass cache
+	snap    *gitsnap.Repo
 }
 
-// NewHandler creates a Handler. c may be nil to disable caching (useful in tests).
-func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any]) *Handler {
-	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c}
+func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any], snap *gitsnap.Repo) *Handler {
+	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c, snap: snap}
 }
 
 // cacheKey helpers produce deterministic, namespaced keys from RPC parameters.
@@ -738,4 +739,39 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		results = append(results, toProtoTransaction(txns[0]))
 	}
 	return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{Transactions: results}), nil
+}
+
+func (h *Handler) ListSnapshots(ctx context.Context, req *connect.Request[floatv1.ListSnapshotsRequest]) (*connect.Response[floatv1.ListSnapshotsResponse], error) {
+	if h.snap == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("snapshots not enabled"))
+	}
+	snaps, err := h.snap.List(ctx, int(req.Msg.Limit))
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "list snapshots failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	out := make([]*floatv1.Snapshot, len(snaps))
+	for i, s := range snaps {
+		out[i] = &floatv1.Snapshot{
+			Hash:      s.Hash,
+			Message:   s.Message,
+			Timestamp: s.Timestamp.Format(time.RFC3339),
+		}
+	}
+	return connect.NewResponse(&floatv1.ListSnapshotsResponse{Snapshots: out}), nil
+}
+
+func (h *Handler) RestoreSnapshot(ctx context.Context, req *connect.Request[floatv1.RestoreSnapshotRequest]) (*connect.Response[floatv1.RestoreSnapshotResponse], error) {
+	if h.snap == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("snapshots not enabled"))
+	}
+	if req.Msg.Hash == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("hash is required"))
+	}
+	if err := h.snap.Restore(ctx, req.Msg.Hash); err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "restore snapshot failed", "hash", req.Msg.Hash, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	h.lock.BumpGeneration()
+	return connect.NewResponse(&floatv1.RestoreSnapshotResponse{}), nil
 }
