@@ -1,4 +1,4 @@
-import { useEffect } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 function pad2(n) {
   return n < 10 ? "0" + n : "" + n;
@@ -10,6 +10,9 @@ function fmtDate(y, m, d) {
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"];
+
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function shiftMonth(dateFrom, delta) {
   const d = new Date(dateFrom + "T00:00:00");
@@ -77,6 +80,7 @@ export const PAYEE_NONE = "\x00none";
 export const DATE_PRESETS = [
   { label: "This month", fn: thisMonth },
   { label: "Last month", fn: lastMonth },
+  { label: "Last 30 days", fn: last30Days },
   { label: "This year", fn: thisYear },
   { label: "Last 12 months", fn: last12Months },
   { label: "Last year", fn: lastYear },
@@ -101,11 +105,6 @@ export const QUICK_FILTERS = [
     getFilters: () => ({ ...lastMonth(), status: "unreviewed", account: "", tag: "", payee: "" }),
   },
   {
-    label: "Last 30 days",
-    description: "All transactions from the last 30 days",
-    getFilters: () => ({ ...last30Days(), status: "", account: "", tag: "", payee: "" }),
-  },
-  {
     label: "No payee set",
     description: "Transactions without a payee assigned",
     getFilters: () => ({ dateFrom: "", dateTo: "", status: "", account: "", tag: "", payee: PAYEE_NONE }),
@@ -117,6 +116,39 @@ function quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee }
   return t.dateFrom === dateFrom && t.dateTo === dateTo &&
     t.status === status && t.account === account &&
     t.tag === tag && t.payee === payee;
+}
+
+// Format a date range for display in the date picker button.
+function formatDateRange(dateFrom, dateTo) {
+  if (!dateFrom) return "All time";
+  const from = new Date(dateFrom + "T00:00:00");
+  if (dateTo) {
+    const to = new Date(dateTo + "T00:00:00"); // exclusive end
+    // Single whole month?
+    if (from.getDate() === 1 && to.getDate() === 1) {
+      const next = new Date(from);
+      next.setMonth(next.getMonth() + 1);
+      if (next.getTime() === to.getTime()) {
+        return `${MONTH_NAMES[from.getMonth()]} ${from.getFullYear()}`;
+      }
+    }
+    // Whole year?
+    if (from.getMonth() === 0 && from.getDate() === 1 &&
+        to.getMonth() === 0 && to.getDate() === 1 &&
+        to.getFullYear() === from.getFullYear() + 1) {
+      return String(from.getFullYear());
+    }
+    // Generic: show inclusive end date
+    const toInc = new Date(to);
+    toInc.setDate(toInc.getDate() - 1);
+    const fs = `${SHORT_MONTHS[from.getMonth()]} ${from.getDate()}`;
+    const ts = `${SHORT_MONTHS[toInc.getMonth()]} ${toInc.getDate()}`;
+    if (from.getFullYear() === toInc.getFullYear()) {
+      return `${fs} – ${ts}, ${from.getFullYear()}`;
+    }
+    return `${fs}, ${from.getFullYear()} – ${ts}, ${toInc.getFullYear()}`;
+  }
+  return dateFrom;
 }
 
 export function PeriodBar({ dateFrom, dateTo, onChange }) {
@@ -179,75 +211,116 @@ export function SearchControls({
   accounts,
   tags,
 }) {
-  function applyPreset(preset) {
-    const { from, to } = preset.fn();
-    onDateRangeChange(from, to);
-  }
+  const [dateOpen, setDateOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const dateRef = useRef(null);
+  const quickRef = useRef(null);
 
-  function activePresetLabel() {
-    for (const p of DATE_PRESETS) {
-      const { from, to } = p.fn();
-      if (from === dateFrom && to === dateTo) return p.label;
+  useEffect(() => {
+    function handleClick(e) {
+      if (dateRef.current && !dateRef.current.contains(e.target)) setDateOpen(false);
+      if (quickRef.current && !quickRef.current.contains(e.target)) setQuickOpen(false);
     }
-    return null;
-  }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
-  const activePreset = activePresetLabel();
+  const activeQuickFilter = QUICK_FILTERS.find(
+    qf => quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee })
+  );
+
+  function shiftDate(delta) {
+    const now = new Date();
+    const base = dateFrom || fmtDate(now.getFullYear(), now.getMonth() + 1, 1);
+    const r = shiftMonth(base, delta);
+    onDateRangeChange(r.from, r.to);
+  }
 
   return (
     <div class="mb-4 space-y-2">
-      {/* Quick filters row */}
-      {onQuickFilter && (
-        <div class="flex flex-wrap items-center gap-1">
-          <span class="text-xs text-base-content/50 mr-1 shrink-0">Quick:</span>
-          {QUICK_FILTERS.map((qf) => {
-            const isActive = quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee });
-            return (
-              <button
-                key={qf.label}
-                class={`btn btn-xs ${isActive ? "btn-primary" : "btn-ghost"}`}
-                onClick={() => onQuickFilter(qf.getFilters())}
-                title={qf.description}
-              >
-                {qf.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Date range + quick filters row */}
+      <div class="flex flex-wrap items-center gap-1">
+        <button class="btn btn-sm btn-ghost px-2" onClick={() => shiftDate(-1)}>‹</button>
 
-      {/* Date range row */}
-      <div class="flex flex-wrap items-center gap-2">
-        <div class="join">
-          <input
-            type="date"
-            class="input input-bordered input-sm join-item"
-            value={dateFrom}
-            placeholder="From"
-            onInput={(e) => onDateRangeChange(e.target.value, dateTo)}
-          />
-          <input
-            type="date"
-            class="input input-bordered input-sm join-item"
-            value={dateTo ? isoExclusiveToInclusive(dateTo) : ""}
-            placeholder="To"
-            onInput={(e) => {
-              const v = e.target.value;
-              onDateRangeChange(dateFrom, v ? inclusiveToExclusiveTo(v) : "");
-            }}
-          />
+        {/* Date range dropdown */}
+        <div class="relative" ref={dateRef}>
+          <button
+            class="btn btn-sm font-normal gap-1"
+            onClick={() => { setDateOpen(o => !o); setQuickOpen(false); }}
+          >
+            {formatDateRange(dateFrom, dateTo)}
+            <span class="opacity-40 text-xs">▾</span>
+          </button>
+          {dateOpen && (
+            <div class="absolute top-full left-0 z-50 mt-1 w-56 bg-base-100 border border-base-300 rounded-box shadow-lg py-1">
+              {DATE_PRESETS.map(p => {
+                const { from, to } = p.fn();
+                const isActive = from === dateFrom && to === dateTo;
+                return (
+                  <button
+                    key={p.label}
+                    class={`w-full text-left px-4 py-1.5 text-sm hover:bg-base-200 flex justify-between items-center${isActive ? " font-semibold" : ""}`}
+                    onClick={() => { onDateRangeChange(from, to); setDateOpen(false); }}
+                  >
+                    {p.label}
+                    {isActive && <span class="text-primary text-xs">✓</span>}
+                  </button>
+                );
+              })}
+              <div class="border-t border-base-300 mt-1 pt-2 px-3 pb-2 space-y-1">
+                <div class="text-xs text-base-content/50 mb-1">Custom range</div>
+                <input
+                  type="date"
+                  class="input input-xs input-bordered w-full"
+                  value={dateFrom}
+                  onInput={(e) => onDateRangeChange(e.target.value, dateTo)}
+                />
+                <input
+                  type="date"
+                  class="input input-xs input-bordered w-full"
+                  value={dateTo ? isoExclusiveToInclusive(dateTo) : ""}
+                  onInput={(e) => {
+                    const v = e.target.value;
+                    onDateRangeChange(dateFrom, v ? inclusiveToExclusiveTo(v) : "");
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
-        <div class="join flex-wrap">
-          {DATE_PRESETS.map((p) => (
+
+        <button class="btn btn-sm btn-ghost px-2" onClick={() => shiftDate(1)}>›</button>
+
+        {/* Quick filters dropdown */}
+        {onQuickFilter && (
+          <div class="relative ml-1" ref={quickRef}>
             <button
-              key={p.label}
-              class={`btn btn-sm join-item ${activePreset === p.label ? "btn-primary" : ""}`}
-              onClick={() => applyPreset(p)}
+              class={`btn btn-sm gap-1 ${activeQuickFilter ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => { setQuickOpen(o => !o); setDateOpen(false); }}
             >
-              {p.label}
+              {activeQuickFilter ? activeQuickFilter.label : "Quick filters"}
+              <span class="opacity-40 text-xs">▾</span>
             </button>
-          ))}
-        </div>
+            {quickOpen && (
+              <div class="absolute top-full left-0 z-50 mt-1 w-56 bg-base-100 border border-base-300 rounded-box shadow-lg py-1">
+                {QUICK_FILTERS.map(qf => {
+                  const isActive = quickFilterActive(qf, { dateFrom, dateTo, account, tag, status, payee });
+                  return (
+                    <button
+                      key={qf.label}
+                      class={`w-full text-left px-4 py-1.5 text-sm hover:bg-base-200 flex justify-between items-center${isActive ? " font-semibold" : ""}`}
+                      onClick={() => { onQuickFilter(qf.getFilters()); setQuickOpen(false); }}
+                      title={qf.description}
+                    >
+                      {qf.label}
+                      {isActive && <span class="text-primary text-xs">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filter dropdowns row */}
@@ -260,12 +333,9 @@ export function SearchControls({
           >
             <option value="">All accounts</option>
             {(accounts || []).map((a) => (
-              <option key={a.fullName} value={a.fullName}>
-                {a.fullName}
-              </option>
+              <option key={a.fullName} value={a.fullName}>{a.fullName}</option>
             ))}
           </select>
-
           <select
             class="select select-bordered select-sm join-item"
             value={tag}
@@ -273,99 +343,42 @@ export function SearchControls({
           >
             <option value="">Any tag</option>
             {(tags || []).map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
-
         <div class="join">
-          <button
-            class={`btn btn-sm join-item ${!status ? "btn-active" : ""}`}
-            onClick={() => onStatusChange("")}
-          >
-            All
-          </button>
-          <button
-            class={`btn btn-sm join-item ${status === "reviewed" ? "btn-active" : ""}`}
-            onClick={() => onStatusChange("reviewed")}
-          >
-            Reviewed
-          </button>
-          <button
-            class={`btn btn-sm join-item ${status === "unreviewed" ? "btn-active" : ""}`}
-            onClick={() => onStatusChange("unreviewed")}
-          >
-            Unreviewed
-          </button>
+          <button class={`btn btn-sm join-item ${!status ? "btn-active" : ""}`} onClick={() => onStatusChange("")}>All</button>
+          <button class={`btn btn-sm join-item ${status === "reviewed" ? "btn-active" : ""}`} onClick={() => onStatusChange("reviewed")}>Reviewed</button>
+          <button class={`btn btn-sm join-item ${status === "unreviewed" ? "btn-active" : ""}`} onClick={() => onStatusChange("unreviewed")}>Unreviewed</button>
         </div>
       </div>
 
       {/* Active filter chips */}
-      {(account || tag || status || payee || !activePreset) && (
+      {(account || tag || status || payee) && (
         <div class="flex flex-wrap gap-1">
           {payee && (
             <div class="badge badge-neutral gap-1">
               {payee === PAYEE_NONE ? "no payee set" : `payee: ${payee}`}
-              <button
-                class="cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onPayeeChange("")}
-                aria-label="Clear payee filter"
-              >
-                ✕
-              </button>
+              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onPayeeChange("")} aria-label="Clear payee filter">✕</button>
             </div>
           )}
           {account && (
             <div class="badge badge-neutral gap-1">
               acct: {account}
-              <button
-                class="cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onAccountChange("")}
-                aria-label="Clear account filter"
-              >
-                ✕
-              </button>
+              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onAccountChange("")} aria-label="Clear account filter">✕</button>
             </div>
           )}
           {tag && (
             <div class="badge badge-neutral gap-1">
               tag: {tag}
-              <button
-                class="cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onTagChange("")}
-                aria-label="Clear tag filter"
-              >
-                ✕
-              </button>
+              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onTagChange("")} aria-label="Clear tag filter">✕</button>
             </div>
           )}
           {status && (
             <div class="badge badge-neutral gap-1">
               {status === "reviewed" ? "Reviewed" : "Unreviewed"}
-              <button
-                class="cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onStatusChange("")}
-                aria-label="Clear status filter"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-          {!activePreset && dateFrom && dateTo && (
-            <div class="badge badge-neutral gap-1">
-              {dateFrom} – {isoExclusiveToInclusive(dateTo)}
-              <button
-                class="cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => {
-                  const { from, to } = thisMonth();
-                  onDateRangeChange(from, to);
-                }}
-                aria-label="Reset to this month"
-              >
-                ✕
-              </button>
+              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onStatusChange("")} aria-label="Clear status filter">✕</button>
             </div>
           )}
         </div>
