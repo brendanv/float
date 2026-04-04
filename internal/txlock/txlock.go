@@ -43,7 +43,7 @@ func (l *TxLock) Generation() uint64 {
 //  4. Run hledger check to validate the journal
 //  5. On check failure: revert all journal files from snapshot, return error
 //  6. On success: bump generation counter
-func (l *TxLock) Do(ctx context.Context, fn func() error) error {
+func (l *TxLock) Do(ctx context.Context, msg string, fn func() error) error {
 	logger := slogctx.FromContext(ctx)
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -73,7 +73,7 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 	gen := l.gen.Add(1)
 	logger.Info("txlock: write committed", "generation", gen)
 	if l.snap != nil {
-		if snapErr := l.snap.Commit(ctx, "float: write"); snapErr != nil {
+		if snapErr := l.snap.Commit(ctx, msg); snapErr != nil {
 			logger.Warn("txlock: gitsnap commit failed", "error", snapErr)
 		}
 	}

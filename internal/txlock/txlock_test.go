@@ -152,12 +152,12 @@ func TestTxLock_Do(t *testing.T) {
 			// For the "second write" test, prime with a first successful write.
 			if tt.wantGeneration == 2 {
 				first := addMonthFile(dir, "2026/01.journal", validTx)
-				if err := l.Do(t.Context(), first); err != nil {
+				if err := l.Do(t.Context(), "test write", first); err != nil {
 					t.Fatalf("first Do() failed: %v", err)
 				}
 				// Now write to a different month so main.journal gets another include.
 				second := addMonthFile(dir, "2026/02.journal", "2026-02-01 PAYROLL\n    assets:checking  $3500.00\n    income:salary  $-3500.00\n\n")
-				if err := l.Do(t.Context(), second); err != nil {
+				if err := l.Do(t.Context(), "test write", second); err != nil {
 					t.Fatalf("second Do() failed: %v", err)
 				}
 				if got := l.Generation(); got != 2 {
@@ -166,7 +166,7 @@ func TestTxLock_Do(t *testing.T) {
 				return
 			}
 
-			err := l.Do(t.Context(), tt.fn(dir))
+			err := l.Do(t.Context(), "test write", tt.fn(dir))
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Do() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -193,7 +193,7 @@ func TestTxLock_Do_ExistingFileReverted(t *testing.T) {
 
 	// Write a valid month file first.
 	validTx := "2026-01-15 AMAZON\n    expenses:food  $10.00\n    assets:checking  $-10.00\n\n"
-	if err := l.Do(t.Context(), addMonthFile(dir, "2026/01.journal", validTx)); err != nil {
+	if err := l.Do(t.Context(), "test write", addMonthFile(dir, "2026/01.journal", validTx)); err != nil {
 		t.Fatalf("setup Do() failed: %v", err)
 	}
 	originalContent, _ := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
@@ -208,7 +208,7 @@ func TestTxLock_Do_ExistingFileReverted(t *testing.T) {
 		_, err = f.WriteString("2026-01-20 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n")
 		return err
 	}
-	if err := l.Do(t.Context(), badAppend); err == nil {
+	if err := l.Do(t.Context(), "test write", badAppend); err == nil {
 		t.Fatal("Do() with invalid append should have returned error")
 	}
 
@@ -241,7 +241,7 @@ func TestTxLock_Do_Concurrent(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			errs[i] = l.Do(t.Context(), addMonthFile(dir, months[i], txns[i]))
+			errs[i] = l.Do(t.Context(), "test write", addMonthFile(dir, months[i], txns[i]))
 		}(i)
 	}
 	wg.Wait()

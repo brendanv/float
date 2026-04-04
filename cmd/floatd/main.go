@@ -77,7 +77,7 @@ func main() {
 	lock.SetSnap(snap)
 
 	var backfillCount int
-	if err := lock.Do(context.Background(), func() error {
+	if err := lock.Do(context.Background(), "migrate transaction IDs", func() error {
 		n, err := journal.MigrateFIDs(*dataDir)
 		backfillCount = n
 		return err

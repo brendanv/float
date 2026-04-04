@@ -251,7 +251,7 @@ func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[fl
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "delete transaction", func() error {
 		return journal.DeleteTransaction(ctx, h.hl, h.dataDir, fid)
 	})
 	if err != nil {
@@ -270,7 +270,7 @@ func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.M
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "modify transaction tags", func() error {
 		return journal.ModifyTags(ctx, h.hl, h.dataDir, fid, req.Msg.Tags)
 	})
 	if err != nil {
@@ -293,7 +293,7 @@ func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("new_date is required"))
 	}
 	var updated hledger.Transaction
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "update transaction date", func() error {
 		var e error
 		updated, e = journal.UpdateTransactionDate(ctx, h.hl, h.dataDir, fid, req.Msg.NewDate)
 		return e
@@ -359,7 +359,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 	}
 
 	var fid string
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "add transaction", func() error {
 		var e error
 		fid, e = journal.AppendTransaction(ctx, h.hl, h.dataDir, tx)
 		return e
@@ -415,7 +415,7 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	}
 
 	var updated hledger.Transaction
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "update transaction", func() error {
 		var e error
 		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, postings)
 		return e
@@ -447,7 +447,7 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid status %q: must be \"\", \"Pending\", or \"Cleared\"", req.Msg.Status))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "update transaction status", func() error {
 		return journal.UpdateTransactionStatus(ctx, h.hl, h.dataDir, fid, req.Msg.Status)
 	})
 	if err != nil {
@@ -591,7 +591,7 @@ func (h *Handler) AddPrice(ctx context.Context, req *connect.Request[floatv1.Add
 	}
 
 	var pid string
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "add price directive", func() error {
 		var e error
 		pid, e = journal.AppendPrice(h.dataDir, date, req.Msg.Commodity, req.Msg.Quantity, req.Msg.Currency)
 		return e
@@ -615,7 +615,7 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 	if req.Msg.Pid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pid is required"))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "delete price directive", func() error {
 		return journal.DeletePrice(h.dataDir, req.Msg.Pid)
 	})
 	if err != nil {
@@ -663,7 +663,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		}
 	}
 
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "bulk edit transactions", func() error {
 		for _, fid := range req.Msg.Fids {
 			txns, err := h.hl.Transactions(ctx, "code:"+fid)
 			if err != nil {
