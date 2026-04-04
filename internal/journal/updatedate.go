@@ -35,7 +35,7 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 	t := txns[0]
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
-	input, err := inputFromTransaction(t)
+	input, err := InputFromTransaction(t)
 	if err != nil {
 		return hledger.Transaction{}, fmt.Errorf("journal: update-date: %w", err)
 	}

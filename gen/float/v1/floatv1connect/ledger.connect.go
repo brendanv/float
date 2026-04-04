@@ -76,6 +76,9 @@ const (
 	// LedgerServiceDeletePriceProcedure is the fully-qualified name of the LedgerService's DeletePrice
 	// RPC.
 	LedgerServiceDeletePriceProcedure = "/float.v1.LedgerService/DeletePrice"
+	// LedgerServiceBulkEditTransactionsProcedure is the fully-qualified name of the LedgerService's
+	// BulkEditTransactions RPC.
+	LedgerServiceBulkEditTransactionsProcedure = "/float.v1.LedgerService/BulkEditTransactions"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -95,6 +98,7 @@ type LedgerServiceClient interface {
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
+	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -198,6 +202,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
 			connect.WithClientOptions(opts...),
 		),
+		bulkEditTransactions: connect.NewClient[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse](
+			httpClient,
+			baseURL+LedgerServiceBulkEditTransactionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("BulkEditTransactions")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -218,6 +228,7 @@ type ledgerServiceClient struct {
 	listPrices              *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
 	addPrice                *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
 	deletePrice             *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
+	bulkEditTransactions    *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -295,6 +306,11 @@ func (c *ledgerServiceClient) DeletePrice(ctx context.Context, req *connect.Requ
 	return c.deletePrice.CallUnary(ctx, req)
 }
 
+// BulkEditTransactions calls float.v1.LedgerService.BulkEditTransactions.
+func (c *ledgerServiceClient) BulkEditTransactions(ctx context.Context, req *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error) {
+	return c.bulkEditTransactions.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -312,6 +328,7 @@ type LedgerServiceHandler interface {
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
+	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -411,6 +428,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceBulkEditTransactionsHandler := connect.NewUnaryHandler(
+		LedgerServiceBulkEditTransactionsProcedure,
+		svc.BulkEditTransactions,
+		connect.WithSchema(ledgerServiceMethods.ByName("BulkEditTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -443,6 +466,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceAddPriceHandler.ServeHTTP(w, r)
 		case LedgerServiceDeletePriceProcedure:
 			ledgerServiceDeletePriceHandler.ServeHTTP(w, r)
+		case LedgerServiceBulkEditTransactionsProcedure:
+			ledgerServiceBulkEditTransactionsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -510,4 +535,8 @@ func (UnimplementedLedgerServiceHandler) AddPrice(context.Context, *connect.Requ
 
 func (UnimplementedLedgerServiceHandler) DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeletePrice is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.BulkEditTransactions is not implemented"))
 }
