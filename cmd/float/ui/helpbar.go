@@ -38,7 +38,7 @@ var (
 	keySubmit     = key.NewBinding(key.WithKeys("shift+enter"), key.WithHelp("shift+enter", "submit"))
 	keyConfirm        = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
 	keySearch         = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
-	keyStatusFilter   = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "reviewed filter"))
+	keyStatusFilter   = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "filter preset"))
 )
 
 // HomeDefaultKeyMap is for the home tab with the accounts panel focused.
