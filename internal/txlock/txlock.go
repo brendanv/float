@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
 )
@@ -21,6 +22,7 @@ type TxLock struct {
 	dataDir string
 	client  *hledger.Client
 	gen     atomic.Uint64
+	snap    *gitsnap.Repo
 }
 
 // New creates a TxLock for the given data directory and hledger client.
@@ -41,7 +43,7 @@ func (l *TxLock) Generation() uint64 {
 //  4. Run hledger check to validate the journal
 //  5. On check failure: revert all journal files from snapshot, return error
 //  6. On success: bump generation counter
-func (l *TxLock) Do(ctx context.Context, fn func() error) error {
+func (l *TxLock) Do(ctx context.Context, msg string, fn func() error) error {
 	logger := slogctx.FromContext(ctx)
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -70,7 +72,20 @@ func (l *TxLock) Do(ctx context.Context, fn func() error) error {
 
 	gen := l.gen.Add(1)
 	logger.Info("txlock: write committed", "generation", gen)
+	if l.snap != nil {
+		if snapErr := l.snap.Commit(ctx, msg); snapErr != nil {
+			logger.Warn("txlock: gitsnap commit failed", "error", snapErr)
+		}
+	}
 	return nil
+}
+
+func (l *TxLock) SetSnap(snap *gitsnap.Repo) {
+	l.snap = snap
+}
+
+func (l *TxLock) BumpGeneration() uint64 {
+	return l.gen.Add(1)
 }
 
 // snapshotJournalFiles records the content of every *.journal file under dataDir.

@@ -12,6 +12,7 @@ import (
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/cache"
+	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/slogctx"
@@ -25,11 +26,11 @@ type Handler struct {
 	lock    *txlock.TxLock
 	dataDir string
 	cache   *cache.Cache[any] // nil = bypass cache
+	snap    *gitsnap.Repo
 }
 
-// NewHandler creates a Handler. c may be nil to disable caching (useful in tests).
-func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any]) *Handler {
-	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c}
+func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any], snap *gitsnap.Repo) *Handler {
+	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c, snap: snap}
 }
 
 // cacheKey helpers produce deterministic, namespaced keys from RPC parameters.
@@ -250,7 +251,7 @@ func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[fl
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "delete transaction", func() error {
 		return journal.DeleteTransaction(ctx, h.hl, h.dataDir, fid)
 	})
 	if err != nil {
@@ -269,7 +270,7 @@ func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.M
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "modify transaction tags", func() error {
 		return journal.ModifyTags(ctx, h.hl, h.dataDir, fid, req.Msg.Tags)
 	})
 	if err != nil {
@@ -292,7 +293,7 @@ func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("new_date is required"))
 	}
 	var updated hledger.Transaction
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "update transaction date", func() error {
 		var e error
 		updated, e = journal.UpdateTransactionDate(ctx, h.hl, h.dataDir, fid, req.Msg.NewDate)
 		return e
@@ -358,7 +359,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 	}
 
 	var fid string
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "add transaction", func() error {
 		var e error
 		fid, e = journal.AppendTransaction(ctx, h.hl, h.dataDir, tx)
 		return e
@@ -414,7 +415,7 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	}
 
 	var updated hledger.Transaction
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "update transaction", func() error {
 		var e error
 		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, postings)
 		return e
@@ -446,7 +447,7 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid status %q: must be \"\", \"Pending\", or \"Cleared\"", req.Msg.Status))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "update transaction status", func() error {
 		return journal.UpdateTransactionStatus(ctx, h.hl, h.dataDir, fid, req.Msg.Status)
 	})
 	if err != nil {
@@ -590,7 +591,7 @@ func (h *Handler) AddPrice(ctx context.Context, req *connect.Request[floatv1.Add
 	}
 
 	var pid string
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "add price directive", func() error {
 		var e error
 		pid, e = journal.AppendPrice(h.dataDir, date, req.Msg.Commodity, req.Msg.Quantity, req.Msg.Currency)
 		return e
@@ -614,7 +615,7 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 	if req.Msg.Pid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pid is required"))
 	}
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "delete price directive", func() error {
 		return journal.DeletePrice(h.dataDir, req.Msg.Pid)
 	})
 	if err != nil {
@@ -662,7 +663,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		}
 	}
 
-	err := h.lock.Do(ctx, func() error {
+	err := h.lock.Do(ctx, "bulk edit transactions", func() error {
 		for _, fid := range req.Msg.Fids {
 			txns, err := h.hl.Transactions(ctx, "code:"+fid)
 			if err != nil {
@@ -738,4 +739,39 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		results = append(results, toProtoTransaction(txns[0]))
 	}
 	return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{Transactions: results}), nil
+}
+
+func (h *Handler) ListSnapshots(ctx context.Context, req *connect.Request[floatv1.ListSnapshotsRequest]) (*connect.Response[floatv1.ListSnapshotsResponse], error) {
+	if h.snap == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("snapshots not enabled"))
+	}
+	snaps, err := h.snap.List(ctx, int(req.Msg.Limit))
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "list snapshots failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	out := make([]*floatv1.Snapshot, len(snaps))
+	for i, s := range snaps {
+		out[i] = &floatv1.Snapshot{
+			Hash:      s.Hash,
+			Message:   s.Message,
+			Timestamp: s.Timestamp.Format(time.RFC3339),
+		}
+	}
+	return connect.NewResponse(&floatv1.ListSnapshotsResponse{Snapshots: out}), nil
+}
+
+func (h *Handler) RestoreSnapshot(ctx context.Context, req *connect.Request[floatv1.RestoreSnapshotRequest]) (*connect.Response[floatv1.RestoreSnapshotResponse], error) {
+	if h.snap == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("snapshots not enabled"))
+	}
+	if req.Msg.Hash == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("hash is required"))
+	}
+	if err := h.snap.Restore(ctx, req.Msg.Hash); err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "restore snapshot failed", "hash", req.Msg.Hash, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	h.lock.BumpGeneration()
+	return connect.NewResponse(&floatv1.RestoreSnapshotResponse{}), nil
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/brendanv/float/internal/config"
+	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/txlock"
@@ -75,6 +76,18 @@ func init() {
 			Name:     "audit",
 			Synopsis: "Audit journal integrity: check includes exist, FIDs are unique, no orphaned files",
 			Run:      runJournalAudit,
+		},
+		&Command{
+			Group:    "journal",
+			Name:     "snapshots",
+			Synopsis: "List recent git snapshots of the data directory",
+			Run:      runJournalSnapshots,
+		},
+		&Command{
+			Group:    "journal",
+			Name:     "restore",
+			Synopsis: "Restore data directory to a previous git snapshot",
+			Run:      runJournalRestore,
 		},
 	)
 }
@@ -440,7 +453,7 @@ func runJournalDelete(args []string) error {
 		return err
 	}
 	lock := txlock.New(dataDir, client)
-	if err := lock.Do(context.Background(), func() error {
+	if err := lock.Do(context.Background(), "delete transaction", func() error {
 		return journal.DeleteTransaction(context.Background(), client, dataDir, fid)
 	}); err != nil {
 		return err
@@ -511,7 +524,7 @@ func runJournalAdd(args []string) error {
 	lock := txlock.New(dataDir, client)
 
 	var fid string
-	if err := lock.Do(context.Background(), func() error {
+	if err := lock.Do(context.Background(), "add transaction", func() error {
 		var addErr error
 		fid, addErr = journal.AppendTransaction(context.Background(), client, dataDir, tx)
 		return addErr
@@ -657,7 +670,7 @@ func runJournalImport(args []string) error {
 		if convErr != nil {
 			return fmt.Errorf("import: convert transaction: %w", convErr)
 		}
-		if err := lock.Do(ctx, func() error {
+		if err := lock.Do(ctx, "import transaction", func() error {
 			_, writeErr := journal.AppendTransaction(ctx, client, dataDir, txInput)
 			return writeErr
 		}); err != nil {
@@ -716,4 +729,59 @@ func hledgerTxnToInput(t hledger.Transaction) (journal.TransactionInput, error) 
 		Comment:     strings.TrimSpace(t.Comment),
 		Postings:    postings,
 	}, nil
+}
+
+func runJournalSnapshots(args []string) error {
+	fset := flag.NewFlagSet("journal snapshots", flag.ExitOnError)
+	limit := fset.Int("limit", 20, "max snapshots to show")
+	fset.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: floatctl journal snapshots <data-dir> [--limit N]")
+	}
+	if len(args) < 1 {
+		fset.Usage()
+		return fmt.Errorf("missing <data-dir> argument")
+	}
+	dataDir := args[0]
+	if err := fset.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	snap, err := gitsnap.New(dataDir)
+	if err != nil {
+		return err
+	}
+	snaps, err := snap.List(context.Background(), *limit)
+	if err != nil {
+		return err
+	}
+	for _, s := range snaps {
+		fmt.Printf("%s  %s  %s\n", s.Hash[:12], s.Timestamp.Format(time.RFC3339), s.Message)
+	}
+	return nil
+}
+
+func runJournalRestore(args []string) error {
+	fset := flag.NewFlagSet("journal restore", flag.ExitOnError)
+	fset.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: floatctl journal restore <data-dir> <hash>")
+	}
+	if err := fset.Parse(args); err != nil {
+		return err
+	}
+	if fset.NArg() < 2 {
+		fset.Usage()
+		return fmt.Errorf("missing <data-dir> and/or <hash> argument")
+	}
+	dataDir := fset.Arg(0)
+	hash := fset.Arg(1)
+
+	snap, err := gitsnap.New(dataDir)
+	if err != nil {
+		return err
+	}
+	if err := snap.Restore(context.Background(), hash); err != nil {
+		return err
+	}
+	fmt.Printf("restored to %s\n", hash)
+	return nil
 }

@@ -230,6 +230,26 @@ message BulkEditTransactionsResponse {
   repeated Transaction transactions = 1;
 }
 
+message Snapshot {
+  string hash = 1;
+  string message = 2;
+  string timestamp = 3; // RFC 3339
+}
+
+message ListSnapshotsRequest {
+  int32 limit = 1; // 0 = default (50)
+}
+
+message ListSnapshotsResponse {
+  repeated Snapshot snapshots = 1;
+}
+
+message RestoreSnapshotRequest {
+  string hash = 1;
+}
+
+message RestoreSnapshotResponse {}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
@@ -247,4 +267,6 @@ service LedgerService {
   rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
   rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+  rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
 }
