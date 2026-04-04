@@ -6,10 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/brendanv/float/internal/hledger"
-	"github.com/brendanv/float/internal/slogctx"
 )
 
 // EnsureMonthFile ensures dataDir/YYYY/MM.journal exists.
@@ -61,50 +59,9 @@ func UpdateMainIncludes(mainJournalPath string, relPath string) error {
 }
 
 // AppendTransaction writes a new transaction to the correct month file.
-// It mints a FID, uses hledger print to canonically format the transaction,
-// ensures the month file exists, updates main.journal if a new file was created,
-// and appends the canonical text.
+// It mints a FID if tx.FID is empty, formats canonically via hledger, ensures
+// the month file exists, updates main.journal if a new file was created, and appends.
 // Returns the assigned FID.
 func AppendTransaction(ctx context.Context, client *hledger.Client, dataDir string, tx TransactionInput) (string, error) {
-	fid := tx.FID
-	if fid == "" {
-		fid = MintFID()
-	}
-
-	// Stamp the last-updated timestamp on every write.
-	if tx.FloatMeta == nil {
-		tx.FloatMeta = make(map[string]string)
-	}
-	tx.FloatMeta[hledger.HiddenMetaPrefix+"updated-at"] = time.Now().UTC().Format(time.RFC3339)
-
-	text, err := FormatViaHledger(ctx, client, tx, fid)
-	if err != nil {
-		return "", err
-	}
-
-	year, month := tx.Date.Year(), int(tx.Date.Month())
-	relPath, created, err := EnsureMonthFile(dataDir, year, month)
-	if err != nil {
-		return "", err
-	}
-
-	if created {
-		mainPath := filepath.Join(dataDir, "main.journal")
-		if err := UpdateMainIncludes(mainPath, relPath); err != nil {
-			return "", err
-		}
-	}
-
-	absPath := filepath.Join(dataDir, relPath)
-	f, err := os.OpenFile(absPath, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return "", fmt.Errorf("journal: open %s: %w", absPath, err)
-	}
-	defer func() { _ = f.Close() }()
-
-	if _, err := f.WriteString(text); err != nil {
-		return "", fmt.Errorf("journal: write %s: %w", absPath, err)
-	}
-	slogctx.FromContext(ctx).Info("journal: transaction appended", "fid", fid, "path", relPath)
-	return fid, nil
+	return WriteTransaction(ctx, client, dataDir, tx, nil)
 }

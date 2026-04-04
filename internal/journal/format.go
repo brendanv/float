@@ -22,9 +22,10 @@ type PostingInput struct {
 type TransactionInput struct {
 	Date        time.Time
 	Description string
-	Comment     string // optional transaction-level comment (without "; " prefix)
+	Comment     string            // optional transaction-level free-text comment (without "; " prefix)
+	Tags        map[string]string // optional user-visible tags (keys must NOT have hledger.HiddenMetaPrefix)
 	Postings    []PostingInput
-	FID         string            // optional; if empty, AppendTransaction mints a new fid
+	FID         string            // optional; if empty, WriteTransaction mints a new fid
 	Status      string            // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
 	FloatMeta   map[string]string // optional internal metadata; keys must have hledger.HiddenMetaPrefix
 }
@@ -46,6 +47,16 @@ func draftFormat(tx TransactionInput, fid string) string {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			fmt.Fprintf(&b, "    ; %s\n", line)
+		}
+	}
+	if len(tx.Tags) > 0 {
+		keys := make([]string, 0, len(tx.Tags))
+		for k := range tx.Tags {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(&b, "    ; %s:%s\n", k, tx.Tags[k])
 		}
 	}
 	if len(tx.FloatMeta) > 0 {

@@ -203,7 +203,6 @@ func TestModifyTags(t *testing.T) {
 			t.Fatalf("hledger check: %v", err)
 		}
 
-		// Verify only one non-fid tag comment line exists in the file.
 		txns, err := client.Transactions(t.Context(), "code:"+fid)
 		if err != nil {
 			t.Fatalf("Transactions: %v", err)
@@ -294,7 +293,7 @@ func TestModifyTags(t *testing.T) {
 			t.Fatalf("ModifyTags: %v", err)
 		}
 
-		// Read the raw file and verify fid is still on the header line.
+		// Read the raw file and verify fid is still present.
 		journalPath := filepath.Join(dir, "2026/03.journal")
 		data, err := os.ReadFile(journalPath)
 		if err != nil {
@@ -377,8 +376,7 @@ func TestModifyFloatMeta(t *testing.T) {
 		}
 
 		if err := ModifyFloatMeta(t.Context(), client, dir, fid, map[string]string{
-			"float-import-id":  "batch42",
-			"float-updated-at": "2026-02-05T00:00:00Z",
+			"float-import-id": "batch42",
 		}); err != nil {
 			t.Fatalf("ModifyFloatMeta: %v", err)
 		}
@@ -396,8 +394,9 @@ func TestModifyFloatMeta(t *testing.T) {
 		if txns[0].FloatMeta["float-import-id"] != "batch42" {
 			t.Errorf("float-import-id = %q, want %q", txns[0].FloatMeta["float-import-id"], "batch42")
 		}
-		if txns[0].FloatMeta["float-updated-at"] != "2026-02-05T00:00:00Z" {
-			t.Errorf("float-updated-at = %q, want %q", txns[0].FloatMeta["float-updated-at"], "2026-02-05T00:00:00Z")
+		// float-updated-at is always stamped by WriteTransaction.
+		if txns[0].FloatMeta["float-updated-at"] == "" {
+			t.Errorf("float-updated-at should be non-empty after write")
 		}
 	})
 
@@ -519,13 +518,14 @@ func TestModifyFloatMeta(t *testing.T) {
 		if len(txns) != 1 {
 			t.Fatalf("expected 1 transaction, got %d", len(txns))
 		}
-		if txns[0].FloatMeta != nil {
-			t.Errorf("expected nil FloatMeta after clearing, got %v", txns[0].FloatMeta)
-		}
+		// float-updated-at is always stamped; other float- tags should be cleared.
 		for _, kv := range txns[0].Tags {
-			if strings.HasPrefix(kv[0], "float-") {
+			if strings.HasPrefix(kv[0], "float-") && kv[0] != "float-updated-at" {
 				t.Errorf("float- tag %q should have been removed", kv[0])
 			}
+		}
+		if txns[0].FloatMeta["float-import-id"] != "" {
+			t.Errorf("float-import-id should have been cleared, got %q", txns[0].FloatMeta["float-import-id"])
 		}
 	})
 
@@ -540,63 +540,6 @@ func TestModifyFloatMeta(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})
-}
-
-func TestIsFloatMetaLine(t *testing.T) {
-	tests := []struct {
-		name string
-		line string
-		want bool
-	}{
-		{
-			name: "single float- tag",
-			line: "    ; float-import-id:batch123",
-			want: true,
-		},
-		{
-			name: "multiple float- tags comma separated",
-			line: "    ; float-import-id:batch123, float-updated-at:2026-01-15",
-			want: true,
-		},
-		{
-			name: "user tag only",
-			line: "    ; category:food",
-			want: false,
-		},
-		{
-			name: "mixed user and hidden meta tag",
-			line: "    ; category:food, float-import-id:batch123",
-			want: false,
-		},
-		{
-			name: "free text comment",
-			line: "    ; some notes here",
-			want: false,
-		},
-		{
-			name: "float- tag with text",
-			line: "    ; imported batch float-import-id:batch123",
-			want: false,
-		},
-		{
-			name: "no semicolon",
-			line: "    expenses:food  $10.00",
-			want: false,
-		},
-		{
-			name: "float- empty value",
-			line: "    ; float-flag:",
-			want: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := isFloatMetaLine(tt.line)
-			if got != tt.want {
-				t.Errorf("isFloatMetaLine(%q) = %v, want %v", tt.line, got, tt.want)
-			}
-		})
-	}
 }
 
 func TestModifyTagsTwoSpaceIndent(t *testing.T) {
@@ -638,57 +581,6 @@ func TestModifyTagsTwoSpaceIndent(t *testing.T) {
 		if tag[0] == "category" {
 			t.Errorf("category tag should have been removed, still present with value %q", tag[1])
 		}
-	}
-}
-
-func TestStripHeaderInlineComment(t *testing.T) {
-	tests := []struct {
-		name          string
-		line          string
-		wantClean     string
-		wantFreeText  string
-	}{
-		{
-			name:         "no comment",
-			line:         "2026-01-15 (abc12345) Test",
-			wantClean:    "2026-01-15 (abc12345) Test",
-			wantFreeText: "",
-		},
-		{
-			name:         "tag-only inline comment",
-			line:         "2026-01-15 (abc12345) Test  ; category:food",
-			wantClean:    "2026-01-15 (abc12345) Test",
-			wantFreeText: "",
-		},
-		{
-			name:         "multiple tags inline comment",
-			line:         "2026-01-15 (abc12345) Test  ; category:food, source:manual",
-			wantClean:    "2026-01-15 (abc12345) Test",
-			wantFreeText: "",
-		},
-		{
-			name:         "free text inline comment moved out",
-			line:         "2026-01-15 (abc12345) Test  ; imported",
-			wantClean:    "2026-01-15 (abc12345) Test",
-			wantFreeText: "imported",
-		},
-		{
-			name:         "mixed free text and tag: free text returned, tag dropped",
-			line:         "2026-01-15 (abc12345) Test  ; imported category:food",
-			wantClean:    "2026-01-15 (abc12345) Test",
-			wantFreeText: "imported",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotClean, gotFreeText := stripHeaderInlineComment(tt.line)
-			if gotClean != tt.wantClean {
-				t.Errorf("stripHeaderInlineComment() cleanLine = %q, want %q", gotClean, tt.wantClean)
-			}
-			if gotFreeText != tt.wantFreeText {
-				t.Errorf("stripHeaderInlineComment() freeText = %q, want %q", gotFreeText, tt.wantFreeText)
-			}
-		})
 	}
 }
 
@@ -789,24 +681,23 @@ func TestModifyTagsMovesHeaderInlineComment(t *testing.T) {
 		t.Fatalf("hledger check: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+	// Verify the note is preserved and the category tag is set.
+	txns, err := client.Transactions(t.Context(), "code:aabbccdd")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Transactions: %v", err)
 	}
-	content := string(data)
-	lines := strings.Split(content, "\n")
-
-	// Header line must not contain a semicolon.
-	if strings.Contains(lines[0], ";") {
-		t.Errorf("header line still has inline comment: %q", lines[0])
+	if len(txns) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txns))
 	}
-	// The note should appear as a separate comment line.
-	if !strings.Contains(content, "\n    ; a note here\n") {
-		t.Errorf("inline note not moved to separate comment line:\n%s", content)
+	if !strings.Contains(txns[0].Comment, "a note here") {
+		t.Errorf("inline note not preserved in comment: %q", txns[0].Comment)
 	}
-	// The user tag must also be present.
-	if !strings.Contains(content, "category:food") {
-		t.Errorf("user tag missing:\n%s", content)
+	tagMap := make(map[string]string)
+	for _, tag := range txns[0].Tags {
+		tagMap[tag[0]] = tag[1]
+	}
+	if tagMap["category"] != "food" {
+		t.Errorf("category = %q, want %q", tagMap["category"], "food")
 	}
 }
 
@@ -832,70 +723,18 @@ func TestModifyFloatMetaMovesHeaderInlineComment(t *testing.T) {
 		t.Fatalf("hledger check: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "2026/02.journal"))
+	// Verify the note is preserved and float meta is set.
+	txns, err := client.Transactions(t.Context(), "code:11223344")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Transactions: %v", err)
 	}
-	content := string(data)
-	lines := strings.Split(content, "\n")
-
-	// Header line must not contain a semicolon.
-	if strings.Contains(lines[0], ";") {
-		t.Errorf("header line still has inline comment: %q", lines[0])
+	if len(txns) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txns))
 	}
-	// The note should appear as a separate comment line.
-	if !strings.Contains(content, "\n    ; a legacy note\n") {
-		t.Errorf("inline note not moved to separate comment line:\n%s", content)
+	if !strings.Contains(txns[0].Comment, "a legacy note") {
+		t.Errorf("inline note not preserved in comment: %q", txns[0].Comment)
 	}
-	// The float meta must be present.
-	if !strings.Contains(content, "float-import-id:batch99") {
-		t.Errorf("float-meta missing:\n%s", content)
-	}
-}
-
-func TestStripTagsFromCommentLine(t *testing.T) {
-	tests := []struct {
-		name string
-		line string
-		want string
-	}{
-		{
-			name: "tag-only line",
-			line: "    ; category:food",
-			want: "",
-		},
-		{
-			name: "multiple tags",
-			line: "    ; category:food, source:manual",
-			want: "",
-		},
-		{
-			name: "mixed line preserves non-tag text",
-			line: "    ; imported from bank, category:food",
-			want: "    ; imported from bank",
-		},
-		{
-			name: "empty-value tag",
-			line: "    ; review:",
-			want: "",
-		},
-		{
-			name: "mixed empty-value and valued tags",
-			line: "    ; review:, category:food",
-			want: "",
-		},
-		{
-			name: "no tags",
-			line: "    ; just a comment",
-			want: "    ; just a comment",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := stripTagsFromCommentLine(tt.line)
-			if got != tt.want {
-				t.Errorf("stripTagsFromCommentLine() = %q, want %q", got, tt.want)
-			}
-		})
+	if txns[0].FloatMeta["float-import-id"] != "batch99" {
+		t.Errorf("float-import-id = %q, want %q", txns[0].FloatMeta["float-import-id"], "batch99")
 	}
 }
