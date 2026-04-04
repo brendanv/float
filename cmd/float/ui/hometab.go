@@ -43,7 +43,7 @@ type HomeTab struct {
 	// status update error
 	statusErrMsg string
 
-	statusFilter string // "", "reviewed", or "unreviewed"
+	presetIdx int // index into txFilterPresets; 0 = "All" (no extra filter)
 }
 
 func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
@@ -64,12 +64,7 @@ func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
 func (m HomeTab) periodAndFilterQuery() []string {
 	q := []string{m.period.Query()}
 	q = append(q, m.query...)
-	switch m.statusFilter {
-	case "reviewed":
-		q = append(q, "status:*")
-	case "unreviewed":
-		q = append(q, "not:status:*")
-	}
+	q = append(q, txFilterPresets[m.presetIdx].tokens...)
 	return q
 }
 
@@ -117,7 +112,7 @@ func (m HomeTab) SetSize(w, h int) HomeTab {
 	if m.filter.Active() {
 		txH--
 	}
-	if m.statusFilter != "" {
+	if m.presetIdx != 0 {
 		txH--
 	}
 	if txH < 0 {
@@ -319,19 +314,12 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 				}
 			case "v":
 				if m.focused == 1 {
-					switch m.statusFilter {
-					case "":
-						m.statusFilter = "reviewed"
-					case "reviewed":
-						m.statusFilter = "unreviewed"
-					default:
-						m.statusFilter = ""
-					}
+					m.presetIdx = (m.presetIdx + 1) % len(txFilterPresets)
 					txH := m.rightInnerH
 					if m.filter.Active() {
 						txH--
 					}
-					if m.statusFilter != "" {
+					if m.presetIdx != 0 {
 						txH--
 					}
 					if txH < 0 {
@@ -416,7 +404,7 @@ func (m HomeTab) View() string {
 			Render(m.renderDeleteConfirm(m.rightInnerW))
 	case m.filter.Active():
 		txH := m.rightInnerH - 1
-		if m.statusFilter != "" {
+		if m.presetIdx != 0 {
 			txH--
 		}
 		txContent := lipgloss.NewStyle().
@@ -426,15 +414,15 @@ func (m HomeTab) View() string {
 		filterLine := lipgloss.NewStyle().
 			Width(m.rightInnerW).
 			Render(m.filter.View())
-		if m.statusFilter != "" {
-			statusLine := m.renderStatusFilterLine()
+		if m.presetIdx != 0 {
+			statusLine := m.renderPresetLine()
 			rightContent = lipgloss.JoinVertical(lipgloss.Left, statusLine, txContent, filterLine)
 		} else {
 			rightContent = lipgloss.JoinVertical(lipgloss.Left, txContent, filterLine)
 		}
 	default:
-		if m.statusFilter != "" {
-			statusLine := m.renderStatusFilterLine()
+		if m.presetIdx != 0 {
+			statusLine := m.renderPresetLine()
 			txContent := lipgloss.NewStyle().
 				Width(m.rightInnerW).
 				Height(m.rightInnerH - 1).
@@ -503,11 +491,9 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m HomeTab) renderStatusFilterLine() string {
-	label := "[ Reviewed ]"
-	if m.statusFilter == "unreviewed" {
-		label = "[ Unreviewed ]"
-	}
+func (m HomeTab) renderPresetLine() string {
+	preset := txFilterPresets[m.presetIdx]
+	label := "[ " + preset.label + " ]"
 	return lipgloss.NewStyle().
 		Foreground(colorFocused).
 		Width(m.rightInnerW).
