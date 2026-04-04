@@ -208,6 +208,15 @@ export async function mockLedgerApi(page) {
       case "UpdateTransactionStatus":
         body = {};
         break;
+      case "UpdateTransaction":
+        body = {};
+        break;
+      case "ModifyTags":
+        body = {};
+        break;
+      case "BulkEditTransactions":
+        body = { transactions: [] };
+        break;
       case "ListPrices":
         body = { prices: mockPrices };
         break;

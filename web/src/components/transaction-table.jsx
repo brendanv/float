@@ -225,8 +225,10 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
   );
 }
 
-export function TransactionTable({ transactions, focusedAccount, onStatusChange, accounts = [] }) {
+export function TransactionTable({ transactions, focusedAccount, onStatusChange, accounts = [], selectedFids, onSelectionChange }) {
   const [expanded, setExpanded] = useState(null);
+
+  const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
 
   if (!transactions || transactions.length === 0) {
     return <p class="text-base-content/60 py-4">No transactions for this period.</p>;
@@ -234,6 +236,38 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
 
   function toggle(fid) {
     setExpanded(expanded === fid ? null : fid);
+  }
+
+  function toggleSelect(e, fid) {
+    e.stopPropagation();
+    if (!selectable || !fid) return;
+    const next = new Set(selectedFids);
+    if (next.has(fid)) {
+      next.delete(fid);
+    } else {
+      next.add(fid);
+    }
+    onSelectionChange(next);
+  }
+
+  const allFids = transactions.filter((tx) => tx.fid).map((tx) => tx.fid);
+  const allSelected = selectable && allFids.length > 0 && allFids.every((fid) => selectedFids.has(fid));
+  const someSelected = selectable && allFids.some((fid) => selectedFids.has(fid));
+
+  function toggleSelectAll(e) {
+    e.stopPropagation();
+    if (!selectable) return;
+    if (allSelected) {
+      // Deselect all visible
+      const next = new Set(selectedFids);
+      for (const fid of allFids) next.delete(fid);
+      onSelectionChange(next);
+    } else {
+      // Select all visible
+      const next = new Set(selectedFids);
+      for (const fid of allFids) next.add(fid);
+      onSelectionChange(next);
+    }
   }
 
   const isAccountRegister = !!focusedAccount;
@@ -257,6 +291,8 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
     currentGroup.txs.push({ tx, index: txIndex++ });
   }
 
+  const colSpan = selectable ? 5 : 4;
+
   return (
     <div>
       {/* Desktop table */}
@@ -264,6 +300,19 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
         <table class="table table-pin-rows table-zebra table-sm w-full">
           <thead>
             <tr>
+              {selectable && (
+                <th class="w-6 pr-0">
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-xs"
+                    checked={allSelected}
+                    indeterminate={!allSelected && someSelected}
+                    onChange={toggleSelectAll}
+                    onClick={(e) => e.stopPropagation()}
+                    title={allSelected ? "Deselect all" : "Select all"}
+                  />
+                </th>
+              )}
               <th class="w-8"></th>
               <th>Description</th>
               <th>{isAccountRegister ? "Other accounts" : "From \u2192 To"}</th>
@@ -273,7 +322,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
           {dateGroups.map((group) => [
             <thead key={"date-" + group.date}>
               <tr>
-                <th colSpan={4} class="font-mono text-[10px] font-normal text-base-content/60 py-0.5">
+                <th colSpan={colSpan} class="font-mono text-[10px] font-normal text-base-content/60 py-0.5">
                   {formatDate(group.date)}
                 </th>
               </tr>
@@ -286,12 +335,23 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                   : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
                 const amountCell = display?.amount || "";
                 const key = tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index;
+                const isSelected = selectable && tx.fid && selectedFids.has(tx.fid);
                 return [
                   <tr
                     key={key}
                     onClick={() => toggle(tx.fid)}
-                    class="cursor-pointer hover"
+                    class={"cursor-pointer hover" + (isSelected ? " !bg-primary/10" : "")}
                   >
+                    {selectable && (
+                      <td class="w-6 pr-0" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          class="checkbox checkbox-xs"
+                          checked={isSelected}
+                          onChange={(e) => toggleSelect(e, tx.fid)}
+                        />
+                      </td>
+                    )}
                     <td class="w-8 pr-0">
                       <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
                     </td>
@@ -320,7 +380,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                   </tr>,
                   expanded === tx.fid && (
                     <tr key={key + "-detail"} class="bg-base-200">
-                      <td colSpan={4} class="p-0">
+                      <td colSpan={colSpan} class="p-0">
                         <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
                       </td>
                     </tr>
@@ -344,14 +404,24 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
               ? (display?.otherAccounts || "")
               : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
             const amountCell = display?.amount || "";
+            const isSelected = selectable && tx.fid && selectedFids.has(tx.fid);
             return (
               <div
                 key={tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index}
-                class="card card-compact bg-base-100 shadow-sm border border-base-200 cursor-pointer"
+                class={"card card-compact bg-base-100 shadow-sm border cursor-pointer" + (isSelected ? " border-primary bg-primary/5" : " border-base-200")}
                 onClick={() => toggle(tx.fid)}
               >
                 <div class="card-body">
                   <div class="flex justify-between items-center gap-2">
+                    {selectable && (
+                      <input
+                        type="checkbox"
+                        class="checkbox checkbox-xs shrink-0"
+                        checked={isSelected}
+                        onChange={(e) => toggleSelect(e, tx.fid)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
                     <span class="font-medium truncate" onClick={(e) => e.stopPropagation()}>
                       <EditableDescriptionCell
                         fid={tx.fid}
