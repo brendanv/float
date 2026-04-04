@@ -257,7 +257,7 @@ func TestCache_InvalidationAfterWrite(t *testing.T) {
 			{Account: "income:salary"},
 		},
 	}
-	if err := lock.Do(t.Context(), func() error {
+	if err := lock.Do(t.Context(), "test write", func() error {
 		_, err := journal.AppendTransaction(t.Context(), hl, dir, tx2)
 		return err
 	}); err != nil {
