@@ -16,7 +16,6 @@
 # web UI
 web/node_modules/
 web/src/gen/
-web/package-lock.json
 internal/webui/dist/*
 !internal/webui/dist/.gitkeep
 
