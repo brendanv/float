@@ -823,24 +823,30 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 		}
 	}
 
-	// Write rules file if content provided.
-	if len(req.Msg.RulesContent) > 0 {
-		rulesPath := filepath.Join(h.dataDir, cleaned)
-		if err := os.MkdirAll(filepath.Dir(rulesPath), 0o755); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create rules dir: %w", err))
-		}
-		if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write rules file: %w", err))
-		}
-	}
-
-	// Append profile to config and save.
 	newProfile := config.BankProfile{Name: req.Msg.Name, RulesFile: cleaned}
-	h.cfg.BankProfiles = append(h.cfg.BankProfiles, newProfile)
-	if err := config.Save(h.configPath, h.cfg); err != nil {
-		// Roll back in-memory change on save failure.
-		h.cfg.BankProfiles = h.cfg.BankProfiles[:len(h.cfg.BankProfiles)-1]
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("save config: %w", err))
+	err := h.lock.Do(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), func() error {
+		// Write rules file if content provided.
+		if len(req.Msg.RulesContent) > 0 {
+			rulesPath := filepath.Join(h.dataDir, cleaned)
+			if err := os.MkdirAll(filepath.Dir(rulesPath), 0o755); err != nil {
+				return fmt.Errorf("create rules dir: %w", err)
+			}
+			if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil {
+				return fmt.Errorf("write rules file: %w", err)
+			}
+		}
+
+		// Append profile to config and save.
+		h.cfg.BankProfiles = append(h.cfg.BankProfiles, newProfile)
+		if err := config.Save(h.configPath, h.cfg); err != nil {
+			h.cfg.BankProfiles = h.cfg.BankProfiles[:len(h.cfg.BankProfiles)-1]
+			return fmt.Errorf("save config: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "create bank profile failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "created bank profile", "name", req.Msg.Name, "rules_file", cleaned)
