@@ -260,6 +260,13 @@ func runRulesApply(args []string) error {
 	return nil
 }
 
+func pluralRule(n int) string {
+	if n == 1 {
+		return "1 rule"
+	}
+	return fmt.Sprintf("%d rules", n)
+}
+
 // newHledgerClient creates a hledger client for the given data directory.
 func newHledgerClient(dataDir string) (*hledger.Client, error) {
 	return hledger.New("hledger", dataDir+"/main.journal")
