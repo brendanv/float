@@ -4,6 +4,107 @@ import { useRpc } from "../hooks/use-rpc.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 
+const DEFAULT_RULES_CONTENT = `# hledger CSV import rules
+# See: https://hledger.org/hledger.html#csv-rules-files
+
+# Skip the header row
+skip 1
+
+# Map CSV columns to hledger fields
+# Adjust the column names to match your CSV format
+fields date, description, amount
+
+# Set the primary account (your bank account)
+account1 assets:checking
+
+# Add conditional rules to categorize transactions:
+# if AMAZON
+#   account2 expenses:shopping
+#
+# if PAYROLL
+#   account2 income:salary
+`;
+
+function CreateProfileModal({ onCreated, onClose }) {
+  const [name, setName] = useState("");
+  const [rulesFile, setRulesFile] = useState("rules/");
+  const [rulesContent, setRulesContent] = useState(DEFAULT_RULES_CONTENT);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await ledgerClient.createBankProfile({
+        name,
+        rulesFile,
+        rulesContent: new TextEncoder().encode(rulesContent),
+      });
+      onCreated(res.profile);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <dialog class="modal modal-open">
+      <div class="modal-box w-11/12 max-w-2xl">
+        <h3 class="font-bold text-lg mb-4">Create Bank Profile</h3>
+        <form onSubmit={handleSubmit} class="space-y-4">
+          <label class="form-control w-full">
+            <div class="label"><span class="label-text">Profile Name</span></div>
+            <input
+              type="text"
+              class="input input-bordered input-sm"
+              placeholder="e.g. Chase Checking"
+              value={name}
+              onInput={(e) => setName(e.target.value)}
+              required
+            />
+          </label>
+          <label class="form-control w-full">
+            <div class="label">
+              <span class="label-text">Rules File Path</span>
+              <span class="label-text-alt text-base-content/60">relative to data dir</span>
+            </div>
+            <input
+              type="text"
+              class="input input-bordered input-sm font-mono"
+              placeholder="rules/my-bank.rules"
+              value={rulesFile}
+              onInput={(e) => setRulesFile(e.target.value)}
+              required
+            />
+          </label>
+          <label class="form-control w-full">
+            <div class="label">
+              <span class="label-text">Rules File Content</span>
+              <span class="label-text-alt text-base-content/60">hledger CSV import rules</span>
+            </div>
+            <textarea
+              class="textarea textarea-bordered font-mono text-xs h-64"
+              value={rulesContent}
+              onInput={(e) => setRulesContent(e.target.value)}
+            />
+          </label>
+          {error && <ErrorBanner error={error} />}
+          <div class="modal-action">
+            <button type="button" class="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm" disabled={saving}>
+              {saving ? "Creating…" : "Create Profile"}
+            </button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-backdrop" onClick={onClose} />
+    </dialog>
+  );
+}
+
 export function ImportPage() {
   const profiles = useRpc(() => ledgerClient.listBankProfiles({}), []);
 
@@ -17,6 +118,7 @@ export function ImportPage() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState(null);
   const [importResult, setImportResult] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   async function handlePreview(e) {
     e.preventDefault();
@@ -93,6 +195,12 @@ export function ImportPage() {
     }
   }
 
+  function handleProfileCreated(profile) {
+    profiles.refetch?.();
+    setSelectedProfile(profile.name);
+    setShowCreateModal(false);
+  }
+
   const newCount = candidates ? candidates.filter((c) => !c.isDuplicate).length : 0;
 
   return (
@@ -106,23 +214,33 @@ export function ImportPage() {
           <form onSubmit={handlePreview} class="flex flex-wrap gap-3 items-end">
             <label class="form-control w-full sm:w-56">
               <div class="label"><span class="label-text">Bank Profile</span></div>
-              {profiles.loading ? (
-                <select class="select select-bordered select-sm" disabled>
-                  <option>Loading…</option>
-                </select>
-              ) : (
-                <select
-                  class="select select-bordered select-sm"
-                  value={selectedProfile}
-                  onChange={(e) => setSelectedProfile(e.target.value)}
-                  required
+              <div class="flex gap-2 items-center">
+                {profiles.loading ? (
+                  <select class="select select-bordered select-sm flex-1" disabled>
+                    <option>Loading…</option>
+                  </select>
+                ) : (
+                  <select
+                    class="select select-bordered select-sm flex-1"
+                    value={selectedProfile}
+                    onChange={(e) => setSelectedProfile(e.target.value)}
+                    required
+                  >
+                    <option value="">Select profile…</option>
+                    {(profiles.data?.profiles ?? []).map((p) => (
+                      <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-sm btn-square"
+                  title="Create new bank profile"
+                  onClick={() => setShowCreateModal(true)}
                 >
-                  <option value="">Select profile…</option>
-                  {(profiles.data?.profiles ?? []).map((p) => (
-                    <option key={p.name} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-              )}
+                  +
+                </button>
+              </div>
             </label>
             <label class="form-control w-full sm:w-auto flex-1">
               <div class="label"><span class="label-text">CSV File</span></div>
@@ -230,6 +348,13 @@ export function ImportPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showCreateModal && (
+        <CreateProfileModal
+          onCreated={handleProfileCreated}
+          onClose={() => setShowCreateModal(false)}
+        />
       )}
     </div>
   );

@@ -26,16 +26,17 @@ import (
 // Handler implements LedgerService RPCs by delegating to the hledger wrapper.
 type Handler struct {
 	floatv1connect.UnimplementedLedgerServiceHandler
-	hl      *hledger.Client
-	lock    *txlock.TxLock
-	dataDir string
-	cache   *cache.Cache[any] // nil = bypass cache
-	snap    *gitsnap.Repo
-	cfg     *config.Config
+	hl         *hledger.Client
+	lock       *txlock.TxLock
+	dataDir    string
+	configPath string
+	cache      *cache.Cache[any] // nil = bypass cache
+	snap       *gitsnap.Repo
+	cfg        *config.Config
 }
 
-func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config) *Handler {
-	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c, snap: snap, cfg: cfg}
+func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config) *Handler {
+	return &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, cfg: cfg}
 }
 
 // cacheKey helpers produce deterministic, namespaced keys from RPC parameters.
@@ -792,6 +793,60 @@ func (h *Handler) ListBankProfiles(_ context.Context, _ *connect.Request[floatv1
 		out[i] = &floatv1.BankProfile{Name: p.Name, RulesFile: p.RulesFile}
 	}
 	return connect.NewResponse(&floatv1.ListBankProfilesResponse{Profiles: out}), nil
+}
+
+func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[floatv1.CreateBankProfileRequest]) (*connect.Response[floatv1.CreateBankProfileResponse], error) {
+	if req.Msg.Name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
+	}
+	if req.Msg.RulesFile == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("rules_file is required"))
+	}
+
+	// Reject path traversal attempts.
+	cleaned := filepath.Clean(req.Msg.RulesFile)
+	if filepath.IsAbs(cleaned) || strings.HasPrefix(cleaned, "..") {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("rules_file must be a relative path within the data directory"))
+	}
+
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	// Check for duplicate name.
+	for _, p := range h.cfg.BankProfiles {
+		if p.Name == req.Msg.Name {
+			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("bank profile %q already exists", req.Msg.Name))
+		}
+	}
+
+	// Write rules file if content provided.
+	if len(req.Msg.RulesContent) > 0 {
+		rulesPath := filepath.Join(h.dataDir, cleaned)
+		if err := os.MkdirAll(filepath.Dir(rulesPath), 0o755); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create rules dir: %w", err))
+		}
+		if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write rules file: %w", err))
+		}
+	}
+
+	// Append profile to config and save.
+	newProfile := config.BankProfile{Name: req.Msg.Name, RulesFile: cleaned}
+	h.cfg.BankProfiles = append(h.cfg.BankProfiles, newProfile)
+	if err := config.Save(h.configPath, h.cfg); err != nil {
+		// Roll back in-memory change on save failure.
+		h.cfg.BankProfiles = h.cfg.BankProfiles[:len(h.cfg.BankProfiles)-1]
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("save config: %w", err))
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "created bank profile", "name", req.Msg.Name, "rules_file", cleaned)
+	return connect.NewResponse(&floatv1.CreateBankProfileResponse{
+		Profile: &floatv1.BankProfile{Name: newProfile.Name, RulesFile: newProfile.RulesFile},
+	}), nil
 }
 
 func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv1.PreviewImportRequest]) (*connect.Response[floatv1.PreviewImportResponse], error) {

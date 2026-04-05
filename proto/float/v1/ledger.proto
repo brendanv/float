@@ -263,6 +263,16 @@ message ListBankProfilesResponse {
   repeated BankProfile profiles = 1;
 }
 
+message CreateBankProfileRequest {
+  string name = 1;         // display name for the profile
+  string rules_file = 2;  // relative path in data dir, e.g. "rules/chase.rules"
+  bytes rules_content = 3; // content to write to the rules file
+}
+
+message CreateBankProfileResponse {
+  BankProfile profile = 1;
+}
+
 message PreviewImportRequest {
   bytes csv_data = 1;      // raw CSV file contents
   string profile_name = 2; // bank profile name from config
@@ -389,6 +399,7 @@ service LedgerService {
 
   // Import
   rpc ListBankProfiles(ListBankProfilesRequest) returns (ListBankProfilesResponse);
+  rpc CreateBankProfile(CreateBankProfileRequest) returns (CreateBankProfileResponse);
   rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
   rpc ImportTransactions(ImportTransactionsRequest) returns (ImportTransactionsResponse);
 
