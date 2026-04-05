@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -12,9 +14,11 @@ import (
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/cache"
+	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
+	"github.com/brendanv/float/internal/rules"
 	"github.com/brendanv/float/internal/slogctx"
 	"github.com/brendanv/float/internal/txlock"
 )
@@ -27,10 +31,11 @@ type Handler struct {
 	dataDir string
 	cache   *cache.Cache[any] // nil = bypass cache
 	snap    *gitsnap.Repo
+	cfg     *config.Config
 }
 
-func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any], snap *gitsnap.Repo) *Handler {
-	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c, snap: snap}
+func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config) *Handler {
+	return &Handler{hl: hl, lock: lock, dataDir: dataDir, cache: c, snap: snap, cfg: cfg}
 }
 
 // cacheKey helpers produce deterministic, namespaced keys from RPC parameters.
@@ -774,4 +779,477 @@ func (h *Handler) RestoreSnapshot(ctx context.Context, req *connect.Request[floa
 	}
 	h.lock.BumpGeneration()
 	return connect.NewResponse(&floatv1.RestoreSnapshotResponse{}), nil
+}
+
+// ---- Import handlers ----
+
+func (h *Handler) ListBankProfiles(_ context.Context, _ *connect.Request[floatv1.ListBankProfilesRequest]) (*connect.Response[floatv1.ListBankProfilesResponse], error) {
+	if h.cfg == nil {
+		return connect.NewResponse(&floatv1.ListBankProfilesResponse{}), nil
+	}
+	out := make([]*floatv1.BankProfile, len(h.cfg.BankProfiles))
+	for i, p := range h.cfg.BankProfiles {
+		out[i] = &floatv1.BankProfile{Name: p.Name, RulesFile: p.RulesFile}
+	}
+	return connect.NewResponse(&floatv1.ListBankProfilesResponse{Profiles: out}), nil
+}
+
+func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv1.PreviewImportRequest]) (*connect.Response[floatv1.PreviewImportResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if len(req.Msg.CsvData) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("csv_data is required"))
+	}
+	if req.Msg.ProfileName == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("profile_name is required"))
+	}
+
+	// Find bank profile.
+	profile, err := h.bankProfile(req.Msg.ProfileName)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	rulesFile := filepath.Join(h.dataDir, profile.RulesFile)
+
+	// Write CSV to temp file.
+	tmp, err := os.CreateTemp("", "float-import-*.csv")
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(req.Msg.CsvData); err != nil {
+		tmp.Close()
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
+	}
+	tmp.Close()
+
+	// Parse CSV with hledger.
+	candidates, err := h.hl.PrintCSV(ctx, tmp.Name(), rulesFile)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger PrintCSV failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("parse CSV: %w", err))
+	}
+
+	// Build fingerprint set from existing transactions.
+	existing, err := h.hl.Transactions(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	fpSet := make(map[string]bool, len(existing))
+	for _, t := range existing {
+		fpSet[journal.TxnFingerprint(t)] = true
+	}
+
+	// Load float rules for second-pass categorization.
+	rulesList, err := rules.Load(h.dataDir)
+	if err != nil {
+		logger.ErrorContext(ctx, "load rules failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	out := make([]*floatv1.ImportCandidate, len(candidates))
+	for i, c := range candidates {
+		candidate := &floatv1.ImportCandidate{
+			Transaction: toProtoTransaction(c),
+			IsDuplicate: fpSet[journal.TxnFingerprint(c)],
+		}
+		if r := rules.Match(rulesList, c.Description); r != nil {
+			candidate.MatchedRuleId = r.ID
+		}
+		out[i] = candidate
+	}
+	return connect.NewResponse(&floatv1.PreviewImportResponse{Candidates: out}), nil
+}
+
+func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[floatv1.ImportTransactionsRequest]) (*connect.Response[floatv1.ImportTransactionsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if len(req.Msg.CsvData) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("csv_data is required"))
+	}
+	if req.Msg.ProfileName == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("profile_name is required"))
+	}
+	if len(req.Msg.CandidateIndices) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("candidate_indices must not be empty"))
+	}
+
+	profile, err := h.bankProfile(req.Msg.ProfileName)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	rulesFile := filepath.Join(h.dataDir, profile.RulesFile)
+
+	// Write CSV to temp file.
+	tmp, err := os.CreateTemp("", "float-import-*.csv")
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(req.Msg.CsvData); err != nil {
+		tmp.Close()
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
+	}
+	tmp.Close()
+
+	candidates, err := h.hl.PrintCSV(ctx, tmp.Name(), rulesFile)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger PrintCSV failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("parse CSV: %w", err))
+	}
+
+	// Load rules for categorization during import.
+	rulesList, err := rules.Load(h.dataDir)
+	if err != nil {
+		logger.ErrorContext(ctx, "load rules failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Build selected indices set.
+	selectedSet := make(map[int32]bool, len(req.Msg.CandidateIndices))
+	for _, idx := range req.Msg.CandidateIndices {
+		selectedSet[idx] = true
+	}
+
+	var importedFIDs []string
+	err = h.lock.Do(ctx, "import transactions", func() error {
+		for i, c := range candidates {
+			if !selectedSet[int32(i)] {
+				continue
+			}
+			txInput, convErr := journal.HledgerTxnToInput(c)
+			if convErr != nil {
+				return fmt.Errorf("convert transaction %d: %w", i, convErr)
+			}
+
+			// Apply float rules during import.
+			if r := rules.Match(rulesList, c.Description); r != nil {
+				if r.Payee != "" {
+					note := txInput.Description
+					txInput.Description = r.Payee + " | " + note
+				}
+				if r.Account != "" && len(c.Postings) == 2 {
+					for j, p := range txInput.Postings {
+						if !isAssetOrLiabilityAccount(p.Account) {
+							txInput.Postings[j].Account = r.Account
+						}
+					}
+				}
+				if len(r.Tags) > 0 {
+					if txInput.Tags == nil {
+						txInput.Tags = make(map[string]string)
+					}
+					for k, v := range r.Tags {
+						txInput.Tags[k] = v
+					}
+				}
+			}
+
+			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
+			if writeErr != nil {
+				return fmt.Errorf("write transaction %d: %w", i, writeErr)
+			}
+			importedFIDs = append(importedFIDs, fid)
+		}
+		return nil
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "import transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Fetch the imported transactions to return.
+	var txnProtos []*floatv1.Transaction
+	for _, fid := range importedFIDs {
+		txns, fetchErr := h.hl.Transactions(ctx, "code:"+fid)
+		if fetchErr != nil || len(txns) == 0 {
+			continue
+		}
+		txnProtos = append(txnProtos, toProtoTransaction(txns[0]))
+	}
+
+	return connect.NewResponse(&floatv1.ImportTransactionsResponse{
+		ImportedCount: int32(len(importedFIDs)),
+		Transactions:  txnProtos,
+	}), nil
+}
+
+// isAssetOrLiabilityAccount returns true if the account name looks like an
+// asset or liability account based on common prefixes.
+func isAssetOrLiabilityAccount(account string) bool {
+	lower := strings.ToLower(account)
+	return strings.HasPrefix(lower, "assets") ||
+		strings.HasPrefix(lower, "liabilities") ||
+		strings.HasPrefix(lower, "asset:") ||
+		strings.HasPrefix(lower, "liability:")
+}
+
+// bankProfile finds a BankProfile by name in the config.
+func (h *Handler) bankProfile(name string) (config.BankProfile, error) {
+	if h.cfg != nil {
+		for _, p := range h.cfg.BankProfiles {
+			if p.Name == name {
+				return p, nil
+			}
+		}
+	}
+	return config.BankProfile{}, fmt.Errorf("bank profile %q not found", name)
+}
+
+// ---- Rules handlers ----
+
+func (h *Handler) ListRules(ctx context.Context, _ *connect.Request[floatv1.ListRulesRequest]) (*connect.Response[floatv1.ListRulesResponse], error) {
+	rulesList, err := rules.Load(h.dataDir)
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "list rules failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	out := make([]*floatv1.TransactionRule, len(rulesList))
+	for i, r := range rulesList {
+		out[i] = toProtoRule(r)
+	}
+	return connect.NewResponse(&floatv1.ListRulesResponse{Rules: out}), nil
+}
+
+func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddRuleRequest]) (*connect.Response[floatv1.AddRuleResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.Pattern == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pattern is required"))
+	}
+
+	var newRule rules.Rule
+	err := h.lock.Do(ctx, "add rule", func() error {
+		rulesList, loadErr := rules.Load(h.dataDir)
+		if loadErr != nil {
+			return loadErr
+		}
+		newRule = rules.Rule{
+			ID:       journal.MintFID(),
+			Pattern:  req.Msg.Pattern,
+			Payee:    req.Msg.Payee,
+			Account:  req.Msg.Account,
+			Tags:     req.Msg.Tags,
+			Priority: int(req.Msg.Priority),
+		}
+		rulesList = append(rulesList, newRule)
+		return rules.Save(h.dataDir, rulesList)
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "add rule failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.AddRuleResponse{Rule: toProtoRule(newRule)}), nil
+}
+
+func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.UpdateRuleRequest]) (*connect.Response[floatv1.UpdateRuleResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.Id == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
+	}
+	if req.Msg.Pattern == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pattern is required"))
+	}
+
+	var updated rules.Rule
+	err := h.lock.Do(ctx, "update rule", func() error {
+		rulesList, loadErr := rules.Load(h.dataDir)
+		if loadErr != nil {
+			return loadErr
+		}
+		found := false
+		for i, r := range rulesList {
+			if r.ID == req.Msg.Id {
+				rulesList[i] = rules.Rule{
+					ID:       req.Msg.Id,
+					Pattern:  req.Msg.Pattern,
+					Payee:    req.Msg.Payee,
+					Account:  req.Msg.Account,
+					Tags:     req.Msg.Tags,
+					Priority: int(req.Msg.Priority),
+				}
+				updated = rulesList[i]
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("rule %q not found", req.Msg.Id)
+		}
+		return rules.Save(h.dataDir, rulesList)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "update rule failed", "id", req.Msg.Id, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.UpdateRuleResponse{Rule: toProtoRule(updated)}), nil
+}
+
+func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.DeleteRuleRequest]) (*connect.Response[floatv1.DeleteRuleResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.Id == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
+	}
+
+	err := h.lock.Do(ctx, "delete rule", func() error {
+		rulesList, loadErr := rules.Load(h.dataDir)
+		if loadErr != nil {
+			return loadErr
+		}
+		filtered := rulesList[:0]
+		found := false
+		for _, r := range rulesList {
+			if r.ID == req.Msg.Id {
+				found = true
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		if !found {
+			return fmt.Errorf("rule %q not found", req.Msg.Id)
+		}
+		return rules.Save(h.dataDir, filtered)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "delete rule failed", "id", req.Msg.Id, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.DeleteRuleResponse{}), nil
+}
+
+func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[floatv1.PreviewApplyRulesRequest]) (*connect.Response[floatv1.PreviewApplyRulesResponse], error) {
+	logger := slogctx.FromContext(ctx)
+
+	rulesList, err := rules.Load(h.dataDir)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Filter to requested rules if specified.
+	if len(req.Msg.RuleIds) > 0 {
+		rulesList = filterRules(rulesList, req.Msg.RuleIds)
+	}
+
+	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	matches := rules.Preview(rulesList, txns)
+	previews := make([]*floatv1.RuleApplicationPreview, len(matches))
+	for i, m := range matches {
+		p := &floatv1.RuleApplicationPreview{
+			Fid:           m.Transaction.FID,
+			Description:   m.Transaction.Description,
+			MatchedRuleId: m.Rule.ID,
+			AddTags:       m.Changes.AddTags,
+		}
+		// Current category account.
+		if idx := categoryPostingIndex(m.Transaction); idx >= 0 {
+			p.CurrentAccount = m.Transaction.Postings[idx].Account
+		}
+		if m.Transaction.Payee != nil {
+			p.CurrentPayee = *m.Transaction.Payee
+		}
+		if m.Changes.NewAccount != nil {
+			p.NewAccount = *m.Changes.NewAccount
+		}
+		if m.Changes.NewPayee != nil {
+			p.NewPayee = *m.Changes.NewPayee
+		}
+		previews[i] = p
+	}
+	return connect.NewResponse(&floatv1.PreviewApplyRulesResponse{Previews: previews}), nil
+}
+
+func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.ApplyRulesRequest]) (*connect.Response[floatv1.ApplyRulesResponse], error) {
+	logger := slogctx.FromContext(ctx)
+
+	rulesList, err := rules.Load(h.dataDir)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if len(req.Msg.RuleIds) > 0 {
+		rulesList = filterRules(rulesList, req.Msg.RuleIds)
+	}
+
+	txns, err := h.hl.Transactions(ctx, req.Msg.Query...)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	matches := rules.Preview(rulesList, txns)
+
+	// Filter to requested FIDs if specified.
+	if len(req.Msg.Fids) > 0 {
+		fidSet := make(map[string]bool, len(req.Msg.Fids))
+		for _, fid := range req.Msg.Fids {
+			fidSet[fid] = true
+		}
+		filtered := matches[:0]
+		for _, m := range matches {
+			if fidSet[m.Transaction.FID] {
+				filtered = append(filtered, m)
+			}
+		}
+		matches = filtered
+	}
+
+	var applied int
+	err = h.lock.Do(ctx, "apply rules", func() error {
+		var applyErr error
+		applied, applyErr = rules.Apply(ctx, h.hl, h.dataDir, matches)
+		return applyErr
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "apply rules failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.ApplyRulesResponse{AppliedCount: int32(applied)}), nil
+}
+
+// filterRules returns only rules whose IDs are in the given set.
+func filterRules(rulesList []rules.Rule, ids []string) []rules.Rule {
+	idSet := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idSet[id] = true
+	}
+	filtered := rulesList[:0]
+	for _, r := range rulesList {
+		if idSet[r.ID] {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
+}
+
+// categoryPostingIndex returns the index of the non-asset/liability posting
+// in a 2-posting transaction, or -1 if ambiguous.
+func categoryPostingIndex(txn hledger.Transaction) int {
+	if len(txn.Postings) != 2 {
+		return -1
+	}
+	for i, p := range txn.Postings {
+		if !isAssetOrLiabilityAccount(p.Account) {
+			return i
+		}
+	}
+	return -1
+}
+
+func toProtoRule(r rules.Rule) *floatv1.TransactionRule {
+	return &floatv1.TransactionRule{
+		Id:       r.ID,
+		Pattern:  r.Pattern,
+		Payee:    r.Payee,
+		Account:  r.Account,
+		Tags:     r.Tags,
+		Priority: int32(r.Priority),
+	}
 }

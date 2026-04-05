@@ -250,6 +250,123 @@ message RestoreSnapshotRequest {
 
 message RestoreSnapshotResponse {}
 
+// ---- Import ----
+
+message BankProfile {
+  string name = 1;
+  string rules_file = 2; // relative path in data dir
+}
+
+message ListBankProfilesRequest {}
+
+message ListBankProfilesResponse {
+  repeated BankProfile profiles = 1;
+}
+
+message PreviewImportRequest {
+  bytes csv_data = 1;      // raw CSV file contents
+  string profile_name = 2; // bank profile name from config
+}
+
+message ImportCandidate {
+  Transaction transaction = 1; // parsed transaction
+  bool is_duplicate = 2;       // true if fingerprint matches existing
+  string matched_rule_id = 3;  // float rule that matched (empty if none)
+}
+
+message PreviewImportResponse {
+  repeated ImportCandidate candidates = 1;
+}
+
+message ImportTransactionsRequest {
+  repeated int32 candidate_indices = 1; // which candidates to import (from preview)
+  bytes csv_data = 2;                   // same CSV data as preview
+  string profile_name = 3;             // same profile as preview
+}
+
+message ImportTransactionsResponse {
+  int32 imported_count = 1;
+  repeated Transaction transactions = 2; // the imported transactions
+}
+
+// ---- Categorization Rules ----
+
+message TransactionRule {
+  string id = 1;
+  string pattern = 2;           // regex pattern
+  string payee = 3;             // set payee (empty = no change)
+  string account = 4;           // set category account (empty = no change)
+  map<string, string> tags = 5; // tags to add
+  int32 priority = 6;
+}
+
+message ListRulesRequest {}
+
+message ListRulesResponse {
+  repeated TransactionRule rules = 1;
+}
+
+message AddRuleRequest {
+  string pattern = 1;
+  string payee = 2;
+  string account = 3;
+  map<string, string> tags = 4;
+  int32 priority = 5;
+}
+
+message AddRuleResponse {
+  TransactionRule rule = 1;
+}
+
+message UpdateRuleRequest {
+  string id = 1;
+  string pattern = 2;
+  string payee = 3;
+  string account = 4;
+  map<string, string> tags = 5;
+  int32 priority = 6;
+}
+
+message UpdateRuleResponse {
+  TransactionRule rule = 1;
+}
+
+message DeleteRuleRequest {
+  string id = 1;
+}
+
+message DeleteRuleResponse {}
+
+message PreviewApplyRulesRequest {
+  repeated string rule_ids = 1; // empty = all rules
+  repeated string query = 2;   // optional hledger query to filter transactions
+}
+
+message RuleApplicationPreview {
+  string fid = 1;                  // transaction FID
+  string description = 2;         // current description
+  string matched_rule_id = 3;     // which rule matched
+  string current_account = 4;     // current category account
+  string new_account = 5;         // proposed new account (empty = no change)
+  string current_payee = 6;
+  string new_payee = 7;           // proposed new payee (empty = no change)
+  map<string, string> add_tags = 8;
+}
+
+message PreviewApplyRulesResponse {
+  repeated RuleApplicationPreview previews = 1;
+}
+
+message ApplyRulesRequest {
+  repeated string fids = 1;     // which transactions to apply (from preview)
+  repeated string rule_ids = 2; // which rules to apply (empty = all)
+  repeated string query = 3;   // same query as preview
+}
+
+message ApplyRulesResponse {
+  int32 applied_count = 1;
+}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
@@ -269,4 +386,17 @@ service LedgerService {
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
+
+  // Import
+  rpc ListBankProfiles(ListBankProfilesRequest) returns (ListBankProfilesResponse);
+  rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
+  rpc ImportTransactions(ImportTransactionsRequest) returns (ImportTransactionsResponse);
+
+  // Rules
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+  rpc AddRule(AddRuleRequest) returns (AddRuleResponse);
+  rpc UpdateRule(UpdateRuleRequest) returns (UpdateRuleResponse);
+  rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
+  rpc PreviewApplyRules(PreviewApplyRulesRequest) returns (PreviewApplyRulesResponse);
+  rpc ApplyRules(ApplyRulesRequest) returns (ApplyRulesResponse);
 }

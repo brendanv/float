@@ -7,6 +7,8 @@ import { AddTransactionPage } from "./pages/add-transaction.jsx";
 import { TrendsPage } from "./pages/trends.jsx";
 import { PricesPage } from "./pages/prices.jsx";
 import { SnapshotsPage } from "./pages/snapshots.jsx";
+import { ImportPage } from "./pages/import.jsx";
+import { RulesPage } from "./pages/rules.jsx";
 
 function App() {
   const { path, params } = useRoute();
@@ -30,6 +32,12 @@ function App() {
       break;
     case "/snapshots":
       page = <SnapshotsPage />;
+      break;
+    case "/import":
+      page = <ImportPage />;
+      break;
+    case "/rules":
+      page = <RulesPage />;
       break;
     default:
       page = <p>Page not found. <a href="#/">Go home</a></p>;
