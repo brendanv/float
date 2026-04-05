@@ -319,6 +319,9 @@ export async function mockLedgerApi(page) {
       case "ListBankProfiles":
         body = { profiles: mockBankProfiles };
         break;
+      case "CreateBankProfile":
+        body = { profile: { name: reqBody.name, rulesFile: reqBody.rulesFile } };
+        break;
       case "PreviewImport":
         body = { candidates: mockImportCandidates };
         break;

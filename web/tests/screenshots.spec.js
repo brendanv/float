@@ -106,6 +106,17 @@ test("import page", async ({ page }) => {
   await page.screenshot({ path: "test-results/import.png", fullPage: true });
 });
 
+test("import page - create profile modal", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  // Click the "+" button to open the create profile modal
+  await page.click('button[title="Create new bank profile"]');
+  await page.waitForSelector("dialog.modal-open", { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/import-create-profile-modal.png", fullPage: true });
+});
+
 test("import page - preview loaded", async ({ page }) => {
   await page.goto("/#/import");
   await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
