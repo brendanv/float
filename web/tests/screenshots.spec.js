@@ -99,6 +99,52 @@ test("transactions page - bulk edit toolbar", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-bulk-edit.png", fullPage: true });
 });
 
+test("import page", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector("select, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import.png", fullPage: true });
+});
+
+test("import page - preview loaded", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  // Select a profile and attach a fake CSV file
+  await page.selectOption("select", { index: 1 });
+  await page.evaluate(() => {
+    const input = document.querySelector('input[type="file"]');
+    if (!input) return;
+    const dt = new DataTransfer();
+    dt.items.add(new File(["date,amount,description\n2026-03-28,-42.99,AMAZON"], "bank.csv", { type: "text/csv" }));
+    Object.defineProperty(input, "files", { value: dt.files });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForTimeout(200);
+  await page.click('button[type="submit"]');
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import-preview.png", fullPage: true });
+});
+
+test("rules page", async ({ page }) => {
+  await page.goto("/#/rules");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/rules.png", fullPage: true });
+});
+
+test("rules page - apply preview", async ({ page }) => {
+  await page.goto("/#/rules");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Click "Preview Changes" button
+  await page.click('button:has-text("Preview Changes")');
+  await page.waitForSelector("tbody tr", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/rules-apply-preview.png", fullPage: true });
+});
+
 test("hamburger icon - closed state", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
