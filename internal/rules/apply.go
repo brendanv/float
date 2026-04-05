@@ -142,24 +142,47 @@ func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m R
 }
 
 // buildChangeSet constructs the ChangeSet for applying rule to txn.
+// Only includes a change if it differs from the current value.
 func buildChangeSet(rule Rule, txn hledger.Transaction) ChangeSet {
 	var cs ChangeSet
 
 	if rule.Payee != "" {
-		payee := rule.Payee
-		cs.NewPayee = &payee
+		currentPayee := ""
+		if txn.Payee != nil {
+			currentPayee = *txn.Payee
+		}
+		if rule.Payee != currentPayee {
+			payee := rule.Payee
+			cs.NewPayee = &payee
+		}
 	}
 
 	if rule.Account != "" {
 		// Only applicable to 2-posting transactions with a clear category posting.
-		if categoryPostingIndex(txn) >= 0 {
-			acc := rule.Account
-			cs.NewAccount = &acc
+		if idx := categoryPostingIndex(txn); idx >= 0 {
+			currentAccount := txn.Postings[idx].Account
+			if rule.Account != currentAccount {
+				acc := rule.Account
+				cs.NewAccount = &acc
+			}
 		}
 	}
 
 	if len(rule.Tags) > 0 {
-		cs.AddTags = rule.Tags
+		// Only include tags that are new or have a different value.
+		existingTags := make(map[string]string)
+		for _, kv := range txn.Tags {
+			existingTags[kv[0]] = kv[1]
+		}
+		newTags := make(map[string]string)
+		for k, v := range rule.Tags {
+			if existing, ok := existingTags[k]; !ok || existing != v {
+				newTags[k] = v
+			}
+		}
+		if len(newTags) > 0 {
+			cs.AddTags = newTags
+		}
 	}
 
 	return cs
