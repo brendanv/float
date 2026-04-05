@@ -85,6 +85,31 @@ const (
 	// LedgerServiceRestoreSnapshotProcedure is the fully-qualified name of the LedgerService's
 	// RestoreSnapshot RPC.
 	LedgerServiceRestoreSnapshotProcedure = "/float.v1.LedgerService/RestoreSnapshot"
+	// LedgerServiceListBankProfilesProcedure is the fully-qualified name of the LedgerService's
+	// ListBankProfiles RPC.
+	LedgerServiceListBankProfilesProcedure = "/float.v1.LedgerService/ListBankProfiles"
+	// LedgerServicePreviewImportProcedure is the fully-qualified name of the LedgerService's
+	// PreviewImport RPC.
+	LedgerServicePreviewImportProcedure = "/float.v1.LedgerService/PreviewImport"
+	// LedgerServiceImportTransactionsProcedure is the fully-qualified name of the LedgerService's
+	// ImportTransactions RPC.
+	LedgerServiceImportTransactionsProcedure = "/float.v1.LedgerService/ImportTransactions"
+	// LedgerServiceListRulesProcedure is the fully-qualified name of the LedgerService's ListRules RPC.
+	LedgerServiceListRulesProcedure = "/float.v1.LedgerService/ListRules"
+	// LedgerServiceAddRuleProcedure is the fully-qualified name of the LedgerService's AddRule RPC.
+	LedgerServiceAddRuleProcedure = "/float.v1.LedgerService/AddRule"
+	// LedgerServiceUpdateRuleProcedure is the fully-qualified name of the LedgerService's UpdateRule
+	// RPC.
+	LedgerServiceUpdateRuleProcedure = "/float.v1.LedgerService/UpdateRule"
+	// LedgerServiceDeleteRuleProcedure is the fully-qualified name of the LedgerService's DeleteRule
+	// RPC.
+	LedgerServiceDeleteRuleProcedure = "/float.v1.LedgerService/DeleteRule"
+	// LedgerServicePreviewApplyRulesProcedure is the fully-qualified name of the LedgerService's
+	// PreviewApplyRules RPC.
+	LedgerServicePreviewApplyRulesProcedure = "/float.v1.LedgerService/PreviewApplyRules"
+	// LedgerServiceApplyRulesProcedure is the fully-qualified name of the LedgerService's ApplyRules
+	// RPC.
+	LedgerServiceApplyRulesProcedure = "/float.v1.LedgerService/ApplyRules"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -107,6 +132,17 @@ type LedgerServiceClient interface {
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	// Import
+	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
+	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
+	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
+	// Rules
+	ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error)
+	AddRule(context.Context, *connect.Request[v1.AddRuleRequest]) (*connect.Response[v1.AddRuleResponse], error)
+	UpdateRule(context.Context, *connect.Request[v1.UpdateRuleRequest]) (*connect.Response[v1.UpdateRuleResponse], error)
+	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
+	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
+	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -228,6 +264,60 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
 			connect.WithClientOptions(opts...),
 		),
+		listBankProfiles: connect.NewClient[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse](
+			httpClient,
+			baseURL+LedgerServiceListBankProfilesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListBankProfiles")),
+			connect.WithClientOptions(opts...),
+		),
+		previewImport: connect.NewClient[v1.PreviewImportRequest, v1.PreviewImportResponse](
+			httpClient,
+			baseURL+LedgerServicePreviewImportProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("PreviewImport")),
+			connect.WithClientOptions(opts...),
+		),
+		importTransactions: connect.NewClient[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse](
+			httpClient,
+			baseURL+LedgerServiceImportTransactionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ImportTransactions")),
+			connect.WithClientOptions(opts...),
+		),
+		listRules: connect.NewClient[v1.ListRulesRequest, v1.ListRulesResponse](
+			httpClient,
+			baseURL+LedgerServiceListRulesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListRules")),
+			connect.WithClientOptions(opts...),
+		),
+		addRule: connect.NewClient[v1.AddRuleRequest, v1.AddRuleResponse](
+			httpClient,
+			baseURL+LedgerServiceAddRuleProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("AddRule")),
+			connect.WithClientOptions(opts...),
+		),
+		updateRule: connect.NewClient[v1.UpdateRuleRequest, v1.UpdateRuleResponse](
+			httpClient,
+			baseURL+LedgerServiceUpdateRuleProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UpdateRule")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteRule: connect.NewClient[v1.DeleteRuleRequest, v1.DeleteRuleResponse](
+			httpClient,
+			baseURL+LedgerServiceDeleteRuleProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("DeleteRule")),
+			connect.WithClientOptions(opts...),
+		),
+		previewApplyRules: connect.NewClient[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse](
+			httpClient,
+			baseURL+LedgerServicePreviewApplyRulesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("PreviewApplyRules")),
+			connect.WithClientOptions(opts...),
+		),
+		applyRules: connect.NewClient[v1.ApplyRulesRequest, v1.ApplyRulesResponse](
+			httpClient,
+			baseURL+LedgerServiceApplyRulesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -251,6 +341,15 @@ type ledgerServiceClient struct {
 	bulkEditTransactions    *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
 	listSnapshots           *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
 	restoreSnapshot         *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
+	listBankProfiles        *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
+	previewImport           *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
+	importTransactions      *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
+	listRules               *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
+	addRule                 *connect.Client[v1.AddRuleRequest, v1.AddRuleResponse]
+	updateRule              *connect.Client[v1.UpdateRuleRequest, v1.UpdateRuleResponse]
+	deleteRule              *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
+	previewApplyRules       *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
+	applyRules              *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -343,6 +442,51 @@ func (c *ledgerServiceClient) RestoreSnapshot(ctx context.Context, req *connect.
 	return c.restoreSnapshot.CallUnary(ctx, req)
 }
 
+// ListBankProfiles calls float.v1.LedgerService.ListBankProfiles.
+func (c *ledgerServiceClient) ListBankProfiles(ctx context.Context, req *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error) {
+	return c.listBankProfiles.CallUnary(ctx, req)
+}
+
+// PreviewImport calls float.v1.LedgerService.PreviewImport.
+func (c *ledgerServiceClient) PreviewImport(ctx context.Context, req *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error) {
+	return c.previewImport.CallUnary(ctx, req)
+}
+
+// ImportTransactions calls float.v1.LedgerService.ImportTransactions.
+func (c *ledgerServiceClient) ImportTransactions(ctx context.Context, req *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error) {
+	return c.importTransactions.CallUnary(ctx, req)
+}
+
+// ListRules calls float.v1.LedgerService.ListRules.
+func (c *ledgerServiceClient) ListRules(ctx context.Context, req *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error) {
+	return c.listRules.CallUnary(ctx, req)
+}
+
+// AddRule calls float.v1.LedgerService.AddRule.
+func (c *ledgerServiceClient) AddRule(ctx context.Context, req *connect.Request[v1.AddRuleRequest]) (*connect.Response[v1.AddRuleResponse], error) {
+	return c.addRule.CallUnary(ctx, req)
+}
+
+// UpdateRule calls float.v1.LedgerService.UpdateRule.
+func (c *ledgerServiceClient) UpdateRule(ctx context.Context, req *connect.Request[v1.UpdateRuleRequest]) (*connect.Response[v1.UpdateRuleResponse], error) {
+	return c.updateRule.CallUnary(ctx, req)
+}
+
+// DeleteRule calls float.v1.LedgerService.DeleteRule.
+func (c *ledgerServiceClient) DeleteRule(ctx context.Context, req *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error) {
+	return c.deleteRule.CallUnary(ctx, req)
+}
+
+// PreviewApplyRules calls float.v1.LedgerService.PreviewApplyRules.
+func (c *ledgerServiceClient) PreviewApplyRules(ctx context.Context, req *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error) {
+	return c.previewApplyRules.CallUnary(ctx, req)
+}
+
+// ApplyRules calls float.v1.LedgerService.ApplyRules.
+func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error) {
+	return c.applyRules.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -363,6 +507,17 @@ type LedgerServiceHandler interface {
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	// Import
+	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
+	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
+	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
+	// Rules
+	ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error)
+	AddRule(context.Context, *connect.Request[v1.AddRuleRequest]) (*connect.Response[v1.AddRuleResponse], error)
+	UpdateRule(context.Context, *connect.Request[v1.UpdateRuleRequest]) (*connect.Response[v1.UpdateRuleResponse], error)
+	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
+	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
+	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -480,6 +635,60 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceListBankProfilesHandler := connect.NewUnaryHandler(
+		LedgerServiceListBankProfilesProcedure,
+		svc.ListBankProfiles,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListBankProfiles")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServicePreviewImportHandler := connect.NewUnaryHandler(
+		LedgerServicePreviewImportProcedure,
+		svc.PreviewImport,
+		connect.WithSchema(ledgerServiceMethods.ByName("PreviewImport")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceImportTransactionsHandler := connect.NewUnaryHandler(
+		LedgerServiceImportTransactionsProcedure,
+		svc.ImportTransactions,
+		connect.WithSchema(ledgerServiceMethods.ByName("ImportTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceListRulesHandler := connect.NewUnaryHandler(
+		LedgerServiceListRulesProcedure,
+		svc.ListRules,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListRules")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceAddRuleHandler := connect.NewUnaryHandler(
+		LedgerServiceAddRuleProcedure,
+		svc.AddRule,
+		connect.WithSchema(ledgerServiceMethods.ByName("AddRule")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceUpdateRuleHandler := connect.NewUnaryHandler(
+		LedgerServiceUpdateRuleProcedure,
+		svc.UpdateRule,
+		connect.WithSchema(ledgerServiceMethods.ByName("UpdateRule")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceDeleteRuleHandler := connect.NewUnaryHandler(
+		LedgerServiceDeleteRuleProcedure,
+		svc.DeleteRule,
+		connect.WithSchema(ledgerServiceMethods.ByName("DeleteRule")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServicePreviewApplyRulesHandler := connect.NewUnaryHandler(
+		LedgerServicePreviewApplyRulesProcedure,
+		svc.PreviewApplyRules,
+		connect.WithSchema(ledgerServiceMethods.ByName("PreviewApplyRules")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceApplyRulesHandler := connect.NewUnaryHandler(
+		LedgerServiceApplyRulesProcedure,
+		svc.ApplyRules,
+		connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -518,6 +727,24 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceListSnapshotsHandler.ServeHTTP(w, r)
 		case LedgerServiceRestoreSnapshotProcedure:
 			ledgerServiceRestoreSnapshotHandler.ServeHTTP(w, r)
+		case LedgerServiceListBankProfilesProcedure:
+			ledgerServiceListBankProfilesHandler.ServeHTTP(w, r)
+		case LedgerServicePreviewImportProcedure:
+			ledgerServicePreviewImportHandler.ServeHTTP(w, r)
+		case LedgerServiceImportTransactionsProcedure:
+			ledgerServiceImportTransactionsHandler.ServeHTTP(w, r)
+		case LedgerServiceListRulesProcedure:
+			ledgerServiceListRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceAddRuleProcedure:
+			ledgerServiceAddRuleHandler.ServeHTTP(w, r)
+		case LedgerServiceUpdateRuleProcedure:
+			ledgerServiceUpdateRuleHandler.ServeHTTP(w, r)
+		case LedgerServiceDeleteRuleProcedure:
+			ledgerServiceDeleteRuleHandler.ServeHTTP(w, r)
+		case LedgerServicePreviewApplyRulesProcedure:
+			ledgerServicePreviewApplyRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceApplyRulesProcedure:
+			ledgerServiceApplyRulesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -597,4 +824,40 @@ func (UnimplementedLedgerServiceHandler) ListSnapshots(context.Context, *connect
 
 func (UnimplementedLedgerServiceHandler) RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RestoreSnapshot is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListBankProfiles is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.PreviewImport is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportTransactions is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListRules is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) AddRule(context.Context, *connect.Request[v1.AddRuleRequest]) (*connect.Response[v1.AddRuleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.AddRule is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UpdateRule(context.Context, *connect.Request[v1.UpdateRuleRequest]) (*connect.Response[v1.UpdateRuleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateRule is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeleteRule is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.PreviewApplyRules is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ApplyRules is not implemented"))
 }

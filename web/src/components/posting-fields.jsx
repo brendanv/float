@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "preact/hooks";
 
-function AccountInput({ value, onChange, accounts }) {
+export function AccountInput({ value, onChange, accounts, placeholder = "Account" }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filtered, setFiltered] = useState([]);
   const wrapperRef = useRef(null);
@@ -40,11 +40,16 @@ function AccountInput({ value, onChange, accounts }) {
     <div ref={wrapperRef} class="relative flex-1">
       <input
         type="text"
-        placeholder="Account"
+        placeholder={placeholder}
         value={value}
         onInput={handleInput}
         onFocus={() => {
-          if (value.length > 0 && filtered.length > 0) setShowSuggestions(true);
+          if (accounts && value.length === 0) {
+            setFiltered(accounts.slice(0, 8));
+            setShowSuggestions(true);
+          } else if (value.length > 0 && filtered.length > 0) {
+            setShowSuggestions(true);
+          }
         }}
         class="input input-bordered input-sm w-full"
       />

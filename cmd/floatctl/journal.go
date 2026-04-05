@@ -6,11 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -601,7 +599,7 @@ func runJournalImport(args []string) error {
 	}
 	existingFPs := make(map[string]bool, len(existing))
 	for _, t := range existing {
-		existingFPs[txnFingerprint(t)] = true
+		existingFPs[journal.TxnFingerprint(t)] = true
 	}
 
 	// Classify candidates.
@@ -611,7 +609,7 @@ func runJournalImport(args []string) error {
 	}
 	entries := make([]candidateEntry, len(candidates))
 	for i, c := range candidates {
-		entries[i] = candidateEntry{txn: c, dup: existingFPs[txnFingerprint(c)]}
+		entries[i] = candidateEntry{txn: c, dup: existingFPs[journal.TxnFingerprint(c)]}
 	}
 
 	// Print preview.
@@ -666,7 +664,7 @@ func runJournalImport(args []string) error {
 		if e.dup {
 			continue
 		}
-		txInput, convErr := hledgerTxnToInput(e.txn)
+		txInput, convErr := journal.HledgerTxnToInput(e.txn)
 		if convErr != nil {
 			return fmt.Errorf("import: convert transaction: %w", convErr)
 		}
@@ -682,54 +680,6 @@ func runJournalImport(args []string) error {
 	return nil
 }
 
-// txnFingerprint returns a deduplication fingerprint for a transaction:
-// date | description | sorted(account:amount) for each posting.
-func txnFingerprint(t hledger.Transaction) string {
-	parts := []string{t.Date, t.Description}
-	var postings []string
-	for _, p := range t.Postings {
-		amtStr := ""
-		if len(p.Amounts) > 0 {
-			a := p.Amounts[0]
-			amtStr = fmt.Sprintf("%s%.6f", a.Commodity, a.Quantity.FloatingPoint)
-		}
-		postings = append(postings, p.Account+":"+amtStr)
-	}
-	sort.Strings(postings)
-	parts = append(parts, postings...)
-	return strings.Join(parts, "|")
-}
-
-// hledgerTxnToInput converts a parsed hledger.Transaction to a journal.TransactionInput
-// suitable for AppendTransaction. All posting amounts are preserved explicitly.
-func hledgerTxnToInput(t hledger.Transaction) (journal.TransactionInput, error) {
-	date, err := time.Parse("2006-01-02", t.Date)
-	if err != nil {
-		return journal.TransactionInput{}, fmt.Errorf("parse date %q: %w", t.Date, err)
-	}
-
-	var postings []journal.PostingInput
-	for _, p := range t.Postings {
-		var amtStr string
-		if len(p.Amounts) > 0 {
-			a := p.Amounts[0]
-			val := float64(a.Quantity.DecimalMantissa) / math.Pow10(a.Quantity.DecimalPlaces)
-			amtStr = fmt.Sprintf("%s%.2f", a.Commodity, val)
-		}
-		postings = append(postings, journal.PostingInput{
-			Account: p.Account,
-			Amount:  amtStr,
-			Comment: strings.TrimSpace(p.Comment),
-		})
-	}
-
-	return journal.TransactionInput{
-		Date:        date,
-		Description: t.Description,
-		Comment:     strings.TrimSpace(t.Comment),
-		Postings:    postings,
-	}, nil
-}
 
 func runJournalSnapshots(args []string) error {
 	fset := flag.NewFlagSet("journal snapshots", flag.ExitOnError)

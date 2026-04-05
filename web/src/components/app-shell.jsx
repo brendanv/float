@@ -1,4 +1,4 @@
-import { House, List, TrendingUp, Tag, PlusCircle, Menu, History } from "lucide-preact";
+import { House, List, TrendingUp, Tag, PlusCircle, Menu, History, Upload, ListFilter } from "lucide-preact";
 import { navigate } from "../router.jsx";
 
 function NavLink({ href, label, icon: Icon, current }) {
@@ -74,6 +74,8 @@ export function AppShell({ children, currentPath }) {
             <NavLink href="/trends" label="Trends" icon={TrendingUp} current={currentPath} />
             <NavLink href="/prices" label="Prices" icon={Tag} current={currentPath} />
             <NavLink href="/snapshots" label="Snapshots" icon={History} current={currentPath} />
+            <NavLink href="/import" label="Import" icon={Upload} current={currentPath} />
+            <NavLink href="/rules" label="Rules" icon={ListFilter} current={currentPath} />
             <NavLink href="/add" label="Add Transaction" icon={PlusCircle} current={currentPath} />
           </ul>
         </aside>

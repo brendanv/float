@@ -156,10 +156,109 @@ export const mockNetWorthSnapshots = [
   { date: "2026-03-01", assets: [{ commodity: "USD", quantity: "12450.00" }], liabilities: [{ commodity: "USD", quantity: "-1230.00" }], netWorth: [{ commodity: "USD", quantity: "11220.00" }] },
 ];
 
-/**
- * Intercept all LedgerService Connect RPC calls and return mock data.
- * @param {import('@playwright/test').Page} page
- */
+export const mockBankProfiles = [
+  { name: "Chase Checking", rulesFile: "rules/chase.rules" },
+  { name: "Capital One Visa", rulesFile: "rules/capitalone.rules" },
+];
+
+export const mockRules = [
+  { id: "aabb1122", pattern: "AMAZON|amazon\\.com", payee: "Amazon", account: "expenses:shopping", tags: {}, priority: 5 },
+  { id: "ccdd3344", pattern: "STARBUCKS|starbucks", payee: "Starbucks", account: "expenses:dining", tags: { category: "coffee" }, priority: 10 },
+  { id: "eeff5566", pattern: "^(WHOLE FOODS|Whole Foods)", payee: "Whole Foods Market", account: "expenses:groceries", tags: {}, priority: 15 },
+  { id: "aabb7788", pattern: "NETFLIX", payee: "Netflix", account: "expenses:subscriptions", tags: { auto: "yes" }, priority: 20 },
+];
+
+export const mockImportCandidates = [
+  {
+    transaction: {
+      fid: "",
+      date: "2026-03-28",
+      description: "AMAZON.COM PURCHASE",
+      postings: [
+        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-42.99" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "$", quantity: "42.99" }] },
+      ],
+      tags: {},
+    },
+    isDuplicate: false,
+    matchedRuleId: "aabb1122",
+  },
+  {
+    transaction: {
+      fid: "",
+      date: "2026-03-27",
+      description: "STARBUCKS #4821",
+      postings: [
+        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-6.75" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "$", quantity: "6.75" }] },
+      ],
+      tags: {},
+    },
+    isDuplicate: false,
+    matchedRuleId: "ccdd3344",
+  },
+  {
+    transaction: {
+      fid: "",
+      date: "2026-03-26",
+      description: "Whole Foods Market",
+      postings: [
+        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-87.43" }] },
+        { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "87.43" }] },
+      ],
+      tags: {},
+    },
+    isDuplicate: true,
+    matchedRuleId: "eeff5566",
+  },
+  {
+    transaction: {
+      fid: "",
+      date: "2026-03-25",
+      description: "MONTHLY GAS BILL",
+      postings: [
+        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-84.00" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "$", quantity: "84.00" }] },
+      ],
+      tags: {},
+    },
+    isDuplicate: false,
+    matchedRuleId: "",
+  },
+];
+
+export const mockApplyPreviews = [
+  {
+    fid: "a1b2c3d5",
+    description: "AMAZON.COM purchase",
+    matchedRuleId: "aabb1122",
+    currentAccount: "expenses:shopping",
+    newAccount: "",
+    currentPayee: "Amazon",
+    newPayee: "",
+    addTags: {},
+  },
+  {
+    fid: "c3d4e5f7",
+    description: "Starbucks morning coffee",
+    matchedRuleId: "ccdd3344",
+    currentAccount: "expenses:dining",
+    newAccount: "",
+    currentPayee: "",
+    newPayee: "Starbucks",
+    addTags: { category: "coffee" },
+  },
+  {
+    fid: "e5f6g7h8",
+    description: "Whole Foods Market produce run",
+    matchedRuleId: "eeff5566",
+    currentAccount: "expenses:unknown",
+    newAccount: "expenses:groceries",
+    currentPayee: "",
+    newPayee: "Whole Foods Market",
+    addTags: {},
+  },
+];
 export async function mockLedgerApi(page) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
@@ -216,6 +315,33 @@ export async function mockLedgerApi(page) {
         break;
       case "BulkEditTransactions":
         body = { transactions: [] };
+        break;
+      case "ListBankProfiles":
+        body = { profiles: mockBankProfiles };
+        break;
+      case "PreviewImport":
+        body = { candidates: mockImportCandidates };
+        break;
+      case "ImportTransactions":
+        body = { importedCount: 3, transactions: [] };
+        break;
+      case "ListRules":
+        body = { rules: mockRules };
+        break;
+      case "AddRule":
+        body = { rule: { id: "new00001", pattern: reqBody.pattern, payee: reqBody.payee, account: reqBody.account, tags: reqBody.tags || {}, priority: reqBody.priority || 0 } };
+        break;
+      case "UpdateRule":
+        body = { rule: { id: reqBody.id, pattern: reqBody.pattern, payee: reqBody.payee, account: reqBody.account, tags: reqBody.tags || {}, priority: reqBody.priority || 0 } };
+        break;
+      case "DeleteRule":
+        body = {};
+        break;
+      case "PreviewApplyRules":
+        body = { previews: mockApplyPreviews };
+        break;
+      case "ApplyRules":
+        body = { appliedCount: 3 };
         break;
       case "ListPrices":
         body = { prices: mockPrices };
