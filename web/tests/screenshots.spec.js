@@ -134,6 +134,25 @@ test("rules page", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules.png", fullPage: true });
 });
 
+test("rules page - account typeahead", async ({ page }) => {
+  await page.goto("/#/rules");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Focus the account input to trigger the on-focus suggestions
+  await page.focus('input[placeholder="expenses:shopping"]');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/rules-account-typeahead.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
+});
+
+test("rules page - account typeahead filtered", async ({ page }) => {
+  await page.goto("/#/rules");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.fill('input[placeholder="expenses:shopping"]', "exp");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/rules-account-typeahead-filtered.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
+});
+
 test("rules page - apply preview", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});

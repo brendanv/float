@@ -3,6 +3,7 @@ import { ledgerClient } from "../client.js";
 import { useRpc } from "../hooks/use-rpc.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { AccountInput } from "../components/posting-fields.jsx";
 
 function emptyForm() {
   return { pattern: "", payee: "", account: "", priority: "0", tags: "" };
@@ -26,6 +27,7 @@ function tagsToString(tags) {
 
 export function RulesPage() {
   const rulesList = useRpc(() => ledgerClient.listRules({}), []);
+  const accounts = useRpc(() => ledgerClient.listAccounts({}), []);
 
   const [form, setForm] = useState(emptyForm());
   const [editingId, setEditingId] = useState(null);
@@ -204,12 +206,11 @@ export function RulesPage() {
               </label>
               <label class="form-control flex-1 min-w-40">
                 <div class="label"><span class="label-text">Set Category Account</span></div>
-                <input
-                  type="text"
-                  class="input input-bordered input-sm"
-                  placeholder="expenses:shopping"
+                <AccountInput
                   value={form.account}
-                  onInput={(e) => setField("account", e.target.value)}
+                  onChange={(v) => setField("account", v)}
+                  accounts={accounts.data?.accounts ?? []}
+                  placeholder="expenses:shopping"
                 />
               </label>
               <label class="form-control flex-1 min-w-40">
