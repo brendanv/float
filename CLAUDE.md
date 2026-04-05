@@ -2,7 +2,7 @@
 
 `float` is a self-hostable personal finance manager wrapping [hledger](https://hledger.org/). float provides the UX layer (gRPC API, CLI, web UI) and delegates all accounting math, parsing, and validation to hledger. **Never reimplement accounting logic that hledger already handles.**
 
-Three binaries: `floatd` (gRPC server + embedded web UI), `float` (CLI gRPC client), `floatctl` (admin/debug CLI, bypasses gRPC).
+Three binaries: `floatd` (gRPC server + embedded web UI), `float` (TUI gRPC client), `floatctl` (admin/debug CLI, bypasses gRPC).
 
 ## Commands
 
@@ -10,7 +10,9 @@ Three binaries: `floatd` (gRPC server + embedded web UI), `float` (CLI gRPC clie
 mise run test        # go test ./...
 mise run lint        # golangci-lint run ./...
 mise run check       # lint + test
+mise run check-all   # lint + vet + test (full pre-commit gate)
 mise run proto-gen   # buf generate for Go + JS (after editing .proto files)
+mise run web-gen     # generate JS protobuf code only
 mise run web-build   # build web UI → internal/webui/dist/
 mise run build       # web UI + compile floatd
 mise run web-dev     # Vite dev server on :5173 (proxies API to floatd on :8080)
@@ -37,7 +39,7 @@ buf curl --schema . --protocol grpc --http2-prior-knowledge \
   http://localhost:8080/float.v1.LedgerService/GetBalances --data '{}'
 ```
 
-mise shortcuts: `mise run grpc-balances`, `mise run grpc-transactions`, `mise run grpc-accounts`. Supports `FLOAT_DEPTH`, `FLOAT_QUERY`, `FLOAT_ADDR` env vars.
+mise shortcuts: `mise run grpc-balances`, `mise run grpc-transactions`, `mise run grpc-accounts`, `mise run grpc-delete`, `mise run grpc-modify-tags`. Supports `FLOAT_DEPTH`, `FLOAT_QUERY`, `FLOAT_ADDR` env vars.
 
 ## Architecture
 
@@ -59,6 +61,7 @@ Sits between `LedgerService` handlers and the hledger wrapper. Cache key = hash 
 data/
 ├── main.journal          # include directives only
 ├── accounts.journal      # account declarations
+├── prices.journal        # P directives for commodity prices (auto-created)
 ├── rules/                # hledger CSV rules files per bank
 ├── 2026/01.journal       # transactions grouped by month
 └── config.toml           # bank profiles, users
@@ -70,11 +73,11 @@ Every float-written transaction gets a code field (8-char UUID prefix): `(a1b2c3
 
 ### API Layer
 
-ConnectRPC (gRPC, gRPC-Web, Connect — no Envoy needed). Protobufs in `proto/float/v1/`, generated with Buf. Services: `LedgerService`, `ImportService`, `RulesService`, `AuthService`.
+ConnectRPC (gRPC, gRPC-Web, Connect — no Envoy needed). Protobufs in `proto/float/v1/`, generated with Buf. One service: `LedgerService` (query, write, bulk edit, snapshots, prices).
 
 ### Authentication
 
-Single-tenant, two roles: `admin` and `viewer`. JWT (HMAC-SHA256) signed with `data/float.key`. Interceptor validates on every RPC except `AuthService/Login`. Passphrases hashed with argon2id.
+**Not yet implemented** — the server currently runs with open access. The config schema supports users with `admin`/`viewer` roles and argon2id passphrase hashes, but the JWT interceptor and `AuthService` are planned for a future step (see `PLAN.md` Step 8).
 
 ### floatctl
 
@@ -91,4 +94,4 @@ Admin/debug CLI that bypasses the API. See `cmd/floatctl/CLAUDE.md` for commands
 
 ## Web UI Screenshots
 
-Playwright in `web/` captures screenshots with mocked API data (no live floatd needed). Use the `web-screenshots` skill or `cd web && npm run screenshots`. Config: `web/playwright.config.js`, `web/tests/screenshots.spec.js`, `web/tests/mock-api.js`. `@playwright/test` is pinned to **1.56.1** — do not upgrade without matching the system Chromium.
+Playwright in `web/` captures screenshots with mocked API data (no live floatd needed). Use the `web-screenshots` skill or `cd web && bun run screenshots`. Config: `web/playwright.config.js`, `web/tests/screenshots.spec.js`, `web/tests/mock-api.js`. `@playwright/test` is pinned to **1.56.1** — do not upgrade without matching the system Chromium.
