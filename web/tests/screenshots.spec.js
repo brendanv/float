@@ -145,6 +145,18 @@ test("rules page - apply preview", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules-apply-preview.png", fullPage: true });
 });
 
+test("rules page - apply preview section zoomed", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1800 });
+  await page.goto("/#/rules");
+  // Wait for rule list table to load
+  await page.waitForSelector("table tbody tr", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  // Click Preview Changes
+  await page.click('button:has-text("Preview Changes")');
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: "test-results/rules-apply-preview-zoomed.png", fullPage: true });
+});
+
 test("hamburger icon - closed state", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
