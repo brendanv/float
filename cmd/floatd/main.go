@@ -90,7 +90,7 @@ func main() {
 	}
 
 	c := cache.New[any](lock.Generation)
-	handler := serverledger.NewHandler(hl, lock, *dataDir, c, snap, cfg)
+	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg)
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,

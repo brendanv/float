@@ -88,6 +88,9 @@ const (
 	// LedgerServiceListBankProfilesProcedure is the fully-qualified name of the LedgerService's
 	// ListBankProfiles RPC.
 	LedgerServiceListBankProfilesProcedure = "/float.v1.LedgerService/ListBankProfiles"
+	// LedgerServiceCreateBankProfileProcedure is the fully-qualified name of the LedgerService's
+	// CreateBankProfile RPC.
+	LedgerServiceCreateBankProfileProcedure = "/float.v1.LedgerService/CreateBankProfile"
 	// LedgerServicePreviewImportProcedure is the fully-qualified name of the LedgerService's
 	// PreviewImport RPC.
 	LedgerServicePreviewImportProcedure = "/float.v1.LedgerService/PreviewImport"
@@ -134,6 +137,7 @@ type LedgerServiceClient interface {
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
+	CreateBankProfile(context.Context, *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
 	// Rules
@@ -270,6 +274,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ListBankProfiles")),
 			connect.WithClientOptions(opts...),
 		),
+		createBankProfile: connect.NewClient[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse](
+			httpClient,
+			baseURL+LedgerServiceCreateBankProfileProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("CreateBankProfile")),
+			connect.WithClientOptions(opts...),
+		),
 		previewImport: connect.NewClient[v1.PreviewImportRequest, v1.PreviewImportResponse](
 			httpClient,
 			baseURL+LedgerServicePreviewImportProcedure,
@@ -342,6 +352,7 @@ type ledgerServiceClient struct {
 	listSnapshots           *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
 	restoreSnapshot         *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
 	listBankProfiles        *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
+	createBankProfile       *connect.Client[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse]
 	previewImport           *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
 	importTransactions      *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
 	listRules               *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
@@ -447,6 +458,11 @@ func (c *ledgerServiceClient) ListBankProfiles(ctx context.Context, req *connect
 	return c.listBankProfiles.CallUnary(ctx, req)
 }
 
+// CreateBankProfile calls float.v1.LedgerService.CreateBankProfile.
+func (c *ledgerServiceClient) CreateBankProfile(ctx context.Context, req *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error) {
+	return c.createBankProfile.CallUnary(ctx, req)
+}
+
 // PreviewImport calls float.v1.LedgerService.PreviewImport.
 func (c *ledgerServiceClient) PreviewImport(ctx context.Context, req *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error) {
 	return c.previewImport.CallUnary(ctx, req)
@@ -509,6 +525,7 @@ type LedgerServiceHandler interface {
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
+	CreateBankProfile(context.Context, *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
 	// Rules
@@ -641,6 +658,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ListBankProfiles")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceCreateBankProfileHandler := connect.NewUnaryHandler(
+		LedgerServiceCreateBankProfileProcedure,
+		svc.CreateBankProfile,
+		connect.WithSchema(ledgerServiceMethods.ByName("CreateBankProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServicePreviewImportHandler := connect.NewUnaryHandler(
 		LedgerServicePreviewImportProcedure,
 		svc.PreviewImport,
@@ -729,6 +752,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceRestoreSnapshotHandler.ServeHTTP(w, r)
 		case LedgerServiceListBankProfilesProcedure:
 			ledgerServiceListBankProfilesHandler.ServeHTTP(w, r)
+		case LedgerServiceCreateBankProfileProcedure:
+			ledgerServiceCreateBankProfileHandler.ServeHTTP(w, r)
 		case LedgerServicePreviewImportProcedure:
 			ledgerServicePreviewImportHandler.ServeHTTP(w, r)
 		case LedgerServiceImportTransactionsProcedure:
@@ -828,6 +853,10 @@ func (UnimplementedLedgerServiceHandler) RestoreSnapshot(context.Context, *conne
 
 func (UnimplementedLedgerServiceHandler) ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListBankProfiles is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) CreateBankProfile(context.Context, *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.CreateBankProfile is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error) {

@@ -42,7 +42,7 @@ func mustHandler(t *testing.T, data map[string][]byte) *serverledger.Handler {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	return serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	return serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 }
 
 const printJSON = `[
@@ -181,7 +181,7 @@ func TestListTransactionsWithQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 
 	_, err = h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{
 		Query: []string{"assets:checking", "date:2026-01"},
@@ -326,7 +326,7 @@ func mustRealHandler(t *testing.T, dir string) *serverledger.Handler {
 		t.Skipf("hledger unavailable: %v", err)
 	}
 	lock := txlock.New(dir, c)
-	return serverledger.NewHandler(c, lock, dir, nil, nil, nil)
+	return serverledger.NewHandler(c, lock, dir, "", nil, nil, nil)
 }
 
 func TestDeleteTransactionHandler(t *testing.T) {
@@ -639,7 +639,7 @@ func mustHandlerWithCache(t *testing.T, runner hledger.CommandRunner) (*serverle
 		t.Fatalf("NewWithRunner: %v", err)
 	}
 	ch := cache.New[any](func() uint64 { return 0 })
-	return serverledger.NewHandler(c, nil, "", ch, nil, nil), ch
+	return serverledger.NewHandler(c, nil, "", "", ch, nil, nil), ch
 }
 
 func TestListTransactions_HledgerError(t *testing.T) {
@@ -647,7 +647,7 @@ func TestListTransactions_HledgerError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 	_, err = h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -662,7 +662,7 @@ func TestGetBalances_HledgerError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 	_, err = h.GetBalances(t.Context(), connect.NewRequest(&floatv1.GetBalancesRequest{}))
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -677,7 +677,7 @@ func TestListAccounts_HledgerError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 	_, err = h.ListAccounts(t.Context(), connect.NewRequest(&floatv1.ListAccountsRequest{}))
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -692,7 +692,7 @@ func TestGetNetWorthTimeseries_HledgerError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 	_, err = h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -860,7 +860,7 @@ func TestGetNetWorthTimeseries_WithDateRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 
 	_, err = h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{
 		Begin: "2026-01-01",
@@ -892,7 +892,7 @@ func TestGetBalances_WithDepthAndQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 
 	_, err = h.GetBalances(t.Context(), connect.NewRequest(&floatv1.GetBalancesRequest{
 		Depth: 2,
@@ -1254,7 +1254,7 @@ func TestListPayees_HledgerError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWithRunner: %v", err)
 	}
-	h := serverledger.NewHandler(c, nil, "", nil, nil, nil)
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
 	_, err = h.ListPayees(t.Context(), connect.NewRequest(&floatv1.ListPayeesRequest{}))
 	if err == nil {
 		t.Fatal("expected error, got nil")
