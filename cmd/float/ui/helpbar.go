@@ -130,3 +130,61 @@ func (TrendsKeyMap) FullHelp() [][]key.Binding {
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
 	}
 }
+
+var (
+	keyPreview = key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "preview apply"))
+	keyApply   = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply selected"))
+	keyToggle  = key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle select"))
+	keySelAll  = key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "select all"))
+	keyTest    = key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "test pattern"))
+)
+
+// RulesListKeyMap is for the rules tab in list mode.
+type RulesListKeyMap struct{}
+
+func (RulesListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keyAdd, keyEdit, keyDelete, keyPreview, keyHelp}
+}
+func (RulesListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyAdd, keyEdit, keyDelete},
+		{keyPreview, keyTest, keyRetry},
+	}
+}
+
+// RulesFormKeyMap is for the rules tab in add/edit form mode.
+type RulesFormKeyMap struct{}
+
+func (RulesFormKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNextField, keyPrevField, keySubmit, keyEsc}
+}
+func (RulesFormKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyNextField, keyPrevField},
+		{keySubmit, keyEsc},
+	}
+}
+
+// RulesPreviewKeyMap is for the rules tab in preview/apply mode.
+type RulesPreviewKeyMap struct{}
+
+func (RulesPreviewKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNav, keyToggle, keySelAll, keyApply, keyEsc}
+}
+func (RulesPreviewKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyNav, keyToggle, keySelAll},
+		{keyApply, keyEsc},
+	}
+}
+
+// RulesDeleteKeyMap is for the delete confirmation in the rules tab.
+type RulesDeleteKeyMap struct{}
+
+func (RulesDeleteKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyConfirm, keyEsc}
+}
+func (RulesDeleteKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keyConfirm, keyEsc}}
+}
