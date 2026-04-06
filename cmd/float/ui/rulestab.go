@@ -25,7 +25,7 @@ const (
 	rulesModePreview                  // full-screen apply-preview
 )
 
-// RulesTab is the fourth TUI tab. It mirrors the web UI\'s rules management
+// RulesTab is the fourth TUI tab. It mirrors the web UI's rules management
 // page: list rules, add/edit/delete rules, test a pattern, and
 // preview/apply rules to existing transactions.
 type RulesTab struct {
@@ -55,7 +55,7 @@ type RulesTab struct {
 	// Delete confirmation
 	confirmDeleteID string
 
-	// Form state (add / edit)
+	// ─── Form state (add / edit) ───────────────────────────────────────
 	editingID      string // non-empty = edit mode
 	formField      int    // 0=pattern 1=priority 2=payee 3=account 4=tags
 	patternInput   textinput.Model
@@ -66,22 +66,23 @@ type RulesTab struct {
 	formErr        string
 	formSubmitting bool
 
-	// Pattern tester (right panel in list mode)
+	// ─── Pattern tester (right panel in list mode) ─────────────────────
 	testInput   textinput.Model
-	testFocused bool   // true = test input has keyboard focus
-	testMatch   string // display name of the first matching rule, "" if none
+	testFocused bool    // true = test input has keyboard focus
+	testMatch   string  // display name of the first matching rule, "" if none
 
-	// Preview / apply state
-	previews       []*floatv1.RuleApplicationPreview
-	selectedFIDs   map[string]bool
-	previewCursor  int
-	previewErr     string
-	previewLoading bool
-	applyResult    string
-	previewTable   table.Model
+	// ─── Preview / apply state ─────────────────────────────────────────
+	previews        []*floatv1.RuleApplicationPreview
+	selectedFIDs    map[string]bool
+	previewCursor   int
+	previewErr      string
+	previewLoading  bool
+	applyResult     string
+	previewTable    table.Model
 }
 
-// NewRulesTab creates the Rules tab.
+// ─── Constructor ────────────────────────────────────────────────────────────
+
 func NewRulesTab(client floatv1connect.LedgerServiceClient) RulesTab {
 	patternIn := textinput.New()
 	patternIn.Placeholder = "regex pattern (required)"
@@ -99,21 +100,21 @@ func NewRulesTab(client floatv1connect.LedgerServiceClient) RulesTab {
 	tagsIn.Placeholder = "tags: key=val key2=val2 (optional)"
 
 	testIn := textinput.New()
-	testIn.Placeholder = "type a description to test rules..."
+	testIn.Placeholder = "type a description to test rules…"
 
 	return RulesTab{
-		client:        client,
-		loadState:     stateLoading,
-		spinner:       NewSpinner(),
-		rulesTable:    newRulesTable(),
-		previewTable:  newPreviewTable(),
-		patternInput:  patternIn,
+		client:       client,
+		loadState:    stateLoading,
+		spinner:      NewSpinner(),
+		rulesTable:   newRulesTable(),
+		previewTable: newPreviewTable(),
+		patternInput: patternIn,
 		priorityInput: priorityIn,
-		payeeInput:    payeeIn,
-		accountInput:  accountIn,
-		tagsInput:     tagsIn,
-		testInput:     testIn,
-		selectedFIDs:  make(map[string]bool),
+		payeeInput:   payeeIn,
+		accountInput: accountIn,
+		tagsInput:    tagsIn,
+		testInput:    testIn,
+		selectedFIDs: make(map[string]bool),
 	}
 }
 
@@ -151,7 +152,8 @@ func newPreviewTable() table.Model {
 	)
 }
 
-// SetSize recomputes the layout for the given terminal dimensions.
+// ─── SetSize ────────────────────────────────────────────────────────────────
+
 func (m RulesTab) SetSize(w, h int) RulesTab {
 	m.width = w
 	m.height = h
@@ -173,14 +175,11 @@ func (m RulesTab) SetSize(w, h int) RulesTab {
 	m.rulesTable.SetHeight(m.leftInnerH)
 	m.rebuildRulesColumns()
 
-	tableH := h - 6
-	if tableH < 1 {
-		tableH = 1
-	}
-	m.previewTable.SetWidth(w - 2)
-	m.previewTable.SetHeight(tableH)
+	m.previewTable.SetWidth(w - 2) // full-width minus border
+	m.previewTable.SetHeight(h - 6)
 	m.rebuildPreviewColumns(w - 2)
 
+	// Resize text inputs.
 	fw := m.rightInnerW
 	if fw < 10 {
 		fw = 10
@@ -212,7 +211,7 @@ func (m *RulesTab) rebuildRulesColumns() {
 }
 
 func (m *RulesTab) rebuildPreviewColumns(w int) {
-	fixed := 3 + 20 + 20 + 15 + 4
+	fixed := 3 + 20 + 20 + 15 + 4 // sel + currAcct + newAcct + newPayee + sep
 	descW := w - fixed
 	if descW < 10 {
 		descW = 10
@@ -226,7 +225,8 @@ func (m *RulesTab) rebuildPreviewColumns(w int) {
 	})
 }
 
-// Init fetches rules and accounts on startup.
+// ─── Init ────────────────────────────────────────────────────────────────────
+
 func (m RulesTab) Init() tea.Cmd {
 	return tea.Batch(
 		m.spinner.Tick(),
@@ -235,7 +235,8 @@ func (m RulesTab) Init() tea.Cmd {
 	)
 }
 
-// Update processes messages for the Rules tab.
+// ─── Update ──────────────────────────────────────────────────────────────────
+
 func (m RulesTab) Update(msg tea.Msg) (RulesTab, tea.Cmd) {
 	switch msg := msg.(type) {
 	case RulesMsg:
@@ -320,16 +321,26 @@ func (m RulesTab) Update(msg tea.Msg) (RulesTab, tea.Cmd) {
 		return m.handleKey(msg)
 
 	default:
-		if m.loadState == stateLoading {
-			cmd := m.spinner.Update(msg)
+		// Spinner ticks.
+		if cmd := m.handleSpinnerTick(msg); cmd != nil {
 			return m, cmd
 		}
 		return m, nil
 	}
 }
 
+func (m *RulesTab) handleSpinnerTick(msg tea.Msg) tea.Cmd {
+	if m.loadState == stateLoading {
+		if sm, ok := msg.(interface{ String() string }); ok {
+			_ = sm
+		}
+		return m.spinner.Update(msg)
+	}
+	return nil
+}
+
 func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
-	// Preview mode
+	// ── Preview mode ────────────────────────────────────────────────────
 	if m.mode == rulesModePreview {
 		if m.previewLoading {
 			return m, nil
@@ -340,6 +351,7 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 			m.previews = nil
 			m.previewErr = ""
 			m.applyResult = ""
+			return m, nil
 		case "j", "down":
 			if m.previewCursor < len(m.previews)-1 {
 				m.previewCursor++
@@ -357,6 +369,7 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 				m.rebuildPreviewRows()
 			}
 		case "ctrl+a":
+			// Toggle: if any are selected, deselect all; else select all.
 			anySelected := false
 			for _, v := range m.selectedFIDs {
 				if v {
@@ -380,7 +393,7 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 		return m, nil
 	}
 
-	// Form mode
+	// ── Form mode ───────────────────────────────────────────────────────
 	if m.mode == rulesModeForm {
 		if m.formSubmitting {
 			return m, nil
@@ -400,10 +413,13 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 			m.focusFormField()
 			return m, nil
 		}
+		// Forward to focused field.
 		return m.updateFormField(msg)
 	}
 
-	// List mode — delete confirmation overlay
+	// ── List mode ───────────────────────────────────────────────────────
+
+	// Delete confirmation overlay.
 	if m.confirmDeleteID != "" {
 		switch msg.String() {
 		case "y":
@@ -416,7 +432,7 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 		return m, nil
 	}
 
-	// Test input focused
+	// Test input focused.
 	if m.testFocused {
 		switch msg.String() {
 		case "esc":
@@ -431,7 +447,6 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Default list navigation
 	switch msg.String() {
 	case "r":
 		m.loadState = stateLoading
@@ -443,14 +458,17 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 		m.rulesTable.MoveUp(1)
 	case "a":
 		m.startAdd()
+		return m, nil
 	case "e":
 		if r := m.selectedRule(); r != nil {
 			m.startEdit(r)
 		}
+		return m, nil
 	case "d":
 		if r := m.selectedRule(); r != nil {
 			m.confirmDeleteID = r.Id
 		}
+		return m, nil
 	case "p":
 		if len(m.rules) == 0 {
 			return m, nil
@@ -465,11 +483,12 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 		m.testFocused = true
 		m.rulesTable.Blur()
 		m.testInput.Focus()
+		return m, nil
 	}
 	return m, nil
 }
 
-// Form helpers
+// ─── Form helpers ────────────────────────────────────────────────────────────
 
 func (m *RulesTab) startAdd() {
 	m.editingID = ""
@@ -591,9 +610,10 @@ func (m RulesTab) submitForm() (RulesTab, tea.Cmd) {
 	return m, UpdateRuleCmd(m.client, req)
 }
 
-// Table helpers
+// ─── Table helpers ───────────────────────────────────────────────────────────
 
 func (m *RulesTab) rebuildRulesRows() {
+	rows := make([]table.Row, 0, len(m.rules))
 	sorted := make([]*floatv1.TransactionRule, len(m.rules))
 	copy(sorted, m.rules)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -602,7 +622,6 @@ func (m *RulesTab) rebuildRulesRows() {
 		}
 		return sorted[i].Id < sorted[j].Id
 	})
-	rows := make([]table.Row, 0, len(sorted))
 	for _, r := range sorted {
 		rows = append(rows, table.Row{
 			strconv.Itoa(int(r.Priority)),
@@ -638,6 +657,7 @@ func (m *RulesTab) selectedRule() *floatv1.TransactionRule {
 		return nil
 	}
 	idx := m.rulesTable.Cursor()
+	// Rules are displayed sorted; we need the same sort as rebuildRulesRows.
 	sorted := make([]*floatv1.TransactionRule, len(m.rules))
 	copy(sorted, m.rules)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -663,7 +683,7 @@ func (m *RulesTab) selectedFIDList() []string {
 	return out
 }
 
-// Pattern tester
+// ─── Pattern tester ───────────────────────────────────────────────────────────
 
 func (m *RulesTab) updateTestMatch() {
 	desc := m.testInput.Value()
@@ -677,14 +697,15 @@ func (m *RulesTab) updateTestMatch() {
 			continue
 		}
 		if re.MatchString(desc) {
-			m.testMatch = fmt.Sprintf("Matched: %s (priority %d)", r.Pattern, r.Priority)
+			m.testMatch = fmt.Sprintf("Matched rule: %s (pri %d)", r.Pattern, r.Priority)
 			return
 		}
 	}
-	m.testMatch = ""
+	m.testMatch = "No rule matched."
 }
 
-// KeyMap returns the appropriate key map for the current mode.
+// ─── KeyMap ──────────────────────────────────────────────────────────────────
+
 func (m RulesTab) KeyMap() help.KeyMap {
 	switch m.mode {
 	case rulesModeForm:
@@ -699,12 +720,15 @@ func (m RulesTab) KeyMap() help.KeyMap {
 	}
 }
 
-// View renders the Rules tab.
+// ─── View ────────────────────────────────────────────────────────────────────
+
 func (m RulesTab) View() string {
+	// Full-screen preview mode.
 	if m.mode == rulesModePreview {
 		return m.viewPreview()
 	}
 
+	// 2-column layout: rules list (left) + form/tester (right).
 	leftContent := m.viewLeft()
 	rightContent := m.viewRight()
 
@@ -713,11 +737,7 @@ func (m RulesTab) View() string {
 		Height(m.height).
 		Render(leftContent)
 
-	rightBorder := BorderStyle
-	if m.mode == rulesModeForm || m.testFocused {
-		rightBorder = FocusedBorderStyle
-	}
-	rightPanel := rightBorder.
+	rightPanel := BorderStyle.
 		Width(m.rightWidth).
 		Height(m.height).
 		Render(rightContent)
@@ -725,6 +745,7 @@ func (m RulesTab) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
 
+// viewLeft renders the rules list table (left column).
 func (m RulesTab) viewLeft() string {
 	if m.loadState == stateLoading {
 		return lipgloss.NewStyle().
@@ -739,27 +760,9 @@ func (m RulesTab) viewLeft() string {
 			Render("! " + m.errMsg + "\n\nPress r to retry")
 	}
 
-	// Delete confirmation overlay
-	if m.confirmDeleteID != "" {
-		return lipgloss.NewStyle().
-			Width(m.leftInnerW).Height(m.leftInnerH).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render("Delete this rule?\n\n[y] confirm  [esc/n] cancel")
-	}
-
-	if len(m.rules) == 0 {
-		lines := []string{}
-		if m.applyResult != "" {
-			lines = append(lines, lipgloss.NewStyle().Foreground(colorFocused).Render(m.applyResult), "")
-		}
-		lines = append(lines, "No rules yet. Press \xe2\x80\x98a\xe2\x80\x99 to add one.")
-		return HelpStyle.
-			Width(m.leftInnerW).Height(m.leftInnerH).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render(strings.Join(lines, "\n"))
-	}
-
 	content := m.rulesTable.View()
+
+	// Apply-result banner
 	if m.applyResult != "" {
 		banner := lipgloss.NewStyle().
 			Foreground(colorFocused).
@@ -768,11 +771,29 @@ func (m RulesTab) viewLeft() string {
 		content = lipgloss.JoinVertical(lipgloss.Left, banner, content)
 	}
 
+	// Delete confirmation overlay
+	if m.confirmDeleteID != "" {
+		overlay := lipgloss.NewStyle().
+			Width(m.leftInnerW).Height(m.leftInnerH).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render("Delete this rule?\n\n[y] confirm  [esc] cancel")
+		return overlay
+	}
+
+	if len(m.rules) == 0 {
+		empty := HelpStyle.
+			Width(m.leftInnerW).Height(m.leftInnerH).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render("No rules yet.\nPress 'a' to add one.")
+		return empty
+	}
+
 	return lipgloss.NewStyle().
 		Width(m.leftInnerW).Height(m.leftInnerH).
 		Render(content)
 }
 
+// viewRight renders either the add/edit form or the pattern tester.
 func (m RulesTab) viewRight() string {
 	if m.mode == rulesModeForm {
 		return m.viewForm()
@@ -780,6 +801,7 @@ func (m RulesTab) viewRight() string {
 	return m.viewTester()
 }
 
+// viewForm renders the add/edit rule form.
 func (m RulesTab) viewForm() string {
 	title := "Add Rule"
 	if m.editingID != "" {
@@ -798,7 +820,7 @@ func (m RulesTab) viewForm() string {
 	}
 
 	if m.formSubmitting {
-		lines = append(lines, HelpStyle.Render("Saving..."))
+		lines = append(lines, HelpStyle.Render("Saving…"))
 	} else if m.formErr != "" {
 		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F")).Render("! "+m.formErr))
 	} else {
@@ -818,11 +840,12 @@ func (m RulesTab) fieldLabel(name string, idx int) string {
 	return style.Render(fmt.Sprintf("%-9s ", name))
 }
 
+// viewTester renders the pattern tester panel (right column in list mode).
 func (m RulesTab) viewTester() string {
 	lines := []string{
 		lipgloss.NewStyle().Bold(true).Render("Pattern Tester"),
 		"",
-		"Press \xe2\x80\x98t\xe2\x80\x99 to focus, type a description to test:",
+		"Press 't' to focus, type a transaction description:",
 		m.testInput.View(),
 		"",
 	}
@@ -833,20 +856,20 @@ func (m RulesTab) viewTester() string {
 			lines = append(lines, HelpStyle.Render("No rule matched."))
 		}
 	}
-	lines = append(lines, "",
-		HelpStyle.Render("a  add rule"),
-		HelpStyle.Render("e  edit selected rule"),
-		HelpStyle.Render("d  delete selected rule"),
-		HelpStyle.Render("p  preview apply all rules"),
-		HelpStyle.Render("t  test pattern"),
-		HelpStyle.Render("r  refresh"),
-	)
+	lines = append(lines, "")
+	lines = append(lines, HelpStyle.Render("a  add rule"))
+	lines = append(lines, HelpStyle.Render("e  edit rule"))
+	lines = append(lines, HelpStyle.Render("d  delete rule"))
+	lines = append(lines, HelpStyle.Render("p  preview apply all rules"))
+	lines = append(lines, HelpStyle.Render("t  test pattern"))
+	lines = append(lines, HelpStyle.Render("r  refresh"))
 
 	return lipgloss.NewStyle().
 		Width(m.rightInnerW).Height(m.rightInnerH).
 		Render(strings.Join(lines, "\n"))
 }
 
+// viewPreview renders the full-screen preview/apply panel.
 func (m RulesTab) viewPreview() string {
 	w := m.width
 	h := m.height
@@ -855,34 +878,31 @@ func (m RulesTab) viewPreview() string {
 		return lipgloss.NewStyle().
 			Width(w).Height(h).
 			Align(lipgloss.Center, lipgloss.Center).
-			Render(m.spinner.View() + "  Loading preview...")
+			Render(m.spinner.View() + " Loading preview…")
 	}
 
 	title := lipgloss.NewStyle().Bold(true).Render("Preview: Apply Rules to Transactions")
 
 	if m.previewErr != "" {
-		body := lipgloss.JoinVertical(lipgloss.Left,
-			title, "",
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F")).Render("! "+m.previewErr),
-			"",
-			HelpStyle.Render("esc to go back"),
-		)
+		errLine := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F")).Render("! " + m.previewErr)
+		hint := HelpStyle.Render("esc to go back")
+		body := lipgloss.JoinVertical(lipgloss.Left, title, "", errLine, "", hint)
 		return lipgloss.NewStyle().Width(w).Height(h).Render(body)
 	}
 
 	if len(m.previews) == 0 {
-		body := lipgloss.JoinVertical(lipgloss.Left,
+		empty := lipgloss.JoinVertical(lipgloss.Left,
 			title, "",
 			HelpStyle.Render("No transactions would be affected by the current rules."),
 			"",
 			HelpStyle.Render("esc to go back"),
 		)
-		return lipgloss.NewStyle().Width(w).Height(h).Render(body)
+		return lipgloss.NewStyle().Width(w).Height(h).Render(empty)
 	}
 
 	nSelected := len(m.selectedFIDList())
 	statusLine := HelpStyle.Render(fmt.Sprintf(
-		"%d/%d selected  \xe2\x80\xa2  space=toggle  ctrl+a=all/none  enter=apply  esc=back",
+		"%d of %d transaction(s) selected  •  space=toggle  ctrl+a=all/none  enter=apply  esc=back",
 		nSelected, len(m.previews),
 	))
 
@@ -893,8 +913,9 @@ func (m RulesTab) viewPreview() string {
 	return lipgloss.JoinVertical(lipgloss.Left, title, statusLine, tableView)
 }
 
-// Tag helpers
+// ─── Tag helpers ─────────────────────────────────────────────────────────────
 
+// tagsToString formats a tag map as "key=val key2=val2".
 func tagsToString(tags map[string]string) string {
 	if len(tags) == 0 {
 		return ""
@@ -911,6 +932,7 @@ func tagsToString(tags map[string]string) string {
 	return strings.Join(parts, " ")
 }
 
+// parseTags parses "key=val key2=val2" into a map.
 func parseTags(s string) map[string]string {
 	m := make(map[string]string)
 	for _, part := range strings.Fields(s) {
@@ -922,13 +944,14 @@ func parseTags(s string) map[string]string {
 	return m
 }
 
+// truncate shortens s to at most n runes.
 func truncate(s string, n int) string {
 	runes := []rune(s)
 	if len(runes) <= n {
 		return s
 	}
 	if n <= 1 {
-		return "\xe2\x80\xa6"
+		return "…"
 	}
-	return string(runes[:n-1]) + "\xe2\x80\xa6"
+	return string(runes[:n-1]) + "…"
 }
