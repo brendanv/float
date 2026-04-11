@@ -12,7 +12,8 @@ const (
 	TabHome    = 0
 	TabManager = 1
 	TabTrends  = 2
-	numTabs    = 3
+	TabRules   = 3
+	numTabs    = 4
 )
 
 // Model is the root Bubbletea model for the float TUI.
@@ -24,6 +25,7 @@ type Model struct {
 	home      HomeTab
 	manager   ManagerTab
 	trends    TrendsTab
+	rules     RulesTab
 	client    floatv1connect.LedgerServiceClient
 }
 
@@ -35,11 +37,12 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 		home:      NewHomeTab(client),
 		manager:   NewManagerTab(client),
 		trends:    NewTrendsTab(client),
+		rules:     NewRulesTab(client),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.home.Init(), m.manager.Init(), m.trends.Init())
+	return tea.Batch(m.home.Init(), m.manager.Init(), m.trends.Init(), m.rules.Init())
 }
 
 // activeKeyMap returns the help.KeyMap for the currently active tab.
@@ -49,6 +52,8 @@ func (m Model) activeKeyMap() help.KeyMap {
 		return m.home.KeyMap()
 	case TabManager:
 		return m.manager.KeyMap()
+	case TabRules:
+		return m.rules.KeyMap()
 	default:
 		return m.trends.KeyMap()
 	}
@@ -64,6 +69,7 @@ func (m *Model) resizeAll() {
 	m.home = m.home.SetSize(m.width, layout.ContentHeight)
 	m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
 	m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
+	m.rules = m.rules.SetSize(m.width, layout.ContentHeight)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -81,6 +87,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.activeTab == TabHome && (m.home.addTxForm.Active() || m.home.confirmDeleteTx != nil) {
 			var cmd tea.Cmd
 			m.home, cmd = m.home.Update(msg)
+			return m, cmd
+		}
+		// When the rules tab is in form or preview mode, let it consume all key events.
+		if m.activeTab == TabRules && (m.rules.mode == rulesModeForm || m.rules.mode == rulesModePreview) {
+			var cmd tea.Cmd
+			m.rules, cmd = m.rules.Update(msg)
 			return m, cmd
 		}
 		switch msg.String() {
@@ -110,13 +122,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.trends, cmd = m.trends.Update(msg)
 			return m, cmd
+		case TabRules:
+			var cmd tea.Cmd
+			m.rules, cmd = m.rules.Update(msg)
+			return m, cmd
 		}
 	default:
-		var cmd1, cmd2, cmd3 tea.Cmd
+		var cmd1, cmd2, cmd3, cmd4 tea.Cmd
 		m.home, cmd1 = m.home.Update(msg)
 		m.manager, cmd2 = m.manager.Update(msg)
 		m.trends, cmd3 = m.trends.Update(msg)
-		return m, tea.Batch(cmd1, cmd2, cmd3)
+		m.rules, cmd4 = m.rules.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4)
 	}
 	return m, nil
 }
@@ -145,6 +162,8 @@ func (m Model) View() tea.View {
 		content = m.manager.View()
 	case TabTrends:
 		content = m.trends.View()
+	case TabRules:
+		content = m.rules.View()
 	}
 
 	v.Content = lipgloss.JoinVertical(lipgloss.Left, tabBar, content, helpBar)

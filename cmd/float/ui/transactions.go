@@ -148,6 +148,11 @@ func (p *TransactionsPanel) SelectedTransaction() *floatv1.Transaction {
 	return p.transactions[idx]
 }
 
+// Count returns the number of transactions currently loaded.
+func (p *TransactionsPanel) Count() int {
+	return len(p.transactions)
+}
+
 func (p *TransactionsPanel) Focus() {
 	p.table.Focus()
 }

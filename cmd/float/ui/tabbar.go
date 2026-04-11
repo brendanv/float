@@ -3,7 +3,6 @@ package ui
 import "charm.land/lipgloss/v2"
 
 // RenderTabBar returns a 1-line string showing tabs.
-// activeTab: 0 = Home, 1 = Manager.
 func RenderTabBar(activeTab int, width int) string {
 	tabs := []struct {
 		label  string
@@ -12,6 +11,7 @@ func RenderTabBar(activeTab int, width int) string {
 		{"Home", activeTab == TabHome},
 		{"Manager", activeTab == TabManager},
 		{"Trends", activeTab == TabTrends},
+		{"Rules", activeTab == TabRules},
 	}
 
 	var rendered string

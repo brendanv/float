@@ -2,17 +2,6 @@ package ui
 
 import "charm.land/bubbles/v2/key"
 
-// homeMode represents the active right-panel mode of the home tab.
-type homeMode int
-
-const (
-	homeModeDefault       homeMode = iota // normal transactions view
-	homeModeFilter                        // filter input active
-	homeModeAddTx                         // add transaction form
-	homeModeEditTx                        // edit transaction form
-	homeModeConfirmDelete                 // delete confirmation prompt
-)
-
 // Key bindings used across contexts.
 var (
 	keyQuit       = key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit"))
@@ -36,36 +25,50 @@ var (
 	keyAddPosting = key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "add posting"))
 	keyDelPosting = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "del posting"))
 	keySubmit     = key.NewBinding(key.WithKeys("shift+enter"), key.WithHelp("shift+enter", "submit"))
-	keyConfirm        = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
-	keySearch         = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
-	keyStatusFilter   = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "filter preset"))
+	keyConfirm    = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
+	keySearch     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
+	keyStatusFilter = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "cycle view"))
+	keyToggleChart  = key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "toggle chart"))
 )
 
-// HomeDefaultKeyMap is for the home tab with the accounts panel focused.
-type HomeDefaultKeyMap struct{}
+// HomeChartKeyMap is for the home tab with the chart panel focused.
+type HomeChartKeyMap struct{}
 
-func (HomeDefaultKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyQuit, keyTab, keySwitch, keyNav, keyPeriod, keyHelp}
+func (HomeChartKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyToggleChart, keyPeriod, keyHelp}
 }
-func (HomeDefaultKeyMap) FullHelp() [][]key.Binding {
+func (HomeChartKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keySwitch, keyToggleChart, keyPeriod, keyRetry},
+	}
+}
+
+// HomeAccountsKeyMap is for the home tab with the accounts panel focused.
+type HomeAccountsKeyMap struct{}
+
+func (HomeAccountsKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyPeriod, keyHelp}
+}
+func (HomeAccountsKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
 		{keySwitch, keyNav, keyPeriod, keyRetry},
 	}
 }
 
-// HomeTxKeyMap is for the home tab with the transactions panel focused.
-type HomeTxKeyMap struct{}
+// HomeUnreviewedKeyMap is for the home tab with the transaction review panel focused.
+type HomeUnreviewedKeyMap struct{}
 
-func (HomeTxKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyQuit, keyNav, keyAdd, keyEdit, keyDelete, keyFilter, keyHelp}
+func (HomeUnreviewedKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keyAdd, keyEdit, keyDelete, keyReview, keyHelp}
 }
-func (HomeTxKeyMap) FullHelp() [][]key.Binding {
+func (HomeUnreviewedKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
 		{keySwitch, keyNav},
 		{keyAdd, keyEdit, keyDelete, keyReview, keySplit},
-		{keyFilter, keyStatusFilter, keyPeriod, keyRetry},
+		{keyStatusFilter, keyFilter, keyRetry},
 	}
 }
 
@@ -128,3 +131,60 @@ func (TrendsKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+var (
+	keyPreview = key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "preview apply"))
+	keyApply   = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply selected"))
+	keyToggle  = key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "toggle select"))
+	keySelAll  = key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "select all"))
+	keyTest    = key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "test pattern"))
+)
+
+// RulesListKeyMap is for the rules tab in list mode.
+type RulesListKeyMap struct{}
+
+func (RulesListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keyAdd, keyEdit, keyDelete, keyPreview, keyHelp}
+}
+func (RulesListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyAdd, keyEdit, keyDelete},
+		{keyPreview, keyTest, keyRetry},
+	}
+}
+
+// RulesFormKeyMap is for the rules tab in add/edit form mode.
+type RulesFormKeyMap struct{}
+
+func (RulesFormKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNextField, keyPrevField, keySubmit, keyEsc}
+}
+func (RulesFormKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyNextField, keyPrevField},
+		{keySubmit, keyEsc},
+	}
+}
+
+// RulesPreviewKeyMap is for the rules tab in preview/apply mode.
+type RulesPreviewKeyMap struct{}
+
+func (RulesPreviewKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNav, keyToggle, keySelAll, keyApply, keyEsc}
+}
+func (RulesPreviewKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyNav, keyToggle, keySelAll},
+		{keyApply, keyEsc},
+	}
+}
+
+// RulesDeleteKeyMap is for the delete confirmation in the rules tab.
+type RulesDeleteKeyMap struct{}
+
+func (RulesDeleteKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyConfirm, keyEsc}
+}
+func (RulesDeleteKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keyConfirm, keyEsc}}
+}

@@ -152,6 +152,24 @@ func FetchNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	}
 }
 
+// HomeNetWorthMsg is a distinct type from NetWorthMsg to prevent TrendsTab
+// from consuming messages intended for HomeTab's chart panel.
+type HomeNetWorthMsg struct {
+	Snapshots []*floatv1.NetWorthSnapshot
+	Err       error
+}
+
+// FetchHomeNetWorth fetches the net worth timeseries for the home tab chart panel.
+func FetchHomeNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetNetWorthTimeseries(context.Background(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+		if err != nil {
+			return HomeNetWorthMsg{Err: err}
+		}
+		return HomeNetWorthMsg{Snapshots: resp.Msg.Snapshots}
+	}
+}
+
 // ManagerAccountsMsg carries accounts for the Manager tab.
 // Using a distinct type prevents HomeTab from consuming this message.
 type ManagerAccountsMsg struct {
@@ -205,5 +223,99 @@ func FetchManagerSummary(client floatv1connect.LedgerServiceClient) tea.Cmd {
 			return ManagerSummaryMsg{Err: err}
 		}
 		return ManagerSummaryMsg{Report: resp.Msg.Report}
+	}
+}
+
+// RulesMsg carries all rules for the Rules tab.
+type RulesMsg struct {
+	Rules []*floatv1.TransactionRule
+	Err   error
+}
+
+// AddRuleMsg carries the result of an AddRule RPC.
+type AddRuleMsg struct {
+	Rule *floatv1.TransactionRule
+	Err  error
+}
+
+// UpdateRuleMsg carries the result of an UpdateRule RPC.
+type UpdateRuleMsg struct {
+	Rule *floatv1.TransactionRule
+	Err  error
+}
+
+// DeleteRuleMsg carries the result of a DeleteRule RPC.
+type DeleteRuleMsg struct {
+	Err error
+}
+
+// PreviewApplyRulesMsg carries the preview results for apply rules.
+type PreviewApplyRulesMsg struct {
+	Previews []*floatv1.RuleApplicationPreview
+	Err      error
+}
+
+// ApplyRulesMsg carries the result of applying rules.
+type ApplyRulesMsg struct {
+	AppliedCount int32
+	Err          error
+}
+
+func FetchRules(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListRules(context.Background(), connect.NewRequest(&floatv1.ListRulesRequest{}))
+		if err != nil {
+			return RulesMsg{Err: err}
+		}
+		return RulesMsg{Rules: resp.Msg.Rules}
+	}
+}
+
+func AddRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddRuleRequest) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.AddRule(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			return AddRuleMsg{Err: err}
+		}
+		return AddRuleMsg{Rule: resp.Msg.Rule}
+	}
+}
+
+func UpdateRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.UpdateRuleRequest) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.UpdateRule(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			return UpdateRuleMsg{Err: err}
+		}
+		return UpdateRuleMsg{Rule: resp.Msg.Rule}
+	}
+}
+
+func DeleteRuleCmd(client floatv1connect.LedgerServiceClient, id string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.DeleteRule(context.Background(), connect.NewRequest(&floatv1.DeleteRuleRequest{Id: id}))
+		return DeleteRuleMsg{Err: err}
+	}
+}
+
+func PreviewApplyRulesCmd(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.PreviewApplyRules(context.Background(), connect.NewRequest(&floatv1.PreviewApplyRulesRequest{}))
+		if err != nil {
+			return PreviewApplyRulesMsg{Err: err}
+		}
+		return PreviewApplyRulesMsg{Previews: resp.Msg.Previews}
+	}
+}
+
+func ApplyRulesCmd(client floatv1connect.LedgerServiceClient, fids []string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ApplyRules(context.Background(), connect.NewRequest(&floatv1.ApplyRulesRequest{
+			Fids: fids,
+		}))
+		if err != nil {
+			return ApplyRulesMsg{Err: err}
+		}
+		return ApplyRulesMsg{AppliedCount: resp.Msg.AppliedCount}
 	}
 }

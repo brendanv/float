@@ -12,138 +12,147 @@ import (
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 )
 
+// HomeTab is the landing-page tab. It has a three-panel dashboard layout:
+//
+//	╭── Chart (60% w, 62% h) ──────────────╮╭── Accounts (40% w) ──╮
+//	│  Spending / Net Worth   t=toggle      ││  Account  Balance    │
+//	│  [chart content]                      ││  ...                 │
+//	│                                       ││  <<< Mar 2026 >>>    │
+//	╰───────────────────────────────────────╯╰──────────────────────╯
+//	╭── Transaction Review (full width, 38% h) ───────────────────────╮
+//	│  3 unreviewed  ·  v=cycle: [Unreviewed] All Reviewed No-payee   │
+//	│  St  Date  Description  Amount  Account                         │
+//	╰─────────────────────────────────────────────────────────────────╯
 type HomeTab struct {
-	leftWidth   int
-	rightWidth  int
-	height      int
-	client      floatv1connect.LedgerServiceClient
-	accounts    AccountsPanel
-	transactions TransactionsPanel
-	filter      FilterInput
-	period      PeriodSelector
-	insights    InsightsPanel
-	addTxForm   AddTxForm
-	query       []string // filter query from /
-	focused     int
-	// left column sub-layout dimensions (inner, after border)
-	leftInnerW  int
-	leftInnerH  int
-	accountsH   int
-	insightsH   int
-	showInsights bool
+	width, height           int
+	topHeight, bottomHeight int // gross outer heights for the two rows
+	chartWidth, acctWidth   int // gross outer widths for the top row columns
 
-	// right column inner dimensions (after border)
-	rightInnerW int
-	rightInnerH int
+	// inner content dimensions (after border subtraction)
+	chartInnerW, chartInnerH     int
+	acctInnerW, acctInnerH       int
+	acctTableH                   int // acctInnerH - 1 (reserves 1 row for period)
+	unreviewedInnerW, unreviewedInnerH int
 
-	// delete confirmation state
+	client     floatv1connect.LedgerServiceClient
+	chart      ChartPanel
+	accounts   AccountsPanel
+	unreviewed TransactionsPanel // default filter: not:status:*
+	addTxForm  AddTxForm
+	filter     FilterInput
+	period     PeriodSelector
+
+	focused   int  // 0=chart, 1=accounts, 2=unreviewed
+	presetIdx int  // index into txFilterPresets; 0 = "Unreviewed"
+	query     []string // filter query from /
+
+	// overlays
 	confirmDeleteTx *floatv1.Transaction
 	deleteErrMsg    string
-
-	// status update error
-	statusErrMsg string
-
-	presetIdx int // index into txFilterPresets; 0 = "All" (no extra filter)
+	statusErrMsg    string
 }
 
 func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
 	m := HomeTab{
-		client:       client,
-		accounts:     NewAccountsPanel(),
-		transactions: newTransactionsPanel(),
-		filter:       NewFilterInput(client),
-		period:       NewPeriodSelector(),
-		insights:     NewInsightsPanel(),
-		addTxForm:    NewAddTxForm(client),
+		client:     client,
+		chart:      NewChartPanel(),
+		accounts:   NewAccountsPanel(),
+		unreviewed: newTransactionsPanel(),
+		addTxForm:  NewAddTxForm(client),
+		filter:     NewFilterInput(client),
+		period:     NewPeriodSelector(),
 	}
-	m.accounts.Focus()
+	// Start focus on the chart panel.
+	m.focused = 0
 	return m
 }
 
-// periodAndFilterQuery combines the period query with the user's filter query.
-func (m HomeTab) periodAndFilterQuery() []string {
-	q := []string{m.period.Query()}
-	q = append(q, m.query...)
+// unreviewedQuery returns the hledger query tokens for the current preset,
+// with no period filter (transaction review is always all-time).
+func (m HomeTab) unreviewedQuery() []string {
+	q := m.query
 	q = append(q, txFilterPresets[m.presetIdx].tokens...)
 	return q
 }
 
 func (m HomeTab) SetSize(w, h int) HomeTab {
-	// Compute column widths directly — no CalcLayout roundtrip needed.
-	m.leftWidth = clamp(w*30/100, 25, 45)
-	m.rightWidth = w - m.leftWidth
-	if m.rightWidth < 0 {
-		m.rightWidth = 0
-	}
+	m.width = w
 	m.height = h
 
-	// Left column: subtract border frame to get inner dimensions.
-	leftInnerW, leftInnerH := innerSize(m.leftWidth, m.height, BorderStyle)
-	m.leftInnerW = leftInnerW
-	m.leftInnerH = leftInnerH
-
-	// Left column sub-layout: accounts | period (1 line) | insights
-	m.showInsights = leftInnerH >= 15
-	if m.showInsights {
-		m.accountsH = leftInnerH * 55 / 100
-		if m.accountsH < 5 {
-			m.accountsH = 5
-		}
-		m.insightsH = leftInnerH - m.accountsH - 1
-		if m.insightsH < 3 {
-			m.showInsights = false
-		}
+	// Vertical split: top row 62%, bottom row 38% (min 5).
+	m.topHeight = h * 62 / 100
+	if m.topHeight < 8 {
+		m.topHeight = 8
 	}
-	if !m.showInsights {
-		m.accountsH = leftInnerH - 1 // leave 1 line for period selector
-		m.insightsH = 0
+	m.bottomHeight = h - m.topHeight
+	if m.bottomHeight < 5 {
+		m.bottomHeight = 5
 	}
 
-	m.accounts.SetSize(leftInnerW, m.accountsH)
-	m.period.SetWidth(leftInnerW)
-	m.insights.SetSize(leftInnerW, m.insightsH)
+	// Horizontal split for top row: chart 60%, accounts 40%.
+	m.chartWidth = w * 60 / 100
+	if m.chartWidth < 30 {
+		m.chartWidth = 30
+	}
+	m.acctWidth = w - m.chartWidth
+	if m.acctWidth < 20 {
+		m.acctWidth = 20
+	}
 
-	// Right column: subtract border frame and store inner dimensions.
-	rightInnerW, rightInnerH := innerSize(m.rightWidth, m.height, BorderStyle)
-	m.rightInnerW = rightInnerW
-	m.rightInnerH = rightInnerH
+	// Compute inner dimensions (subtract border frame) for each panel.
+	// Accounts spans the full height; chart and unreviewed share the left column.
+	m.chartInnerW, m.chartInnerH = innerSize(m.chartWidth, m.topHeight, BorderStyle)
+	m.acctInnerW, m.acctInnerH = innerSize(m.acctWidth, h, BorderStyle)
+	m.unreviewedInnerW, m.unreviewedInnerH = innerSize(m.chartWidth, m.bottomHeight, BorderStyle)
 
-	txH := rightInnerH
+	// Accounts inner: leave 1 row at the bottom for the period selector.
+	m.acctTableH = m.acctInnerH - 1
+	if m.acctTableH < 3 {
+		m.acctTableH = 3
+	}
+
+	m.chart.SetSize(m.chartInnerW, m.chartInnerH)
+	m.accounts.SetSize(m.acctInnerW, m.acctTableH)
+	m.period.SetWidth(m.acctInnerW)
+
+	// Transaction review: 1 row reserved for the title/preset line.
+	txH := m.unreviewedInnerH - 1
 	if m.filter.Active() {
 		txH--
 	}
-	if m.presetIdx != 0 {
-		txH--
+	if txH < 3 {
+		txH = 3
 	}
-	if txH < 0 {
-		txH = 0
-	}
-	m.transactions.SetSize(rightInnerW, txH)
-	m.addTxForm.SetSize(rightInnerW, rightInnerH)
+	m.unreviewed.SetSize(m.unreviewedInnerW, txH)
+	m.addTxForm.SetSize(m.unreviewedInnerW, m.unreviewedInnerH)
 	return m
 }
 
 func (m HomeTab) Init() tea.Cmd {
 	return tea.Batch(
+		m.chart.insights.spinner.Tick(),
+		m.chart.netWorth.spinner.Tick(),
 		m.accounts.spinner.Tick(),
-		m.transactions.spinner.Tick(),
-		m.insights.spinner.Tick(),
+		m.unreviewed.spinner.Tick(),
 		FetchAccounts(m.client),
 		FetchBalances(m.client, 0, []string{m.period.Query()}),
-		FetchTransactions(m.client, m.periodAndFilterQuery()),
 		FetchInsights(m.client, m.period.Query()),
+		FetchHomeNetWorth(m.client),
+		FetchTransactions(m.client, m.unreviewedQuery()),
 	)
 }
 
 func (m HomeTab) refreshAll() (HomeTab, tea.Cmd) {
 	m.accounts.state = stateLoading
-	m.transactions.state = stateLoading
-	m.insights.state = stateLoading
+	m.chart.insights.state = stateLoading
+	m.chart.netWorth.state = stateLoading
+	m.unreviewed.state = stateLoading
 	return m, tea.Batch(
 		FetchAccounts(m.client),
 		FetchBalances(m.client, 0, []string{m.period.Query()}),
-		FetchTransactions(m.client, m.periodAndFilterQuery()),
 		FetchInsights(m.client, m.period.Query()),
+		FetchHomeNetWorth(m.client),
+		FetchTransactions(m.client, m.unreviewedQuery()),
 	)
 }
 
@@ -203,27 +212,33 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 
 	case InsightsMsg:
 		if msg.Err != nil {
-			m.insights.SetError(msg.Err.Error())
+			m.chart.SetInsightsError(msg.Err.Error())
 		} else {
-			m.insights.SetData(msg.Report)
+			m.chart.SetInsightsData(msg.Report)
+		}
+		return m, nil
+
+	case HomeNetWorthMsg:
+		if msg.Err != nil {
+			m.chart.SetNetWorthError(msg.Err.Error())
+		} else {
+			m.chart.SetNetWorthData(msg.Snapshots)
 		}
 		return m, nil
 
 	case TransactionsMsg:
 		if msg.Err != nil {
-			m.transactions.SetError(msg.Err.Error())
+			m.unreviewed.SetError(msg.Err.Error())
 		} else {
-			m.transactions.SetTransactions(msg.Transactions)
+			m.unreviewed.SetTransactions(msg.Transactions)
 		}
 		return m, nil
 
 	case PeriodChangedMsg:
 		m.accounts.state = stateLoading
-		m.transactions.state = stateLoading
-		m.insights.state = stateLoading
+		m.chart.insights.state = stateLoading
 		return m, tea.Batch(
 			FetchBalances(m.client, 0, []string{m.period.Query()}),
-			FetchTransactions(m.client, m.periodAndFilterQuery()),
 			FetchInsights(m.client, m.period.Query()),
 		)
 
@@ -237,7 +252,7 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			return m, cmd
 		}
 
-		// Delete confirmation intercepts all keys when active
+		// Delete confirmation intercepts all keys when active.
 		if m.confirmDeleteTx != nil {
 			switch msg.String() {
 			case "y":
@@ -247,103 +262,27 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			case "esc", "n":
 				m.confirmDeleteTx = nil
 				m.deleteErrMsg = ""
-				return m, nil
 			}
 			return m, nil
 		}
 
-		if !m.filter.Active() {
-			switch msg.String() {
-			case "r":
-				return m.refreshAll()
-			case "tab", "l", "h":
-				m.focused = 1 - m.focused
-				if m.focused == 0 {
-					m.accounts.Focus()
-					m.transactions.Blur()
-				} else {
-					m.accounts.Blur()
-					m.transactions.Focus()
-				}
-				return m, nil
-			case "[", "]":
-				newPeriod, cmd := m.period.Update(msg)
-				m.period = newPeriod
-				return m, cmd
-			case "/":
-				if m.focused == 1 {
-					m.filter.Activate()
-					txH := m.rightInnerH - 1
-					if txH < 0 {
-						txH = 0
-					}
-					m.transactions.SetSize(m.rightInnerW, txH)
-					return m, nil
-				}
-			case "a":
-				if m.focused == 1 {
-					m.addTxForm.Activate()
-					return m, nil
-				}
-			case "e":
-				if m.focused == 1 {
-					if tx := m.transactions.SelectedTransaction(); tx != nil && tx.Fid != "" {
-						m.addTxForm.ActivateEdit(tx)
-					}
-					return m, nil
-				}
-			case "d":
-				if m.focused == 1 {
-					if tx := m.transactions.SelectedTransaction(); tx != nil && tx.Fid != "" {
-						m.confirmDeleteTx = tx
-						m.deleteErrMsg = ""
-					}
-					return m, nil
-				}
-			case "c":
-				if m.focused == 1 {
-					if tx := m.transactions.SelectedTransaction(); tx != nil && tx.Fid != "" {
-						newStatus := "Cleared"
-						if tx.Status == "Cleared" {
-							newStatus = "Pending"
-						}
-						m.statusErrMsg = ""
-						return m, UpdateTransactionStatusCmd(m.client, tx.Fid, newStatus)
-					}
-					return m, nil
-				}
-			case "v":
-				if m.focused == 1 {
-					m.presetIdx = (m.presetIdx + 1) % len(txFilterPresets)
-					txH := m.rightInnerH
-					if m.filter.Active() {
-						txH--
-					}
-					if m.presetIdx != 0 {
-						txH--
-					}
-					if txH < 0 {
-						txH = 0
-					}
-					m.transactions.SetSize(m.rightInnerW, txH)
-					m.transactions.state = stateLoading
-					return m, FetchTransactions(m.client, m.periodAndFilterQuery())
-				}
-			}
-		}
-
+		// Filter input handling (only when transaction review panel has focus).
 		if m.filter.Active() {
 			switch msg.String() {
 			case "esc":
 				cmd := m.filter.Deactivate()
 				m.query = nil
-				m.transactions.state = stateLoading
-				m.transactions.SetSize(m.rightInnerW, m.rightInnerH)
-				return m, cmd
+				m.unreviewed.state = stateLoading
+				txH := m.unreviewedInnerH - 1
+				if txH < 3 {
+					txH = 3
+				}
+				m.unreviewed.SetSize(m.unreviewedInnerW, txH)
+				return m, tea.Batch(cmd, FetchTransactions(m.client, m.unreviewedQuery()))
 			case "enter":
 				m.query = m.filter.Query()
-				m.transactions.state = stateLoading
-				return m, FetchTransactions(m.client, m.periodAndFilterQuery())
+				m.unreviewed.state = stateLoading
+				return m, FetchTransactions(m.client, m.unreviewedQuery())
 			default:
 				newFilter, cmd := m.filter.Update(msg)
 				m.filter = newFilter
@@ -351,110 +290,242 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 			}
 		}
 
-		if m.focused == 0 {
-			cmd := m.accounts.Update(msg)
+		// Global shortcuts (any focus).
+		switch msg.String() {
+		case "r":
+			return m.refreshAll()
+		case "tab", "shift+tab":
+			// Tab cycles forward; shift+tab cycles backward through 3 panels.
+			delta := 1
+			if msg.String() == "shift+tab" {
+				delta = -1
+			}
+			m.focused = (m.focused + 3 + delta) % 3
+			m.updateFocus()
+			return m, nil
+		case "h":
+			m.focused = (m.focused + 3 - 1) % 3
+			m.updateFocus()
+			return m, nil
+		case "l":
+			m.focused = (m.focused + 1) % 3
+			m.updateFocus()
+			return m, nil
+		case "[", "]":
+			newPeriod, cmd := m.period.Update(msg)
+			m.period = newPeriod
 			return m, cmd
 		}
-		cmd := m.transactions.Update(msg)
-		return m, cmd
+
+		// Panel-specific shortcuts.
+		switch m.focused {
+		case 0: // chart
+			if msg.String() == "t" {
+				m.chart.Toggle()
+				return m, nil
+			}
+			cmd := m.chart.Update(msg)
+			return m, cmd
+
+		case 1: // accounts
+			cmd := m.accounts.Update(msg)
+			return m, cmd
+
+		case 2: // unreviewed / transaction review
+			switch msg.String() {
+			case "a":
+				m.addTxForm.Activate()
+				return m, nil
+			case "e":
+				if tx := m.unreviewed.SelectedTransaction(); tx != nil && tx.Fid != "" {
+					m.addTxForm.ActivateEdit(tx)
+				}
+				return m, nil
+			case "d":
+				if tx := m.unreviewed.SelectedTransaction(); tx != nil && tx.Fid != "" {
+					m.confirmDeleteTx = tx
+					m.deleteErrMsg = ""
+				}
+				return m, nil
+			case "c":
+				if tx := m.unreviewed.SelectedTransaction(); tx != nil && tx.Fid != "" {
+					newStatus := "Cleared"
+					if tx.Status == "Cleared" {
+						newStatus = "Pending"
+					}
+					m.statusErrMsg = ""
+					return m, UpdateTransactionStatusCmd(m.client, tx.Fid, newStatus)
+				}
+				return m, nil
+			case "v":
+				m.presetIdx = (m.presetIdx + 1) % len(txFilterPresets)
+				m.unreviewed.state = stateLoading
+				return m, FetchTransactions(m.client, m.unreviewedQuery())
+			case "/":
+				m.filter.Activate()
+				txH := m.unreviewedInnerH - 2 // 1 title row + 1 filter row
+				if txH < 3 {
+					txH = 3
+				}
+				m.unreviewed.SetSize(m.unreviewedInnerW, txH)
+				return m, nil
+			case "s":
+				cmd := m.unreviewed.Update(msg)
+				return m, cmd
+			default:
+				cmd := m.unreviewed.Update(msg)
+				return m, cmd
+			}
+		}
 
 	default:
-		cmd1 := m.accounts.Update(msg)
-		cmd2 := m.transactions.Update(msg)
-		cmd3 := m.insights.Update(msg)
+		cmd1 := m.chart.Update(msg)
+		cmd2 := m.accounts.Update(msg)
+		cmd3 := m.unreviewed.Update(msg)
 		return m, tea.Batch(cmd1, cmd2, cmd3)
+	}
+
+	return m, nil
+}
+
+// updateFocus sets the Focus/Blur state of each panel based on m.focused.
+func (m *HomeTab) updateFocus() {
+	switch m.focused {
+	case 1:
+		m.accounts.Focus()
+		m.unreviewed.Blur()
+	case 2:
+		m.accounts.Blur()
+		m.unreviewed.Focus()
+	default: // 0 = chart
+		m.accounts.Blur()
+		m.unreviewed.Blur()
 	}
 }
 
 func (m HomeTab) View() string {
-	// Build left column content as a vertical stack using stored inner dimensions.
-	accountsView := lipgloss.NewStyle().
-		Width(m.leftInnerW).
-		Height(m.accountsH).
+	// ── Chart panel (top-left) ────────────────────────────────────────
+	chartContent := lipgloss.NewStyle().
+		Width(m.chartInnerW).
+		Height(m.chartInnerH).
+		Render(m.chart.View())
+	chartBorder := pickBorder(m.focused == 0)
+	chartPanel := chartBorder.
+		Width(m.chartWidth).
+		Height(m.topHeight).
+		Render(chartContent)
+
+	// ── Accounts panel (top-right) ────────────────────────────────────
+	acctTableView := lipgloss.NewStyle().
+		Width(m.acctInnerW).
+		Height(m.acctTableH).
 		Render(m.accounts.View())
 	periodView := m.period.View()
+	acctContent := lipgloss.NewStyle().
+		Width(m.acctInnerW).
+		Height(m.acctInnerH).
+		Render(lipgloss.JoinVertical(lipgloss.Left, acctTableView, periodView))
+	acctBorder := pickBorder(m.focused == 1)
+	acctPanel := acctBorder.
+		Width(m.acctWidth).
+		Height(m.height).
+		Render(acctContent)
 
-	var leftContent string
-	if m.showInsights {
-		insightsView := lipgloss.NewStyle().
-			Width(m.leftInnerW).
-			Height(m.insightsH).
-			Render(m.insights.View())
-		leftContent = lipgloss.JoinVertical(lipgloss.Left, accountsView, periodView, insightsView)
-	} else {
-		leftContent = lipgloss.JoinVertical(lipgloss.Left, accountsView, periodView)
-	}
-	// Pad to full inner height.
-	leftContent = lipgloss.NewStyle().
-		Width(m.leftInnerW).
-		Height(m.leftInnerH).
-		Render(leftContent)
-
-	var rightContent string
+	// ── Transaction review panel (bottom-left, same width as chart) ───────
+	var bottomContent string
 	switch {
 	case m.addTxForm.Active():
-		rightContent = lipgloss.NewStyle().
-			Width(m.rightInnerW).
-			Height(m.rightInnerH).
+		bottomContent = lipgloss.NewStyle().
+			Width(m.unreviewedInnerW).
+			Height(m.unreviewedInnerH).
 			Render(m.addTxForm.View())
 	case m.confirmDeleteTx != nil:
-		rightContent = lipgloss.NewStyle().
-			Width(m.rightInnerW).
-			Height(m.rightInnerH).
-			Render(m.renderDeleteConfirm(m.rightInnerW))
-	case m.filter.Active():
-		txH := m.rightInnerH - 1
-		if m.presetIdx != 0 {
-			txH--
-		}
-		txContent := lipgloss.NewStyle().
-			Width(m.rightInnerW).
-			Height(txH).
-			Render(m.transactions.View())
-		filterLine := lipgloss.NewStyle().
-			Width(m.rightInnerW).
-			Render(m.filter.View())
-		if m.presetIdx != 0 {
-			statusLine := m.renderPresetLine()
-			rightContent = lipgloss.JoinVertical(lipgloss.Left, statusLine, txContent, filterLine)
-		} else {
-			rightContent = lipgloss.JoinVertical(lipgloss.Left, txContent, filterLine)
-		}
+		bottomContent = lipgloss.NewStyle().
+			Width(m.unreviewedInnerW).
+			Height(m.unreviewedInnerH).
+			Render(m.renderDeleteConfirm(m.unreviewedInnerW))
 	default:
-		if m.presetIdx != 0 {
-			statusLine := m.renderPresetLine()
-			txContent := lipgloss.NewStyle().
-				Width(m.rightInnerW).
-				Height(m.rightInnerH - 1).
-				Render(m.transactions.View())
-			rightContent = lipgloss.JoinVertical(lipgloss.Left, statusLine, txContent)
+		bottomContent = m.renderUnreviewed()
+	}
+	bottomBorder := pickBorder(m.focused == 2)
+	bottomPanel := bottomBorder.
+		Width(m.chartWidth).
+		Height(m.bottomHeight).
+		Render(bottomContent)
+
+	// Left column: chart on top, transaction review below.
+	leftCol := lipgloss.JoinVertical(lipgloss.Left, chartPanel, bottomPanel)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, acctPanel)
+}
+
+// pickBorder returns FocusedBorderStyle when the panel is focused.
+func pickBorder(focused bool) lipgloss.Style {
+	if focused {
+		return FocusedBorderStyle
+	}
+	return BorderStyle
+}
+
+// renderUnreviewed builds the content for the transaction review panel.
+func (m HomeTab) renderUnreviewed() string {
+	// Build the preset selector line.
+	var presetParts []string
+	for i, p := range txFilterPresets {
+		if i == m.presetIdx {
+			presetParts = append(presetParts,
+				lipgloss.NewStyle().Foreground(colorFocused).Render("["+p.label+"]"))
 		} else {
-			rightContent = lipgloss.NewStyle().
-				Width(m.rightInnerW).
-				Height(m.rightInnerH).
-				Render(m.transactions.View())
+			presetParts = append(presetParts, HelpStyle.Render(p.label))
 		}
 	}
 
-	leftBorder := BorderStyle
-	rightBorder := BorderStyle
-	if m.focused == 0 {
-		leftBorder = FocusedBorderStyle
-	} else {
-		rightBorder = FocusedBorderStyle
+	count := m.unreviewed.Count()
+	var countPart string
+	if m.presetIdx == 0 && count > 0 {
+		countPart = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#F38BA8")).
+			Render(fmt.Sprintf("%d unreviewed", count)) + HelpStyle.Render("  ·  ")
 	}
 
-	leftPanel := leftBorder.
-		Width(m.leftWidth).
-		Height(m.height).
-		Render(leftContent)
+	titleLine := lipgloss.NewStyle().Width(m.unreviewedInnerW).Render(
+		countPart + HelpStyle.Render("v=view: ") + strings.Join(presetParts, "  "),
+	)
 
-	rightPanel := rightBorder.
-		Width(m.rightWidth).
-		Height(m.height).
-		Render(rightContent)
+	txH := m.unreviewedInnerH - 1
+	if m.filter.Active() {
+		txH--
+	}
+	if txH < 0 {
+		txH = 0
+	}
+	txView := lipgloss.NewStyle().
+		Width(m.unreviewedInnerW).
+		Height(txH).
+		Render(m.unreviewed.View())
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+	if m.statusErrMsg != "" {
+		errLine := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF5555")).
+			Width(m.unreviewedInnerW).
+			Render("  Error: " + m.statusErrMsg)
+		txH--
+		txView = lipgloss.NewStyle().
+			Width(m.unreviewedInnerW).
+			Height(max(txH, 0)).
+			Render(m.unreviewed.View())
+		if m.filter.Active() {
+			filterLine := lipgloss.NewStyle().Width(m.unreviewedInnerW).Render(m.filter.View())
+			return lipgloss.JoinVertical(lipgloss.Left, titleLine, txView, filterLine, errLine)
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, titleLine, txView, errLine)
+	}
+
+	if m.filter.Active() {
+		filterLine := lipgloss.NewStyle().Width(m.unreviewedInnerW).Render(m.filter.View())
+		return lipgloss.JoinVertical(lipgloss.Left, titleLine, txView, filterLine)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, titleLine, txView)
 }
 
 func (m HomeTab) renderDeleteConfirm(w int) string {
@@ -491,15 +562,6 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m HomeTab) renderPresetLine() string {
-	preset := txFilterPresets[m.presetIdx]
-	label := "[ " + preset.label + " ]"
-	return lipgloss.NewStyle().
-		Foreground(colorFocused).
-		Width(m.rightInnerW).
-		Render(label)
-}
-
 func (m HomeTab) KeyMap() help.KeyMap {
 	switch {
 	case m.addTxForm.Active():
@@ -508,10 +570,12 @@ func (m HomeTab) KeyMap() help.KeyMap {
 		return HomeDeleteKeyMap{}
 	case m.filter.Active():
 		return HomeFilterKeyMap{}
+	case m.focused == 0:
+		return HomeChartKeyMap{}
 	case m.focused == 1:
-		return HomeTxKeyMap{}
+		return HomeAccountsKeyMap{}
 	default:
-		return HomeDefaultKeyMap{}
+		return HomeUnreviewedKeyMap{}
 	}
 }
 
@@ -525,4 +589,11 @@ func innerSize(outerW, outerH int, s lipgloss.Style) (int, int) {
 		h = 0
 	}
 	return w, h
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
