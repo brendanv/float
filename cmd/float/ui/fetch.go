@@ -152,6 +152,24 @@ func FetchNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	}
 }
 
+// HomeNetWorthMsg is a distinct type from NetWorthMsg to prevent TrendsTab
+// from consuming messages intended for HomeTab's chart panel.
+type HomeNetWorthMsg struct {
+	Snapshots []*floatv1.NetWorthSnapshot
+	Err       error
+}
+
+// FetchHomeNetWorth fetches the net worth timeseries for the home tab chart panel.
+func FetchHomeNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetNetWorthTimeseries(context.Background(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+		if err != nil {
+			return HomeNetWorthMsg{Err: err}
+		}
+		return HomeNetWorthMsg{Snapshots: resp.Msg.Snapshots}
+	}
+}
+
 // ManagerAccountsMsg carries accounts for the Manager tab.
 // Using a distinct type prevents HomeTab from consuming this message.
 type ManagerAccountsMsg struct {
