@@ -68,9 +68,9 @@ func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
 }
 
 // unreviewedQuery returns the hledger query tokens for the current preset,
-// with no period filter (transaction review is always all-time).
 func (m HomeTab) unreviewedQuery() []string {
 	q := m.query
+	q = append(q, m.period.Query())
 	q = append(q, txFilterPresets[m.presetIdx].tokens...)
 	return q
 }
@@ -237,9 +237,11 @@ func (m HomeTab) Update(msg tea.Msg) (HomeTab, tea.Cmd) {
 	case PeriodChangedMsg:
 		m.accounts.state = stateLoading
 		m.chart.insights.state = stateLoading
+		m.unreviewed.state = stateLoading
 		return m, tea.Batch(
 			FetchBalances(m.client, 0, []string{m.period.Query()}),
 			FetchInsights(m.client, m.period.Query()),
+			FetchTransactions(m.client, m.unreviewedQuery()),
 		)
 
 	case RetryFetchMsg:
@@ -480,17 +482,28 @@ func (m HomeTab) renderUnreviewed() string {
 		}
 	}
 
-	count := m.unreviewed.Count()
-	var countPart string
-	if m.presetIdx == 0 && count > 0 {
-		countPart = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#F38BA8")).
-			Render(fmt.Sprintf("%d unreviewed", count)) + HelpStyle.Render("  ·  ")
-	}
-
-	titleLine := lipgloss.NewStyle().Width(m.unreviewedInnerW).Render(
-		countPart + HelpStyle.Render("v=view: ") + strings.Join(presetParts, "  "),
+	titleLine := lipgloss.NewStyle().MaxWidth(m.unreviewedInnerW).Render(
+		HelpStyle.Render("[v]iew: ") + strings.Join(presetParts, "  "),
 	)
+
+	renderTxBody := func(h int) string {
+		if m.unreviewed.state == stateLoaded && m.unreviewed.Count() == 0 {
+			msg := "No transactions"
+			if m.presetIdx == 0 {
+				msg = "All caught up"
+			}
+			return lipgloss.NewStyle().
+				Width(m.unreviewedInnerW).
+				Height(h).
+				AlignHorizontal(lipgloss.Center).
+				AlignVertical(lipgloss.Center).
+				Render(HelpStyle.Render(msg))
+		}
+		return lipgloss.NewStyle().
+			Width(m.unreviewedInnerW).
+			Height(h).
+			Render(m.unreviewed.View())
+	}
 
 	txH := m.unreviewedInnerH - 1
 	if m.filter.Active() {
@@ -499,10 +512,7 @@ func (m HomeTab) renderUnreviewed() string {
 	if txH < 0 {
 		txH = 0
 	}
-	txView := lipgloss.NewStyle().
-		Width(m.unreviewedInnerW).
-		Height(txH).
-		Render(m.unreviewed.View())
+	txView := renderTxBody(txH)
 
 	if m.statusErrMsg != "" {
 		errLine := lipgloss.NewStyle().
@@ -510,10 +520,7 @@ func (m HomeTab) renderUnreviewed() string {
 			Width(m.unreviewedInnerW).
 			Render("  Error: " + m.statusErrMsg)
 		txH--
-		txView = lipgloss.NewStyle().
-			Width(m.unreviewedInnerW).
-			Height(max(txH, 0)).
-			Render(m.unreviewed.View())
+		txView = renderTxBody(max(txH, 0))
 		if m.filter.Active() {
 			filterLine := lipgloss.NewStyle().Width(m.unreviewedInnerW).Render(m.filter.View())
 			return lipgloss.JoinVertical(lipgloss.Left, titleLine, txView, filterLine, errLine)

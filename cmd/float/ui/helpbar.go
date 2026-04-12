@@ -61,7 +61,7 @@ func (HomeAccountsKeyMap) FullHelp() [][]key.Binding {
 type HomeUnreviewedKeyMap struct{}
 
 func (HomeUnreviewedKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyQuit, keyNav, keyAdd, keyEdit, keyDelete, keyReview, keyHelp}
+	return []key.Binding{keyQuit, keyTab, keyNav, keyEdit, keyReview, keyHelp}
 }
 func (HomeUnreviewedKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
