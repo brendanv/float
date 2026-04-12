@@ -34,6 +34,7 @@ type HomeTab struct {
 	acctTableH                   int // acctInnerH - 1 (reserves 1 row for period)
 	unreviewedInnerW, unreviewedInnerH int
 
+	styles     Styles
 	client     floatv1connect.LedgerServiceClient
 	chart      ChartPanel
 	accounts   AccountsPanel
@@ -52,18 +53,28 @@ type HomeTab struct {
 	statusErrMsg    string
 }
 
-func NewHomeTab(client floatv1connect.LedgerServiceClient) HomeTab {
+func NewHomeTab(client floatv1connect.LedgerServiceClient, st Styles) HomeTab {
 	m := HomeTab{
+		styles:     st,
 		client:     client,
-		chart:      NewChartPanel(),
-		accounts:   NewAccountsPanel(),
-		unreviewed: newTransactionsPanel(),
-		addTxForm:  NewAddTxForm(client),
+		chart:      NewChartPanel(st),
+		accounts:   NewAccountsPanel(st),
+		unreviewed: newTransactionsPanel(st),
+		addTxForm:  NewAddTxForm(client, st),
 		filter:     NewFilterInput(client),
 		period:     NewPeriodSelector(),
 	}
 	// Start focus on the chart panel.
 	m.focused = 0
+	return m
+}
+
+func (m HomeTab) setStyles(st Styles) HomeTab {
+	m.styles = st
+	m.chart.setStyles(st)
+	m.addTxForm.setStyles(st)
+	m.accounts.setStyles(st)
+	m.unreviewed.setStyles(st)
 	return m
 }
 
@@ -101,9 +112,9 @@ func (m HomeTab) SetSize(w, h int) HomeTab {
 
 	// Compute inner dimensions (subtract border frame) for each panel.
 	// Accounts spans the full height; chart and unreviewed share the left column.
-	m.chartInnerW, m.chartInnerH = innerSize(m.chartWidth, m.topHeight, BorderStyle)
-	m.acctInnerW, m.acctInnerH = innerSize(m.acctWidth, h, BorderStyle)
-	m.unreviewedInnerW, m.unreviewedInnerH = innerSize(m.chartWidth, m.bottomHeight, BorderStyle)
+	m.chartInnerW, m.chartInnerH = innerSize(m.chartWidth, m.topHeight, m.styles.Border)
+	m.acctInnerW, m.acctInnerH = innerSize(m.acctWidth, h, m.styles.Border)
+	m.unreviewedInnerW, m.unreviewedInnerH = innerSize(m.chartWidth, m.bottomHeight, m.styles.Border)
 
 	// Accounts inner: leave 1 row at the bottom for the period selector.
 	m.acctTableH = m.acctInnerH - 1
@@ -411,7 +422,7 @@ func (m HomeTab) View() string {
 		Width(m.chartInnerW).
 		Height(m.chartInnerH).
 		Render(m.chart.View())
-	chartBorder := pickBorder(m.focused == 0)
+	chartBorder := m.pickBorder(m.focused == 0)
 	chartPanel := chartBorder.
 		Width(m.chartWidth).
 		Height(m.topHeight).
@@ -420,7 +431,7 @@ func (m HomeTab) View() string {
 	if m.chart.mode == chartModeNetWorth {
 		chartTitle = "Net Worth"
 	}
-	chartPanel = injectBorderTitle(chartPanel, chartTitle, m.focused == 0)
+	chartPanel = injectBorderTitle(chartPanel, chartTitle, m.focused == 0, m.styles)
 
 	// ── Accounts panel (top-right) ────────────────────────────────────
 	acctTableView := lipgloss.NewStyle().
@@ -432,12 +443,12 @@ func (m HomeTab) View() string {
 		Width(m.acctInnerW).
 		Height(m.acctInnerH).
 		Render(lipgloss.JoinVertical(lipgloss.Left, acctTableView, periodView))
-	acctBorder := pickBorder(m.focused == 1)
+	acctBorder := m.pickBorder(m.focused == 1)
 	acctPanel := acctBorder.
 		Width(m.acctWidth).
 		Height(m.height).
 		Render(acctContent)
-	acctPanel = injectBorderTitle(acctPanel, "Accounts", m.focused == 1)
+	acctPanel = injectBorderTitle(acctPanel, "Accounts", m.focused == 1, m.styles)
 
 	// ── Transaction review panel (bottom-left, same width as chart) ───────
 	var bottomContent string
@@ -463,12 +474,12 @@ func (m HomeTab) View() string {
 		bottomContent = m.renderUnreviewed()
 		bottomTitle = "Transactions"
 	}
-	bottomBorder := pickBorder(m.focused == 2)
+	bottomBorder := m.pickBorder(m.focused == 2)
 	bottomPanel := bottomBorder.
 		Width(m.chartWidth).
 		Height(m.bottomHeight).
 		Render(bottomContent)
-	bottomPanel = injectBorderTitle(bottomPanel, bottomTitle, m.focused == 2)
+	bottomPanel = injectBorderTitle(bottomPanel, bottomTitle, m.focused == 2, m.styles)
 
 	// Left column: chart on top, transaction review below.
 	leftCol := lipgloss.JoinVertical(lipgloss.Left, chartPanel, bottomPanel)
@@ -477,11 +488,11 @@ func (m HomeTab) View() string {
 }
 
 // pickBorder returns FocusedBorderStyle when the panel is focused.
-func pickBorder(focused bool) lipgloss.Style {
+func (m HomeTab) pickBorder(focused bool) lipgloss.Style {
 	if focused {
-		return FocusedBorderStyle
+		return m.styles.FocusedBorder
 	}
-	return BorderStyle
+	return m.styles.Border
 }
 
 // renderUnreviewed builds the content for the transaction review panel.
@@ -491,14 +502,14 @@ func (m HomeTab) renderUnreviewed() string {
 	for i, p := range txFilterPresets {
 		if i == m.presetIdx {
 			presetParts = append(presetParts,
-				lipgloss.NewStyle().Foreground(colorFocused).Render("["+p.label+"]"))
+				m.styles.Active.Render("["+p.label+"]"))
 		} else {
-			presetParts = append(presetParts, HelpStyle.Render(p.label))
+			presetParts = append(presetParts, m.styles.Help.Render(p.label))
 		}
 	}
 
 	titleLine := lipgloss.NewStyle().MaxWidth(m.unreviewedInnerW).Render(
-		HelpStyle.Render("[v]iew: ") + strings.Join(presetParts, "  "),
+		m.styles.Help.Render("[v]iew: ") + strings.Join(presetParts, "  "),
 	)
 
 	renderTxBody := func(h int) string {
@@ -512,7 +523,7 @@ func (m HomeTab) renderUnreviewed() string {
 				Height(h).
 				AlignHorizontal(lipgloss.Center).
 				AlignVertical(lipgloss.Center).
-				Render(HelpStyle.Render(msg))
+				Render(m.styles.Help.Render(msg))
 		}
 		return lipgloss.NewStyle().
 			Width(m.unreviewedInnerW).
@@ -530,8 +541,7 @@ func (m HomeTab) renderUnreviewed() string {
 	txView := renderTxBody(txH)
 
 	if m.statusErrMsg != "" {
-		errLine := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF5555")).
+		errLine := m.styles.Error.
 			Width(m.unreviewedInnerW).
 			Render("  Error: " + m.statusErrMsg)
 		txH--
@@ -571,11 +581,10 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	}
 	lines = append(lines, "")
 	if m.deleteErrMsg != "" {
-		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
-		lines = append(lines, errStyle.Render("  Error: "+m.deleteErrMsg))
+		lines = append(lines, m.styles.Error.Render("  Error: "+m.deleteErrMsg))
 		lines = append(lines, "")
 	}
-	lines = append(lines, HelpStyle.Render("  Press y to confirm, esc to cancel"))
+	lines = append(lines, m.styles.Help.Render("  Press y to confirm, esc to cancel"))
 
 	return strings.Join(lines, "\n")
 }

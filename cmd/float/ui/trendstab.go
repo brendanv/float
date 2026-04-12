@@ -15,11 +15,16 @@ type TrendsTab struct {
 	netWorth NetWorthPanel
 }
 
-func NewTrendsTab(client floatv1connect.LedgerServiceClient) TrendsTab {
+func NewTrendsTab(client floatv1connect.LedgerServiceClient, st Styles) TrendsTab {
 	return TrendsTab{
 		client:   client,
-		netWorth: NewNetWorthPanel(),
+		netWorth: NewNetWorthPanel(st),
 	}
+}
+
+func (m TrendsTab) setStyles(st Styles) TrendsTab {
+	m.netWorth.setStyles(st)
+	return m
 }
 
 func (m TrendsTab) SetSize(w, h int) TrendsTab {

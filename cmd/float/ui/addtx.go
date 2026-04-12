@@ -41,6 +41,7 @@ type AddTxForm struct {
 	editFID string // non-empty = edit mode
 	width   int
 	height  int
+	styles  Styles
 	client  floatv1connect.LedgerServiceClient
 
 	// Computed column widths (set in SetSize / rebuildWidths)
@@ -67,7 +68,7 @@ type AddTxForm struct {
 	errMsg     string
 }
 
-func NewAddTxForm(client floatv1connect.LedgerServiceClient) AddTxForm {
+func NewAddTxForm(client floatv1connect.LedgerServiceClient, st Styles) AddTxForm {
 	date := textinput.New()
 	date.Placeholder = "YYYY-MM-DD (blank = today)"
 
@@ -79,6 +80,7 @@ func NewAddTxForm(client floatv1connect.LedgerServiceClient) AddTxForm {
 
 	f := AddTxForm{
 		client:        client,
+		styles:        st,
 		dateInput:     date,
 		descInput:     desc,
 		commentInput:  comment,
@@ -87,6 +89,10 @@ func NewAddTxForm(client floatv1connect.LedgerServiceClient) AddTxForm {
 		activeSuggIdx: -1,
 	}
 	return f
+}
+
+func (f *AddTxForm) setStyles(st Styles) {
+	f.styles = st
 }
 
 func (f *AddTxForm) SetSize(w, h int) {
@@ -554,7 +560,7 @@ func (f AddTxForm) View() string {
 	lines = append(lines, lipgloss.NewStyle().Bold(true).Render("Postings"))
 
 	// Column header
-	colHeader := HelpStyle.Render(
+	colHeader := f.styles.Help.Render(
 		padRight("  Account", f.accColW+2) + "  Amount",
 	)
 	lines = append(lines, colHeader)
@@ -569,7 +575,7 @@ func (f AddTxForm) View() string {
 
 		// Show autocomplete dropdown below the account input if this row is focused
 		if f.focused == accountFocusIdx && len(f.suggestions) > 0 {
-			dropdownLines := renderDropdown(f.suggestions, f.activeSuggIdx, f.accColW+2)
+			dropdownLines := renderDropdown(f.suggestions, f.activeSuggIdx, f.accColW+2, f.styles)
 			lines = append(lines, dropdownLines...)
 		}
 	}
@@ -577,18 +583,17 @@ func (f AddTxForm) View() string {
 	lines = append(lines, "")
 
 	// Help hint
-	hint := HelpStyle.Render("  ctrl+a add posting  ctrl+d del posting  shift+enter submit  esc cancel")
+	hint := f.styles.Help.Render("  ctrl+a add posting  ctrl+d del posting  shift+enter submit  esc cancel")
 	lines = append(lines, hint)
 
 	// Error message
 	if f.errMsg != "" {
-		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
-		lines = append(lines, errStyle.Render("  Error: "+f.errMsg))
+		lines = append(lines, f.styles.Error.Render("  Error: "+f.errMsg))
 	}
 
 	// Submitting indicator
 	if f.submitting {
-		lines = append(lines, HelpStyle.Render("  Submitting..."))
+		lines = append(lines, f.styles.Help.Render("  Submitting..."))
 	}
 
 	content := strings.Join(lines, "\n")
@@ -599,7 +604,7 @@ func (f AddTxForm) View() string {
 }
 
 // renderDropdown renders a suggestion list as a small bordered box.
-func renderDropdown(suggestions []string, activeIdx int, maxW int) []string {
+func renderDropdown(suggestions []string, activeIdx int, maxW int, st Styles) []string {
 	borderW := maxW
 	if borderW > 50 {
 		borderW = 50
@@ -618,7 +623,7 @@ func renderDropdown(suggestions []string, activeIdx int, maxW int) []string {
 		padded := padRight(truncated, innerW)
 		var row string
 		if i == activeIdx {
-			row = "  │" + lipgloss.NewStyle().Foreground(colorFocused).Render(padded) + "│"
+			row = "  │" + st.Active.Render(padded) + "│"
 		} else {
 			row = "  │" + padded + "│"
 		}

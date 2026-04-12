@@ -1,5 +1,6 @@
 [server]
 port = 9090
+ssh_port = 2222
 
 [[users]]
 name = "alice"

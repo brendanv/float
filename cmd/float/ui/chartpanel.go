@@ -22,17 +22,25 @@ const (
 type ChartPanel struct {
 	panelBase
 	mode     chartMode
+	styles   Styles
 	insights InsightsPanel
 	netWorth NetWorthPanel
 }
 
-func NewChartPanel() ChartPanel {
+func NewChartPanel(st Styles) ChartPanel {
 	return ChartPanel{
 		panelBase: newPanelBase(),
 		mode:      chartModeSpending,
-		insights:  NewInsightsPanel(),
-		netWorth:  NewNetWorthPanel(),
+		styles:    st,
+		insights:  NewInsightsPanel(st),
+		netWorth:  NewNetWorthPanel(st),
 	}
+}
+
+func (p *ChartPanel) setStyles(st Styles) {
+	p.styles = st
+	p.insights.setStyles(st)
+	p.netWorth.setStyles(st)
 }
 
 // SetSize stores dimensions and propagates to inner panels, reserving 1 row
@@ -99,16 +107,16 @@ func (p ChartPanel) View() string {
 
 func (p ChartPanel) renderHeader() string {
 	var spendingLabel, networthLabel string
-	activeStyle := lipgloss.NewStyle().Foreground(colorFocused).Bold(true)
+	activeStyle := p.styles.Active.Bold(true)
 	if p.mode == chartModeSpending {
 		spendingLabel = activeStyle.Render("Spending")
-		networthLabel = HelpStyle.Render("Net Worth")
+		networthLabel = p.styles.Help.Render("Net Worth")
 	} else {
-		spendingLabel = HelpStyle.Render("Spending")
+		spendingLabel = p.styles.Help.Render("Spending")
 		networthLabel = activeStyle.Render("Net Worth")
 	}
 	left := spendingLabel + "  " + networthLabel
-	right := HelpStyle.Render("t=toggle")
+	right := p.styles.Help.Render("t=toggle")
 	leftW := lipgloss.Width(left)
 	rightW := lipgloss.Width(right)
 	gap := p.width - leftW - rightW

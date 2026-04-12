@@ -8,7 +8,7 @@ import (
 )
 
 func TestSummaryPanel_NetWorth(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -23,7 +23,7 @@ func TestSummaryPanel_NetWorth(t *testing.T) {
 }
 
 func TestSummaryPanel_NetIncome(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -44,7 +44,7 @@ func TestSummaryPanel_NetIncome(t *testing.T) {
 }
 
 func TestSummaryPanel_NilReport(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	// Should not panic
 	p.SetData(nil)
@@ -55,7 +55,7 @@ func TestSummaryPanel_NilReport(t *testing.T) {
 }
 
 func TestSummaryPanel_EmptyRows(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	p.SetData(&floatv1.BalanceReport{Rows: []*floatv1.BalanceRow{}})
 	view := p.View()
@@ -69,7 +69,7 @@ func TestSummaryPanel_EmptyRows(t *testing.T) {
 }
 
 func TestSummaryPanel_CaseInsensitive(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -85,7 +85,7 @@ func TestSummaryPanel_CaseInsensitive(t *testing.T) {
 }
 
 func TestSummaryPanel_ViewLabels(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	p.SetData(&floatv1.BalanceReport{Rows: nil})
 	view := p.View()
@@ -97,7 +97,7 @@ func TestSummaryPanel_ViewLabels(t *testing.T) {
 }
 
 func TestSummaryPanel_Loading(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	view := p.View()
 	if view == "" {
@@ -106,7 +106,7 @@ func TestSummaryPanel_Loading(t *testing.T) {
 }
 
 func TestSummaryPanel_Error(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 12)
 	p.SetError("server unavailable")
 	view := p.View()
@@ -119,7 +119,7 @@ func TestSummaryPanel_Error(t *testing.T) {
 }
 
 func TestSummaryPanel_TooSmall(t *testing.T) {
-	p := NewSummaryPanel()
+	p := NewSummaryPanel(NewStyles(true))
 	p.SetSize(40, 2)
 	view := p.View()
 	if view != "" {

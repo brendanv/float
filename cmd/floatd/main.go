@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
@@ -99,8 +102,21 @@ func main() {
 	mux.Handle(path, svcHandler)
 	mux.Handle("/", webui.Handler())
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if cfg.Server.SSHPort > 0 {
+		go startSSHServer(ctx, *dataDir, listenAddr, cfg.Server.SSHPort)
+	}
+
+	httpSrv := &http.Server{Addr: listenAddr, Handler: h2c.NewHandler(mux, &http2.Server{})}
+	go func() {
+		<-ctx.Done()
+		_ = httpSrv.Shutdown(context.Background())
+	}()
+
 	slog.Info("floatd listening", "addr", listenAddr, "webui", true)
-	if err := http.ListenAndServe(listenAddr, h2c.NewHandler(mux, &http2.Server{})); err != nil {
+	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server", "error", err)
 		os.Exit(1)
 	}

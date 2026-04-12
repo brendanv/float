@@ -92,7 +92,7 @@ func TestTransactionsPanel_ColumnWidths(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newTransactionsPanel()
+			p := newTransactionsPanel(NewStyles(true))
 			p.SetSize(tc.width, 20)
 			cols := p.table.Columns()
 			if len(cols) != 5 {
@@ -157,9 +157,10 @@ func TestFormatDescription(t *testing.T) {
 			wantPayee: "Shop",
 		},
 	}
+	p := newTransactionsPanel(NewStyles(true))
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := formatDescription(tc.tx)
+			result := p.formatDescription(tc.tx)
 			if tc.wantPlain != "" {
 				if result != tc.wantPlain {
 					t.Errorf("expected plain %q, got %q", tc.wantPlain, result)
@@ -177,7 +178,7 @@ func TestFormatDescription(t *testing.T) {
 }
 
 func TestTransactionsPanel_RebuildRows_Normal(t *testing.T) {
-	p := newTransactionsPanel()
+	p := newTransactionsPanel(NewStyles(true))
 	p.SetSize(80, 20)
 	p.SetTransactions(makeSampleTransactions())
 
@@ -198,7 +199,7 @@ func TestTransactionsPanel_RebuildRows_Normal(t *testing.T) {
 }
 
 func TestTransactionsPanel_RebuildRows_Split(t *testing.T) {
-	p := newTransactionsPanel()
+	p := newTransactionsPanel(NewStyles(true))
 	p.SetSize(80, 20)
 	p.SetTransactions(makeSampleTransactions())
 	p.splitView = true
@@ -220,7 +221,7 @@ func TestTransactionsPanel_RebuildRows_Split(t *testing.T) {
 }
 
 func TestTransactionsPanel_View_Loading(t *testing.T) {
-	p := newTransactionsPanel()
+	p := newTransactionsPanel(NewStyles(true))
 	p.SetSize(80, 20)
 	view := p.View()
 	if view == "" {
@@ -229,7 +230,7 @@ func TestTransactionsPanel_View_Loading(t *testing.T) {
 }
 
 func TestTransactionsPanel_View_Error(t *testing.T) {
-	p := newTransactionsPanel()
+	p := newTransactionsPanel(NewStyles(true))
 	p.SetSize(80, 20)
 	p.SetError("timeout")
 	view := p.View()
@@ -242,7 +243,7 @@ func TestTransactionsPanel_View_Error(t *testing.T) {
 }
 
 func TestTransactionsPanel_View_Loaded(t *testing.T) {
-	p := newTransactionsPanel()
+	p := newTransactionsPanel(NewStyles(true))
 	p.SetSize(80, 20)
 	p.SetTransactions(makeSampleTransactions())
 	view := p.View()
@@ -255,7 +256,7 @@ func TestTransactionsPanel_View_Loaded(t *testing.T) {
 }
 
 func TestTransactionsPanel_View_TooSmall(t *testing.T) {
-	p := newTransactionsPanel()
+	p := newTransactionsPanel(NewStyles(true))
 	p.SetSize(80, 2)
 	view := p.View()
 	if view != "" {

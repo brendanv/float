@@ -38,7 +38,7 @@ func TestGroupAccounts(t *testing.T) {
 }
 
 func TestAccountsPanel_RebuildRows(t *testing.T) {
-	p := NewAccountsPanel()
+	p := NewAccountsPanel(NewStyles(true))
 	p.SetSize(60, 20)
 	p.SetAccounts([]*floatv1.Account{
 		{Name: "checking", FullName: "assets:checking", Type: "A"},
@@ -78,7 +78,7 @@ func TestAccountsPanel_RebuildRows(t *testing.T) {
 }
 
 func TestAccountsPanel_RebuildRows_NoBalances(t *testing.T) {
-	p := NewAccountsPanel()
+	p := NewAccountsPanel(NewStyles(true))
 	p.SetSize(60, 20)
 	p.SetAccounts([]*floatv1.Account{
 		{Name: "checking", FullName: "assets:checking", Type: "A"},
@@ -94,7 +94,7 @@ func TestAccountsPanel_RebuildRows_NoBalances(t *testing.T) {
 }
 
 func TestAccountsPanel_View_Loading(t *testing.T) {
-	p := NewAccountsPanel()
+	p := NewAccountsPanel(NewStyles(true))
 	p.SetSize(40, 20)
 	view := p.View()
 	if view == "" {
@@ -103,7 +103,7 @@ func TestAccountsPanel_View_Loading(t *testing.T) {
 }
 
 func TestAccountsPanel_View_Loaded(t *testing.T) {
-	p := NewAccountsPanel()
+	p := NewAccountsPanel(NewStyles(true))
 	p.SetSize(60, 20)
 	p.SetAccounts([]*floatv1.Account{
 		{Name: "checking", FullName: "assets:checking", Type: "A"},
@@ -123,7 +123,7 @@ func TestAccountsPanel_View_Loaded(t *testing.T) {
 }
 
 func TestAccountsPanel_View_Error(t *testing.T) {
-	p := NewAccountsPanel()
+	p := NewAccountsPanel(NewStyles(true))
 	p.SetSize(60, 20)
 	p.SetError("connection refused")
 	view := p.View()
@@ -136,7 +136,7 @@ func TestAccountsPanel_View_Error(t *testing.T) {
 }
 
 func TestAccountsPanel_View_TooSmall(t *testing.T) {
-	p := NewAccountsPanel()
+	p := NewAccountsPanel(NewStyles(true))
 	p.SetSize(40, 2)
 	view := p.View()
 	if view != "" {

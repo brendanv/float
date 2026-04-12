@@ -21,6 +21,8 @@ type Model struct {
 	width     int
 	height    int
 	activeTab int
+	hasDark   bool
+	styles    Styles
 	helpModel help.Model
 	home      HomeTab
 	manager   ManagerTab
@@ -30,19 +32,29 @@ type Model struct {
 }
 
 // New creates the root model with the given gRPC client.
+// Styles default to dark-background until BackgroundColorMsg is received.
 func New(client floatv1connect.LedgerServiceClient) Model {
+	st := NewStyles(true)
 	return Model{
 		client:    client,
-		helpModel: NewHelpModel(),
-		home:      NewHomeTab(client),
-		manager:   NewManagerTab(client),
-		trends:    NewTrendsTab(client),
-		rules:     NewRulesTab(client),
+		hasDark:   true,
+		styles:    st,
+		helpModel: NewHelpModel(st),
+		home:      NewHomeTab(client, st),
+		manager:   NewManagerTab(client, st),
+		trends:    NewTrendsTab(client, st),
+		rules:     NewRulesTab(client, st),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.home.Init(), m.manager.Init(), m.trends.Init(), m.rules.Init())
+	return tea.Batch(
+		tea.RequestBackgroundColor,
+		m.home.Init(),
+		m.manager.Init(),
+		m.trends.Init(),
+		m.rules.Init(),
+	)
 }
 
 // activeKeyMap returns the help.KeyMap for the currently active tab.
@@ -72,8 +84,26 @@ func (m *Model) resizeAll() {
 	m.rules = m.rules.SetSize(m.width, layout.ContentHeight)
 }
 
+// applyStyles rebuilds and propagates styles for the current hasDark value.
+func (m *Model) applyStyles() {
+	m.styles = NewStyles(m.hasDark)
+	m.helpModel = NewHelpModel(m.styles)
+	m.home = m.home.setStyles(m.styles)
+	m.manager = m.manager.setStyles(m.styles)
+	m.trends = m.trends.setStyles(m.styles)
+	m.rules = m.rules.setStyles(m.styles)
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.BackgroundColorMsg:
+		if dark := msg.IsDark(); dark != m.hasDark {
+			m.hasDark = dark
+			m.applyStyles()
+			m.resizeAll() // border widths are style-independent, but triggers re-layout
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -151,7 +181,7 @@ func (m Model) View() tea.View {
 		return v
 	}
 
-	tabBar := RenderTabBar(m.activeTab, m.width)
+	tabBar := RenderTabBar(m.activeTab, m.width, m.styles)
 	helpBar := m.helpModel.View(m.activeKeyMap())
 
 	var content string

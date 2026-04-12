@@ -3,7 +3,7 @@ package ui
 import "charm.land/lipgloss/v2"
 
 // RenderTabBar returns a 1-line string showing tabs.
-func RenderTabBar(activeTab int, width int) string {
+func RenderTabBar(activeTab int, width int, st Styles) string {
 	tabs := []struct {
 		label  string
 		active bool
@@ -20,9 +20,9 @@ func RenderTabBar(activeTab int, width int) string {
 			rendered += "  "
 		}
 		if tab.active {
-			rendered += TabActiveStyle.Render("[ " + tab.label + " ]")
+			rendered += st.TabActive.Render("[ " + tab.label + " ]")
 		} else {
-			rendered += TabInactiveStyle.Render(tab.label)
+			rendered += st.TabInactive.Render(tab.label)
 		}
 	}
 

@@ -26,13 +26,19 @@ const (
 // NetWorthPanel displays a time-series line chart of assets, liabilities, and net worth.
 type NetWorthPanel struct {
 	panelBase
+	styles    Styles
 	snapshots []*floatv1.NetWorthSnapshot
 }
 
-func NewNetWorthPanel() NetWorthPanel {
+func NewNetWorthPanel(st Styles) NetWorthPanel {
 	return NetWorthPanel{
 		panelBase: newPanelBase(),
+		styles:    st,
 	}
+}
+
+func (p *NetWorthPanel) setStyles(st Styles) {
+	p.styles = st
 }
 
 func (p *NetWorthPanel) SetSize(w, h int) {
@@ -194,13 +200,13 @@ func (p NetWorthPanel) renderChart() string {
 	chart.DrawAll()
 
 	// Legend line using charm.land/lipgloss/v2 for rendering with the rest of the TUI.
-	assetsLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#7DC4E4")).Render("━━")
-	networthLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1")).Render("━━")
-	liabLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#F38BA8")).Render("━━")
-	legend := lipgloss.NewStyle().Bold(true).Render("Net Worth") + "  " +
-		assetsLegend + HelpStyle.Render(" assets  ") +
-		networthLegend + HelpStyle.Render(" net worth  ") +
-		liabLegend + HelpStyle.Render(" liabilities")
+	assetsLegend := p.styles.ChartAssets.Render("━━")
+	networthLegend := p.styles.ChartNetWorth.Render("━━")
+	liabLegend := p.styles.ChartLiab.Render("━━")
+	legend := p.styles.Base.Bold(true).Render("Net Worth") + "  " +
+		assetsLegend + p.styles.Help.Render(" assets  ") +
+		networthLegend + p.styles.Help.Render(" net worth  ") +
+		liabLegend + p.styles.Help.Render(" liabilities")
 	titleLine := lipgloss.NewStyle().Width(p.width).Render(legend)
 
 	return lipgloss.NewStyle().Width(p.width).Height(p.height).Render(
