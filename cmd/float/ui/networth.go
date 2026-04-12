@@ -200,10 +200,10 @@ func (p NetWorthPanel) renderChart() string {
 	chart.DrawAll()
 
 	// Legend line using charm.land/lipgloss/v2 for rendering with the rest of the TUI.
-	assetsLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#7DC4E4")).Render("━━")
-	networthLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1")).Render("━━")
-	liabLegend := lipgloss.NewStyle().Foreground(lipgloss.Color("#F38BA8")).Render("━━")
-	legend := lipgloss.NewStyle().Bold(true).Render("Net Worth") + "  " +
+	assetsLegend := p.styles.ChartAssets.Render("━━")
+	networthLegend := p.styles.ChartNetWorth.Render("━━")
+	liabLegend := p.styles.ChartLiab.Render("━━")
+	legend := p.styles.Base.Bold(true).Render("Net Worth") + "  " +
 		assetsLegend + p.styles.Help.Render(" assets  ") +
 		networthLegend + p.styles.Help.Render(" net worth  ") +
 		liabLegend + p.styles.Help.Render(" liabilities")

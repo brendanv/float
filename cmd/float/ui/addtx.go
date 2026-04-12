@@ -588,8 +588,7 @@ func (f AddTxForm) View() string {
 
 	// Error message
 	if f.errMsg != "" {
-		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
-		lines = append(lines, errStyle.Render("  Error: "+f.errMsg))
+		lines = append(lines, f.styles.Error.Render("  Error: "+f.errMsg))
 	}
 
 	// Submitting indicator
@@ -624,7 +623,7 @@ func renderDropdown(suggestions []string, activeIdx int, maxW int, st Styles) []
 		padded := padRight(truncated, innerW)
 		var row string
 		if i == activeIdx {
-			row = "  │" + lipgloss.NewStyle().Foreground(st.FocusedFg).Render(padded) + "│"
+			row = "  │" + st.Active.Render(padded) + "│"
 		} else {
 			row = "  │" + padded + "│"
 		}

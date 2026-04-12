@@ -834,7 +834,7 @@ func (m RulesTab) viewForm() string {
 	if m.formSubmitting {
 		lines = append(lines, m.styles.Help.Render("Saving…"))
 	} else if m.formErr != "" {
-		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F")).Render("! "+m.formErr))
+		lines = append(lines, m.styles.Error.Render("! "+m.formErr))
 	} else {
 		lines = append(lines, m.styles.Help.Render("shift+enter to save  esc to cancel"))
 	}
@@ -847,7 +847,7 @@ func (m RulesTab) viewForm() string {
 func (m RulesTab) fieldLabel(name string, idx int) string {
 	style := m.styles.Help
 	if m.formField == idx {
-		style = lipgloss.NewStyle().Foreground(m.styles.FocusedFg)
+		style = m.styles.Active
 	}
 	return style.Render(fmt.Sprintf("%-9s ", name))
 }
@@ -861,7 +861,7 @@ func (m RulesTab) viewTester() string {
 	}
 	if m.testInput.Value() != "" {
 		if m.testMatch != "" {
-			lines = append(lines, lipgloss.NewStyle().Foreground(m.styles.FocusedFg).Render(m.testMatch))
+			lines = append(lines, m.styles.Active.Render(m.testMatch))
 		} else {
 			lines = append(lines, m.styles.Help.Render("No rule matched."))
 		}
@@ -894,7 +894,7 @@ func (m RulesTab) viewPreview() string {
 	title := lipgloss.NewStyle().Bold(true).Render("Preview: Apply Rules to Transactions")
 
 	if m.previewErr != "" {
-		errLine := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F")).Render("! " + m.previewErr)
+		errLine := m.styles.Error.Render("! " + m.previewErr)
 		hint := m.styles.Help.Render("esc to go back")
 		body := lipgloss.JoinVertical(lipgloss.Left, title, "", errLine, "", hint)
 		return lipgloss.NewStyle().Width(w).Height(h).Render(body)

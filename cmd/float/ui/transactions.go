@@ -103,7 +103,7 @@ func (p *TransactionsPanel) formatDescription(tx *floatv1.Transaction) string {
 	if tx.Payee != nil {
 		payee := lipgloss.NewStyle().Bold(true).Render(tx.GetPayee())
 		if tx.Note != nil {
-			note := lipgloss.NewStyle().Foreground(p.styles.Help.GetForeground()).Render("· " + tx.GetNote())
+			note := p.styles.Help.Render("· " + tx.GetNote())
 			return payee + " " + note
 		}
 		return payee

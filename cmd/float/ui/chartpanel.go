@@ -107,7 +107,7 @@ func (p ChartPanel) View() string {
 
 func (p ChartPanel) renderHeader() string {
 	var spendingLabel, networthLabel string
-	activeStyle := lipgloss.NewStyle().Foreground(p.styles.FocusedFg).Bold(true)
+	activeStyle := p.styles.Active.Bold(true)
 	if p.mode == chartModeSpending {
 		spendingLabel = activeStyle.Render("Spending")
 		networthLabel = p.styles.Help.Render("Net Worth")

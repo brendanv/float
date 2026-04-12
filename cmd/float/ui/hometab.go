@@ -502,7 +502,7 @@ func (m HomeTab) renderUnreviewed() string {
 	for i, p := range txFilterPresets {
 		if i == m.presetIdx {
 			presetParts = append(presetParts,
-				lipgloss.NewStyle().Foreground(m.styles.FocusedFg).Render("["+p.label+"]"))
+				m.styles.Active.Render("["+p.label+"]"))
 		} else {
 			presetParts = append(presetParts, m.styles.Help.Render(p.label))
 		}
@@ -541,8 +541,7 @@ func (m HomeTab) renderUnreviewed() string {
 	txView := renderTxBody(txH)
 
 	if m.statusErrMsg != "" {
-		errLine := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF5555")).
+		errLine := m.styles.Error.
 			Width(m.unreviewedInnerW).
 			Render("  Error: " + m.statusErrMsg)
 		txH--
@@ -582,8 +581,7 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	}
 	lines = append(lines, "")
 	if m.deleteErrMsg != "" {
-		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
-		lines = append(lines, errStyle.Render("  Error: "+m.deleteErrMsg))
+		lines = append(lines, m.styles.Error.Render("  Error: "+m.deleteErrMsg))
 		lines = append(lines, "")
 	}
 	lines = append(lines, m.styles.Help.Render("  Press y to confirm, esc to cancel"))
