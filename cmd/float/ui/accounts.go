@@ -21,15 +21,16 @@ var accountTypeLabel = map[string]string{
 
 type AccountsPanel struct {
 	panelBase
+	styles   Styles
 	accounts []*floatv1.Account
 	balances map[string][]*floatv1.Amount
 	table    table.Model
 }
 
-func newAccountsTable() table.Model {
+func newAccountsTable(st Styles) table.Model {
 	s := table.DefaultStyles()
 	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(colorFocused).Bold(false).Reverse(true)
+	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "Account", Width: 20},
@@ -40,11 +41,20 @@ func newAccountsTable() table.Model {
 	)
 }
 
-func NewAccountsPanel() AccountsPanel {
+func NewAccountsPanel(st Styles) AccountsPanel {
 	return AccountsPanel{
+		styles:    st,
 		panelBase: newPanelBase(),
-		table:     newAccountsTable(),
+		table:     newAccountsTable(st),
 	}
+}
+
+func (p *AccountsPanel) setStyles(st Styles) {
+	p.styles = st
+	s := table.DefaultStyles()
+	s.Header = s.Header.Bold(true)
+	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
+	p.table.SetStyles(s)
 }
 
 func (p *AccountsPanel) SetSize(w, h int) {

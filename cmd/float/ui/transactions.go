@@ -12,16 +12,17 @@ import (
 
 type TransactionsPanel struct {
 	panelBase
+	styles       Styles
 	transactions []*floatv1.Transaction
 	rowToTx      []int
 	splitView    bool
 	table        table.Model
 }
 
-func newTransactionsTable() table.Model {
+func newTransactionsTable(st Styles) table.Model {
 	s := table.DefaultStyles()
 	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(colorFocused).Bold(false).Reverse(true)
+	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "St", Width: 2},
@@ -35,11 +36,20 @@ func newTransactionsTable() table.Model {
 	)
 }
 
-func newTransactionsPanel() TransactionsPanel {
+func newTransactionsPanel(st Styles) TransactionsPanel {
 	return TransactionsPanel{
+		styles:    st,
 		panelBase: newPanelBase(),
-		table:     newTransactionsTable(),
+		table:     newTransactionsTable(st),
 	}
+}
+
+func (p *TransactionsPanel) setStyles(st Styles) {
+	p.styles = st
+	s := table.DefaultStyles()
+	s.Header = s.Header.Bold(true)
+	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
+	p.table.SetStyles(s)
 }
 
 func (p *TransactionsPanel) SetSize(w, h int) {
@@ -89,11 +99,11 @@ func primaryPosting(tx *floatv1.Transaction) *floatv1.Posting {
 	return nil
 }
 
-func formatDescription(tx *floatv1.Transaction) string {
+func (p *TransactionsPanel) formatDescription(tx *floatv1.Transaction) string {
 	if tx.Payee != nil {
 		payee := lipgloss.NewStyle().Bold(true).Render(tx.GetPayee())
 		if tx.Note != nil {
-			note := lipgloss.NewStyle().Foreground(colorHelp).Render("· " + tx.GetNote())
+			note := lipgloss.NewStyle().Foreground(p.styles.Help.GetForeground()).Render("· " + tx.GetNote())
 			return payee + " " + note
 		}
 		return payee
@@ -125,11 +135,11 @@ func (p *TransactionsPanel) rebuildRows() {
 				acct = post.Account
 				amt = formatBalance(post.Amounts)
 			}
-			rows = append(rows, table.Row{sym, tx.Date, formatDescription(tx), amt, acct})
+			rows = append(rows, table.Row{sym, tx.Date, p.formatDescription(tx), amt, acct})
 			p.rowToTx = append(p.rowToTx, i)
 		} else {
 			for _, post := range tx.Postings {
-				rows = append(rows, table.Row{sym, tx.Date, formatDescription(tx), formatBalance(post.Amounts), post.Account})
+				rows = append(rows, table.Row{sym, tx.Date, p.formatDescription(tx), formatBalance(post.Amounts), post.Account})
 				p.rowToTx = append(p.rowToTx, i)
 			}
 		}

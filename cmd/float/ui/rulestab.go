@@ -31,6 +31,7 @@ const (
 type RulesTab struct {
 	width  int
 	height int
+	styles Styles
 	client floatv1connect.LedgerServiceClient
 
 	// Layout
@@ -83,7 +84,7 @@ type RulesTab struct {
 
 // ─── Constructor ────────────────────────────────────────────────────────────
 
-func NewRulesTab(client floatv1connect.LedgerServiceClient) RulesTab {
+func NewRulesTab(client floatv1connect.LedgerServiceClient, st Styles) RulesTab {
 	patternIn := textinput.New()
 	patternIn.Placeholder = "regex pattern (required)"
 
@@ -103,10 +104,11 @@ func NewRulesTab(client floatv1connect.LedgerServiceClient) RulesTab {
 	testIn.Placeholder = "type a description to test rules…"
 
 	return RulesTab{
+		styles:       st,
 		client:       client,
 		loadState:    stateLoading,
 		spinner:      NewSpinner(),
-		rulesTable:   newRulesTable(),
+		rulesTable:   newRulesTable(st),
 		previewTable: newPreviewTable(),
 		patternInput: patternIn,
 		priorityInput: priorityIn,
@@ -118,10 +120,15 @@ func NewRulesTab(client floatv1connect.LedgerServiceClient) RulesTab {
 	}
 }
 
-func newRulesTable() table.Model {
+func (m RulesTab) setStyles(st Styles) RulesTab {
+	m.styles = st
+	return m
+}
+
+func newRulesTable(st Styles) table.Model {
 	s := table.DefaultStyles()
 	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(colorFocused).Bold(false).Reverse(true)
+	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "Pri", Width: 3},
@@ -138,7 +145,6 @@ func newRulesTable() table.Model {
 func newPreviewTable() table.Model {
 	s := table.DefaultStyles()
 	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(colorFocused).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "Sel", Width: 3},
@@ -168,8 +174,8 @@ func (m RulesTab) SetSize(w, h int) RulesTab {
 		m.rightWidth = 0
 	}
 
-	m.leftInnerW, m.leftInnerH = innerSize(m.leftWidth, h, BorderStyle)
-	m.rightInnerW, m.rightInnerH = innerSize(m.rightWidth, h, BorderStyle)
+	m.leftInnerW, m.leftInnerH = innerSize(m.leftWidth, h, m.styles.Border)
+	m.rightInnerW, m.rightInnerH = innerSize(m.rightWidth, h, m.styles.Border)
 
 	m.rulesTable.SetWidth(m.leftInnerW)
 	m.rulesTable.SetHeight(m.leftInnerH)
@@ -732,11 +738,11 @@ func (m RulesTab) View() string {
 	leftContent := m.viewLeft()
 	rightContent := m.viewRight()
 
-	leftPanel := BorderStyle.
+	leftPanel := m.styles.Border.
 		Width(m.leftWidth).
 		Height(m.height).
 		Render(leftContent)
-	leftPanel = injectBorderTitle(leftPanel, "Rules", false)
+	leftPanel = injectBorderTitle(leftPanel, "Rules", false, m.styles)
 
 	var rightTitle string
 	switch m.mode {
@@ -749,11 +755,11 @@ func (m RulesTab) View() string {
 	default:
 		rightTitle = "Pattern Tester"
 	}
-	rightPanel := BorderStyle.
+	rightPanel := m.styles.Border.
 		Width(m.rightWidth).
 		Height(m.height).
 		Render(rightContent)
-	rightPanel = injectBorderTitle(rightPanel, rightTitle, false)
+	rightPanel = injectBorderTitle(rightPanel, rightTitle, false, m.styles)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
@@ -778,7 +784,7 @@ func (m RulesTab) viewLeft() string {
 	// Apply-result banner
 	if m.applyResult != "" {
 		banner := lipgloss.NewStyle().
-			Foreground(colorFocused).
+			Foreground(m.styles.FocusedFg).
 			Width(m.leftInnerW).
 			Render(m.applyResult)
 		content = lipgloss.JoinVertical(lipgloss.Left, banner, content)
@@ -794,7 +800,7 @@ func (m RulesTab) viewLeft() string {
 	}
 
 	if len(m.rules) == 0 {
-		empty := HelpStyle.
+		empty := m.styles.Help.
 			Width(m.leftInnerW).Height(m.leftInnerH).
 			Align(lipgloss.Center, lipgloss.Center).
 			Render("No rules yet.\nPress 'a' to add one.")
@@ -826,11 +832,11 @@ func (m RulesTab) viewForm() string {
 	}
 
 	if m.formSubmitting {
-		lines = append(lines, HelpStyle.Render("Saving…"))
+		lines = append(lines, m.styles.Help.Render("Saving…"))
 	} else if m.formErr != "" {
 		lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F")).Render("! "+m.formErr))
 	} else {
-		lines = append(lines, HelpStyle.Render("shift+enter to save  esc to cancel"))
+		lines = append(lines, m.styles.Help.Render("shift+enter to save  esc to cancel"))
 	}
 
 	return lipgloss.NewStyle().
@@ -839,9 +845,9 @@ func (m RulesTab) viewForm() string {
 }
 
 func (m RulesTab) fieldLabel(name string, idx int) string {
-	style := HelpStyle
+	style := m.styles.Help
 	if m.formField == idx {
-		style = lipgloss.NewStyle().Foreground(colorFocused)
+		style = lipgloss.NewStyle().Foreground(m.styles.FocusedFg)
 	}
 	return style.Render(fmt.Sprintf("%-9s ", name))
 }
@@ -855,18 +861,18 @@ func (m RulesTab) viewTester() string {
 	}
 	if m.testInput.Value() != "" {
 		if m.testMatch != "" {
-			lines = append(lines, lipgloss.NewStyle().Foreground(colorFocused).Render(m.testMatch))
+			lines = append(lines, lipgloss.NewStyle().Foreground(m.styles.FocusedFg).Render(m.testMatch))
 		} else {
-			lines = append(lines, HelpStyle.Render("No rule matched."))
+			lines = append(lines, m.styles.Help.Render("No rule matched."))
 		}
 	}
 	lines = append(lines, "")
-	lines = append(lines, HelpStyle.Render("a  add rule"))
-	lines = append(lines, HelpStyle.Render("e  edit rule"))
-	lines = append(lines, HelpStyle.Render("d  delete rule"))
-	lines = append(lines, HelpStyle.Render("p  preview apply all rules"))
-	lines = append(lines, HelpStyle.Render("t  test pattern"))
-	lines = append(lines, HelpStyle.Render("r  refresh"))
+	lines = append(lines, m.styles.Help.Render("a  add rule"))
+	lines = append(lines, m.styles.Help.Render("e  edit rule"))
+	lines = append(lines, m.styles.Help.Render("d  delete rule"))
+	lines = append(lines, m.styles.Help.Render("p  preview apply all rules"))
+	lines = append(lines, m.styles.Help.Render("t  test pattern"))
+	lines = append(lines, m.styles.Help.Render("r  refresh"))
 
 	return lipgloss.NewStyle().
 		Width(m.rightInnerW).Height(m.rightInnerH).
@@ -889,7 +895,7 @@ func (m RulesTab) viewPreview() string {
 
 	if m.previewErr != "" {
 		errLine := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F")).Render("! " + m.previewErr)
-		hint := HelpStyle.Render("esc to go back")
+		hint := m.styles.Help.Render("esc to go back")
 		body := lipgloss.JoinVertical(lipgloss.Left, title, "", errLine, "", hint)
 		return lipgloss.NewStyle().Width(w).Height(h).Render(body)
 	}
@@ -897,20 +903,20 @@ func (m RulesTab) viewPreview() string {
 	if len(m.previews) == 0 {
 		empty := lipgloss.JoinVertical(lipgloss.Left,
 			title, "",
-			HelpStyle.Render("No transactions would be affected by the current rules."),
+			m.styles.Help.Render("No transactions would be affected by the current rules."),
 			"",
-			HelpStyle.Render("esc to go back"),
+			m.styles.Help.Render("esc to go back"),
 		)
 		return lipgloss.NewStyle().Width(w).Height(h).Render(empty)
 	}
 
 	nSelected := len(m.selectedFIDList())
-	statusLine := HelpStyle.Render(fmt.Sprintf(
+	statusLine := m.styles.Help.Render(fmt.Sprintf(
 		"%d of %d transaction(s) selected  •  space=toggle  ctrl+a=all/none  enter=apply  esc=back",
 		nSelected, len(m.previews),
 	))
 
-	tableView := FocusedBorderStyle.
+	tableView := m.styles.FocusedBorder.
 		Width(w).
 		Render(m.previewTable.View())
 

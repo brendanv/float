@@ -8,25 +8,27 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/lipgloss/v2/compat"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 )
 
-var insightsBarStyle = lipgloss.NewStyle().Foreground(colorFocused)
-var revenueBarStyle = lipgloss.NewStyle().Foreground(compat.AdaptiveColor{Light: lipgloss.Color("#3D7A4A"), Dark: lipgloss.Color("#A6E3A1")})
-
 // InsightsPanel displays a horizontal bar chart of income and expense sub-categories.
 type InsightsPanel struct {
 	panelBase
+	styles      Styles
 	expenseRows []*floatv1.BalanceRow
 	revenueRows []*floatv1.BalanceRow
 }
 
-func NewInsightsPanel() InsightsPanel {
+func NewInsightsPanel(st Styles) InsightsPanel {
 	return InsightsPanel{
 		panelBase: newPanelBase(),
+		styles:    st,
 	}
+}
+
+func (p *InsightsPanel) setStyles(st Styles) {
+	p.styles = st
 }
 
 func (p *InsightsPanel) SetSize(w, h int) {
@@ -61,25 +63,21 @@ func primaryValue(amounts []*floatv1.Amount) float64 {
 	if len(amounts) == 0 {
 		return 0
 	}
-	v, err := strconv.ParseFloat(strings.TrimSpace(amounts[0].Quantity), 64)
-	if err != nil {
-		return 0
-	}
+	v, _ := strconv.ParseFloat(amounts[0].Quantity, 64)
 	return math.Abs(v)
 }
 
 func maxPrimaryValue(rows []*floatv1.BalanceRow) float64 {
-	var m float64
-	for _, row := range rows {
-		if v := primaryValue(row.Amounts); v > m {
-			m = v
+	var max float64
+	for _, r := range rows {
+		if v := primaryValue(r.Amounts); v > max {
+			max = v
 		}
 	}
-	return m
+	return max
 }
 
-// shortName returns the last segment of a colon-delimited account name.
-// "expenses:food" → "food", "salary" → "salary".
+// shortName returns the last path segment of a dotted account name.
 func shortName(displayName string) string {
 	if i := strings.LastIndex(displayName, ":"); i >= 0 {
 		return displayName[i+1:]
@@ -165,32 +163,32 @@ func (p InsightsPanel) renderChart() string {
 
 	if len(p.revenueRows) > 0 && revAlloc > 0 {
 		if showHeaders {
-			lines = append(lines, HelpStyle.Render("income"))
+			lines = append(lines, p.styles.Help.Render("income"))
 		}
 		for i, row := range p.revenueRows {
 			if i >= revAlloc {
 				break
 			}
-			lines = append(lines, renderBarLine(row, maxVal, nameCol, barCol, amountCol, revenueBarStyle))
+			lines = append(lines, p.renderBarLine(row, maxVal, nameCol, barCol, amountCol, p.styles.RevenueBar))
 		}
 	}
 
 	if len(p.expenseRows) > 0 && expAlloc > 0 {
 		if showHeaders {
-			lines = append(lines, HelpStyle.Render("expenses"))
+			lines = append(lines, p.styles.Help.Render("expenses"))
 		}
 		for i, row := range p.expenseRows {
 			if i >= expAlloc {
 				break
 			}
-			lines = append(lines, renderBarLine(row, maxVal, nameCol, barCol, amountCol, insightsBarStyle))
+			lines = append(lines, p.renderBarLine(row, maxVal, nameCol, barCol, amountCol, p.styles.InsightsBar))
 		}
 	}
 
 	return lipgloss.NewStyle().Width(p.width).Render(strings.Join(lines, "\n"))
 }
 
-func renderBarLine(row *floatv1.BalanceRow, maxVal float64, nameCol, barCol, amountCol int, barStyle lipgloss.Style) string {
+func (p InsightsPanel) renderBarLine(row *floatv1.BalanceRow, maxVal float64, nameCol, barCol, amountCol int, barStyle lipgloss.Style) string {
 	val := primaryValue(row.Amounts)
 
 	filled := 0
@@ -201,7 +199,7 @@ func renderBarLine(row *floatv1.BalanceRow, maxVal float64, nameCol, barCol, amo
 		filled = barCol
 	}
 	bar := barStyle.Render(strings.Repeat("█", filled)) +
-		HelpStyle.Render(strings.Repeat("░", barCol-filled))
+		p.styles.Help.Render(strings.Repeat("░", barCol-filled))
 
 	name := shortName(row.DisplayName)
 	nameRunes := []rune(name)

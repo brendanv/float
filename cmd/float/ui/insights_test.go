@@ -42,7 +42,7 @@ func TestShortName(t *testing.T) {
 }
 
 func TestInsightsPanel_EmptyRows_ShowsNoActivity(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 10)
 	p.SetData(&floatv1.BalanceReport{Rows: nil})
 	view := p.View()
@@ -52,7 +52,7 @@ func TestInsightsPanel_EmptyRows_ShowsNoActivity(t *testing.T) {
 }
 
 func TestInsightsPanel_NilReport_ShowsNoActivity(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 10)
 	p.SetData(nil)
 	view := p.View()
@@ -62,7 +62,7 @@ func TestInsightsPanel_NilReport_ShowsNoActivity(t *testing.T) {
 }
 
 func TestInsightsPanel_UnrelatedAccountsIgnored(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 10)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -77,7 +77,7 @@ func TestInsightsPanel_UnrelatedAccountsIgnored(t *testing.T) {
 }
 
 func TestInsightsPanel_ErrorState(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 10)
 	p.SetError("connection refused")
 	view := p.View()
@@ -97,7 +97,7 @@ func TestInsightsPanel_TooSmall_ReturnsEmpty(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewInsightsPanel()
+			p := NewInsightsPanel(NewStyles(true))
 			p.SetSize(tc.w, tc.h)
 			p.SetData(&floatv1.BalanceReport{
 				Rows: []*floatv1.BalanceRow{expenseRow("food", amount("100.00", "USD"))},
@@ -111,7 +111,7 @@ func TestInsightsPanel_TooSmall_ReturnsEmpty(t *testing.T) {
 }
 
 func TestInsightsPanel_ExpensesOnly_RendersShortName(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 5)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -133,7 +133,7 @@ func TestInsightsPanel_ExpensesOnly_RendersShortName(t *testing.T) {
 }
 
 func TestInsightsPanel_RevenueOnly_RendersShortName(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 5)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -153,7 +153,7 @@ func TestInsightsPanel_RevenueOnly_RendersShortName(t *testing.T) {
 }
 
 func TestInsightsPanel_BothSections_ShowsHeaders(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 10)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -171,7 +171,7 @@ func TestInsightsPanel_BothSections_ShowsHeaders(t *testing.T) {
 }
 
 func TestInsightsPanel_BothSections_BothGetRows_SmallHeight(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(80, 4) // tight: 2 headers + 1 rev + 1 exp
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -190,7 +190,7 @@ func TestInsightsPanel_BothSections_BothGetRows_SmallHeight(t *testing.T) {
 }
 
 func TestInsightsPanel_MultipleExpenses_ProportionalBars(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(80, 10)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{
@@ -212,7 +212,7 @@ func TestInsightsPanel_MultipleExpenses_ProportionalBars(t *testing.T) {
 }
 
 func TestInsightsPanel_GlobalScale_IncomeDominatesExpenses(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(80, 10)
 	// Income is 5× larger than largest expense — income bar should be full,
 	// expense bars should be much shorter.
@@ -248,7 +248,7 @@ func TestInsightsPanel_GlobalScale_IncomeDominatesExpenses(t *testing.T) {
 }
 
 func TestInsightsPanel_IncomeAccountPrefix(t *testing.T) {
-	p := NewInsightsPanel()
+	p := NewInsightsPanel(NewStyles(true))
 	p.SetSize(60, 10)
 	p.SetData(&floatv1.BalanceReport{
 		Rows: []*floatv1.BalanceRow{

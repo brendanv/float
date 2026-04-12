@@ -14,14 +14,19 @@ import (
 // SummaryPanel shows net worth and net income computed from depth-1 balance rows.
 type SummaryPanel struct {
 	panelBase
+	styles         Styles
 	assetsAmt      []*floatv1.Amount
 	liabilitiesAmt []*floatv1.Amount
 	revenueAmt     []*floatv1.Amount
 	expensesAmt    []*floatv1.Amount
 }
 
-func NewSummaryPanel() SummaryPanel {
-	return SummaryPanel{panelBase: newPanelBase()}
+func NewSummaryPanel(st Styles) SummaryPanel {
+	return SummaryPanel{panelBase: newPanelBase(), styles: st}
+}
+
+func (p *SummaryPanel) setStyles(st Styles) {
+	p.styles = st
 }
 
 func (p *SummaryPanel) SetSize(w, h int) {
@@ -118,7 +123,7 @@ func (p SummaryPanel) renderSummary() string {
 	}
 
 	bold := lipgloss.NewStyle().Bold(true)
-	sep := HelpStyle.Render(strings.Repeat("─", p.width))
+	sep := p.styles.Help.Render(strings.Repeat("─", p.width))
 
 	formatVal := func(v float64, com string) string {
 		if com == "" {

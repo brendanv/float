@@ -87,7 +87,8 @@ func sshTUIHandler(floatdAddr string) ssh.Handler {
 			tea.WithOutput(sess),
 			tea.WithContext(sessionCtx),
 			tea.WithWindowSize(pty.Window.Width, pty.Window.Height),
-			tea.WithoutSignalHandler(), // don't intercept SIGINT at the process level
+			tea.WithEnvironment(sess.Environ()), // use client terminal env for color detection
+			tea.WithoutSignalHandler(),           // don't intercept SIGINT at the process level
 		)
 
 		// Forward PTY window resize events to the bubbletea program.

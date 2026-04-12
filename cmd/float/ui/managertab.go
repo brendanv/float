@@ -12,6 +12,7 @@ import (
 type ManagerTab struct {
 	width  int
 	height int
+	styles Styles
 	client floatv1connect.LedgerServiceClient
 
 	// Left column (35%).
@@ -29,12 +30,19 @@ type ManagerTab struct {
 	tree        AccountTree
 }
 
-func NewManagerTab(client floatv1connect.LedgerServiceClient) ManagerTab {
+func NewManagerTab(client floatv1connect.LedgerServiceClient, st Styles) ManagerTab {
 	return ManagerTab{
+		styles:  st,
 		client:  client,
-		summary: NewSummaryPanel(),
+		summary: NewSummaryPanel(st),
 		tree:    NewAccountTree(),
 	}
+}
+
+func (m ManagerTab) setStyles(st Styles) ManagerTab {
+	m.styles = st
+	m.summary.setStyles(st)
+	return m
 }
 
 func (m ManagerTab) SetSize(w, h int) ManagerTab {
@@ -51,7 +59,7 @@ func (m ManagerTab) SetSize(w, h int) ManagerTab {
 		m.rightWidth = 0
 	}
 
-	m.leftInnerW, m.leftInnerH = innerSize(m.leftWidth, h, BorderStyle)
+	m.leftInnerW, m.leftInnerH = innerSize(m.leftWidth, h, m.styles.Border)
 
 	// Left sub-layout: summary top 40%, placeholder fills remainder.
 	m.summaryH = m.leftInnerH * 40 / 100
@@ -65,7 +73,7 @@ func (m ManagerTab) SetSize(w, h int) ManagerTab {
 	m.summary.SetSize(m.leftInnerW, m.summaryH)
 
 	// Right inner — tree fills full height.
-	m.rightInnerW, m.rightInnerH = innerSize(m.rightWidth, h, FocusedBorderStyle)
+	m.rightInnerW, m.rightInnerH = innerSize(m.rightWidth, h, m.styles.FocusedBorder)
 	m.tree.width = m.rightInnerW
 	m.tree.height = m.rightInnerH
 	m.tree.clampOffset()
@@ -144,7 +152,7 @@ func (m ManagerTab) View() string {
 
 	var leftContent string
 	if m.placeholderH > 0 {
-		placeholder := HelpStyle.
+		placeholder := m.styles.Help.
 			Width(m.leftInnerW).
 			Height(m.placeholderH).
 			Align(lipgloss.Center, lipgloss.Center).
@@ -158,11 +166,11 @@ func (m ManagerTab) View() string {
 		Height(m.leftInnerH).
 		Render(leftContent)
 
-	leftPanel := BorderStyle.
+	leftPanel := m.styles.Border.
 		Width(m.leftWidth).
 		Height(m.height).
 		Render(leftContent)
-	leftPanel = injectBorderTitle(leftPanel, "Summary", false)
+	leftPanel = injectBorderTitle(leftPanel, "Summary", false, m.styles)
 
 	// Right column: account tree.
 	treeContent := lipgloss.NewStyle().
@@ -170,11 +178,11 @@ func (m ManagerTab) View() string {
 		Height(m.rightInnerH).
 		Render(m.tree.View())
 
-	rightPanel := FocusedBorderStyle.
+	rightPanel := m.styles.FocusedBorder.
 		Width(m.rightWidth).
 		Height(m.height).
 		Render(treeContent)
-	rightPanel = injectBorderTitle(rightPanel, "Accounts", true)
+	rightPanel = injectBorderTitle(rightPanel, "Accounts", true, m.styles)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
