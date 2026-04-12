@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"strings"
+
 	"charm.land/bubbles/v2/help"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/compat"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var (
@@ -30,6 +33,43 @@ var (
 	HelpStyle = lipgloss.NewStyle().
 			Foreground(colorHelp)
 )
+
+// injectBorderTitle post-processes a rendered panel string (with a rounded
+// border) to embed a title in the top border. The title color matches the
+// border color (focused or unfocused).
+func injectBorderTitle(rendered, title string, focused bool) string {
+	if title == "" {
+		return rendered
+	}
+	lines := strings.Split(rendered, "\n")
+	if len(lines) == 0 {
+		return rendered
+	}
+	topLine := lines[0]
+	totalWidth := ansi.StringWidth(topLine)
+	if totalWidth < 4 {
+		return rendered
+	}
+
+	// Build: ╭─ Title ──────────────╮
+	titlePart := "─ " + title + " "
+	titleWidth := ansi.StringWidth(titlePart)
+	remaining := totalWidth - 2 - titleWidth // -2 for ╭ and ╮
+	if remaining < 1 {
+		return rendered // title doesn't fit, keep as-is
+	}
+
+	newTop := "╭" + titlePart + strings.Repeat("─", remaining) + "╮"
+
+	var fg compat.AdaptiveColor
+	if focused {
+		fg = colorFocused
+	} else {
+		fg = colorBorder
+	}
+	lines[0] = lipgloss.NewStyle().Foreground(fg).Render(newTop)
+	return strings.Join(lines, "\n")
+}
 
 // NewHelpModel returns a help.Model styled with the app's help color palette.
 func NewHelpModel() help.Model {

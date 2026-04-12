@@ -162,6 +162,7 @@ func (m ManagerTab) View() string {
 		Width(m.leftWidth).
 		Height(m.height).
 		Render(leftContent)
+	leftPanel = injectBorderTitle(leftPanel, "Summary", false)
 
 	// Right column: account tree.
 	treeContent := lipgloss.NewStyle().
@@ -173,6 +174,7 @@ func (m ManagerTab) View() string {
 		Width(m.rightWidth).
 		Height(m.height).
 		Render(treeContent)
+	rightPanel = injectBorderTitle(rightPanel, "Accounts", true)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }

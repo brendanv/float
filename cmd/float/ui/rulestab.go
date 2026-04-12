@@ -736,11 +736,24 @@ func (m RulesTab) View() string {
 		Width(m.leftWidth).
 		Height(m.height).
 		Render(leftContent)
+	leftPanel = injectBorderTitle(leftPanel, "Rules", false)
 
+	var rightTitle string
+	switch m.mode {
+	case rulesModeForm:
+		if m.editingID != "" {
+			rightTitle = "Edit Rule"
+		} else {
+			rightTitle = "Add Rule"
+		}
+	default:
+		rightTitle = "Pattern Tester"
+	}
 	rightPanel := BorderStyle.
 		Width(m.rightWidth).
 		Height(m.height).
 		Render(rightContent)
+	rightPanel = injectBorderTitle(rightPanel, rightTitle, false)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
@@ -803,14 +816,7 @@ func (m RulesTab) viewRight() string {
 
 // viewForm renders the add/edit rule form.
 func (m RulesTab) viewForm() string {
-	title := "Add Rule"
-	if m.editingID != "" {
-		title = "Edit Rule"
-	}
-
 	lines := []string{
-		lipgloss.NewStyle().Bold(true).Render(title),
-		"",
 		m.fieldLabel("Pattern", 0) + m.patternInput.View(),
 		m.fieldLabel("Priority", 1) + m.priorityInput.View(),
 		m.fieldLabel("Payee", 2) + m.payeeInput.View(),
@@ -843,8 +849,6 @@ func (m RulesTab) fieldLabel(name string, idx int) string {
 // viewTester renders the pattern tester panel (right column in list mode).
 func (m RulesTab) viewTester() string {
 	lines := []string{
-		lipgloss.NewStyle().Bold(true).Render("Pattern Tester"),
-		"",
 		"Press 't' to focus, type a transaction description:",
 		m.testInput.View(),
 		"",

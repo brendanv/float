@@ -416,6 +416,11 @@ func (m HomeTab) View() string {
 		Width(m.chartWidth).
 		Height(m.topHeight).
 		Render(chartContent)
+	chartTitle := "Spending"
+	if m.chart.mode == chartModeNetWorth {
+		chartTitle = "Net Worth"
+	}
+	chartPanel = injectBorderTitle(chartPanel, chartTitle, m.focused == 0)
 
 	// ── Accounts panel (top-right) ────────────────────────────────────
 	acctTableView := lipgloss.NewStyle().
@@ -432,28 +437,38 @@ func (m HomeTab) View() string {
 		Width(m.acctWidth).
 		Height(m.height).
 		Render(acctContent)
+	acctPanel = injectBorderTitle(acctPanel, "Accounts", m.focused == 1)
 
 	// ── Transaction review panel (bottom-left, same width as chart) ───────
 	var bottomContent string
+	var bottomTitle string
 	switch {
 	case m.addTxForm.Active():
 		bottomContent = lipgloss.NewStyle().
 			Width(m.unreviewedInnerW).
 			Height(m.unreviewedInnerH).
 			Render(m.addTxForm.View())
+		if m.addTxForm.editFID != "" {
+			bottomTitle = "Edit Transaction"
+		} else {
+			bottomTitle = "Add Transaction"
+		}
 	case m.confirmDeleteTx != nil:
 		bottomContent = lipgloss.NewStyle().
 			Width(m.unreviewedInnerW).
 			Height(m.unreviewedInnerH).
 			Render(m.renderDeleteConfirm(m.unreviewedInnerW))
+		bottomTitle = "Delete Transaction"
 	default:
 		bottomContent = m.renderUnreviewed()
+		bottomTitle = "Transactions"
 	}
 	bottomBorder := pickBorder(m.focused == 2)
 	bottomPanel := bottomBorder.
 		Width(m.chartWidth).
 		Height(m.bottomHeight).
 		Render(bottomContent)
+	bottomPanel = injectBorderTitle(bottomPanel, bottomTitle, m.focused == 2)
 
 	// Left column: chart on top, transaction review below.
 	leftCol := lipgloss.JoinVertical(lipgloss.Left, chartPanel, bottomPanel)
@@ -539,10 +554,6 @@ func (m HomeTab) renderDeleteConfirm(w int) string {
 	tx := m.confirmDeleteTx
 	var lines []string
 
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF5555")).Render("Delete Transaction?")
-	lines = append(lines, title)
-	lines = append(lines, HelpStyle.Render(strings.Repeat("─", w)))
-	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("  %s  %s", tx.Date, tx.Description))
 	if len(tx.Postings) > 0 {
 		lines = append(lines, "")

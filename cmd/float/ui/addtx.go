@@ -540,19 +540,6 @@ func (f AddTxForm) View() string {
 
 	var lines []string
 
-	// Title
-	titleText := "Add Transaction"
-	if f.editFID != "" {
-		titleText = "Edit Transaction"
-	}
-	title := lipgloss.NewStyle().Bold(true).Render(titleText)
-	lines = append(lines, title)
-
-	// Separator
-	sep := strings.Repeat("─", w)
-	lines = append(lines, HelpStyle.Render(sep))
-	lines = append(lines, "")
-
 	// Date field
 	lines = append(lines, "Date:        "+f.dateInput.View())
 
