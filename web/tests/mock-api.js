@@ -17,16 +17,26 @@ export const mockAccounts = [
 ];
 
 export const mockBalanceRows = [
-  { account: "assets", amounts: [{ commodity: "USD", quantity: "12450.00" }] },
-  { account: "liabilities", amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
-  { account: "expenses", amounts: [{ commodity: "USD", quantity: "1840.00" }] },
-  { account: "income", amounts: [{ commodity: "USD", quantity: "-5200.00" }] },
+  { fullName: "assets", displayName: "assets", amounts: [{ commodity: "USD", quantity: "12450.00" }] },
+  { fullName: "liabilities", displayName: "liabilities", amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
+  { fullName: "expenses", displayName: "expenses", amounts: [{ commodity: "USD", quantity: "1840.00" }] },
+  { fullName: "income", displayName: "income", amounts: [{ commodity: "USD", quantity: "-5200.00" }] },
 ];
 
 export const mockAccountBalanceRows = [
-  { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "8450.00" }] },
-  { account: "assets:savings", amounts: [{ commodity: "USD", quantity: "4000.00" }] },
-  { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
+  { fullName: "assets:checking", displayName: "checking", amounts: [{ commodity: "USD", quantity: "8450.00" }] },
+  { fullName: "assets:savings", displayName: "savings", amounts: [{ commodity: "USD", quantity: "4000.00" }] },
+  { fullName: "liabilities:creditcard", displayName: "creditcard", amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
+];
+
+export const mockExpenseBalanceRows = [
+  { fullName: "expenses:groceries", displayName: "groceries", amounts: [{ commodity: "USD", quantity: "450.00" }] },
+  { fullName: "expenses:dining", displayName: "dining", amounts: [{ commodity: "USD", quantity: "210.00" }] },
+  { fullName: "expenses:utilities", displayName: "utilities", amounts: [{ commodity: "USD", quantity: "95.00" }] },
+];
+
+export const mockRevenueBalanceRows = [
+  { fullName: "income:salary", displayName: "salary", amounts: [{ commodity: "USD", quantity: "5200.00" }] },
 ];
 
 export const mockTransactions = [
@@ -278,13 +288,17 @@ export async function mockLedgerApi(page) {
       case "ListTags":
         body = { tags: ["category", "memo", "reimbursable"] };
         break;
-      case "GetBalances":
-        body = {
-          report: {
-            rows: reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows,
-          },
-        };
+      case "GetBalances": {
+        const query = reqBody.query || [];
+        const isExpense = query.includes("type:X");
+        const isRevenue = query.includes("type:R");
+        let rows;
+        if (isExpense) rows = mockExpenseBalanceRows;
+        else if (isRevenue) rows = mockRevenueBalanceRows;
+        else rows = reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows;
+        body = { report: { rows } };
         break;
+      }
       case "ListTransactions": {
         let txs = mockTransactions;
         const query = reqBody.query || [];

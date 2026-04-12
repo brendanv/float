@@ -166,36 +166,25 @@ export function RulesPage() {
     <div class="space-y-6">
       <h2 class="text-2xl font-bold">Categorization Rules</h2>
 
-      {/* Rule form */}
+      {/* Card 1: Rule Editor */}
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
           <h3 class="card-title text-base">{editingId ? "Edit Rule" : "Add Rule"}</h3>
           <form onSubmit={handleSubmit} class="space-y-3">
-            <div class="flex flex-wrap gap-3">
-              <label class="form-control flex-1 min-w-48">
-                <div class="label"><span class="label-text">Pattern (regex)</span></div>
-                <input
-                  type="text"
-                  class="input input-bordered input-sm font-mono"
-                  placeholder="AMAZON|amazon\.com"
-                  value={form.pattern}
-                  onInput={(e) => setField("pattern", e.target.value)}
-                  required
-                />
-              </label>
-              <label class="form-control w-full sm:w-40">
-                <div class="label"><span class="label-text">Priority</span></div>
-                <input
-                  type="number"
-                  class="input input-bordered input-sm"
-                  value={form.priority}
-                  onInput={(e) => setField("priority", e.target.value)}
-                />
-              </label>
+            <div class="flex flex-col gap-1">
+              <span class="text-sm">Pattern (regex)</span>
+              <input
+                type="text"
+                class="input input-bordered input-sm font-mono"
+                placeholder="AMAZON|amazon\.com"
+                value={form.pattern}
+                onInput={(e) => setField("pattern", e.target.value)}
+                required
+              />
             </div>
             <div class="flex flex-wrap gap-3">
-              <label class="form-control flex-1 min-w-40">
-                <div class="label"><span class="label-text">Set Payee</span></div>
+              <div class="flex flex-col gap-1 flex-1 min-w-40">
+                <span class="text-sm">Set Payee</span>
                 <input
                   type="text"
                   class="input input-bordered input-sm"
@@ -203,29 +192,35 @@ export function RulesPage() {
                   value={form.payee}
                   onInput={(e) => setField("payee", e.target.value)}
                 />
-              </label>
-              <label class="form-control flex-1 min-w-40">
-                <div class="label"><span class="label-text">Set Category Account</span></div>
+              </div>
+              <div class="flex flex-col gap-1 flex-1 min-w-40">
+                <span class="text-sm">Set Category Account</span>
                 <AccountInput
                   value={form.account}
                   onChange={(v) => setField("account", v)}
                   accounts={accounts.data?.accounts ?? []}
                   placeholder="expenses:shopping"
                 />
-              </label>
-              <label class="form-control flex-1 min-w-40">
-                <div class="label">
-                  <span class="label-text">Add Tags</span>
-                  <span class="label-text-alt text-base-content/50">key=val, key2=val2</span>
-                </div>
+              </div>
+              <div class="flex flex-col gap-1 flex-1 min-w-40">
+                <span class="text-sm">Add Tags <span class="text-base-content/50 text-xs">key=val, key2</span></span>
                 <input
                   type="text"
                   class="input input-bordered input-sm font-mono"
-                  placeholder="source=import, reviewed=no"
+                  placeholder="source=import"
                   value={form.tags}
                   onInput={(e) => setField("tags", e.target.value)}
                 />
-              </label>
+              </div>
+              <div class="flex flex-col gap-1 w-24">
+                <span class="text-sm">Priority</span>
+                <input
+                  type="number"
+                  class="input input-bordered input-sm"
+                  value={form.priority}
+                  onInput={(e) => setField("priority", e.target.value)}
+                />
+              </div>
             </div>
             <div class="flex gap-2">
               <button type="submit" class="btn btn-primary btn-sm" disabled={submitting}>
@@ -242,42 +237,19 @@ export function RulesPage() {
         </div>
       </div>
 
-      {/* Pattern tester */}
+      {/* Card 2: Rules list + Apply section */}
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
-          <h3 class="card-title text-base">Test Pattern</h3>
-          <div class="flex gap-3 items-end flex-wrap">
-            <label class="form-control flex-1 min-w-48">
-              <div class="label"><span class="label-text">Transaction description</span></div>
-              <input
-                type="text"
-                class="input input-bordered input-sm"
-                placeholder="AMAZON.COM PURCHASE"
-                value={testDesc}
-                onInput={(e) => setTestDesc(e.target.value)}
-              />
-            </label>
-            {testDesc && (
-              <div class="pb-1">
-                {matchingRule ? (
-                  <span class="badge badge-success gap-1">
-                    Matches rule: <strong>{matchingRule.id}</strong>
-                    {matchingRule.payee && <> → payee: {matchingRule.payee}</>}
-                    {matchingRule.account && <> → account: {matchingRule.account}</>}
-                  </span>
-                ) : (
-                  <span class="badge badge-neutral">No rule matches</span>
-                )}
-              </div>
-            )}
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <h3 class="card-title text-base">Rules</h3>
+            <button
+              class="btn btn-outline btn-sm"
+              onClick={handlePreviewApply}
+              disabled={applyLoading}
+            >
+              {applyLoading ? "Previewing…" : "Preview Changes"}
+            </button>
           </div>
-        </div>
-      </div>
-
-      {/* Rules list */}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <h3 class="card-title text-base">Rules</h3>
           {rulesList.loading && <Loading />}
           {rulesList.error && <ErrorBanner error={rulesList.error} />}
           {rulesList.data && rulesList.data.rules.length === 0 && (
@@ -298,9 +270,9 @@ export function RulesPage() {
                 </thead>
                 <tbody>
                   {rulesList.data.rules.map((r) => (
-                    <tr key={r.id} class={editingId === r.id ? "bg-base-200" : ""}>
-                      <td class="font-mono text-xs">{r.priority}</td>
-                      <td class="font-mono text-xs">{r.pattern}</td>
+                    <tr key={r.id} class={editingId === r.id ? "bg-primary/10" : ""}>
+                      <td><span class="badge badge-neutral badge-sm font-mono">{r.priority}</span></td>
+                      <td class="max-w-xs truncate font-mono text-xs" title={r.pattern}>{r.pattern}</td>
                       <td>{r.payee || <span class="text-base-content/40">—</span>}</td>
                       <td class="font-mono text-xs">{r.account || <span class="text-base-content/40">—</span>}</td>
                       <td class="text-xs">
@@ -328,33 +300,37 @@ export function RulesPage() {
               </table>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Apply rules */}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <div class="flex items-center justify-between gap-4 flex-wrap">
-            <h3 class="card-title text-base">Apply Rules Retroactively</h3>
-            <button
-              class="btn btn-outline btn-sm"
-              onClick={handlePreviewApply}
-              disabled={applyLoading}
-            >
-              {applyLoading ? "Previewing…" : "Preview Changes"}
-            </button>
+          <div class="divider my-1"></div>
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-base-content/60 whitespace-nowrap">Test description:</span>
+            <input
+              type="text"
+              class="input input-bordered input-sm font-mono flex-1"
+              placeholder="AMAZON.COM PURCHASE"
+              value={testDesc}
+              onInput={(e) => setTestDesc(e.target.value)}
+            />
+            {testDesc && (
+              matchingRule ? (
+                <span class="badge badge-success gap-1 shrink-0">
+                  {matchingRule.payee || matchingRule.account}
+                </span>
+              ) : (
+                <span class="badge badge-ghost shrink-0">No match</span>
+              )
+            )}
           </div>
           {applyError && <ErrorBanner error={applyError} />}
           {applyResult !== null && (
-            <div class="alert alert-success">
+            <div class="alert alert-success mt-3">
               Applied changes to {applyResult} transaction(s).
             </div>
           )}
           {applyPreviews && applyPreviews.length === 0 && (
-            <p class="text-base-content/60">No transactions match any rules.</p>
+            <p class="text-base-content/60 mt-3">No transactions match any rules.</p>
           )}
           {applyPreviews && applyPreviews.length > 0 && (
-            <div class="space-y-3">
+            <div class="space-y-3 mt-3">
               <div class="overflow-x-auto">
                 <table class="table table-sm">
                   <thead>
@@ -373,9 +349,7 @@ export function RulesPage() {
                           }}
                         />
                       </th>
-                      <th>FID</th>
                       <th>Description</th>
-                      <th>Rule</th>
                       <th>Account</th>
                       <th>Payee</th>
                     </tr>
@@ -391,9 +365,7 @@ export function RulesPage() {
                             onChange={() => toggleFid(p.fid)}
                           />
                         </td>
-                        <td class="font-mono text-xs">{p.fid}</td>
                         <td>{p.description}</td>
-                        <td class="font-mono text-xs text-base-content/60">{p.matchedRuleId}</td>
                         <td class="text-xs">
                           {p.newAccount ? (
                             <span>

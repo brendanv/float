@@ -293,27 +293,27 @@ export function TransactionsPage({ params }) {
             onSelectionChange={setSelectedFids}
           />
           {totalPages > 1 && (
-            <div class="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-              <p class="text-sm text-gray-600 dark:text-gray-400">
+            <div class="flex items-center justify-between px-2 py-3 border-t border-base-300">
+              <span class="text-sm text-base-content/60">
                 {rangeStart}–{rangeEnd} of {total}
-              </p>
-              <div class="flex gap-2">
+              </span>
+              <div class="join">
                 <button
+                  class="join-item btn btn-sm"
                   onClick={() => setPage((p) => p - 1)}
                   disabled={page === 0}
-                  class="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed"
                 >
-                  Previous
+                  ‹
                 </button>
-                <span class="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
+                <button class="join-item btn btn-sm btn-disabled pointer-events-none">
                   {page + 1} / {totalPages}
-                </span>
+                </button>
                 <button
+                  class="join-item btn btn-sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={!hasNext}
-                  class="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed"
                 >
-                  Next
+                  ›
                 </button>
               </div>
             </div>

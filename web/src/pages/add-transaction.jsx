@@ -60,7 +60,7 @@ export function AddTransactionPage() {
 
   if (success) {
     return (
-      <div class="card bg-base-100 shadow-sm max-w-lg mx-auto">
+      <div class="card bg-base-100 shadow-sm max-w-lg mx-auto mt-8">
         <div class="card-body items-center text-center">
           <div class="text-success text-5xl mb-2">✓</div>
           <p class="text-lg font-medium">Transaction added successfully!</p>
@@ -71,49 +71,53 @@ export function AddTransactionPage() {
   }
 
   return (
-    <div class="max-w-lg">
-      <h3 class="text-xl font-semibold mb-4">Add Transaction</h3>
-      {error && <ErrorBanner error={error} />}
-      <form onSubmit={handleSubmit} class="space-y-4">
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Date</span>
-          </label>
-          <input
-            type="date"
-            value={date}
-            onInput={(e) => setDate(e.target.value)}
-            required
-            class="input input-bordered w-full"
-          />
+    <div>
+      <h2 class="text-2xl font-bold mb-6">Add Transaction</h2>
+      <div class="card bg-base-100 shadow-sm max-w-lg">
+        <div class="card-body">
+          {error && <ErrorBanner error={error} />}
+          <form onSubmit={handleSubmit} class="space-y-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Date</span>
+              </label>
+              <input
+                type="date"
+                value={date}
+                onInput={(e) => setDate(e.target.value)}
+                required
+                class="input input-bordered w-full"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Description</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Grocery store"
+                value={description}
+                onInput={(e) => setDescription(e.target.value)}
+                required
+                class="input input-bordered w-full"
+              />
+            </div>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Postings</span>
+              </label>
+              <PostingFields
+                postings={postings}
+                onChange={setPostings}
+                accounts={accounts.data?.accounts || []}
+              />
+            </div>
+            <button type="submit" disabled={submitting} class="btn btn-primary w-full">
+              {submitting ? <span class="loading loading-spinner loading-sm"></span> : "Add Transaction"}
+            </button>
+          </form>
         </div>
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Description</span>
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. Grocery store"
-            value={description}
-            onInput={(e) => setDescription(e.target.value)}
-            required
-            class="input input-bordered w-full"
-          />
-        </div>
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Postings</span>
-          </label>
-          <PostingFields
-            postings={postings}
-            onChange={setPostings}
-            accounts={accounts.data?.accounts || []}
-          />
-        </div>
-        <button type="submit" disabled={submitting} class="btn btn-primary w-full">
-          {submitting ? <span class="loading loading-spinner loading-sm"></span> : "Add Transaction"}
-        </button>
-      </form>
+      </div>
     </div>
   );
 }
