@@ -20,9 +20,6 @@ type TransactionsPanel struct {
 }
 
 func newTransactionsTable(st Styles) table.Model {
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "St", Width: 2},
@@ -31,7 +28,7 @@ func newTransactionsTable(st Styles) table.Model {
 			{Title: "Amount", Width: 13},
 			{Title: "Account", Width: 20},
 		}),
-		table.WithStyles(s),
+		table.WithStyles(styledTableStyles(st)),
 		table.WithFocused(false),
 	)
 }
@@ -46,10 +43,7 @@ func newTransactionsPanel(st Styles) TransactionsPanel {
 
 func (p *TransactionsPanel) setStyles(st Styles) {
 	p.styles = st
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
-	p.table.SetStyles(s)
+	p.table.SetStyles(styledTableStyles(st))
 }
 
 func (p *TransactionsPanel) SetSize(w, h int) {

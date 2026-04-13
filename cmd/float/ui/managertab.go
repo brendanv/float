@@ -166,11 +166,7 @@ func (m ManagerTab) View() string {
 		Height(m.leftInnerH).
 		Render(leftContent)
 
-	leftPanel := m.styles.Border.
-		Width(m.leftWidth).
-		Height(m.height).
-		Render(leftContent)
-	leftPanel = injectBorderTitle(leftPanel, "Summary", false, m.styles)
+	leftPanel := renderCard(leftContent, "Summary", false, m.leftWidth, m.height, m.styles)
 
 	// Right column: account tree.
 	treeContent := lipgloss.NewStyle().
@@ -178,11 +174,7 @@ func (m ManagerTab) View() string {
 		Height(m.rightInnerH).
 		Render(m.tree.View())
 
-	rightPanel := m.styles.FocusedBorder.
-		Width(m.rightWidth).
-		Height(m.height).
-		Render(treeContent)
-	rightPanel = injectBorderTitle(rightPanel, "Accounts", true, m.styles)
+	rightPanel := renderCard(treeContent, "Accounts", true, m.rightWidth, m.height, m.styles)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }

@@ -422,16 +422,11 @@ func (m HomeTab) View() string {
 		Width(m.chartInnerW).
 		Height(m.chartInnerH).
 		Render(m.chart.View())
-	chartBorder := m.pickBorder(m.focused == 0)
-	chartPanel := chartBorder.
-		Width(m.chartWidth).
-		Height(m.topHeight).
-		Render(chartContent)
 	chartTitle := "Spending"
 	if m.chart.mode == chartModeNetWorth {
 		chartTitle = "Net Worth"
 	}
-	chartPanel = injectBorderTitle(chartPanel, chartTitle, m.focused == 0, m.styles)
+	chartPanel := renderCard(chartContent, chartTitle, m.focused == 0, m.chartWidth, m.topHeight, m.styles)
 
 	// ── Accounts panel (top-right) ────────────────────────────────────
 	acctTableView := lipgloss.NewStyle().
@@ -443,12 +438,7 @@ func (m HomeTab) View() string {
 		Width(m.acctInnerW).
 		Height(m.acctInnerH).
 		Render(lipgloss.JoinVertical(lipgloss.Left, acctTableView, periodView))
-	acctBorder := m.pickBorder(m.focused == 1)
-	acctPanel := acctBorder.
-		Width(m.acctWidth).
-		Height(m.height).
-		Render(acctContent)
-	acctPanel = injectBorderTitle(acctPanel, "Accounts", m.focused == 1, m.styles)
+	acctPanel := renderCard(acctContent, "Accounts", m.focused == 1, m.acctWidth, m.height, m.styles)
 
 	// ── Transaction review panel (bottom-left, same width as chart) ───────
 	var bottomContent string
@@ -474,25 +464,12 @@ func (m HomeTab) View() string {
 		bottomContent = m.renderUnreviewed()
 		bottomTitle = "Transactions"
 	}
-	bottomBorder := m.pickBorder(m.focused == 2)
-	bottomPanel := bottomBorder.
-		Width(m.chartWidth).
-		Height(m.bottomHeight).
-		Render(bottomContent)
-	bottomPanel = injectBorderTitle(bottomPanel, bottomTitle, m.focused == 2, m.styles)
+	bottomPanel := renderCard(bottomContent, bottomTitle, m.focused == 2, m.chartWidth, m.bottomHeight, m.styles)
 
 	// Left column: chart on top, transaction review below.
 	leftCol := lipgloss.JoinVertical(lipgloss.Left, chartPanel, bottomPanel)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, acctPanel)
-}
-
-// pickBorder returns FocusedBorderStyle when the panel is focused.
-func (m HomeTab) pickBorder(focused bool) lipgloss.Style {
-	if focused {
-		return m.styles.FocusedBorder
-	}
-	return m.styles.Border
 }
 
 // renderUnreviewed builds the content for the transaction review panel.
@@ -594,7 +571,7 @@ func (m HomeTab) KeyMap() help.KeyMap {
 	case m.addTxForm.Active():
 		return HomeFormKeyMap{}
 	case m.confirmDeleteTx != nil:
-		return HomeDeleteKeyMap{}
+		return DeleteConfirmKeyMap{}
 	case m.filter.Active():
 		return HomeFilterKeyMap{}
 	case m.focused == 0:

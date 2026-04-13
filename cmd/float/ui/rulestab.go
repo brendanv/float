@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -109,7 +110,7 @@ func NewRulesTab(client floatv1connect.LedgerServiceClient, st Styles) RulesTab 
 		loadState:    stateLoading,
 		spinner:      NewSpinner(),
 		rulesTable:   newRulesTable(st),
-		previewTable: newPreviewTable(),
+		previewTable: newPreviewTable(st),
 		patternInput: patternIn,
 		priorityInput: priorityIn,
 		payeeInput:   payeeIn,
@@ -126,9 +127,6 @@ func (m RulesTab) setStyles(st Styles) RulesTab {
 }
 
 func newRulesTable(st Styles) table.Model {
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "Pri", Width: 3},
@@ -137,14 +135,12 @@ func newRulesTable(st Styles) table.Model {
 			{Title: "Account", Width: 20},
 			{Title: "Tags", Width: 15},
 		}),
-		table.WithStyles(s),
+		table.WithStyles(styledTableStyles(st)),
 		table.WithFocused(true),
 	)
 }
 
-func newPreviewTable() table.Model {
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true)
+func newPreviewTable(st Styles) table.Model {
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "Sel", Width: 3},
@@ -153,7 +149,7 @@ func newPreviewTable() table.Model {
 			{Title: "New Account", Width: 20},
 			{Title: "New Payee", Width: 15},
 		}),
-		table.WithStyles(s),
+		table.WithStyles(styledTableStyles(st)),
 		table.WithFocused(true),
 	)
 }
@@ -720,7 +716,7 @@ func (m RulesTab) KeyMap() help.KeyMap {
 		return RulesPreviewKeyMap{}
 	default:
 		if m.confirmDeleteID != "" {
-			return RulesDeleteKeyMap{}
+			return DeleteConfirmKeyMap{}
 		}
 		return RulesListKeyMap{}
 	}
@@ -738,12 +734,6 @@ func (m RulesTab) View() string {
 	leftContent := m.viewLeft()
 	rightContent := m.viewRight()
 
-	leftPanel := m.styles.Border.
-		Width(m.leftWidth).
-		Height(m.height).
-		Render(leftContent)
-	leftPanel = injectBorderTitle(leftPanel, "Rules", false, m.styles)
-
 	var rightTitle string
 	switch m.mode {
 	case rulesModeForm:
@@ -755,11 +745,8 @@ func (m RulesTab) View() string {
 	default:
 		rightTitle = "Pattern Tester"
 	}
-	rightPanel := m.styles.Border.
-		Width(m.rightWidth).
-		Height(m.height).
-		Render(rightContent)
-	rightPanel = injectBorderTitle(rightPanel, rightTitle, false, m.styles)
+	leftPanel := renderCard(leftContent, "Rules", false, m.leftWidth, m.height, m.styles)
+	rightPanel := renderCard(rightContent, rightTitle, false, m.rightWidth, m.height, m.styles)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
@@ -867,12 +854,10 @@ func (m RulesTab) viewTester() string {
 		}
 	}
 	lines = append(lines, "")
-	lines = append(lines, m.styles.Help.Render("a  add rule"))
-	lines = append(lines, m.styles.Help.Render("e  edit rule"))
-	lines = append(lines, m.styles.Help.Render("d  delete rule"))
-	lines = append(lines, m.styles.Help.Render("p  preview apply all rules"))
-	lines = append(lines, m.styles.Help.Render("t  test pattern"))
-	lines = append(lines, m.styles.Help.Render("r  refresh"))
+	for _, b := range []key.Binding{keyAdd, keyEdit, keyDelete, keyPreview, keyTest, keyRetry} {
+		h := b.Help()
+		lines = append(lines, m.styles.Help.Render(h.Key+"  "+h.Desc))
+	}
 
 	return lipgloss.NewStyle().
 		Width(m.rightInnerW).Height(m.rightInnerH).
