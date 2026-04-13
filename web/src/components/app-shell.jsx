@@ -1,5 +1,45 @@
-import { House, List, TrendingUp, Tag, PlusCircle, Menu, History, Upload, ListFilter } from "lucide-preact";
+import { useState } from "preact/hooks";
+import { House, List, TrendingUp, Tag, PlusCircle, Menu, History, Upload, ListFilter, Palette } from "lucide-preact";
 import { navigate } from "../router.jsx";
+
+const THEMES = [
+  { id: "business", label: "Business" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+  { id: "emerald", label: "Emerald" },
+  { id: "cyberpunk", label: "Cyberpunk" },
+  { id: "nord", label: "Nord" },
+  { id: "lemonade", label: "Lemonade" },
+  { id: "dim", label: "Dim" },
+  { id: "sunset", label: "Sunset" },
+];
+
+function ThemeSwitcher() {
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("float-theme") || "business"
+  );
+
+  const handleChange = (e) => {
+    const next = e.target.value;
+    setTheme(next);
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("float-theme", next);
+  };
+
+  return (
+    <div class="p-3 border-t border-base-300">
+      <label class="flex items-center gap-2 text-xs text-base-content/60 uppercase tracking-wide mb-2">
+        <Palette size={13} />
+        Theme
+      </label>
+      <select class="select select-sm w-full" value={theme} onChange={handleChange}>
+        {THEMES.map((t) => (
+          <option key={t.id} value={t.id}>{t.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 function NavLink({ href, label, icon: Icon, current }) {
   const active = current === href;
@@ -78,6 +118,8 @@ export function AppShell({ children, currentPath }) {
             <NavLink href="/rules" label="Rules" icon={ListFilter} current={currentPath} />
             <NavLink href="/add" label="Add Transaction" icon={PlusCircle} current={currentPath} />
           </ul>
+
+          <ThemeSwitcher />
         </aside>
       </div>
     </div>
