@@ -16,6 +16,7 @@ mise run web-gen     # generate JS protobuf code only
 mise run web-build   # build web UI → internal/webui/dist/
 mise run build       # web UI + compile floatd
 mise run web-dev     # Vite dev server on :5173 (proxies API to floatd on :8080)
+mise run ssh         # SSH into the floatd TUI (requires ssh_port in config.toml)
 ```
 
 Tool versions managed by `mise`. Run `mise install` to get pinned Go, buf, golangci-lint, hledger.
@@ -29,6 +30,26 @@ FLOAT_ADDR=:9090 mise run floatd
 ```
 
 Requires `config.toml` and `main.journal` in the data directory. For web UI development run `mise run floatd` and `mise run web-dev` concurrently.
+
+### SSH TUI
+
+Enable the SSH server by adding `ssh_port` to `config.toml`:
+
+```toml
+[server]
+port = 8080
+ssh_port = 2222
+```
+
+Then connect:
+
+```bash
+mise run ssh                                                    # localhost:2222
+FLOAT_SSH_PORT=2222 mise run ssh                               # explicit port
+FLOAT_SSH_HOST=myserver.example.com FLOAT_SSH_PORT=2222 mise run ssh
+```
+
+The host key is generated at `$FLOAT_DATA_DIR/ssh_host_key` on first start. The task stores known hosts in `$FLOAT_DATA_DIR/ssh_known_hosts` (separate from `~/.ssh/known_hosts`) using `StrictHostKeyChecking=accept-new`.
 
 ## Querying floatd
 
