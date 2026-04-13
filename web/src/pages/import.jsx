@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 
@@ -106,7 +107,12 @@ function CreateProfileModal({ onCreated, onClose }) {
 }
 
 export function ImportPage() {
-  const profiles = useRpc(() => ledgerClient.listBankProfiles({}), []);
+  const queryClient = useQueryClient();
+
+  const { data: profilesData, isLoading: profilesLoading, error: profilesError } = useQuery({
+    queryKey: queryKeys.bankProfiles(),
+    queryFn: () => ledgerClient.listBankProfiles({}),
+  });
 
   const [selectedProfile, setSelectedProfile] = useState("");
   const [csvFile, setCsvFile] = useState(null);
@@ -196,7 +202,7 @@ export function ImportPage() {
   }
 
   function handleProfileCreated(profile) {
-    profiles.refetch?.();
+    queryClient.invalidateQueries({ queryKey: queryKeys.bankProfiles() });
     setSelectedProfile(profile.name);
     setShowCreateModal(false);
   }
@@ -215,7 +221,7 @@ export function ImportPage() {
             <label class="form-control w-full sm:w-56">
               <div class="label"><span class="label-text">Bank Profile</span></div>
               <div class="flex gap-2 items-center">
-                {profiles.loading ? (
+                {profilesLoading ? (
                   <select class="select select-bordered select-sm flex-1" disabled>
                     <option>Loading…</option>
                   </select>
@@ -227,7 +233,7 @@ export function ImportPage() {
                     required
                   >
                     <option value="">Select profile…</option>
-                    {(profiles.data?.profiles ?? []).map((p) => (
+                    {(profilesData?.profiles ?? []).map((p) => (
                       <option key={p.name} value={p.name}>{p.name}</option>
                     ))}
                   </select>
@@ -261,7 +267,7 @@ export function ImportPage() {
             </button>
           </form>
           {previewError && <ErrorBanner error={previewError} />}
-          {profiles.error && <ErrorBanner error={profiles.error} />}
+          {profilesError && <ErrorBanner error={profilesError} />}
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { AccountList } from "../components/account-list.jsx";
 import { BalanceSummary } from "../components/balance-summary.jsx";
 import { InsightsChart } from "../components/insights-chart.jsx";
@@ -15,14 +16,25 @@ export function HomePage() {
 
   const periodQuery = dateFrom && dateTo ? [`date:${dateFrom}..${dateTo}`] : [];
 
-  const accounts = useRpc(() => ledgerClient.listAccounts({}), []);
-  const balances = useRpc(() => ledgerClient.getBalances({ depth: 1 }), []);
-  const accountBalances = useRpc(() => ledgerClient.getBalances({}), []);
+  const { data: accountsData, isLoading: accountsLoading, error: accountsError } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+  });
 
-  const balanceRows = balances.data?.report?.rows || [];
-  const allAccounts = accounts.data?.accounts || [];
+  const { data: balancesData } = useQuery({
+    queryKey: queryKeys.balances({ depth: 1 }),
+    queryFn: () => ledgerClient.getBalances({ depth: 1 }),
+  });
+
+  const { data: accountBalancesData } = useQuery({
+    queryKey: queryKeys.balances({}),
+    queryFn: () => ledgerClient.getBalances({}),
+  });
+
+  const balanceRows = balancesData?.report?.rows || [];
+  const allAccounts = accountsData?.accounts || [];
   const sidebarAccounts = allAccounts.filter((a) => a.type === "A" || a.type === "C" || a.type === "L");
-  const accountBalanceRows = accountBalances.data?.report?.rows || [];
+  const accountBalanceRows = accountBalancesData?.report?.rows || [];
 
   return (
     <div>
@@ -32,9 +44,9 @@ export function HomePage() {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="card bg-base-100 shadow-sm lg:col-span-1">
           <div class="card-body p-4">
-            {accounts.loading && <Loading />}
-            {accounts.error && <ErrorBanner error={accounts.error} />}
-            {accounts.data && (
+            {accountsLoading && <Loading />}
+            {accountsError && <ErrorBanner error={accountsError} />}
+            {accountsData && (
               <AccountList
                 accounts={sidebarAccounts}
                 balanceRows={accountBalanceRows}

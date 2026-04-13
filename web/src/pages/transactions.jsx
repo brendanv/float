@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useSearch } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { SearchControls, DATE_PRESETS, PAYEE_NONE } from "../components/search-controls.jsx";
 import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+
 const PAGE_SIZE = 50;
 
 function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSelection }) {
@@ -185,32 +188,37 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
   );
 }
 
-export function TransactionsPage({ params }) {
+export function TransactionsPage() {
+  const queryClient = useQueryClient();
+  const routeSearch = useSearch({ from: "/transactions" });
+
   const initialRange = DATE_PRESETS[0].fn(); // "This month"
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
-  const [account, setAccount] = useState(params?.account || "");
+  const [account, setAccount] = useState(routeSearch.account || "");
   const [tag, setTag] = useState("");
   const [status, setStatus] = useState("");
-  const [payee, setPayee] = useState(params?.payee || "");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [payee, setPayee] = useState(routeSearch.payee || "");
   const [page, setPage] = useState(0);
   const [selectedFids, setSelectedFids] = useState(new Set());
 
   const query = buildQuery(dateFrom, dateTo, account, tag, status, payee);
+  const queryParams = { query, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
 
-  const { data, loading, error } = useRpc(
-    () =>
-      ledgerClient.listTransactions({
-        query,
-        limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
-      }),
-    [dateFrom, dateTo, account, tag, status, payee, refreshKey, page]
-  );
+  const { data, isLoading, error } = useQuery({
+    queryKey: queryKeys.transactions(queryParams),
+    queryFn: () => ledgerClient.listTransactions(queryParams),
+  });
 
-  const { data: accountsData } = useRpc(() => ledgerClient.listAccounts({}), []);
-  const { data: tagsData } = useRpc(() => ledgerClient.listTags({}), []);
+  const { data: accountsData } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+  });
+
+  const { data: tagsData } = useQuery({
+    queryKey: queryKeys.tags(),
+    queryFn: () => ledgerClient.listTags({}),
+  });
 
   function onDateRangeChange(from, to) {
     setDateFrom(from);
@@ -228,12 +236,12 @@ export function TransactionsPage({ params }) {
   }
 
   function onStatusChange() {
-    setRefreshKey((k) => k + 1);
+    queryClient.invalidateQueries({ queryKey: queryKeys.transactions(queryParams) });
   }
 
   function onBulkActionComplete() {
     setSelectedFids(new Set());
-    setRefreshKey((k) => k + 1);
+    queryClient.invalidateQueries({ queryKey: ["transactions"] });
   }
 
   function applyQuickFilter(filters) {
@@ -272,7 +280,7 @@ export function TransactionsPage({ params }) {
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
       />
-      {loading && <Loading />}
+      {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}
       {data && (
         <>

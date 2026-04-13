@@ -1,5 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { formatAmounts } from "../format.js";
 
 function parseAmount(amounts) {
@@ -42,17 +43,21 @@ function BarChart({ rows, colorClass }) {
 }
 
 export function InsightsChart({ periodQuery }) {
-  const expenses = useRpc(
-    () => ledgerClient.getBalances({ depth: 2, query: [...periodQuery, "type:X"] }),
-    [periodQuery.join(",")]
-  );
-  const revenue = useRpc(
-    () => ledgerClient.getBalances({ depth: 2, query: [...periodQuery, "type:R"] }),
-    [periodQuery.join(",")]
-  );
+  const expenseParams = { depth: 2, query: [...periodQuery, "type:X"] };
+  const revenueParams = { depth: 2, query: [...periodQuery, "type:R"] };
 
-  const expenseRows = expenses.data?.report?.rows || [];
-  const revenueRows = revenue.data?.report?.rows || [];
+  const { data: expensesData, isLoading: expensesLoading } = useQuery({
+    queryKey: queryKeys.balances(expenseParams),
+    queryFn: () => ledgerClient.getBalances(expenseParams),
+  });
+
+  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+    queryKey: queryKeys.balances(revenueParams),
+    queryFn: () => ledgerClient.getBalances(revenueParams),
+  });
+
+  const expenseRows = expensesData?.report?.rows || [];
+  const revenueRows = revenueData?.report?.rows || [];
 
   return (
     <div>
@@ -68,7 +73,7 @@ export function InsightsChart({ periodQuery }) {
           <BarChart rows={revenueRows} colorClass="bg-success" />
         </div>
       )}
-      {expenseRows.length === 0 && revenueRows.length === 0 && !expenses.loading && !revenue.loading && (
+      {expenseRows.length === 0 && revenueRows.length === 0 && !expensesLoading && !revenueLoading && (
         <p class="text-base-content/60 text-sm">No expense or revenue data for this period.</p>
       )}
     </div>

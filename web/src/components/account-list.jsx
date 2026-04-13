@@ -1,5 +1,5 @@
+import { Link } from "@tanstack/react-router";
 import { formatAmounts } from "../format.js";
-import { navigate } from "../router.jsx";
 
 const TYPE_ORDER = ["A", "L", "E", "R", "X"];
 const TYPE_LABELS = {
@@ -44,16 +44,13 @@ export function AccountList({ accounts, balanceRows }) {
                 {group.map((acct) => (
                   <tr key={acct.fullName} class="hover">
                     <td>
-                      <a
+                      <Link
+                        to="/transactions"
+                        search={{ account: acct.fullName }}
                         class="link link-hover text-sm"
-                        href={"#/transactions?account=" + encodeURIComponent(acct.fullName)}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate("/transactions?account=" + encodeURIComponent(acct.fullName));
-                        }}
                       >
                         {acct.fullName}
-                      </a>
+                      </Link>
                     </td>
                     <td class="text-right whitespace-nowrap text-sm font-mono">
                       {formatAmounts(balanceMap[acct.fullName])}

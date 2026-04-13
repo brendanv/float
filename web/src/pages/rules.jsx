@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
@@ -26,12 +27,20 @@ function tagsToString(tags) {
 }
 
 export function RulesPage() {
-  const rulesList = useRpc(() => ledgerClient.listRules({}), []);
-  const accounts = useRpc(() => ledgerClient.listAccounts({}), []);
+  const queryClient = useQueryClient();
+
+  const { data: rulesData, isLoading: rulesLoading, error: rulesError } = useQuery({
+    queryKey: queryKeys.rules(),
+    queryFn: () => ledgerClient.listRules({}),
+  });
+
+  const { data: accountsData } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+  });
 
   const [form, setForm] = useState(emptyForm());
   const [editingId, setEditingId] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
   // Pattern test
@@ -44,6 +53,26 @@ export function RulesPage() {
   const [selectedFids, setSelectedFids] = useState(new Set());
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState(null);
+
+  const saveRuleMutation = useMutation({
+    mutationFn: (payload) =>
+      editingId
+        ? ledgerClient.updateRule({ id: editingId, ...payload })
+        : ledgerClient.addRule(payload),
+    onSuccess: () => {
+      setEditingId(null);
+      setForm(emptyForm());
+      setFormError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.rules() });
+    },
+    onError: (err) => setFormError(err),
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: ({ id }) => ledgerClient.deleteRule({ id }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.rules() }),
+    onError: (err) => setFormError(err),
+  });
 
   function setField(name, value) {
     setForm((f) => ({ ...f, [name]: value }));
@@ -67,10 +96,9 @@ export function RulesPage() {
     setFormError(null);
   }
 
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault();
     setFormError(null);
-    setSubmitting(true);
     const payload = {
       pattern: form.pattern,
       payee: form.payee,
@@ -78,36 +106,17 @@ export function RulesPage() {
       priority: parseInt(form.priority, 10) || 0,
       tags: tagsFromString(form.tags),
     };
-    try {
-      if (editingId) {
-        await ledgerClient.updateRule({ id: editingId, ...payload });
-      } else {
-        await ledgerClient.addRule(payload);
-      }
-      setEditingId(null);
-      setForm(emptyForm());
-      rulesList.refetch();
-    } catch (err) {
-      setFormError(err);
-    } finally {
-      setSubmitting(false);
-    }
+    saveRuleMutation.mutate(payload);
   }
 
-  async function handleDelete(id) {
-    try {
-      await ledgerClient.deleteRule({ id });
-      rulesList.refetch();
-    } catch (err) {
-      setFormError(err);
-    }
+  function handleDelete(id) {
+    deleteRuleMutation.mutate({ id });
   }
 
   // Find which rule matches the test description.
   function getMatchingRule() {
-    if (!testDesc || !rulesList.data?.rules) return null;
-    const lower = testDesc.toLowerCase();
-    for (const r of rulesList.data.rules) {
+    if (!testDesc || !rulesData?.rules) return null;
+    for (const r of rulesData.rules) {
       if (!r.pattern) continue;
       try {
         if (new RegExp(r.pattern, "i").test(testDesc)) return r;
@@ -198,7 +207,7 @@ export function RulesPage() {
                 <AccountInput
                   value={form.account}
                   onChange={(v) => setField("account", v)}
-                  accounts={accounts.data?.accounts ?? []}
+                  accounts={accountsData?.accounts ?? []}
                   placeholder="expenses:shopping"
                 />
               </div>
@@ -223,8 +232,8 @@ export function RulesPage() {
               </div>
             </div>
             <div class="flex gap-2">
-              <button type="submit" class="btn btn-primary btn-sm" disabled={submitting}>
-                {submitting ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
+              <button type="submit" class="btn btn-primary btn-sm" disabled={saveRuleMutation.isPending}>
+                {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
               </button>
               {editingId && (
                 <button type="button" class="btn btn-ghost btn-sm" onClick={cancelEdit}>
@@ -250,12 +259,12 @@ export function RulesPage() {
               {applyLoading ? "Previewing…" : "Preview Changes"}
             </button>
           </div>
-          {rulesList.loading && <Loading />}
-          {rulesList.error && <ErrorBanner error={rulesList.error} />}
-          {rulesList.data && rulesList.data.rules.length === 0 && (
+          {rulesLoading && <Loading />}
+          {rulesError && <ErrorBanner error={rulesError} />}
+          {rulesData && rulesData.rules.length === 0 && (
             <p class="text-base-content/60">No rules yet. Add one above.</p>
           )}
-          {rulesList.data && rulesList.data.rules.length > 0 && (
+          {rulesData && rulesData.rules.length > 0 && (
             <div class="overflow-x-auto">
               <table class="table table-sm">
                 <thead>
@@ -269,7 +278,7 @@ export function RulesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rulesList.data.rules.map((r) => (
+                  {rulesData.rules.map((r) => (
                     <tr key={r.id} class={editingId === r.id ? "bg-primary/10" : ""}>
                       <td><span class="badge badge-neutral badge-sm font-mono">{r.priority}</span></td>
                       <td class="max-w-xs truncate font-mono text-xs" title={r.pattern}>{r.pattern}</td>

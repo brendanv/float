@@ -1,30 +1,101 @@
-import { useState, useEffect } from "react";
+import {
+  createHashHistory,
+  createRouter,
+  createRoute,
+  createRootRoute,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
+import { AppShell } from "./components/app-shell.jsx";
+import { HomePage } from "./pages/home.jsx";
+import { TransactionsPage } from "./pages/transactions.jsx";
+import { AddTransactionPage } from "./pages/add-transaction.jsx";
+import { TrendsPage } from "./pages/trends.jsx";
+import { PricesPage } from "./pages/prices.jsx";
+import { SnapshotsPage } from "./pages/snapshots.jsx";
+import { ImportPage } from "./pages/import.jsx";
+import { RulesPage } from "./pages/rules.jsx";
 
-function parseHash() {
-  const hash = window.location.hash.slice(1) || "/";
-  const qIdx = hash.indexOf("?");
-  const path = qIdx >= 0 ? hash.slice(0, qIdx) : hash;
-  const params = {};
-  if (qIdx >= 0) {
-    new URLSearchParams(hash.slice(qIdx + 1)).forEach((v, k) => {
-      params[k] = v;
-    });
-  }
-  return { path, params };
-}
+const rootRoute = createRootRoute({
+  component: function Root() {
+    const { location } = useRouterState();
+    return (
+      <AppShell currentPath={location.pathname}>
+        <Outlet />
+      </AppShell>
+    );
+  },
+  notFoundComponent: () => (
+    <p>
+      Page not found. <a href="#/">Go home</a>
+    </p>
+  ),
+});
 
-export function navigate(path) {
-  window.location.hash = "#" + path;
-}
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: HomePage,
+});
 
-export function useRoute() {
-  const [route, setRoute] = useState(parseHash);
+export const transactionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/transactions",
+  validateSearch: (search) => ({
+    account: search.account ?? "",
+    payee: search.payee ?? "",
+  }),
+  component: TransactionsPage,
+});
 
-  useEffect(() => {
-    const onHashChange = () => setRoute(parseHash());
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
+const addRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/add",
+  component: AddTransactionPage,
+});
 
-  return route;
-}
+const trendsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/trends",
+  component: TrendsPage,
+});
+
+const pricesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/prices",
+  component: PricesPage,
+});
+
+const snapshotsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/snapshots",
+  component: SnapshotsPage,
+});
+
+const importRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/import",
+  component: ImportPage,
+});
+
+const rulesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/rules",
+  component: RulesPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  transactionsRoute,
+  addRoute,
+  trendsRoute,
+  pricesRoute,
+  snapshotsRoute,
+  importRoute,
+  rulesRoute,
+]);
+
+export const router = createRouter({
+  routeTree,
+  history: createHashHistory(),
+});
