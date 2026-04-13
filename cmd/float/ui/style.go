@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -243,6 +244,27 @@ func injectBorderTitle(rendered, title string, focused bool, st Styles) string {
 	}
 	lines[0] = st.Base.Foreground(fg).Render(newTop)
 	return strings.Join(lines, "\n")
+}
+
+// renderCard wraps content in a rounded border panel sized to outerW×outerH
+// and injects a title into the top border line. When focused is true the
+// FocusedBorder style and focused color are used; otherwise Border/BorderFg.
+func renderCard(content, title string, focused bool, outerW, outerH int, st Styles) string {
+	border := st.Border
+	if focused {
+		border = st.FocusedBorder
+	}
+	panel := border.Width(outerW).Height(outerH).Render(content)
+	return injectBorderTitle(panel, title, focused, st)
+}
+
+// styledTableStyles returns table styles themed for the current palette:
+// bold header and a reversed-highlight selected row in the focused color.
+func styledTableStyles(st Styles) table.Styles {
+	s := table.DefaultStyles()
+	s.Header = s.Header.Bold(true)
+	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
+	return s
 }
 
 // NewHelpModel returns a help.Model styled with the app's help color palette.

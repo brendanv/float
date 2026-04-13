@@ -86,13 +86,13 @@ func (HomeFormKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-// HomeDeleteKeyMap is for the delete confirmation prompt.
-type HomeDeleteKeyMap struct{}
+// DeleteConfirmKeyMap is for delete confirmation prompts (shared across tabs).
+type DeleteConfirmKeyMap struct{}
 
-func (HomeDeleteKeyMap) ShortHelp() []key.Binding {
+func (DeleteConfirmKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{keyConfirm, keyEsc}
 }
-func (HomeDeleteKeyMap) FullHelp() [][]key.Binding {
+func (DeleteConfirmKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keyConfirm, keyEsc}}
 }
 
@@ -179,15 +179,6 @@ func (RulesPreviewKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-// RulesDeleteKeyMap is for the delete confirmation in the rules tab.
-type RulesDeleteKeyMap struct{}
-
-func (RulesDeleteKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyConfirm, keyEsc}
-}
-func (RulesDeleteKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{keyConfirm, keyEsc}}
-}
 
 // SettingsKeyMap is for the settings tab.
 type SettingsKeyMap struct{}

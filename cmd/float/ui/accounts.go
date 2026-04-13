@@ -28,15 +28,12 @@ type AccountsPanel struct {
 }
 
 func newAccountsTable(st Styles) table.Model {
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
 	return table.New(
 		table.WithColumns([]table.Column{
 			{Title: "Account", Width: 20},
 			{Title: "Balance", Width: 15},
 		}),
-		table.WithStyles(s),
+		table.WithStyles(styledTableStyles(st)),
 		table.WithFocused(false),
 	)
 }
@@ -51,10 +48,7 @@ func NewAccountsPanel(st Styles) AccountsPanel {
 
 func (p *AccountsPanel) setStyles(st Styles) {
 	p.styles = st
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(st.FocusedFg).Bold(false).Reverse(true)
-	p.table.SetStyles(s)
+	p.table.SetStyles(styledTableStyles(st))
 }
 
 func (p *AccountsPanel) SetSize(w, h int) {
