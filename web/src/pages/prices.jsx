@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 
@@ -9,38 +10,44 @@ function today() {
 }
 
 export function PricesPage() {
-  const prices = useRpc(() => ledgerClient.listPrices({}), []);
+  const queryClient = useQueryClient();
+
+  const { data: pricesData, isLoading, error: fetchError } = useQuery({
+    queryKey: queryKeys.prices(),
+    queryFn: () => ledgerClient.listPrices({}),
+  });
 
   const [date, setDate] = useState(today);
   const [commodity, setCommodity] = useState("");
   const [quantity, setQuantity] = useState("");
   const [currency, setCurrency] = useState("USD");
-  const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setFormError(null);
-    setSubmitting(true);
-    try {
-      await ledgerClient.addPrice({ date, commodity: commodity.trim(), quantity: quantity.trim(), currency: currency.trim() });
+  const addMutation = useMutation({
+    mutationFn: (vars) => ledgerClient.addPrice(vars),
+    onSuccess: () => {
       setCommodity("");
       setQuantity("");
-      prices.refetch();
-    } catch (err) {
-      setFormError(err);
-    } finally {
-      setSubmitting(false);
-    }
+      setFormError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
+    },
+    onError: (err) => setFormError(err),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ pid }) => ledgerClient.deletePrice({ pid }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.prices() }),
+    onError: (err) => setFormError(err),
+  });
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setFormError(null);
+    addMutation.mutate({ date, commodity: commodity.trim(), quantity: quantity.trim(), currency: currency.trim() });
   }
 
-  async function handleDelete(pid) {
-    try {
-      await ledgerClient.deletePrice({ pid });
-      prices.refetch();
-    } catch (err) {
-      setFormError(err);
-    }
+  function handleDelete(pid) {
+    deleteMutation.mutate({ pid });
   }
 
   return (
@@ -93,8 +100,8 @@ export function PricesPage() {
                 required
               />
             </label>
-            <button type="submit" class="btn btn-primary btn-sm" disabled={submitting}>
-              {submitting ? "Adding…" : "Add"}
+            <button type="submit" class="btn btn-primary btn-sm" disabled={addMutation.isPending}>
+              {addMutation.isPending ? "Adding…" : "Add"}
             </button>
           </form>
           {formError && <ErrorBanner error={formError} />}
@@ -104,10 +111,10 @@ export function PricesPage() {
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
           <h3 class="card-title text-base">Price History</h3>
-          {prices.loading && <Loading />}
-          {prices.error && <ErrorBanner error={prices.error} />}
-          {prices.data && (
-            prices.data.prices?.length > 0 ? (
+          {isLoading && <Loading />}
+          {fetchError && <ErrorBanner error={fetchError} />}
+          {pricesData && (
+            pricesData.prices?.length > 0 ? (
               <div class="overflow-x-auto">
                 <table class="table table-sm">
                   <thead>
@@ -119,7 +126,7 @@ export function PricesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[...prices.data.prices].reverse().map((p) => (
+                    {[...pricesData.prices].reverse().map((p) => (
                       <tr key={p.pid}>
                         <td class="font-mono">{p.date}</td>
                         <td class="font-mono font-semibold">{p.commodity}</td>

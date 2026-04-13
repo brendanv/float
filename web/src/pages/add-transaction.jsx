@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { PostingFields } from "../components/posting-fields.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { navigate } from "../router.jsx";
 
 function todayStr() {
   const d = new Date();
@@ -14,6 +15,9 @@ function todayStr() {
 }
 
 export function AddTransactionPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const [date, setDate] = useState(todayStr);
   const [description, setDescription] = useState("");
   const [postings, setPostings] = useState([
@@ -24,7 +28,10 @@ export function AddTransactionPage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
-  const accounts = useRpc(() => ledgerClient.listAccounts({}), []);
+  const { data: accountsData } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+  });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -49,8 +56,9 @@ export function AddTransactionPage() {
         postings: postingInputs,
       });
 
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       setSuccess(true);
-      setTimeout(() => navigate("/transactions"), 1000);
+      setTimeout(() => navigate({ to: "/transactions" }), 1000);
     } catch (err) {
       setError(err);
     } finally {
@@ -109,7 +117,7 @@ export function AddTransactionPage() {
               <PostingFields
                 postings={postings}
                 onChange={setPostings}
-                accounts={accounts.data?.accounts || []}
+                accounts={accountsData?.accounts || []}
               />
             </div>
             <button type="submit" disabled={submitting} class="btn btn-primary w-full">

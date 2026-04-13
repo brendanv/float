@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { House, List, TrendingUp, Tag, PlusCircle, Menu, History, Upload, ListFilter, Palette } from "lucide-react";
-import { navigate } from "../router.jsx";
 
 const THEMES = [
   { id: "business", label: "Business" },
@@ -45,20 +45,17 @@ function NavLink({ href, label, icon: Icon, current }) {
   const active = current === href;
   return (
     <li>
-      <a
-        href={"#" + href}
+      <Link
+        to={href}
         class={active ? "active" : ""}
-        onClick={(e) => {
-          e.preventDefault();
-          navigate(href);
-          // Close drawer on mobile after navigation
+        onClick={() => {
           const drawer = document.getElementById("nav-drawer");
           if (drawer) drawer.checked = false;
         }}
       >
         <Icon size={18} />
         {label}
-      </a>
+      </Link>
     </li>
   );
 }
@@ -75,14 +72,10 @@ export function AppShell({ children, currentPath }) {
           <label for="nav-drawer" class="btn btn-ghost">
             <Menu size={24} />
           </label>
-          <a
-            href="#/"
-            class="btn btn-ghost gap-2 text-xl"
-            onClick={(e) => { e.preventDefault(); navigate("/"); }}
-          >
+          <Link to="/" class="btn btn-ghost gap-2 text-xl">
             <img src="/icon.png" alt="" class="h-8 w-8 rounded" />
             float
-          </a>
+          </Link>
         </div>
 
         {/* Page content */}
@@ -97,14 +90,13 @@ export function AppShell({ children, currentPath }) {
         <aside class="bg-base-100 min-h-screen w-64 flex flex-col border-r border-base-300">
           {/* Brand */}
           <div class="p-4 border-b border-base-300">
-            <a
-              href="#/"
+            <Link
+              to="/"
               class="flex items-center gap-3 hover:opacity-80 transition-opacity"
-              onClick={(e) => { e.preventDefault(); navigate("/"); }}
             >
               <img src="/icon.png" alt="" class="h-9 w-9 rounded" />
               <span class="text-xl font-semibold">float</span>
-            </a>
+            </Link>
           </div>
 
           {/* Navigation */}

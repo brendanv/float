@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend } from "chart.js";
 import { ledgerClient } from "../client.js";
-import { useRpc } from "../hooks/use-rpc.js";
+import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 
@@ -145,12 +146,12 @@ export function TrendsPage() {
   const begin = toBeginDate(range.months);
   const end = "";
 
-  const timeseries = useRpc(
-    () => ledgerClient.getNetWorthTimeseries({ begin, end }),
-    [begin]
-  );
+  const { data: timeseriesData, isLoading, error } = useQuery({
+    queryKey: queryKeys.netWorthTimeseries(begin),
+    queryFn: () => ledgerClient.getNetWorthTimeseries({ begin, end }),
+  });
 
-  const snapshots = timeseries.data?.snapshots || [];
+  const snapshots = timeseriesData?.snapshots || [];
   const latest = snapshots[snapshots.length - 1];
   const prev = snapshots[snapshots.length - 2];
 
@@ -182,10 +183,10 @@ export function TrendsPage() {
         </div>
       </div>
 
-      {timeseries.loading && <Loading />}
-      {timeseries.error && <ErrorBanner error={timeseries.error} />}
+      {isLoading && <Loading />}
+      {error && <ErrorBanner error={error} />}
 
-      {!timeseries.loading && !timeseries.error && (
+      {!isLoading && !error && (
         <>
           <div class="stats shadow w-full">
             <StatCard

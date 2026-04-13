@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { ledgerClient } from "../client.js";
 import { formatAmounts, formatDate } from "../format.js";
 import { PostingFields } from "./posting-fields.jsx";
-import { navigate } from "../router.jsx";
+import { useNavigate } from "@tanstack/react-router";
 
 function firstQuantity(posting) {
   if (!posting.amounts || posting.amounts.length === 0) return 0;
@@ -99,7 +99,8 @@ function StatusButton({ fid, status, onStatusChange }) {
 }
 
 function EditableDescriptionCell({ fid, description, date, postings, payee, note, onSaved }) {
-   const [editing, setEditing] = useState(false);
+  const navigate = useNavigate();
+  const [editing, setEditing] = useState(false);
    const [draft, setDraft] = useState(description);
    const [saving, setSaving] = useState(false);
    const [error, setError] = useState(null);
@@ -160,7 +161,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
         <>
           <strong
             class="cursor-pointer hover:underline"
-            onClick={(e) => { e.stopPropagation(); navigate("/transactions?payee=" + encodeURIComponent(payee)); }}
+            onClick={(e) => { e.stopPropagation(); navigate({ to: "/transactions", search: { payee } }); }}
             title={"Show all transactions for " + payee}
           >{payee}</strong>
           {note && <span class="text-base-content/60"> · {note}</span>}
