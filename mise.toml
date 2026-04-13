@@ -145,6 +145,15 @@ run = "cd web && bun run dev"
 description = "Run the float TUI"
 run = "go run ./cmd/float/ --server ${FLOAT_ADDR:-localhost:8080}"
 
+[tasks.ssh]
+description = "Connect to the floatd SSH TUI (requires ssh_port set in config.toml)"
+run = """
+ssh -p "${FLOAT_SSH_PORT:-2222}" \
+  -o StrictHostKeyChecking=accept-new \
+  -o "UserKnownHostsFile=${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}/ssh_known_hosts" \
+  "${FLOAT_SSH_HOST:-localhost}"
+"""
+
 [tasks.grpc-modify-tags]
 description = "Replace all non-fid tags on a transaction"
 usage = '''
