@@ -1,5 +1,5 @@
-import { useState } from "preact/hooks";
-import { House, List, TrendingUp, Tag, PlusCircle, Menu, History, Upload, ListFilter, Palette } from "lucide-preact";
+import { useState } from "react";
+import { House, List, TrendingUp, Tag, PlusCircle, Menu, History, Upload, ListFilter, Palette } from "lucide-react";
 import { navigate } from "../router.jsx";
 
 const THEMES = [

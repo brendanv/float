@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState } from "react";
 import { ledgerClient } from "../client.js";
 import { useRpc } from "../hooks/use-rpc.js";
 import { SearchControls, DATE_PRESETS, PAYEE_NONE } from "../components/search-controls.jsx";

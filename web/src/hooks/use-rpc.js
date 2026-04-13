@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useEffect, useRef } from "react";
 
 export function useRpc(rpcFn, deps = []) {
   const [data, setData] = useState(null);

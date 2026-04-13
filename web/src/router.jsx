@@ -1,4 +1,4 @@
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect } from "react";
 
 function parseHash() {
   const hash = window.location.hash.slice(1) || "/";

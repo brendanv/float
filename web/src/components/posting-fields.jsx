@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "preact/hooks";
+import { useState, useRef, useEffect } from "react";
 
 export function AccountInput({ value, onChange, accounts, placeholder = "Account" }) {
   const [showSuggestions, setShowSuggestions] = useState(false);

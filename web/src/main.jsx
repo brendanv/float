@@ -1,4 +1,4 @@
-import { render } from "preact";
+import { createRoot } from "react-dom/client";
 import { useRoute } from "./router.jsx";
 import { AppShell } from "./components/app-shell.jsx";
 import { HomePage } from "./pages/home.jsx";
@@ -47,4 +47,4 @@ function App() {
   return <AppShell currentPath={path}>{page}</AppShell>;
 }
 
-render(<App />, document.getElementById("app"));
+createRoot(document.getElementById("app")).render(<App />);

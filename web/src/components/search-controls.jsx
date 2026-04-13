@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "react";
 
 function pad2(n) {
   return n < 10 ? "0" + n : "" + n;
