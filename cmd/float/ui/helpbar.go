@@ -188,3 +188,16 @@ func (RulesDeleteKeyMap) ShortHelp() []key.Binding {
 func (RulesDeleteKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keyConfirm, keyEsc}}
 }
+
+// SettingsKeyMap is for the settings tab.
+type SettingsKeyMap struct{}
+
+func (SettingsKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyHelp}
+}
+func (SettingsKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyExpand},
+	}
+}

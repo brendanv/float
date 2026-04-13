@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	TabHome    = 0
-	TabManager = 1
-	TabTrends  = 2
-	TabRules   = 3
-	numTabs    = 4
+	TabHome     = 0
+	TabManager  = 1
+	TabTrends   = 2
+	TabRules    = 3
+	TabSettings = 4
+	numTabs     = 5
 )
 
 // Model is the root Bubbletea model for the float TUI.
@@ -22,28 +23,34 @@ type Model struct {
 	height    int
 	activeTab int
 	hasDark   bool
+	theme     Theme
 	styles    Styles
 	helpModel help.Model
 	home      HomeTab
 	manager   ManagerTab
 	trends    TrendsTab
 	rules     RulesTab
+	settings  SettingsTab
 	client    floatv1connect.LedgerServiceClient
 }
 
 // New creates the root model with the given gRPC client.
 // Styles default to dark-background until BackgroundColorMsg is received.
+// The saved theme is loaded from the TUI config file.
 func New(client floatv1connect.LedgerServiceClient) Model {
-	st := NewStyles(true)
+	theme := LoadTUITheme()
+	st := NewStylesWithTheme(theme, true)
 	return Model{
 		client:    client,
 		hasDark:   true,
+		theme:     theme,
 		styles:    st,
 		helpModel: NewHelpModel(st),
 		home:      NewHomeTab(client, st),
 		manager:   NewManagerTab(client, st),
 		trends:    NewTrendsTab(client, st),
 		rules:     NewRulesTab(client, st),
+		settings:  NewSettingsTab(st, theme),
 	}
 }
 
@@ -54,6 +61,7 @@ func (m Model) Init() tea.Cmd {
 		m.manager.Init(),
 		m.trends.Init(),
 		m.rules.Init(),
+		m.settings.Init(),
 	)
 }
 
@@ -66,6 +74,8 @@ func (m Model) activeKeyMap() help.KeyMap {
 		return m.manager.KeyMap()
 	case TabRules:
 		return m.rules.KeyMap()
+	case TabSettings:
+		return m.settings.KeyMap()
 	default:
 		return m.trends.KeyMap()
 	}
@@ -82,16 +92,18 @@ func (m *Model) resizeAll() {
 	m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
 	m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
 	m.rules = m.rules.SetSize(m.width, layout.ContentHeight)
+	m.settings = m.settings.SetSize(m.width, layout.ContentHeight)
 }
 
-// applyStyles rebuilds and propagates styles for the current hasDark value.
+// applyStyles rebuilds and propagates styles for the current theme/hasDark.
 func (m *Model) applyStyles() {
-	m.styles = NewStyles(m.hasDark)
+	m.styles = NewStylesWithTheme(m.theme, m.hasDark)
 	m.helpModel = NewHelpModel(m.styles)
 	m.home = m.home.setStyles(m.styles)
 	m.manager = m.manager.setStyles(m.styles)
 	m.trends = m.trends.setStyles(m.styles)
 	m.rules = m.rules.setStyles(m.styles)
+	m.settings = m.settings.setStyles(m.styles)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -102,6 +114,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.applyStyles()
 			m.resizeAll() // border widths are style-independent, but triggers re-layout
 		}
+		return m, nil
+
+	case ThemeSelectedMsg:
+		m.theme = msg.Theme
+		saveTUITheme(m.theme)
+		m.applyStyles()
+		m.settings = m.settings.setApplied(m.theme)
+		m.resizeAll()
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -156,14 +176,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.rules, cmd = m.rules.Update(msg)
 			return m, cmd
+		case TabSettings:
+			var cmd tea.Cmd
+			m.settings, cmd = m.settings.Update(msg)
+			return m, cmd
 		}
 	default:
-		var cmd1, cmd2, cmd3, cmd4 tea.Cmd
+		var cmd1, cmd2, cmd3, cmd4, cmd5 tea.Cmd
 		m.home, cmd1 = m.home.Update(msg)
 		m.manager, cmd2 = m.manager.Update(msg)
 		m.trends, cmd3 = m.trends.Update(msg)
 		m.rules, cmd4 = m.rules.Update(msg)
-		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4)
+		m.settings, cmd5 = m.settings.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5)
 	}
 	return m, nil
 }
@@ -194,6 +219,8 @@ func (m Model) View() tea.View {
 		content = m.trends.View()
 	case TabRules:
 		content = m.rules.View()
+	case TabSettings:
+		content = m.settings.View()
 	}
 
 	v.Content = lipgloss.JoinVertical(lipgloss.Left, tabBar, content, helpBar)
