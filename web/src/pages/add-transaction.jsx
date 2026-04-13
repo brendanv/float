@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState } from "react";
 import { ledgerClient } from "../client.js";
 import { useRpc } from "../hooks/use-rpc.js";
 import { PostingFields } from "../components/posting-fields.jsx";

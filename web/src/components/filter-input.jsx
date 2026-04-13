@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useEffect, useRef } from "react";
 
 export function FilterInput({ value, onChange }) {
   const [local, setLocal] = useState(value || "");
