@@ -4,6 +4,18 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -51,107 +63,111 @@ export function PricesPage() {
   }
 
   return (
-    <div class="space-y-6">
-      <h2 class="text-2xl font-bold">Commodity Prices</h2>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Commodity Prices</h2>
 
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <h3 class="card-title text-base">Add Price</h3>
-          <form onSubmit={handleSubmit} class="flex flex-wrap gap-3 items-end">
-            <label class="form-control w-full sm:w-36">
-              <div class="label"><span class="label-text">Date</span></div>
-              <input
+      <Card>
+        <CardHeader>
+          <CardTitle>Add Price</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
+            <div className="w-full space-y-1.5 sm:w-36">
+              <Label htmlFor="price-date">Date</Label>
+              <Input
+                id="price-date"
                 type="date"
-                class="input input-bordered input-sm"
                 value={date}
-                onInput={(e) => setDate(e.target.value)}
+                onChange={(e) => setDate(e.target.value)}
                 required
               />
-            </label>
-            <label class="form-control w-full sm:w-32">
-              <div class="label"><span class="label-text">Commodity</span></div>
-              <input
+            </div>
+            <div className="w-full space-y-1.5 sm:w-32">
+              <Label htmlFor="price-commodity">Commodity</Label>
+              <Input
+                id="price-commodity"
                 type="text"
-                class="input input-bordered input-sm"
                 placeholder="AAPL"
                 value={commodity}
-                onInput={(e) => setCommodity(e.target.value)}
+                onChange={(e) => setCommodity(e.target.value)}
                 required
               />
-            </label>
-            <label class="form-control w-full sm:w-32">
-              <div class="label"><span class="label-text">Price</span></div>
-              <input
+            </div>
+            <div className="w-full space-y-1.5 sm:w-32">
+              <Label htmlFor="price-quantity">Price</Label>
+              <Input
+                id="price-quantity"
                 type="text"
-                class="input input-bordered input-sm"
                 placeholder="178.50"
                 value={quantity}
-                onInput={(e) => setQuantity(e.target.value)}
+                onChange={(e) => setQuantity(e.target.value)}
                 required
               />
-            </label>
-            <label class="form-control w-full sm:w-24">
-              <div class="label"><span class="label-text">Currency</span></div>
-              <input
+            </div>
+            <div className="w-full space-y-1.5 sm:w-24">
+              <Label htmlFor="price-currency">Currency</Label>
+              <Input
+                id="price-currency"
                 type="text"
-                class="input input-bordered input-sm"
                 value={currency}
-                onInput={(e) => setCurrency(e.target.value)}
+                onChange={(e) => setCurrency(e.target.value)}
                 required
               />
-            </label>
-            <button type="submit" class="btn btn-primary btn-sm" disabled={addMutation.isPending}>
+            </div>
+            <Button type="submit" disabled={addMutation.isPending}>
               {addMutation.isPending ? "Adding…" : "Add"}
-            </button>
+            </Button>
           </form>
-          {formError && <ErrorBanner error={formError} />}
-        </div>
-      </div>
+          {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
+        </CardContent>
+      </Card>
 
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <h3 class="card-title text-base">Price History</h3>
+      <Card>
+        <CardHeader>
+          <CardTitle>Price History</CardTitle>
+        </CardHeader>
+        <CardContent>
           {isLoading && <Loading />}
           {fetchError && <ErrorBanner error={fetchError} />}
           {pricesData && (
             pricesData.prices?.length > 0 ? (
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Commodity</th>
-                      <th>Price</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...pricesData.prices].reverse().map((p) => (
-                      <tr key={p.pid}>
-                        <td class="font-mono">{p.date}</td>
-                        <td class="font-mono font-semibold">{p.commodity}</td>
-                        <td class="font-mono">{p.price?.quantity} {p.price?.commodity}</td>
-                        <td>
-                          {p.pid && (
-                            <button
-                              class="btn btn-ghost btn-xs text-error"
-                              onClick={() => handleDelete(p.pid)}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Commodity</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...pricesData.prices].reverse().map((p) => (
+                    <TableRow key={p.pid}>
+                      <TableCell className="font-mono">{p.date}</TableCell>
+                      <TableCell className="font-mono font-semibold">{p.commodity}</TableCell>
+                      <TableCell className="font-mono">{p.price?.quantity} {p.price?.commodity}</TableCell>
+                      <TableCell>
+                        {p.pid && (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            className="text-destructive"
+                            onClick={() => handleDelete(p.pid)}
+                          >
+                            Delete
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             ) : (
-              <p class="text-base-content/50 text-sm">No prices recorded yet.</p>
+              <p className="text-sm text-muted-foreground">No prices recorded yet.</p>
             )
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

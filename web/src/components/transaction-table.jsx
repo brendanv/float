@@ -1,8 +1,23 @@
 import { useState, useRef } from "react";
+import { Check, Loader2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { formatAmounts, formatDate } from "../format.js";
 import { PostingFields } from "./posting-fields.jsx";
 import { useNavigate } from "@tanstack/react-router";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 function firstQuantity(posting) {
   if (!posting.amounts || posting.amounts.length === 0) return 0;
@@ -56,14 +71,6 @@ function accountRegisterDisplay(tx, focusedAccount) {
   return { otherAccounts, amount };
 }
 
-function CheckIcon() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
 function StatusButton({ fid, status, onStatusChange }) {
   const [updating, setUpdating] = useState(false);
 
@@ -84,26 +91,29 @@ function StatusButton({ fid, status, onStatusChange }) {
   const title = isReviewed ? "Reviewed — click to mark pending" : "Unreviewed — click to mark reviewed";
 
   return (
-    <button
-      class="btn btn-ghost btn-xs btn-circle"
+    <Button
+      variant="ghost"
+      size="icon-xs"
       onClick={handleClick}
       disabled={updating}
       title={title}
+      className="rounded-full"
     >
-      {updating
-        ? <span class="loading loading-spinner loading-xs" />
-        : <span class={isReviewed ? "text-success" : "text-base-content/25"}><CheckIcon /></span>
-      }
-    </button>
+      {updating ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <Check className={isReviewed ? "text-success" : "text-muted-foreground/40"} />
+      )}
+    </Button>
   );
 }
 
 function EditableDescriptionCell({ fid, description, date, postings, payee, note, onSaved }) {
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
-   const [draft, setDraft] = useState(description);
-   const [saving, setSaving] = useState(false);
-   const [error, setError] = useState(null);
+  const [draft, setDraft] = useState(description);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   async function save() {
     if (draft.trim() === description) { setEditing(false); return; }
@@ -133,20 +143,19 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
   if (editing) {
     return (
       <span onClick={(e) => e.stopPropagation()}>
-        {saving
-          ? <span class="loading loading-spinner loading-xs" />
-          : (
-            <input
-              class="input input-bordered input-xs w-full"
-              value={draft}
-              onInput={(e) => setDraft(e.target.value)}
-              onBlur={save}
-              onKeyDown={handleKeyDown}
-              autoFocus
-            />
-          )
-        }
-        {error && <span class="text-error text-xs block mt-1">{error}</span>}
+        {saving ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <Input
+            className="h-6 w-full"
+            value={draft}
+            onInput={(e) => setDraft(e.target.value)}
+            onBlur={save}
+            onKeyDown={handleKeyDown}
+            autoFocus
+          />
+        )}
+        {error && <span className="mt-1 block text-xs text-destructive">{error}</span>}
       </span>
     );
   }
@@ -154,17 +163,17 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
   return (
     <span
       onClick={(e) => { e.stopPropagation(); setDraft(description); setEditing(true); }}
-      class="cursor-text hover:underline decoration-dotted"
+      className="cursor-text decoration-dotted hover:underline"
       title="Click to edit description"
     >
       {payee ? (
         <>
           <strong
-            class="cursor-pointer hover:underline"
+            className="cursor-pointer hover:underline"
             onClick={(e) => { e.stopPropagation(); navigate({ to: "/transactions", search: { payee } }); }}
             title={"Show all transactions for " + payee}
           >{payee}</strong>
-          {note && <span class="text-base-content/60"> · {note}</span>}
+          {note && <span className="text-muted-foreground"> · {note}</span>}
         </>
       ) : (
         description
@@ -213,15 +222,16 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
   return (
     <div
       ref={containerRef}
-      class="p-3"
+      className="p-3"
       onClick={(e) => e.stopPropagation()}
       onFocusOut={handleFocusOut}
     >
-      {saving
-        ? <span class="loading loading-spinner loading-xs" />
-        : <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
-      }
-      {error && <p class="text-error text-xs mt-2">{error}</p>}
+      {saving ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
+      )}
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -232,15 +242,14 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
 
   if (!transactions || transactions.length === 0) {
-    return <p class="text-base-content/60 py-4">No transactions for this period.</p>;
+    return <p className="py-4 text-muted-foreground">No transactions for this period.</p>;
   }
 
   function toggle(fid) {
     setExpanded(expanded === fid ? null : fid);
   }
 
-  function toggleSelect(e, fid) {
-    e.stopPropagation();
+  function toggleSelect(fid) {
     if (!selectable || !fid) return;
     const next = new Set(selectedFids);
     if (next.has(fid)) {
@@ -255,16 +264,13 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
   const allSelected = selectable && allFids.length > 0 && allFids.every((fid) => selectedFids.has(fid));
   const someSelected = selectable && allFids.some((fid) => selectedFids.has(fid));
 
-  function toggleSelectAll(e) {
-    e.stopPropagation();
+  function toggleSelectAll() {
     if (!selectable) return;
     if (allSelected) {
-      // Deselect all visible
       const next = new Set(selectedFids);
       for (const fid of allFids) next.delete(fid);
       onSelectionChange(next);
     } else {
-      // Select all visible
       const next = new Set(selectedFids);
       for (const fid of allFids) next.add(fid);
       onSelectionChange(next);
@@ -280,7 +286,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
     return generalDisplay(tx);
   }
 
-  // Group transactions by date for DaisyUI alternating thead/tbody pattern
+  // Group transactions by date
   const dateGroups = [];
   let currentGroup = null;
   let txIndex = 0;
@@ -297,38 +303,36 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
   return (
     <div>
       {/* Desktop table */}
-      <div class="hidden sm:block overflow-x-auto overflow-y-auto max-h-[calc(100vh-14rem)]">
-        <table class="table table-pin-rows table-zebra table-sm w-full">
-          <thead>
-            <tr>
+      <div className="hidden max-h-[calc(100vh-14rem)] overflow-x-auto overflow-y-auto sm:block">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-background">
+            <TableRow>
               {selectable && (
-                <th class="w-6 pr-0">
-                  <input
-                    type="checkbox"
-                    class="checkbox checkbox-xs"
+                <TableHead className="w-6 pr-0">
+                  <Checkbox
                     checked={allSelected}
                     indeterminate={!allSelected && someSelected}
-                    onChange={toggleSelectAll}
+                    onCheckedChange={toggleSelectAll}
                     onClick={(e) => e.stopPropagation()}
                     title={allSelected ? "Deselect all" : "Select all"}
                   />
-                </th>
+                </TableHead>
               )}
-              <th class="w-8"></th>
-              <th>Description</th>
-              <th>{isAccountRegister ? "Other accounts" : "From \u2192 To"}</th>
-              <th class="text-right">Amount</th>
-            </tr>
-          </thead>
+              <TableHead className="w-8"></TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>{isAccountRegister ? "Other accounts" : "From \u2192 To"}</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
           {dateGroups.map((group) => [
-            <thead key={"date-" + group.date}>
-              <tr>
-                <th colSpan={colSpan} class="font-mono text-[10px] font-normal text-base-content/60 py-0.5">
+            <TableHeader key={"date-" + group.date}>
+              <TableRow>
+                <TableHead colSpan={colSpan} className="py-1 font-mono text-[10px] font-normal text-muted-foreground">
                   {formatDate(group.date)}
-                </th>
-              </tr>
-            </thead>,
-            <tbody key={"body-" + group.date}>
+                </TableHead>
+              </TableRow>
+            </TableHeader>,
+            <TableBody key={"body-" + group.date}>
               {group.txs.map(({ tx, index }) => {
                 const display = resolveDisplay(tx);
                 const accountCell = isAccountRegister
@@ -338,25 +342,26 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                 const key = tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index;
                 const isSelected = selectable && tx.fid && selectedFids.has(tx.fid);
                 return [
-                  <tr
+                  <TableRow
                     key={key}
                     onClick={() => toggle(tx.fid)}
-                    class={"cursor-pointer hover" + (isSelected ? " !bg-primary/10" : "")}
+                    className={cn(
+                      "cursor-pointer",
+                      isSelected && "bg-primary/10 hover:bg-primary/15",
+                    )}
                   >
                     {selectable && (
-                      <td class="w-6 pr-0" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          class="checkbox checkbox-xs"
+                      <TableCell className="w-6 pr-0" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
                           checked={isSelected}
-                          onChange={(e) => toggleSelect(e, tx.fid)}
+                          onCheckedChange={() => toggleSelect(tx.fid)}
                         />
-                      </td>
+                      </TableCell>
                     )}
-                    <td class="w-8 pr-0">
+                    <TableCell className="w-8 pr-0">
                       <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
                       <EditableDescriptionCell
                         fid={tx.fid}
                         description={tx.description}
@@ -367,36 +372,36 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                         onSaved={onStatusChange}
                       />
                       {tx.tags && Object.keys(tx.tags).length > 0 && (
-                        <span class="ml-2 inline-flex flex-wrap gap-1">
+                        <span className="ml-2 inline-flex flex-wrap gap-1">
                           {Object.entries(tx.tags).map(([k, v]) => (
-                            <span key={k} class="badge badge-soft badge-sm badge-primary">
+                            <Badge key={k} variant="secondary" className="text-xs">
                               {v ? `${k}:${v}` : k}
-                            </span>
+                            </Badge>
                           ))}
                         </span>
                       )}
-                    </td>
-                    <td class="text-sm text-base-content/70">{accountCell}</td>
-                    <td class="text-right whitespace-nowrap font-mono text-sm">{amountCell}</td>
-                  </tr>,
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{accountCell}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-mono text-sm">{amountCell}</TableCell>
+                  </TableRow>,
                   expanded === tx.fid && (
-                    <tr key={key + "-detail"} class="bg-base-200">
-                      <td colSpan={colSpan} class="p-0">
+                    <TableRow key={key + "-detail"} className="bg-muted/30 hover:bg-muted/30">
+                      <TableCell colSpan={colSpan} className="p-0">
                         <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ),
                 ];
               })}
-            </tbody>,
+            </TableBody>,
           ])}
-        </table>
+        </Table>
       </div>
 
       {/* Mobile cards */}
-      <div class="sm:hidden space-y-2 overflow-y-auto max-h-[calc(100vh-14rem)]">
+      <div className="max-h-[calc(100vh-14rem)] space-y-2 overflow-y-auto sm:hidden">
         {dateGroups.map((group) => [
-          <div key={"date-" + group.date} class="sticky top-0 z-[1] py-0.5 px-1 font-mono text-[10px] font-semibold text-base-content/60 bg-base-100">
+          <div key={"date-" + group.date} className="sticky top-0 z-[1] bg-background px-1 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
             {formatDate(group.date)}
           </div>,
           ...group.txs.map(({ tx, index }) => {
@@ -407,23 +412,26 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
             const amountCell = display?.amount || "";
             const isSelected = selectable && tx.fid && selectedFids.has(tx.fid);
             return (
-              <div
+              <Card
                 key={tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index}
-                class={"card card-compact bg-base-100 shadow-sm border cursor-pointer" + (isSelected ? " border-primary bg-primary/5" : " border-base-200")}
+                size="sm"
+                className={cn(
+                  "cursor-pointer",
+                  isSelected && "bg-primary/5 ring-primary",
+                )}
                 onClick={() => toggle(tx.fid)}
               >
-                <div class="card-body">
-                  <div class="flex justify-between items-center gap-2">
+                <CardContent className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
                     {selectable && (
-                      <input
-                        type="checkbox"
-                        class="checkbox checkbox-xs shrink-0"
-                        checked={isSelected}
-                        onChange={(e) => toggleSelect(e, tx.fid)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(tx.fid)}
+                        />
+                      </span>
                     )}
-                    <span class="font-medium truncate" onClick={(e) => e.stopPropagation()}>
+                    <span className="truncate font-medium" onClick={(e) => e.stopPropagation()}>
                       <EditableDescriptionCell
                         fid={tx.fid}
                         description={tx.description}
@@ -434,26 +442,26 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                         onSaved={onStatusChange}
                       />
                     </span>
-                    <div class="flex items-center gap-1 shrink-0">
-                      <span class="whitespace-nowrap font-mono text-sm">{amountCell}</span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span className="whitespace-nowrap font-mono text-sm">{amountCell}</span>
                       <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
                     </div>
                   </div>
-                  <div class="text-xs text-base-content/60 truncate">{accountCell}</div>
+                  <div className="truncate text-xs text-muted-foreground">{accountCell}</div>
                   {tx.tags && Object.keys(tx.tags).length > 0 && (
-                    <div class="flex flex-wrap gap-1 mt-1">
+                    <div className="mt-1 flex flex-wrap gap-1">
                       {Object.entries(tx.tags).map(([k, v]) => (
-                        <span key={k} class="badge badge-soft badge-sm badge-primary">
+                        <Badge key={k} variant="secondary" className="text-xs">
                           {v ? `${k}:${v}` : k}
-                        </span>
+                        </Badge>
                       ))}
                     </div>
                   )}
                   {expanded === tx.fid && (
                     <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
                   )}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             );
           }),
         ])}

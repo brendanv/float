@@ -5,6 +5,9 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend);
 
@@ -44,11 +47,13 @@ function formatLabel(dateStr) {
 
 function StatCard({ title, value, desc, valueClass }) {
   return (
-    <div class="stat">
-      <div class="stat-title">{title}</div>
-      <div class={`stat-value text-2xl ${valueClass || ""}`}>{value}</div>
-      {desc && <div class="stat-desc">{desc}</div>}
-    </div>
+    <Card className="flex-1">
+      <CardContent>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">{title}</div>
+        <div className={cn("mt-1 font-mono text-2xl font-semibold", valueClass)}>{value}</div>
+        {desc && <div className="mt-1 text-xs text-muted-foreground">{desc}</div>}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -134,7 +139,7 @@ function NetWorthChart({ snapshots }) {
   }, [snapshots]);
 
   return (
-    <div class="trends-chart" style={{ position: "relative", height: "320px" }}>
+    <div className="trends-chart" style={{ position: "relative", height: "320px" }}>
       <canvas ref={canvasRef} />
     </div>
   );
@@ -167,18 +172,19 @@ export function TrendsPage() {
     : null;
 
   return (
-    <div class="space-y-6">
-      <div class="flex items-center justify-between">
-        <h2 class="text-xl font-bold">Trends</h2>
-        <div class="join">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">Trends</h2>
+        <div className="flex gap-1">
           {RANGES.map((r, i) => (
-            <button
+            <Button
               key={r.label}
-              class={`join-item btn btn-sm ${rangeIdx === i ? "btn-primary" : "btn-ghost"}`}
+              size="sm"
+              variant={rangeIdx === i ? "default" : "ghost"}
               onClick={() => setRangeIdx(i)}
             >
               {r.label}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -188,35 +194,35 @@ export function TrendsPage() {
 
       {!isLoading && !error && (
         <>
-          <div class="stats shadow w-full">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <StatCard
               title="Current Net Worth"
               value={currentNetWorth !== null ? formatCurrency(currentNetWorth) : "—"}
-              valueClass={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-error"}
+              valueClass={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-destructive"}
             />
             <StatCard
               title="Change This Month"
               value={monthChange !== null ? formatCurrency(monthChange) : "—"}
-              valueClass={monthChange !== null && monthChange >= 0 ? "text-success" : "text-error"}
+              valueClass={monthChange !== null && monthChange >= 0 ? "text-success" : "text-destructive"}
               desc={monthChange !== null && monthChange >= 0 ? "▲ vs last month" : "▼ vs last month"}
             />
             <StatCard
               title="YTD Change"
               value={ytdChange !== null ? formatCurrency(ytdChange) : "—"}
-              valueClass={ytdChange !== null && ytdChange >= 0 ? "text-success" : "text-error"}
+              valueClass={ytdChange !== null && ytdChange >= 0 ? "text-success" : "text-destructive"}
               desc={ytdChange !== null && ytdChange >= 0 ? "▲ since Jan 1" : "▼ since Jan 1"}
             />
           </div>
 
-          <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
+          <Card>
+            <CardContent>
               {snapshots.length === 0 ? (
-                <p class="text-base-content/60 text-sm">No data available for this period.</p>
+                <p className="text-sm text-muted-foreground">No data available for this period.</p>
               ) : (
                 <NetWorthChart snapshots={snapshots} />
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

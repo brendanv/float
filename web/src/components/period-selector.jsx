@@ -1,3 +1,5 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { monthName } from "../format.js";
 
 export function PeriodSelector({ year, month, onChange }) {
@@ -18,18 +20,16 @@ export function PeriodSelector({ year, month, onChange }) {
   }
 
   return (
-    <div class="flex items-center mb-4">
-      <div class="join">
-        <button class="btn btn-ghost btn-sm join-item" onClick={prev}>
-          &lsaquo;
-        </button>
-        <button class="btn btn-ghost btn-sm join-item pointer-events-none min-w-32 sm:min-w-40 font-semibold">
-          {monthName(month)} {year}
-        </button>
-        <button class="btn btn-ghost btn-sm join-item" onClick={next}>
-          &rsaquo;
-        </button>
-      </div>
+    <div className="mb-4 flex items-center gap-1">
+      <Button variant="ghost" size="icon-sm" onClick={prev} aria-label="Previous month">
+        <ChevronLeft />
+      </Button>
+      <span className="min-w-32 text-center text-sm font-semibold sm:min-w-40">
+        {monthName(month)} {year}
+      </span>
+      <Button variant="ghost" size="icon-sm" onClick={next} aria-label="Next month">
+        <ChevronRight />
+      </Button>
     </div>
   );
 }

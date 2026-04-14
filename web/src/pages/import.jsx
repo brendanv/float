@@ -1,9 +1,41 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_RULES_CONTENT = `# hledger CSV import rules
 # See: https://hledger.org/hledger.html#csv-rules-files
@@ -26,7 +58,7 @@ account1 assets:checking
 #   account2 income:salary
 `;
 
-function CreateProfileModal({ onCreated, onClose }) {
+function CreateProfileModal({ open, onCreated, onClose }) {
   const [name, setName] = useState("");
   const [rulesFile, setRulesFile] = useState("rules/");
   const [rulesContent, setRulesContent] = useState(DEFAULT_RULES_CONTENT);
@@ -52,57 +84,60 @@ function CreateProfileModal({ onCreated, onClose }) {
   }
 
   return (
-    <dialog class="modal modal-open">
-      <div class="modal-box w-11/12 max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">Create Bank Profile</h3>
-        <form onSubmit={handleSubmit} class="space-y-4">
-          <label class="form-control w-full">
-            <div class="label"><span class="label-text">Profile Name</span></div>
-            <input
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Create Bank Profile</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="profile-name">Profile Name</Label>
+            <Input
+              id="profile-name"
               type="text"
-              class="input input-bordered input-sm"
               placeholder="e.g. Chase Checking"
               value={name}
-              onInput={(e) => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               required
             />
-          </label>
-          <label class="form-control w-full">
-            <div class="label">
-              <span class="label-text">Rules File Path</span>
-              <span class="label-text-alt text-base-content/60">relative to data dir</span>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="rules-file">Rules File Path</Label>
+              <span className="text-xs text-muted-foreground">relative to data dir</span>
             </div>
-            <input
+            <Input
+              id="rules-file"
               type="text"
-              class="input input-bordered input-sm font-mono"
+              className="font-mono"
               placeholder="rules/my-bank.rules"
               value={rulesFile}
-              onInput={(e) => setRulesFile(e.target.value)}
+              onChange={(e) => setRulesFile(e.target.value)}
               required
             />
-          </label>
-          <label class="form-control w-full">
-            <div class="label">
-              <span class="label-text">Rules File Content</span>
-              <span class="label-text-alt text-base-content/60">hledger CSV import rules</span>
-            </div>
-            <textarea
-              class="textarea textarea-bordered font-mono text-xs h-64"
-              value={rulesContent}
-              onInput={(e) => setRulesContent(e.target.value)}
-            />
-          </label>
-          {error && <ErrorBanner error={error} />}
-          <div class="modal-action">
-            <button type="button" class="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
-            <button type="submit" class="btn btn-primary btn-sm" disabled={saving}>
-              {saving ? "Creating…" : "Create Profile"}
-            </button>
           </div>
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="rules-content">Rules File Content</Label>
+              <span className="text-xs text-muted-foreground">hledger CSV import rules</span>
+            </div>
+            <Textarea
+              id="rules-content"
+              className="h-64 font-mono text-xs"
+              value={rulesContent}
+              onChange={(e) => setRulesContent(e.target.value)}
+            />
+          </div>
+          {error && <ErrorBanner error={error} />}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Creating…" : "Create Profile"}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-      <div class="modal-backdrop" onClick={onClose} />
-    </dialog>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -210,158 +245,165 @@ export function ImportPage() {
   const newCount = candidates ? candidates.filter((c) => !c.isDuplicate).length : 0;
 
   return (
-    <div class="space-y-6">
-      <h2 class="text-2xl font-bold">Import Transactions</h2>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Import Transactions</h2>
 
       {/* Upload form */}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <h3 class="card-title text-base">Upload CSV</h3>
-          <form onSubmit={handlePreview} class="flex flex-wrap gap-3 items-end">
-            <label class="form-control w-full sm:w-56">
-              <div class="label"><span class="label-text">Bank Profile</span></div>
-              <div class="flex gap-2 items-center">
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload CSV</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handlePreview} className="flex flex-wrap items-end gap-3">
+            <div className="w-full space-y-1.5 sm:w-56">
+              <Label>Bank Profile</Label>
+              <div className="flex items-center gap-2">
                 {profilesLoading ? (
-                  <select class="select select-bordered select-sm flex-1" disabled>
-                    <option>Loading…</option>
-                  </select>
+                  <Select disabled value="">
+                    <SelectTrigger size="sm" className="flex-1">
+                      <SelectValue>Loading…</SelectValue>
+                    </SelectTrigger>
+                  </Select>
                 ) : (
-                  <select
-                    class="select select-bordered select-sm flex-1"
-                    value={selectedProfile}
-                    onChange={(e) => setSelectedProfile(e.target.value)}
-                    required
+                  <Select
+                    value={selectedProfile || undefined}
+                    onValueChange={setSelectedProfile}
                   >
-                    <option value="">Select profile…</option>
-                    {(profilesData?.profiles ?? []).map((p) => (
-                      <option key={p.name} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger size="sm" className="flex-1">
+                      <SelectValue placeholder="Select profile…">
+                        {selectedProfile || "Select profile…"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(profilesData?.profiles ?? []).map((p) => (
+                        <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
-                <button
+                <Button
                   type="button"
-                  class="btn btn-ghost btn-sm btn-square"
+                  variant="ghost"
+                  size="icon-sm"
                   title="Create new bank profile"
                   onClick={() => setShowCreateModal(true)}
                 >
-                  +
-                </button>
+                  <Plus />
+                </Button>
               </div>
-            </label>
-            <label class="form-control w-full sm:w-auto flex-1">
-              <div class="label"><span class="label-text">CSV File</span></div>
-              <input
+            </div>
+            <div className="w-full flex-1 space-y-1.5 sm:w-auto">
+              <Label htmlFor="csv-file">CSV File</Label>
+              <Input
+                id="csv-file"
                 type="file"
                 accept=".csv,text/csv"
-                class="file-input file-input-bordered file-input-sm"
                 onChange={(e) => setCsvFile(e.target.files[0] || null)}
                 required
               />
-            </label>
-            <button
+            </div>
+            <Button
               type="submit"
-              class="btn btn-primary btn-sm"
               disabled={previewing || !csvFile || !selectedProfile}
             >
               {previewing ? "Previewing…" : "Preview"}
-            </button>
+            </Button>
           </form>
-          {previewError && <ErrorBanner error={previewError} />}
-          {profilesError && <ErrorBanner error={profilesError} />}
-        </div>
-      </div>
+          {previewError && <div className="mt-3"><ErrorBanner error={previewError} /></div>}
+          {profilesError && <div className="mt-3"><ErrorBanner error={profilesError} /></div>}
+        </CardContent>
+      </Card>
 
       {/* Import result */}
       {importResult && (
-        <div class="alert alert-success">
-          Imported {importResult.importedCount} transaction(s) successfully.
-        </div>
+        <Alert>
+          <CircleCheck className="h-4 w-4 text-success" />
+          <AlertDescription>
+            Imported {importResult.importedCount} transaction(s) successfully.
+          </AlertDescription>
+        </Alert>
       )}
       {importError && <ErrorBanner error={importError} />}
 
       {/* Preview table */}
       {candidates && (
-        <div class="card bg-base-100 shadow-sm">
-          <div class="card-body">
-            <div class="flex items-center justify-between gap-4 flex-wrap">
-              <h3 class="card-title text-base">
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <CardTitle>
                 Preview — {candidates.length} transaction(s), {newCount} new
-              </h3>
-              <div class="flex gap-2">
-                <button class="btn btn-ghost btn-sm" onClick={toggleAll}>
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={toggleAll}>
                   {selectedIndices.size === newCount ? "Deselect All" : "Select All New"}
-                </button>
-                <button
-                  class="btn btn-primary btn-sm"
+                </Button>
+                <Button
+                  size="sm"
                   onClick={handleImport}
                   disabled={importing || selectedIndices.size === 0}
                 >
                   {importing ? "Importing…" : `Import ${selectedIndices.size} Selected`}
-                </button>
+                </Button>
               </div>
             </div>
-
-            <div class="overflow-x-auto">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th></th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Postings</th>
-                    <th>Rule</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {candidates.map((c, i) => (
-                    <tr key={i} class={c.isDuplicate ? "opacity-50" : ""}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          class="checkbox checkbox-sm"
-                          checked={selectedIndices.has(i)}
-                          disabled={c.isDuplicate}
-                          onChange={() => toggleCandidate(i)}
-                        />
-                      </td>
-                      <td>
-                        <span class={`badge badge-sm ${c.isDuplicate ? "badge-neutral" : "badge-success"}`}>
-                          {c.isDuplicate ? "DUP" : "NEW"}
-                        </span>
-                      </td>
-                      <td class="whitespace-nowrap">{c.transaction?.date}</td>
-                      <td>{c.transaction?.description}</td>
-                      <td class="text-xs">
-                        {(c.transaction?.postings ?? []).map((p, j) => (
-                          <div key={j}>
-                            {p.account}
-                            {p.amounts?.[0] && (
-                              <span class="text-base-content/60 ml-1">
-                                {p.amounts[0].commodity}{p.amounts[0].quantity}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </td>
-                      <td class="text-xs text-base-content/60">
-                        {c.matchedRuleId || "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead></TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Postings</TableHead>
+                  <TableHead>Rule</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {candidates.map((c, i) => (
+                  <TableRow key={i} className={cn(c.isDuplicate && "opacity-50")}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIndices.has(i)}
+                        disabled={c.isDuplicate}
+                        onCheckedChange={() => toggleCandidate(i)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={c.isDuplicate ? "secondary" : "default"}>
+                        {c.isDuplicate ? "DUP" : "NEW"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{c.transaction?.date}</TableCell>
+                    <TableCell>{c.transaction?.description}</TableCell>
+                    <TableCell className="text-xs">
+                      {(c.transaction?.postings ?? []).map((p, j) => (
+                        <div key={j}>
+                          {p.account}
+                          {p.amounts?.[0] && (
+                            <span className="ml-1 text-muted-foreground">
+                              {p.amounts[0].commodity}{p.amounts[0].quantity}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {c.matchedRuleId || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
-      {showCreateModal && (
-        <CreateProfileModal
-          onCreated={handleProfileCreated}
-          onClose={() => setShowCreateModal(false)}
-        />
-      )}
+      <CreateProfileModal
+        open={showCreateModal}
+        onCreated={handleProfileCreated}
+        onClose={() => setShowCreateModal(false)}
+      />
     </div>
   );
 }

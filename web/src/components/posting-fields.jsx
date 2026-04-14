@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { X, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export function AccountInput({ value, onChange, accounts, placeholder = "Account" }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -37,8 +40,8 @@ export function AccountInput({ value, onChange, accounts, placeholder = "Account
   }
 
   return (
-    <div ref={wrapperRef} class="relative flex-1">
-      <input
+    <div ref={wrapperRef} className="relative flex-1">
+      <Input
         type="text"
         placeholder={placeholder}
         value={value}
@@ -51,15 +54,14 @@ export function AccountInput({ value, onChange, accounts, placeholder = "Account
             setShowSuggestions(true);
           }
         }}
-        class="input input-bordered input-sm w-full"
       />
       {showSuggestions && filtered.length > 0 && (
-        <ul class="absolute top-full left-0 right-0 z-10 bg-base-100 border border-base-300 rounded-box shadow-lg max-h-48 overflow-y-auto p-1">
+        <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-popover p-1 shadow-md ring-1 ring-foreground/10">
           {filtered.map((a) => (
             <li
               key={a.fullName}
               onClick={() => select(a.fullName)}
-              class="px-3 py-2 text-sm cursor-pointer rounded hover:bg-base-200"
+              className="cursor-pointer rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
             >
               {a.fullName}
             </li>
@@ -88,34 +90,36 @@ export function PostingFields({ postings, onChange, accounts }) {
   }
 
   return (
-    <div class="space-y-2">
+    <div className="space-y-2">
       {postings.map((p, i) => (
-        <div key={i} class="flex gap-2 items-start">
+        <div key={i} className="flex items-start gap-2">
           <AccountInput
             value={p.account}
             onChange={(v) => update(i, "account", v)}
             accounts={accounts}
           />
-          <input
+          <Input
             type="text"
             placeholder={i === postings.length - 1 ? "Auto-balance" : "Amount"}
             value={p.amount}
             onInput={(e) => update(i, "amount", e.target.value)}
-            class="input input-bordered input-sm w-24 sm:w-32 shrink-0"
+            className="w-24 shrink-0 sm:w-32"
           />
-          <button
-            class="btn btn-ghost btn-sm shrink-0"
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => removeRow(i)}
             disabled={postings.length <= 2}
             type="button"
+            className="shrink-0"
           >
-            &times;
-          </button>
+            <X />
+          </Button>
         </div>
       ))}
-      <button class="btn btn-ghost btn-sm" onClick={addRow} type="button">
-        + Add posting
-      </button>
+      <Button variant="ghost" size="sm" onClick={addRow} type="button">
+        <Plus /> Add posting
+      </Button>
     </div>
   );
 }
