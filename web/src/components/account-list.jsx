@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { formatAmounts } from "../format.js";
 
 const TYPE_ORDER = ["A", "L", "E", "R", "X"];
@@ -12,7 +13,7 @@ const TYPE_LABELS = {
 
 export function AccountList({ accounts, balanceRows }) {
   if (!accounts || accounts.length === 0) {
-    return <p class="text-base-content/60">No accounts found.</p>;
+    return <p className="text-muted-foreground">No accounts found.</p>;
   }
 
   const balanceMap = {};
@@ -35,30 +36,30 @@ export function AccountList({ accounts, balanceRows }) {
         const group = groups[type];
         if (!group || group.length === 0) return null;
         return (
-          <div key={type} class="mb-6">
-            <h4 class="font-semibold text-sm uppercase tracking-wide text-base-content/60 mb-2">
+          <div key={type} className="mb-6">
+            <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {TYPE_LABELS[type] || type}
             </h4>
-            <table class="table table-sm w-full">
-              <tbody>
+            <Table>
+              <TableBody>
                 {group.map((acct) => (
-                  <tr key={acct.fullName} class="hover">
-                    <td>
+                  <TableRow key={acct.fullName}>
+                    <TableCell className="py-1.5">
                       <Link
                         to="/transactions"
                         search={{ account: acct.fullName }}
-                        class="link link-hover text-sm"
+                        className="text-sm hover:underline"
                       >
                         {acct.fullName}
                       </Link>
-                    </td>
-                    <td class="text-right whitespace-nowrap text-sm font-mono">
+                    </TableCell>
+                    <TableCell className="py-1.5 text-right font-mono text-sm">
                       {formatAmounts(balanceMap[acct.fullName])}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         );
       })}

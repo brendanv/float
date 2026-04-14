@@ -1,4 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Check, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 function pad2(n) {
   return n < 10 ? "0" + n : "" + n;
@@ -168,22 +184,37 @@ export function PeriodBar({ dateFrom, dateTo, onChange }) {
   }
 
   return (
-    <div class="flex items-center gap-2 flex-wrap mb-4">
-      <button class="btn btn-sm btn-ghost" onClick={() => { const r = shiftMonth(dateFrom, -1); onChange(r.from, r.to); }}>‹</button>
-      <span class="text-sm font-medium min-w-32 text-center">{displayLabel()}</span>
-      <button class="btn btn-sm btn-ghost" onClick={() => { const r = shiftMonth(dateFrom, 1); onChange(r.from, r.to); }}>›</button>
-      <div class="flex gap-1 ml-2">
+    <div className="mb-4 flex flex-wrap items-center gap-2">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => { const r = shiftMonth(dateFrom, -1); onChange(r.from, r.to); }}
+        aria-label="Previous month"
+      >
+        <ChevronLeft />
+      </Button>
+      <span className="min-w-32 text-center text-sm font-medium">{displayLabel()}</span>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => { const r = shiftMonth(dateFrom, 1); onChange(r.from, r.to); }}
+        aria-label="Next month"
+      >
+        <ChevronRight />
+      </Button>
+      <div className="ml-2 flex gap-1">
         {presets.map((p) => {
           const { from, to } = p.fn();
           const isActive = from === dateFrom && to === dateTo;
           return (
-            <button
+            <Button
               key={p.label}
-              class={`btn btn-xs ${isActive ? "btn-primary" : "btn-ghost"}`}
+              variant={isActive ? "default" : "ghost"}
+              size="xs"
               onClick={() => onChange(from, to)}
             >
               {p.label}
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -206,20 +237,6 @@ export function SearchControls({
   accounts,
   tags,
 }) {
-  const [dateOpen, setDateOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
-  const dateRef = useRef(null);
-  const quickRef = useRef(null);
-
-  useEffect(() => {
-    function handleClick(e) {
-      if (dateRef.current && !dateRef.current.contains(e.target)) setDateOpen(false);
-      if (quickRef.current && !quickRef.current.contains(e.target)) setQuickOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
   const currentFilters = { dateFrom, dateTo, account, tag, status, payee };
   const activeQuickFilter = QUICK_FILTERS.find(qf => qf.isActive(currentFilters));
 
@@ -231,135 +248,182 @@ export function SearchControls({
   }
 
   return (
-    <div class="mb-4 space-y-2">
+    <div className="mb-4 space-y-2">
       {/* Date range + quick filters row */}
-      <div class="flex flex-wrap items-center gap-1">
-        <button class="btn btn-sm btn-ghost px-2" onClick={() => shiftDate(-1)}>‹</button>
+      <div className="flex flex-wrap items-center gap-1">
+        <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(-1)} aria-label="Previous month">
+          <ChevronLeft />
+        </Button>
 
         {/* Date range dropdown */}
-        <div class="relative" ref={dateRef}>
-          <button
-            class="btn btn-sm font-normal gap-1"
-            onClick={() => { setDateOpen(o => !o); setQuickOpen(false); }}
-          >
-            {formatDateRange(dateFrom, dateTo)}
-            <span class="opacity-40 text-xs">▾</span>
-          </button>
-          {dateOpen && (
-            <div class="absolute top-full left-0 z-50 mt-1 w-56 bg-base-100 border border-base-300 rounded-box shadow-lg py-1">
-              {DATE_PRESETS.map(p => {
-                const { from, to } = p.fn();
-                const isActive = from === dateFrom && to === dateTo;
-                return (
-                  <button
-                    key={p.label}
-                    class={`w-full text-left px-4 py-1.5 text-sm hover:bg-base-200 flex justify-between items-center${isActive ? " font-semibold" : ""}`}
-                    onClick={() => { onDateRangeChange(from, to); setDateOpen(false); }}
-                  >
-                    {p.label}
-                    {isActive && <span class="text-primary text-xs">✓</span>}
-                  </button>
-                );
-              })}
-              <div class="border-t border-base-300 mt-1 pt-2 px-3 pb-2 space-y-1">
-                <div class="text-xs text-base-content/50 mb-1">Custom range</div>
-                <input
-                  type="date"
-                  class="input input-xs input-bordered w-full"
-                  value={dateFrom}
-                  onInput={(e) => onDateRangeChange(e.target.value, dateTo)}
-                />
-                <input
-                  type="date"
-                  class="input input-xs input-bordered w-full"
-                  value={dateTo ? isoExclusiveToInclusive(dateTo) : ""}
-                  onInput={(e) => {
-                    const v = e.target.value;
-                    onDateRangeChange(dateFrom, v ? inclusiveToExclusiveTo(v) : "");
-                  }}
-                />
-              </div>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button variant="outline" size="sm" className="font-normal">
+                {formatDateRange(dateFrom, dateTo)}
+                <span className="text-xs opacity-40">▾</span>
+              </Button>
+            }
+          />
+          <PopoverContent align="start" className="w-56 p-1">
+            {DATE_PRESETS.map(p => {
+              const { from, to } = p.fn();
+              const isActive = from === dateFrom && to === dateTo;
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted",
+                    isActive && "font-semibold",
+                  )}
+                  onClick={() => onDateRangeChange(from, to)}
+                >
+                  {p.label}
+                  {isActive && <Check className="size-3.5 text-primary" />}
+                </button>
+              );
+            })}
+            <div className="mt-1 space-y-1 border-t border-border px-2 pt-2 pb-1">
+              <div className="mb-1 text-xs text-muted-foreground">Custom range</div>
+              <Input
+                type="date"
+                className="h-7 w-full"
+                value={dateFrom}
+                onChange={(e) => onDateRangeChange(e.target.value, dateTo)}
+              />
+              <Input
+                type="date"
+                className="h-7 w-full"
+                value={dateTo ? isoExclusiveToInclusive(dateTo) : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onDateRangeChange(dateFrom, v ? inclusiveToExclusiveTo(v) : "");
+                }}
+              />
             </div>
-          )}
-        </div>
+          </PopoverContent>
+        </Popover>
 
-        <button class="btn btn-sm btn-ghost px-2" onClick={() => shiftDate(1)}>›</button>
+        <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(1)} aria-label="Next month">
+          <ChevronRight />
+        </Button>
 
         {/* Quick filters dropdown */}
         {onQuickFilter && (
-          <div class="relative ml-1" ref={quickRef}>
-            <button
-              class={`btn btn-sm gap-1 ${activeQuickFilter?.label !== "All" ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => { setQuickOpen(o => !o); setDateOpen(false); }}
-            >
-              {activeQuickFilter?.label ?? "Filter"}
-              <span class="opacity-40 text-xs">▾</span>
-            </button>
-            {quickOpen && (
-              <div class="absolute top-full left-0 z-50 mt-1 w-56 bg-base-100 border border-base-300 rounded-box shadow-lg py-1">
-                {QUICK_FILTERS.map(qf => {
-                  const isActive = qf.isActive(currentFilters);
-                  return (
-                    <button
-                      key={qf.label}
-                      class={`w-full text-left px-4 py-1.5 text-sm hover:bg-base-200 flex justify-between items-center${isActive ? " font-semibold" : ""}`}
-                      onClick={() => { onQuickFilter(qf.apply(currentFilters)); setQuickOpen(false); }}
-                      title={qf.description ?? qf.label}
-                    >
-                      {qf.label}
-                      {isActive && <span class="text-primary text-xs">✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant={activeQuickFilter?.label !== "All" ? "default" : "ghost"}
+                  size="sm"
+                  className="ml-1"
+                >
+                  {activeQuickFilter?.label ?? "Filter"}
+                  <span className="text-xs opacity-40">▾</span>
+                </Button>
+              }
+            />
+            <PopoverContent align="start" className="w-56 p-1">
+              {QUICK_FILTERS.map(qf => {
+                const isActive = qf.isActive(currentFilters);
+                return (
+                  <button
+                    key={qf.label}
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted",
+                      isActive && "font-semibold",
+                    )}
+                    onClick={() => onQuickFilter(qf.apply(currentFilters))}
+                    title={qf.description ?? qf.label}
+                  >
+                    {qf.label}
+                    {isActive && <Check className="size-3.5 text-primary" />}
+                  </button>
+                );
+              })}
+            </PopoverContent>
+          </Popover>
         )}
 
-        <div class="join ml-1">
-          <select
-            class="select select-bordered select-sm join-item"
-            value={account}
-            onChange={(e) => onAccountChange(e.target.value)}
+        <div className="ml-1 flex gap-1">
+          <Select
+            value={account || ""}
+            onValueChange={(v) => onAccountChange(v === "__all__" ? "" : v)}
           >
-            <option value="">All accounts</option>
-            {(accounts || []).map((a) => (
-              <option key={a.fullName} value={a.fullName}>{a.fullName}</option>
-            ))}
-          </select>
-          <select
-            class="select select-bordered select-sm join-item"
-            value={tag}
-            onChange={(e) => onTagChange(e.target.value)}
+            <SelectTrigger size="sm">
+              <SelectValue placeholder="All accounts">
+                {account || "All accounts"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All accounts</SelectItem>
+              {(accounts || []).map((a) => (
+                <SelectItem key={a.fullName} value={a.fullName}>{a.fullName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={tag || ""}
+            onValueChange={(v) => onTagChange(v === "__any__" ? "" : v)}
           >
-            <option value="">Any tag</option>
-            {(tags || []).map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
+            <SelectTrigger size="sm">
+              <SelectValue placeholder="Any tag">
+                {tag || "Any tag"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__any__">Any tag</SelectItem>
+              {(tags || []).map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Active filter chips */}
       {(account || tag || payee) && (
-        <div class="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1">
           {payee && (
-            <div class="badge badge-neutral gap-1">
+            <Badge variant="secondary" className="gap-1">
               {payee === PAYEE_NONE ? "no payee set" : `payee: ${payee}`}
-              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onPayeeChange("")} aria-label="Clear payee filter">✕</button>
-            </div>
+              <button
+                type="button"
+                className="cursor-pointer opacity-60 hover:opacity-100"
+                onClick={() => onPayeeChange("")}
+                aria-label="Clear payee filter"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
           )}
           {account && (
-            <div class="badge badge-neutral gap-1">
+            <Badge variant="secondary" className="gap-1">
               acct: {account}
-              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onAccountChange("")} aria-label="Clear account filter">✕</button>
-            </div>
+              <button
+                type="button"
+                className="cursor-pointer opacity-60 hover:opacity-100"
+                onClick={() => onAccountChange("")}
+                aria-label="Clear account filter"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
           )}
           {tag && (
-            <div class="badge badge-neutral gap-1">
+            <Badge variant="secondary" className="gap-1">
               tag: {tag}
-              <button class="cursor-pointer opacity-60 hover:opacity-100" onClick={() => onTagChange("")} aria-label="Clear tag filter">✕</button>
-            </div>
+              <button
+                type="button"
+                className="cursor-pointer opacity-60 hover:opacity-100"
+                onClick={() => onTagChange("")}
+                aria-label="Clear tag filter"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
           )}
         </div>
       )}

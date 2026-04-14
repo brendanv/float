@@ -1,4 +1,20 @@
+import { Card, CardContent } from "@/components/ui/card";
 import { formatAmounts } from "../format.js";
+
+function StatItem({ title, value, valueClass }) {
+  return (
+    <Card className="flex-1">
+      <CardContent>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+          {title}
+        </div>
+        <div className={`mt-1 font-mono text-2xl font-semibold ${valueClass || ""}`}>
+          {value}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function BalanceSummary({ balanceRows }) {
   if (!balanceRows || balanceRows.length === 0) return null;
@@ -12,26 +28,29 @@ export function BalanceSummary({ balanceRows }) {
   const netPositive = netWorth >= 0;
 
   return (
-    <div class="stats shadow mb-6 w-full sm:w-auto">
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row">
       {assets && (
-        <div class="stat">
-          <div class="stat-title">Assets</div>
-          <div class="stat-value text-success text-2xl">{formatAmounts(assets.amounts)}</div>
-        </div>
+        <StatItem
+          title="Assets"
+          value={formatAmounts(assets.amounts)}
+          valueClass="text-success"
+        />
       )}
       {liabilities && (
-        <div class="stat">
-          <div class="stat-title">Liabilities</div>
-          <div class="stat-value text-error text-2xl">{formatAmounts(liabilities.amounts)}</div>
-        </div>
+        <StatItem
+          title="Liabilities"
+          value={formatAmounts(liabilities.amounts)}
+          valueClass="text-destructive"
+        />
       )}
       {assets && liabilities && (
-        <div class="stat">
-          <div class="stat-title">Net Worth</div>
-          <div class={`stat-value text-2xl ${netPositive ? "text-success" : "text-error"}`}>
-            {formatAmounts([{ commodity: assets.amounts[0].commodity, quantity: String(netWorth) }])}
-          </div>
-        </div>
+        <StatItem
+          title="Net Worth"
+          value={formatAmounts([
+            { commodity: assets.amounts[0].commodity, quantity: String(netWorth) },
+          ])}
+          valueClass={netPositive ? "text-success" : "text-destructive"}
+        />
       )}
     </div>
   );

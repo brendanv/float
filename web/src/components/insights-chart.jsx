@@ -14,25 +14,25 @@ function BarChart({ rows, colorClass }) {
   const maxVal = Math.max(...rows.map((r) => parseAmount(r.amounts)), 1);
 
   return (
-    <div class="space-y-1">
+    <div className="space-y-1">
       {rows.map((row) => {
         const val = parseAmount(row.amounts);
         const pct = (val / maxVal) * 100;
         return (
-          <div key={row.fullName} class="flex items-center gap-2">
+          <div key={row.fullName} className="flex items-center gap-2">
             <span
-              class="flex-none w-2/5 text-right text-xs text-base-content/70 truncate pr-1"
+              className="w-2/5 flex-none truncate pr-1 text-right text-xs text-muted-foreground"
               title={row.fullName}
             >
               {row.displayName || row.fullName}
             </span>
-            <div class="flex-1 bg-base-300 rounded h-5 overflow-hidden">
+            <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
               <div
-                class={`h-full rounded transition-all duration-300 ${colorClass}`}
+                className={`h-full rounded transition-all duration-300 ${colorClass}`}
                 style={{ width: pct + "%" }}
               />
             </div>
-            <span class="flex-none w-20 sm:w-24 text-right text-xs font-mono">
+            <span className="w-20 flex-none text-right font-mono text-xs sm:w-24">
               {formatAmounts(row.amounts)}
             </span>
           </div>
@@ -62,19 +62,23 @@ export function InsightsChart({ periodQuery }) {
   return (
     <div>
       {expenseRows.length > 0 && (
-        <div class="mb-6">
-          <h5 class="font-semibold text-sm uppercase tracking-wide text-base-content/60 mb-2">Expenses</h5>
-          <BarChart rows={expenseRows} colorClass="bg-error" />
+        <div className="mb-6">
+          <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Expenses
+          </h5>
+          <BarChart rows={expenseRows} colorClass="bg-destructive" />
         </div>
       )}
       {revenueRows.length > 0 && (
-        <div class="mb-6">
-          <h5 class="font-semibold text-sm uppercase tracking-wide text-base-content/60 mb-2">Revenue</h5>
+        <div className="mb-6">
+          <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Revenue
+          </h5>
           <BarChart rows={revenueRows} colorClass="bg-success" />
         </div>
       )}
       {expenseRows.length === 0 && revenueRows.length === 0 && !expensesLoading && !revenueLoading && (
-        <p class="text-base-content/60 text-sm">No expense or revenue data for this period.</p>
+        <p className="text-sm text-muted-foreground">No expense or revenue data for this period.</p>
       )}
     </div>
   );

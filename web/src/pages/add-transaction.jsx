@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { PostingFields } from "../components/posting-fields.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 function todayStr() {
   const d = new Date();
@@ -68,64 +73,58 @@ export function AddTransactionPage() {
 
   if (success) {
     return (
-      <div class="card bg-base-100 shadow-sm max-w-lg mx-auto mt-8">
-        <div class="card-body items-center text-center">
-          <div class="text-success text-5xl mb-2">✓</div>
-          <p class="text-lg font-medium">Transaction added successfully!</p>
-          <p class="text-base-content/60 text-sm">Redirecting to transactions...</p>
-        </div>
-      </div>
+      <Card className="mx-auto mt-8 max-w-lg">
+        <CardContent className="flex flex-col items-center text-center">
+          <CircleCheck className="mb-2 h-12 w-12 text-success" />
+          <p className="text-lg font-medium">Transaction added successfully!</p>
+          <p className="text-sm text-muted-foreground">Redirecting to transactions...</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div>
-      <h2 class="text-2xl font-bold mb-6">Add Transaction</h2>
-      <div class="card bg-base-100 shadow-sm max-w-lg">
-        <div class="card-body">
-          {error && <ErrorBanner error={error} />}
-          <form onSubmit={handleSubmit} class="space-y-4">
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">Date</span>
-              </label>
-              <input
+      <h2 className="mb-6 text-2xl font-bold">Add Transaction</h2>
+      <Card className="max-w-lg">
+        <CardContent>
+          {error && <div className="mb-4"><ErrorBanner error={error} /></div>}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="date">Date</Label>
+              <Input
+                id="date"
                 type="date"
                 value={date}
-                onInput={(e) => setDate(e.target.value)}
+                onChange={(e) => setDate(e.target.value)}
                 required
-                class="input input-bordered w-full"
               />
             </div>
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">Description</span>
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
                 type="text"
                 placeholder="e.g. Grocery store"
                 value={description}
-                onInput={(e) => setDescription(e.target.value)}
+                onChange={(e) => setDescription(e.target.value)}
                 required
-                class="input input-bordered w-full"
               />
             </div>
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">Postings</span>
-              </label>
+            <div className="space-y-1.5">
+              <Label>Postings</Label>
               <PostingFields
                 postings={postings}
                 onChange={setPostings}
                 accounts={accountsData?.accounts || []}
               />
             </div>
-            <button type="submit" disabled={submitting} class="btn btn-primary w-full">
-              {submitting ? <span class="loading loading-spinner loading-sm"></span> : "Add Transaction"}
-            </button>
+            <Button type="submit" disabled={submitting} className="w-full">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Transaction"}
+            </Button>
           </form>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

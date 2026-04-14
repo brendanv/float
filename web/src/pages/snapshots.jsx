@@ -4,6 +4,16 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 
 export function SnapshotsPage() {
   const queryClient = useQueryClient();
@@ -38,53 +48,55 @@ export function SnapshotsPage() {
   }
 
   return (
-    <div class="space-y-6">
-      <h2 class="text-2xl font-bold">Snapshots</h2>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Snapshots</h2>
 
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <h3 class="card-title text-base">History</h3>
+      <Card>
+        <CardHeader>
+          <CardTitle>History</CardTitle>
+        </CardHeader>
+        <CardContent>
           {error && <ErrorBanner error={error} />}
           {isLoading && <Loading />}
           {fetchError && <ErrorBanner error={fetchError} />}
           {snapshotsData && (
             snapshotsData.snapshots?.length > 0 ? (
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Hash</th>
-                      <th>Date</th>
-                      <th>Message</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {snapshotsData.snapshots.map((s) => (
-                      <tr key={s.hash}>
-                        <td class="font-mono">{s.hash.slice(0, 12)}</td>
-                        <td class="font-mono">{s.timestamp}</td>
-                        <td>{s.message}</td>
-                        <td>
-                          <button
-                            class="btn btn-ghost btn-xs text-warning"
-                            disabled={restoring === s.hash}
-                            onClick={() => handleRestore(s.hash)}
-                          >
-                            {restoring === s.hash ? "Restoring…" : "Restore"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Hash</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Message</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {snapshotsData.snapshots.map((s) => (
+                    <TableRow key={s.hash}>
+                      <TableCell className="font-mono">{s.hash.slice(0, 12)}</TableCell>
+                      <TableCell className="font-mono">{s.timestamp}</TableCell>
+                      <TableCell>{s.message}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="text-warning"
+                          disabled={restoring === s.hash}
+                          onClick={() => handleRestore(s.hash)}
+                        >
+                          {restoring === s.hash ? "Restoring…" : "Restore"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             ) : (
-              <p class="text-base-content/50 text-sm">No snapshots yet.</p>
+              <p className="text-sm text-muted-foreground">No snapshots yet.</p>
             )
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,12 +1,22 @@
 import { useState } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { SearchControls, DATE_PRESETS, PAYEE_NONE } from "../components/search-controls.jsx";
 import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const PAGE_SIZE = 50;
 
@@ -69,121 +79,131 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
   }
 
   return (
-    <div class="flex flex-wrap items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-base-200 border border-base-300 text-sm">
-      <span class="font-medium text-base-content/80 shrink-0">
+    <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm">
+      <span className="shrink-0 font-medium text-foreground/80">
         {count} selected
       </span>
 
       {mode === "idle" && (
         <>
-          <button
-            class="btn btn-xs btn-ghost"
+          <Button
+            variant="ghost"
+            size="xs"
             disabled={working}
             onClick={() => bulkMarkStatus(true)}
             title="Mark selected as reviewed"
           >
             Mark reviewed
-          </button>
-          <button
-            class="btn btn-xs btn-ghost"
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             disabled={working}
             onClick={() => bulkMarkStatus(false)}
             title="Mark selected as unreviewed"
           >
             Mark unreviewed
-          </button>
-          <button
-            class="btn btn-xs btn-ghost"
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             disabled={working}
             onClick={() => setMode("add-tag")}
           >
             Add tag
-          </button>
-          <button
-            class="btn btn-xs btn-ghost"
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             disabled={working || availableTagKeys.length === 0}
             onClick={() => { setRemoveTagKey(availableTagKeys[0] || ""); setMode("remove-tag"); }}
             title={availableTagKeys.length === 0 ? "No tags on selected transactions" : undefined}
           >
             Remove tag
-          </button>
-          <button
-            class="btn btn-xs btn-ghost"
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
             disabled={working}
             onClick={() => setMode("set-payee")}
           >
             Set payee
-          </button>
+          </Button>
         </>
       )}
 
       {mode === "add-tag" && (
         <>
-          <input
-            class="input input-xs input-bordered w-28"
+          <Input
+            className="h-6 w-28"
             placeholder="tag key"
             value={tagKey}
-            onInput={(e) => setTagKey(e.target.value)}
+            onChange={(e) => setTagKey(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") bulkAddTag(); if (e.key === "Escape") cancelMode(); }}
             autoFocus
           />
-          <input
-            class="input input-xs input-bordered w-28"
+          <Input
+            className="h-6 w-28"
             placeholder="value (optional)"
             value={tagValue}
-            onInput={(e) => setTagValue(e.target.value)}
+            onChange={(e) => setTagValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") bulkAddTag(); if (e.key === "Escape") cancelMode(); }}
           />
-          <button class="btn btn-xs btn-primary" disabled={working || !tagKey.trim()} onClick={bulkAddTag}>
-            {working ? <span class="loading loading-spinner loading-xs" /> : "Apply"}
-          </button>
-          <button class="btn btn-xs btn-ghost" disabled={working} onClick={cancelMode}>Cancel</button>
+          <Button size="xs" disabled={working || !tagKey.trim()} onClick={bulkAddTag}>
+            {working ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+          </Button>
+          <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
         </>
       )}
 
       {mode === "remove-tag" && (
         <>
-          <select
-            class="select select-xs select-bordered"
-            value={removeTagKey}
-            onChange={(e) => setRemoveTagKey(e.target.value)}
-          >
-            {availableTagKeys.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select>
-          <button class="btn btn-xs btn-primary" disabled={working || !removeTagKey} onClick={bulkRemoveTag}>
-            {working ? <span class="loading loading-spinner loading-xs" /> : "Apply"}
-          </button>
-          <button class="btn btn-xs btn-ghost" disabled={working} onClick={cancelMode}>Cancel</button>
+          <Select value={removeTagKey} onValueChange={setRemoveTagKey}>
+            <SelectTrigger size="sm">
+              <SelectValue>{removeTagKey}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {availableTagKeys.map((k) => (
+                <SelectItem key={k} value={k}>{k}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="xs" disabled={working || !removeTagKey} onClick={bulkRemoveTag}>
+            {working ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+          </Button>
+          <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
         </>
       )}
 
       {mode === "set-payee" && (
         <>
-          <input
-            class="input input-xs input-bordered w-48"
+          <Input
+            className="h-6 w-48"
             placeholder="payee name"
             value={payee}
-            onInput={(e) => setPayee(e.target.value)}
+            onChange={(e) => setPayee(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") bulkSetPayee(); if (e.key === "Escape") cancelMode(); }}
             autoFocus
           />
-          <button class="btn btn-xs btn-primary" disabled={working || !payee.trim()} onClick={bulkSetPayee}>
-            {working ? <span class="loading loading-spinner loading-xs" /> : "Apply"}
-          </button>
-          <button class="btn btn-xs btn-ghost" disabled={working} onClick={cancelMode}>Cancel</button>
+          <Button size="xs" disabled={working || !payee.trim()} onClick={bulkSetPayee}>
+            {working ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+          </Button>
+          <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
         </>
       )}
 
-      {error && <span class="text-error text-xs">{error}</span>}
+      {error && <span className="text-xs text-destructive">{error}</span>}
 
-      <button
-        class="btn btn-xs btn-ghost ml-auto"
+      <Button
+        variant="ghost"
+        size="xs"
+        className="ml-auto"
         disabled={working}
         onClick={onClearSelection}
         title="Clear selection"
       >
-        ✕ Clear
-      </button>
+        <X className="h-3 w-3" /> Clear
+      </Button>
     </div>
   );
 }
@@ -301,28 +321,30 @@ export function TransactionsPage() {
             onSelectionChange={setSelectedFids}
           />
           {totalPages > 1 && (
-            <div class="flex items-center justify-between px-2 py-3 border-t border-base-300">
-              <span class="text-sm text-base-content/60">
+            <div className="flex items-center justify-between border-t border-border px-2 py-3">
+              <span className="text-sm text-muted-foreground">
                 {rangeStart}–{rangeEnd} of {total}
               </span>
-              <div class="join">
-                <button
-                  class="join-item btn btn-sm"
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage((p) => p - 1)}
                   disabled={page === 0}
                 >
-                  ‹
-                </button>
-                <button class="join-item btn btn-sm btn-disabled pointer-events-none">
+                  <ChevronLeft />
+                </Button>
+                <span className="px-2 text-sm tabular-nums text-muted-foreground">
                   {page + 1} / {totalPages}
-                </button>
-                <button
-                  class="join-item btn btn-sm"
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={!hasNext}
                 >
-                  ›
-                </button>
+                  <ChevronRight />
+                </Button>
               </div>
             </div>
           )}

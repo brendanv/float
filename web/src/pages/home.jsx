@@ -8,6 +8,7 @@ import { InsightsChart } from "../components/insights-chart.jsx";
 import { DATE_PRESETS, PeriodBar } from "../components/search-controls.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function HomePage() {
   const initial = DATE_PRESETS[0].fn();
@@ -41,9 +42,9 @@ export function HomePage() {
       <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
       <BalanceSummary balanceRows={balanceRows} />
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="card bg-base-100 shadow-sm lg:col-span-1">
-          <div class="card-body p-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
+          <CardContent>
             {accountsLoading && <Loading />}
             {accountsError && <ErrorBanner error={accountsError} />}
             {accountsData && (
@@ -52,13 +53,13 @@ export function HomePage() {
                 balanceRows={accountBalanceRows}
               />
             )}
-          </div>
-        </div>
-        <div class="card bg-base-100 shadow-sm lg:col-span-2">
-          <div class="card-body p-4">
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardContent>
             <InsightsChart periodQuery={periodQuery} />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

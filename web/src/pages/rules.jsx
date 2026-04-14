@@ -1,10 +1,28 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 function emptyForm() {
   return { pattern: "", payee: "", account: "", priority: "0", tags: "" };
@@ -172,38 +190,41 @@ export function RulesPage() {
   const matchingRule = getMatchingRule();
 
   return (
-    <div class="space-y-6">
-      <h2 class="text-2xl font-bold">Categorization Rules</h2>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Categorization Rules</h2>
 
       {/* Card 1: Rule Editor */}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <h3 class="card-title text-base">{editingId ? "Edit Rule" : "Add Rule"}</h3>
-          <form onSubmit={handleSubmit} class="space-y-3">
-            <div class="flex flex-col gap-1">
-              <span class="text-sm">Pattern (regex)</span>
-              <input
+      <Card>
+        <CardHeader>
+          <CardTitle>{editingId ? "Edit Rule" : "Add Rule"}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="rule-pattern">Pattern (regex)</Label>
+              <Input
+                id="rule-pattern"
                 type="text"
-                class="input input-bordered input-sm font-mono"
+                className="font-mono"
                 placeholder="AMAZON|amazon\.com"
                 value={form.pattern}
-                onInput={(e) => setField("pattern", e.target.value)}
+                onChange={(e) => setField("pattern", e.target.value)}
                 required
               />
             </div>
-            <div class="flex flex-wrap gap-3">
-              <div class="flex flex-col gap-1 flex-1 min-w-40">
-                <span class="text-sm">Set Payee</span>
-                <input
+            <div className="flex flex-wrap gap-3">
+              <div className="min-w-40 flex-1 space-y-1.5">
+                <Label htmlFor="rule-payee">Set Payee</Label>
+                <Input
+                  id="rule-payee"
                   type="text"
-                  class="input input-bordered input-sm"
                   placeholder="Amazon"
                   value={form.payee}
-                  onInput={(e) => setField("payee", e.target.value)}
+                  onChange={(e) => setField("payee", e.target.value)}
                 />
               </div>
-              <div class="flex flex-col gap-1 flex-1 min-w-40">
-                <span class="text-sm">Set Category Account</span>
+              <div className="min-w-40 flex-1 space-y-1.5">
+                <Label>Set Category Account</Label>
                 <AccountInput
                   value={form.account}
                   onChange={(v) => setField("account", v)}
@@ -211,208 +232,218 @@ export function RulesPage() {
                   placeholder="expenses:shopping"
                 />
               </div>
-              <div class="flex flex-col gap-1 flex-1 min-w-40">
-                <span class="text-sm">Add Tags <span class="text-base-content/50 text-xs">key=val, key2</span></span>
-                <input
+              <div className="min-w-40 flex-1 space-y-1.5">
+                <Label htmlFor="rule-tags">
+                  Add Tags <span className="text-xs text-muted-foreground">key=val, key2</span>
+                </Label>
+                <Input
+                  id="rule-tags"
                   type="text"
-                  class="input input-bordered input-sm font-mono"
+                  className="font-mono"
                   placeholder="source=import"
                   value={form.tags}
-                  onInput={(e) => setField("tags", e.target.value)}
+                  onChange={(e) => setField("tags", e.target.value)}
                 />
               </div>
-              <div class="flex flex-col gap-1 w-24">
-                <span class="text-sm">Priority</span>
-                <input
+              <div className="w-24 space-y-1.5">
+                <Label htmlFor="rule-priority">Priority</Label>
+                <Input
+                  id="rule-priority"
                   type="number"
-                  class="input input-bordered input-sm"
                   value={form.priority}
-                  onInput={(e) => setField("priority", e.target.value)}
+                  onChange={(e) => setField("priority", e.target.value)}
                 />
               </div>
             </div>
-            <div class="flex gap-2">
-              <button type="submit" class="btn btn-primary btn-sm" disabled={saveRuleMutation.isPending}>
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={saveRuleMutation.isPending}>
                 {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
-              </button>
+              </Button>
               {editingId && (
-                <button type="button" class="btn btn-ghost btn-sm" onClick={cancelEdit}>
+                <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
                   Cancel
-                </button>
+                </Button>
               )}
             </div>
           </form>
-          {formError && <ErrorBanner error={formError} />}
-        </div>
-      </div>
+          {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
+        </CardContent>
+      </Card>
 
       {/* Card 2: Rules list + Apply section */}
-      <div class="card bg-base-100 shadow-sm">
-        <div class="card-body">
-          <div class="flex items-center justify-between gap-4 flex-wrap">
-            <h3 class="card-title text-base">Rules</h3>
-            <button
-              class="btn btn-outline btn-sm"
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <CardTitle>Rules</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handlePreviewApply}
               disabled={applyLoading}
             >
               {applyLoading ? "Previewing…" : "Preview Changes"}
-            </button>
+            </Button>
           </div>
+        </CardHeader>
+        <CardContent>
           {rulesLoading && <Loading />}
           {rulesError && <ErrorBanner error={rulesError} />}
           {rulesData && rulesData.rules.length === 0 && (
-            <p class="text-base-content/60">No rules yet. Add one above.</p>
+            <p className="text-muted-foreground">No rules yet. Add one above.</p>
           )}
           {rulesData && rulesData.rules.length > 0 && (
-            <div class="overflow-x-auto">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Priority</th>
-                    <th>Pattern</th>
-                    <th>Payee</th>
-                    <th>Account</th>
-                    <th>Tags</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rulesData.rules.map((r) => (
-                    <tr key={r.id} class={editingId === r.id ? "bg-primary/10" : ""}>
-                      <td><span class="badge badge-neutral badge-sm font-mono">{r.priority}</span></td>
-                      <td class="max-w-xs truncate font-mono text-xs" title={r.pattern}>{r.pattern}</td>
-                      <td>{r.payee || <span class="text-base-content/40">—</span>}</td>
-                      <td class="font-mono text-xs">{r.account || <span class="text-base-content/40">—</span>}</td>
-                      <td class="text-xs">
-                        {r.tags && Object.keys(r.tags).length > 0
-                          ? tagsToString(r.tags)
-                          : <span class="text-base-content/40">—</span>}
-                      </td>
-                      <td class="flex gap-1">
-                        <button
-                          class="btn btn-ghost btn-xs"
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Pattern</TableHead>
+                  <TableHead>Payee</TableHead>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Tags</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rulesData.rules.map((r) => (
+                  <TableRow key={r.id} className={cn(editingId === r.id && "bg-primary/10")}>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-mono">{r.priority}</Badge>
+                    </TableCell>
+                    <TableCell className="max-w-xs truncate font-mono text-xs" title={r.pattern}>{r.pattern}</TableCell>
+                    <TableCell>{r.payee || <span className="text-muted-foreground/60">—</span>}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {r.account || <span className="text-muted-foreground/60">—</span>}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {r.tags && Object.keys(r.tags).length > 0
+                        ? tagsToString(r.tags)
+                        : <span className="text-muted-foreground/60">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="xs"
                           onClick={() => startEdit(r)}
                         >
                           Edit
-                        </button>
-                        <button
-                          class="btn btn-ghost btn-xs text-error"
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="text-destructive"
                           onClick={() => handleDelete(r.id)}
                         >
                           Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
-          <div class="divider my-1"></div>
-          <div class="flex items-center gap-3">
-            <span class="text-sm text-base-content/60 whitespace-nowrap">Test description:</span>
-            <input
+          <Separator className="my-4" />
+          <div className="flex items-center gap-3">
+            <span className="whitespace-nowrap text-sm text-muted-foreground">Test description:</span>
+            <Input
               type="text"
-              class="input input-bordered input-sm font-mono flex-1"
+              className="flex-1 font-mono"
               placeholder="AMAZON.COM PURCHASE"
               value={testDesc}
-              onInput={(e) => setTestDesc(e.target.value)}
+              onChange={(e) => setTestDesc(e.target.value)}
             />
             {testDesc && (
               matchingRule ? (
-                <span class="badge badge-success gap-1 shrink-0">
+                <Badge className="shrink-0 bg-success text-success-foreground">
                   {matchingRule.payee || matchingRule.account}
-                </span>
+                </Badge>
               ) : (
-                <span class="badge badge-ghost shrink-0">No match</span>
+                <Badge variant="outline" className="shrink-0">No match</Badge>
               )
             )}
           </div>
-          {applyError && <ErrorBanner error={applyError} />}
+          {applyError && <div className="mt-3"><ErrorBanner error={applyError} /></div>}
           {applyResult !== null && (
-            <div class="alert alert-success mt-3">
-              Applied changes to {applyResult} transaction(s).
-            </div>
+            <Alert className="mt-3">
+              <CircleCheck className="h-4 w-4 text-success" />
+              <AlertDescription>
+                Applied changes to {applyResult} transaction(s).
+              </AlertDescription>
+            </Alert>
           )}
           {applyPreviews && applyPreviews.length === 0 && (
-            <p class="text-base-content/60 mt-3">No transactions match any rules.</p>
+            <p className="mt-3 text-muted-foreground">No transactions match any rules.</p>
           )}
           {applyPreviews && applyPreviews.length > 0 && (
-            <div class="space-y-3 mt-3">
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>
-                        <input
-                          type="checkbox"
-                          class="checkbox checkbox-sm"
-                          checked={selectedFids.size === applyPreviews.length}
-                          onChange={() => {
-                            if (selectedFids.size === applyPreviews.length) {
-                              setSelectedFids(new Set());
-                            } else {
-                              setSelectedFids(new Set(applyPreviews.map((p) => p.fid)));
-                            }
-                          }}
+            <div className="mt-3 space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
+                      <Checkbox
+                        checked={selectedFids.size === applyPreviews.length}
+                        onCheckedChange={() => {
+                          if (selectedFids.size === applyPreviews.length) {
+                            setSelectedFids(new Set());
+                          } else {
+                            setSelectedFids(new Set(applyPreviews.map((p) => p.fid)));
+                          }
+                        }}
+                      />
+                    </TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Payee</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {applyPreviews.map((p) => (
+                    <TableRow key={p.fid}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedFids.has(p.fid)}
+                          onCheckedChange={() => toggleFid(p.fid)}
                         />
-                      </th>
-                      <th>Description</th>
-                      <th>Account</th>
-                      <th>Payee</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {applyPreviews.map((p) => (
-                      <tr key={p.fid}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            class="checkbox checkbox-sm"
-                            checked={selectedFids.has(p.fid)}
-                            onChange={() => toggleFid(p.fid)}
-                          />
-                        </td>
-                        <td>{p.description}</td>
-                        <td class="text-xs">
-                          {p.newAccount ? (
-                            <span>
-                              <span class="line-through text-base-content/40">{p.currentAccount}</span>
-                              {" → "}
-                              <span class="text-success">{p.newAccount}</span>
-                            </span>
-                          ) : (
-                            <span class="text-base-content/40">—</span>
-                          )}
-                        </td>
-                        <td class="text-xs">
-                          {p.newPayee ? (
-                            <span>
-                              <span class="line-through text-base-content/40">{p.currentPayee}</span>
-                              {" → "}
-                              <span class="text-success">{p.newPayee}</span>
-                            </span>
-                          ) : (
-                            <span class="text-base-content/40">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <button
-                class="btn btn-primary btn-sm"
+                      </TableCell>
+                      <TableCell>{p.description}</TableCell>
+                      <TableCell className="text-xs">
+                        {p.newAccount ? (
+                          <span>
+                            <span className="text-muted-foreground/60 line-through">{p.currentAccount}</span>
+                            {" → "}
+                            <span className="text-success">{p.newAccount}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {p.newPayee ? (
+                          <span>
+                            <span className="text-muted-foreground/60 line-through">{p.currentPayee}</span>
+                            {" → "}
+                            <span className="text-success">{p.newPayee}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Button
+                size="sm"
                 onClick={handleApply}
                 disabled={applying || selectedFids.size === 0}
               >
                 {applying ? "Applying…" : `Apply to ${selectedFids.size} Transaction(s)`}
-              </button>
+              </Button>
             </div>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
