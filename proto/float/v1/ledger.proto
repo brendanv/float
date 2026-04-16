@@ -301,6 +301,32 @@ message CreateBankProfileResponse {
   BankProfile profile = 1;
 }
 
+message GetBankProfileContentRequest {
+  string name = 1;
+}
+
+message GetBankProfileContentResponse {
+  string rules_file = 1;   // relative path in data dir
+  bytes rules_content = 2; // current content of the rules file
+}
+
+message UpdateBankProfileRequest {
+  string name = 1;         // current profile name (identifier)
+  string new_name = 2;     // new display name (empty = no change)
+  bytes rules_content = 3; // new rules file content (empty = no change)
+}
+
+message UpdateBankProfileResponse {
+  BankProfile profile = 1;
+}
+
+message DeleteBankProfileRequest {
+  string name = 1;              // profile name to delete
+  bool delete_rules_file = 2;   // also delete the rules file from disk
+}
+
+message DeleteBankProfileResponse {}
+
 message PreviewImportRequest {
   bytes csv_data = 1;      // raw CSV file contents
   string profile_name = 2; // bank profile name from config
@@ -429,6 +455,9 @@ service LedgerService {
   // Import
   rpc ListBankProfiles(ListBankProfilesRequest) returns (ListBankProfilesResponse);
   rpc CreateBankProfile(CreateBankProfileRequest) returns (CreateBankProfileResponse);
+  rpc GetBankProfileContent(GetBankProfileContentRequest) returns (GetBankProfileContentResponse);
+  rpc UpdateBankProfile(UpdateBankProfileRequest) returns (UpdateBankProfileResponse);
+  rpc DeleteBankProfile(DeleteBankProfileRequest) returns (DeleteBankProfileResponse);
   rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
   rpc ImportTransactions(ImportTransactionsRequest) returns (ImportTransactionsResponse);
 
