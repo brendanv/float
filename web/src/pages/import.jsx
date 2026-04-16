@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, CircleCheck } from "lucide-react";
+import { Plus, CircleCheck, Pencil, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -141,6 +141,143 @@ function CreateProfileModal({ open, onCreated, onClose }) {
   );
 }
 
+function EditProfileModal({ profile, open, onUpdated, onClose }) {
+  const [name, setName] = useState(profile?.name ?? "");
+  const [rulesContent, setRulesContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!open || !profile) return;
+    setName(profile.name);
+    setError(null);
+    setLoading(true);
+    ledgerClient.getBankProfileContent({ name: profile.name })
+      .then((res) => setRulesContent(new TextDecoder().decode(res.rulesContent)))
+      .catch((err) => setError(err))
+      .finally(() => setLoading(false));
+  }, [open, profile]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await ledgerClient.updateBankProfile({
+        name: profile.name,
+        newName: name !== profile.name ? name : "",
+        rulesContent: new TextEncoder().encode(rulesContent),
+      });
+      onUpdated(res.profile);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Bank Profile</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-profile-name">Profile Name</Label>
+              <Input
+                id="edit-profile-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between">
+                <Label htmlFor="edit-rules-content">Rules File Content</Label>
+                <span className="text-xs text-muted-foreground">{profile?.rulesFile}</span>
+              </div>
+              <Textarea
+                id="edit-rules-content"
+                className="h-64 font-mono text-xs"
+                value={rulesContent}
+                onChange={(e) => setRulesContent(e.target.value)}
+              />
+            </div>
+            {error && <ErrorBanner error={error} />}
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteProfileDialog({ profile, open, onDeleted, onClose }) {
+  const [deleteFile, setDeleteFile] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (open) { setDeleteFile(false); setError(null); }
+  }, [open]);
+
+  async function handleDelete() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await ledgerClient.deleteBankProfile({ name: profile.name, deleteRulesFile: deleteFile });
+      onDeleted(profile.name);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Bank Profile</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm">
+            Are you sure you want to delete <strong>{profile?.name}</strong>?
+          </p>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="delete-rules-file"
+              checked={deleteFile}
+              onCheckedChange={setDeleteFile}
+            />
+            <Label htmlFor="delete-rules-file" className="text-sm cursor-pointer">
+              Also delete rules file ({profile?.rulesFile})
+            </Label>
+          </div>
+          {error && <ErrorBanner error={error} />}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+            {deleting ? "Deleting…" : "Delete Profile"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ImportPage() {
   const queryClient = useQueryClient();
 
@@ -160,6 +297,22 @@ export function ImportPage() {
   const [importError, setImportError] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(null);
+  const [deletingProfile, setDeletingProfile] = useState(null);
+
+  function handleProfileUpdated(profile) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.bankProfiles() });
+    if (selectedProfile === editingProfile?.name) {
+      setSelectedProfile(profile.name);
+    }
+    setEditingProfile(null);
+  }
+
+  function handleProfileDeleted(name) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.bankProfiles() });
+    if (selectedProfile === name) setSelectedProfile("");
+    setDeletingProfile(null);
+  }
 
   async function handlePreview(e) {
     e.preventDefault();
@@ -290,6 +443,32 @@ export function ImportPage() {
                 >
                   <Plus />
                 </Button>
+                {selectedProfile && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Edit bank profile"
+                      onClick={() => setEditingProfile(
+                        profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                      )}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Delete bank profile"
+                      onClick={() => setDeletingProfile(
+                        profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                      )}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
             <div className="w-full flex-1 space-y-1.5 sm:w-auto">
@@ -404,6 +583,22 @@ export function ImportPage() {
         onCreated={handleProfileCreated}
         onClose={() => setShowCreateModal(false)}
       />
+      {editingProfile && (
+        <EditProfileModal
+          profile={editingProfile}
+          open={!!editingProfile}
+          onUpdated={handleProfileUpdated}
+          onClose={() => setEditingProfile(null)}
+        />
+      )}
+      {deletingProfile && (
+        <DeleteProfileDialog
+          profile={deletingProfile}
+          open={!!deletingProfile}
+          onDeleted={handleProfileDeleted}
+          onClose={() => setDeletingProfile(null)}
+        />
+      )}
     </div>
   );
 }

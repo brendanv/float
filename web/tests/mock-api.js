@@ -389,6 +389,18 @@ export async function mockLedgerApi(page, { accountRegisterRows } = {}) {
       case "CreateBankProfile":
         body = { profile: { name: reqBody.name, rulesFile: reqBody.rulesFile } };
         break;
+      case "GetBankProfileContent":
+        body = {
+          rulesFile: mockBankProfiles.find((p) => p.name === reqBody.name)?.rulesFile ?? "rules/chase.rules",
+          rulesContent: btoa("# hledger CSV import rules\nskip 1\nfields date, description, amount\naccount1 assets:checking\n"),
+        };
+        break;
+      case "UpdateBankProfile":
+        body = { profile: { name: reqBody.newName || reqBody.name, rulesFile: "rules/chase.rules" } };
+        break;
+      case "DeleteBankProfile":
+        body = {};
+        break;
       case "PreviewImport":
         body = { candidates: mockImportCandidates };
         break;

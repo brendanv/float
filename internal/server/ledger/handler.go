@@ -936,6 +936,150 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 	}), nil
 }
 
+func (h *Handler) GetBankProfileContent(ctx context.Context, req *connect.Request[floatv1.GetBankProfileContentRequest]) (*connect.Response[floatv1.GetBankProfileContentResponse], error) {
+	if req.Msg.Name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
+	}
+	profile, err := h.bankProfile(req.Msg.Name)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	rulesPath := filepath.Join(h.dataDir, profile.RulesFile)
+	content, err := os.ReadFile(rulesPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			content = []byte{}
+		} else {
+			slogctx.FromContext(ctx).ErrorContext(ctx, "read rules file failed", "error", err)
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+	}
+	return connect.NewResponse(&floatv1.GetBankProfileContentResponse{
+		RulesFile:    profile.RulesFile,
+		RulesContent: content,
+	}), nil
+}
+
+func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[floatv1.UpdateBankProfileRequest]) (*connect.Response[floatv1.UpdateBankProfileResponse], error) {
+	if req.Msg.Name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
+	}
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	newName := req.Msg.NewName
+	if newName == "" {
+		newName = req.Msg.Name
+	}
+
+	// Check new name isn't already taken (unless it's the same profile).
+	if newName != req.Msg.Name {
+		for _, p := range h.cfg.BankProfiles {
+			if p.Name == newName {
+				return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("bank profile %q already exists", newName))
+			}
+		}
+	}
+
+	var updated config.BankProfile
+	err := h.lock.Do(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), func() error {
+		idx := -1
+		for i, p := range h.cfg.BankProfiles {
+			if p.Name == req.Msg.Name {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			return fmt.Errorf("bank profile %q not found", req.Msg.Name)
+		}
+
+		profile := h.cfg.BankProfiles[idx]
+
+		if len(req.Msg.RulesContent) > 0 {
+			rulesPath := filepath.Join(h.dataDir, profile.RulesFile)
+			if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil {
+				return fmt.Errorf("write rules file: %w", err)
+			}
+		}
+
+		h.cfg.BankProfiles[idx].Name = newName
+		updated = h.cfg.BankProfiles[idx]
+
+		if err := config.Save(h.configPath, h.cfg); err != nil {
+			h.cfg.BankProfiles[idx].Name = req.Msg.Name // rollback
+			return fmt.Errorf("save config: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		slogctx.FromContext(ctx).ErrorContext(ctx, "update bank profile failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "updated bank profile", "name", updated.Name)
+	return connect.NewResponse(&floatv1.UpdateBankProfileResponse{
+		Profile: &floatv1.BankProfile{Name: updated.Name, RulesFile: updated.RulesFile},
+	}), nil
+}
+
+func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[floatv1.DeleteBankProfileRequest]) (*connect.Response[floatv1.DeleteBankProfileResponse], error) {
+	if req.Msg.Name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
+	}
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	err := h.lock.Do(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), func() error {
+		idx := -1
+		for i, p := range h.cfg.BankProfiles {
+			if p.Name == req.Msg.Name {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			return fmt.Errorf("bank profile %q not found", req.Msg.Name)
+		}
+
+		rulesFile := h.cfg.BankProfiles[idx].RulesFile
+		h.cfg.BankProfiles = append(h.cfg.BankProfiles[:idx], h.cfg.BankProfiles[idx+1:]...)
+
+		if err := config.Save(h.configPath, h.cfg); err != nil {
+			return fmt.Errorf("save config: %w", err)
+		}
+
+		if req.Msg.DeleteRulesFile && rulesFile != "" {
+			rulesPath := filepath.Join(h.dataDir, rulesFile)
+			if err := os.Remove(rulesPath); err != nil && !os.IsNotExist(err) {
+				slogctx.FromContext(ctx).WarnContext(ctx, "failed to delete rules file", "path", rulesPath, "error", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		slogctx.FromContext(ctx).ErrorContext(ctx, "delete bank profile failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "deleted bank profile", "name", req.Msg.Name)
+	return connect.NewResponse(&floatv1.DeleteBankProfileResponse{}), nil
+}
+
 func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv1.PreviewImportRequest]) (*connect.Response[floatv1.PreviewImportResponse], error) {
 	logger := slogctx.FromContext(ctx)
 	if len(req.Msg.CsvData) == 0 {
