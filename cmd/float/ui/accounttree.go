@@ -182,6 +182,15 @@ func (t *AccountTree) clampOffset() {
 	}
 }
 
+// SelectedAccount returns the full account name of the currently highlighted node,
+// or "" if the tree is empty or not loaded.
+func (t *AccountTree) SelectedAccount() string {
+	if t.state != stateLoaded || t.cursor >= len(t.flat) {
+		return ""
+	}
+	return t.flat[t.cursor].fullName
+}
+
 // Update handles key events and spinner ticks.
 func (t *AccountTree) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {

@@ -308,6 +308,31 @@ func PreviewApplyRulesCmd(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	}
 }
 
+// AccountRegisterMsg carries the result of a GetAccountRegister RPC for the Manager tab.
+type AccountRegisterMsg struct {
+	Account string
+	Rows    []*floatv1.AccountRegisterRow
+	Total   int32
+	Err     error
+}
+
+// FetchAccountRegister fetches the account register for the given account name.
+func FetchAccountRegister(client floatv1connect.LedgerServiceClient, account string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetAccountRegister(context.Background(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+			Account: account,
+		}))
+		if err != nil {
+			return AccountRegisterMsg{Account: account, Err: err}
+		}
+		return AccountRegisterMsg{
+			Account: account,
+			Rows:    resp.Msg.Rows,
+			Total:   resp.Msg.Total,
+		}
+	}
+}
+
 func ApplyRulesCmd(client floatv1connect.LedgerServiceClient, fids []string) tea.Cmd {
 	return func() tea.Msg {
 		resp, err := client.ApplyRules(context.Background(), connect.NewRequest(&floatv1.ApplyRulesRequest{

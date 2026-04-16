@@ -106,7 +106,7 @@ func (HomeFilterKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keySearch, keyEsc}}
 }
 
-// ManagerKeyMap is for the manager tab.
+// ManagerKeyMap is for the manager tab in tree mode.
 type ManagerKeyMap struct{}
 
 func (ManagerKeyMap) ShortHelp() []key.Binding {
@@ -116,6 +116,34 @@ func (ManagerKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
 		{keyNav, keyExpand, keyRetry},
+	}
+}
+
+var keyOpenRegister = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open register"))
+
+// ManagerTreeKeyMap is for the manager tab in tree mode with register navigation.
+type ManagerTreeKeyMap struct{}
+
+func (ManagerTreeKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyOpenRegister, keyHelp}
+}
+func (ManagerTreeKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyExpand, keyOpenRegister, keyRetry},
+	}
+}
+
+// ManagerRegisterKeyMap is for the manager tab in account register view mode.
+type ManagerRegisterKeyMap struct{}
+
+func (ManagerRegisterKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keyEsc, keyHelp}
+}
+func (ManagerRegisterKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyEsc, keyRetry},
 	}
 }
 
