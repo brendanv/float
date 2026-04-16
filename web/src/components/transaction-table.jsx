@@ -236,16 +236,31 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
   );
 }
 
-export function TransactionTable({ transactions, focusedAccount, onStatusChange, accounts = [], selectedFids, onSelectionChange }) {
+function resolveRegisterCells(row) {
+  const otherAccounts = row.otherAccounts.length === 0 ? ""
+    : row.otherAccounts.length === 1 ? row.otherAccounts[0]
+    : "various accounts";
+  const change = formatAmounts(row.change);
+  const balance = formatAmounts(row.runningTotal);
+  const changePositive = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) > 0;
+  const changeNegative = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) < 0;
+  return { otherAccounts, change, balance, changePositive, changeNegative };
+}
+
+export function TransactionTable({ transactions, registerRows, focusedAccount, onStatusChange, accounts = [], selectedFids, onSelectionChange }) {
   const [expanded, setExpanded] = useState(null);
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
+  const isRegisterMode = !!registerRows;
 
-  if (!transactions || transactions.length === 0) {
+  const rows = isRegisterMode ? registerRows : (transactions || []);
+
+  if (!rows || rows.length === 0) {
     return <p className="py-4 text-muted-foreground">No transactions for this period.</p>;
   }
 
   function toggle(fid) {
+    if (isRegisterMode) return;
     setExpanded(expanded === fid ? null : fid);
   }
 
@@ -260,7 +275,7 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
     onSelectionChange(next);
   }
 
-  const allFids = transactions.filter((tx) => tx.fid).map((tx) => tx.fid);
+  const allFids = rows.filter((r) => r.fid).map((r) => r.fid);
   const allSelected = selectable && allFids.length > 0 && allFids.every((fid) => selectedFids.has(fid));
   const someSelected = selectable && allFids.some((fid) => selectedFids.has(fid));
 
@@ -277,28 +292,27 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
     }
   }
 
-  const isAccountRegister = !!focusedAccount;
+  const isAccountRegister = isRegisterMode || !!focusedAccount;
 
   function resolveDisplay(tx) {
-    if (isAccountRegister) {
-      return accountRegisterDisplay(tx, focusedAccount);
-    }
+    if (focusedAccount) return accountRegisterDisplay(tx, focusedAccount);
     return generalDisplay(tx);
   }
 
-  // Group transactions by date
+  // Group rows by date
   const dateGroups = [];
   let currentGroup = null;
-  let txIndex = 0;
-  for (const tx of transactions) {
-    if (!currentGroup || tx.date !== currentGroup.date) {
-      currentGroup = { date: tx.date, txs: [] };
+  let rowIndex = 0;
+  for (const row of rows) {
+    if (!currentGroup || row.date !== currentGroup.date) {
+      currentGroup = { date: row.date, rows: [] };
       dateGroups.push(currentGroup);
     }
-    currentGroup.txs.push({ tx, index: txIndex++ });
+    currentGroup.rows.push({ row, index: rowIndex++ });
   }
 
-  const colSpan = selectable ? 5 : 4;
+  const extraCols = isRegisterMode ? 1 : 0;
+  const colSpan = (selectable ? 5 : 4) + extraCols;
 
   return (
     <div>
@@ -321,7 +335,8 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
               <TableHead className="w-8"></TableHead>
               <TableHead>Description</TableHead>
               <TableHead>{isAccountRegister ? "Other accounts" : "From \u2192 To"}</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-right">{isRegisterMode ? "Change" : "Amount"}</TableHead>
+              {isRegisterMode && <TableHead className="text-right">Balance</TableHead>}
             </TableRow>
           </TableHeader>
           {dateGroups.map((group) => [
@@ -333,20 +348,30 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
               </TableRow>
             </TableHeader>,
             <TableBody key={"body-" + group.date}>
-              {group.txs.map(({ tx, index }) => {
-                const display = resolveDisplay(tx);
-                const accountCell = isAccountRegister
-                  ? (display?.otherAccounts || "")
-                  : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
-                const amountCell = display?.amount || "";
-                const key = tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index;
-                const isSelected = selectable && tx.fid && selectedFids.has(tx.fid);
+              {group.rows.map(({ row, index }) => {
+                let accountCell, amountCell, balanceCell, changePositive, changeNegative;
+                if (isRegisterMode) {
+                  const cells = resolveRegisterCells(row);
+                  accountCell = cells.otherAccounts;
+                  amountCell = cells.change;
+                  balanceCell = cells.balance;
+                  changePositive = cells.changePositive;
+                  changeNegative = cells.changeNegative;
+                } else {
+                  const display = resolveDisplay(row);
+                  accountCell = isAccountRegister
+                    ? (display?.otherAccounts || "")
+                    : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
+                  amountCell = display?.amount || "";
+                }
+                const key = row.fid ? row.fid + "-" + index : row.date + row.description + index;
+                const isSelected = selectable && row.fid && selectedFids.has(row.fid);
                 return [
                   <TableRow
                     key={key}
-                    onClick={() => toggle(tx.fid)}
+                    onClick={() => toggle(row.fid)}
                     className={cn(
-                      "cursor-pointer",
+                      !isRegisterMode && "cursor-pointer",
                       isSelected && "bg-primary/10 hover:bg-primary/15",
                     )}
                   >
@@ -354,26 +379,26 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                       <TableCell className="w-6 pr-0" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={isSelected}
-                          onCheckedChange={() => toggleSelect(tx.fid)}
+                          onCheckedChange={() => toggleSelect(row.fid)}
                         />
                       </TableCell>
                     )}
                     <TableCell className="w-8 pr-0">
-                      <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
+                      <StatusButton fid={row.fid} status={row.status} onStatusChange={onStatusChange} />
                     </TableCell>
                     <TableCell className="whitespace-normal">
                       <EditableDescriptionCell
-                        fid={tx.fid}
-                        description={tx.description}
-                        date={tx.date}
-                        postings={tx.postings}
-                        payee={tx.payee}
-                        note={tx.note}
+                        fid={row.fid}
+                        description={row.description}
+                        date={row.date}
+                        postings={row.postings}
+                        payee={row.payee}
+                        note={row.note}
                         onSaved={onStatusChange}
                       />
-                      {tx.tags && Object.keys(tx.tags).length > 0 && (
+                      {row.tags && Object.keys(row.tags).length > 0 && (
                         <span className="ml-2 inline-flex flex-wrap gap-1">
-                          {Object.entries(tx.tags).map(([k, v]) => (
+                          {Object.entries(row.tags).map(([k, v]) => (
                             <Badge key={k} variant="secondary" className="text-xs">
                               {v ? `${k}:${v}` : k}
                             </Badge>
@@ -382,12 +407,19 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{accountCell}</TableCell>
-                    <TableCell className="whitespace-nowrap text-right font-mono text-sm">{amountCell}</TableCell>
+                    <TableCell className={cn(
+                      "whitespace-nowrap text-right font-mono text-sm",
+                      isRegisterMode && changePositive && "text-success",
+                      isRegisterMode && changeNegative && "text-destructive",
+                    )}>{amountCell}</TableCell>
+                    {isRegisterMode && (
+                      <TableCell className="whitespace-nowrap text-right font-mono text-sm text-muted-foreground">{balanceCell}</TableCell>
+                    )}
                   </TableRow>,
-                  expanded === tx.fid && (
+                  !isRegisterMode && expanded === row.fid && (
                     <TableRow key={key + "-detail"} className="bg-muted/30 hover:bg-muted/30">
                       <TableCell colSpan={colSpan} className="p-0">
-                        <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
+                        <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} />
                       </TableCell>
                     </TableRow>
                   ),
@@ -404,22 +436,32 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
           <div key={"date-" + group.date} className="sticky top-0 z-[1] bg-background px-1 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
             {formatDate(group.date)}
           </div>,
-          ...group.txs.map(({ tx, index }) => {
-            const display = resolveDisplay(tx);
-            const accountCell = isAccountRegister
-              ? (display?.otherAccounts || "")
-              : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
-            const amountCell = display?.amount || "";
-            const isSelected = selectable && tx.fid && selectedFids.has(tx.fid);
+          ...group.rows.map(({ row, index }) => {
+            let accountCell, amountCell, balanceCell, changePositive, changeNegative;
+            if (isRegisterMode) {
+              const cells = resolveRegisterCells(row);
+              accountCell = cells.otherAccounts;
+              amountCell = cells.change;
+              balanceCell = cells.balance;
+              changePositive = cells.changePositive;
+              changeNegative = cells.changeNegative;
+            } else {
+              const display = resolveDisplay(row);
+              accountCell = isAccountRegister
+                ? (display?.otherAccounts || "")
+                : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
+              amountCell = display?.amount || "";
+            }
+            const isSelected = selectable && row.fid && selectedFids.has(row.fid);
             return (
               <Card
-                key={tx.fid ? tx.fid + "-" + index : tx.date + tx.description + index}
+                key={row.fid ? row.fid + "-" + index : row.date + row.description + index}
                 size="sm"
                 className={cn(
-                  "cursor-pointer",
+                  !isRegisterMode && "cursor-pointer",
                   isSelected && "bg-primary/5 ring-primary",
                 )}
-                onClick={() => toggle(tx.fid)}
+                onClick={() => toggle(row.fid)}
               >
                 <CardContent className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -427,38 +469,47 @@ export function TransactionTable({ transactions, focusedAccount, onStatusChange,
                       <span onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={isSelected}
-                          onCheckedChange={() => toggleSelect(tx.fid)}
+                          onCheckedChange={() => toggleSelect(row.fid)}
                         />
                       </span>
                     )}
                     <span className="truncate font-medium" onClick={(e) => e.stopPropagation()}>
                       <EditableDescriptionCell
-                        fid={tx.fid}
-                        description={tx.description}
-                        date={tx.date}
-                        postings={tx.postings}
-                        payee={tx.payee}
-                        note={tx.note}
+                        fid={row.fid}
+                        description={row.description}
+                        date={row.date}
+                        postings={row.postings}
+                        payee={row.payee}
+                        note={row.note}
                         onSaved={onStatusChange}
                       />
                     </span>
                     <div className="flex shrink-0 items-center gap-1">
-                      <span className="whitespace-nowrap font-mono text-sm">{amountCell}</span>
-                      <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
+                      <span className={cn(
+                        "whitespace-nowrap font-mono text-sm",
+                        isRegisterMode && changePositive && "text-success",
+                        isRegisterMode && changeNegative && "text-destructive",
+                      )}>{amountCell}</span>
+                      <StatusButton fid={row.fid} status={row.status} onStatusChange={onStatusChange} />
                     </div>
                   </div>
-                  <div className="truncate text-xs text-muted-foreground">{accountCell}</div>
-                  {tx.tags && Object.keys(tx.tags).length > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="truncate text-xs text-muted-foreground">{accountCell}</div>
+                    {isRegisterMode && balanceCell && (
+                      <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
+                    )}
+                  </div>
+                  {row.tags && Object.keys(row.tags).length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {Object.entries(tx.tags).map(([k, v]) => (
+                      {Object.entries(row.tags).map(([k, v]) => (
                         <Badge key={k} variant="secondary" className="text-xs">
                           {v ? `${k}:${v}` : k}
                         </Badge>
                       ))}
                     </div>
                   )}
-                  {expanded === tx.fid && (
-                    <EditableDetailRow tx={tx} accounts={accounts} onSaved={onStatusChange} />
+                  {!isRegisterMode && expanded === row.fid && (
+                    <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} />
                   )}
                 </CardContent>
               </Card>

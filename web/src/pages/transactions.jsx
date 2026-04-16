@@ -222,12 +222,24 @@ export function TransactionsPage() {
   const [page, setPage] = useState(0);
   const [selectedFids, setSelectedFids] = useState(new Set());
 
-  const query = buildQuery(dateFrom, dateTo, account, tag, status, payee);
-  const queryParams = { query, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+  const isAccountMode = !!account;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.transactions(queryParams),
-    queryFn: () => ledgerClient.listTransactions(queryParams),
+  const txQuery = buildQuery(dateFrom, dateTo, account, tag, status, payee);
+  const txParams = { query: txQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+
+  const aregQuery = buildAregisterQuery(dateFrom, dateTo, tag, status, payee);
+  const aregParams = { account, query: aregQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+
+  const { data: txData, isLoading: txLoading, error: txError } = useQuery({
+    queryKey: queryKeys.transactions(txParams),
+    queryFn: () => ledgerClient.listTransactions(txParams),
+    enabled: !isAccountMode,
+  });
+
+  const { data: aregData, isLoading: aregLoading, error: aregError } = useQuery({
+    queryKey: queryKeys.accountRegister(aregParams),
+    queryFn: () => ledgerClient.getAccountRegister(aregParams),
+    enabled: isAccountMode,
   });
 
   const { data: accountsData } = useQuery({
@@ -239,6 +251,10 @@ export function TransactionsPage() {
     queryKey: queryKeys.tags(),
     queryFn: () => ledgerClient.listTags({}),
   });
+
+  const data = isAccountMode ? aregData : txData;
+  const isLoading = isAccountMode ? aregLoading : txLoading;
+  const error = isAccountMode ? aregError : txError;
 
   function onDateRangeChange(from, to) {
     setDateFrom(from);
@@ -256,12 +272,17 @@ export function TransactionsPage() {
   }
 
   function onStatusChange() {
-    queryClient.invalidateQueries({ queryKey: queryKeys.transactions(queryParams) });
+    if (isAccountMode) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.accountRegister(aregParams) });
+    } else {
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions(txParams) });
+    }
   }
 
   function onBulkActionComplete() {
     setSelectedFids(new Set());
     queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
   }
 
   function applyQuickFilter(filters) {
@@ -281,7 +302,8 @@ export function TransactionsPage() {
   const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const rangeEnd = Math.min((page + 1) * PAGE_SIZE, total);
 
-  const transactions = data?.transactions || [];
+  const transactions = !isAccountMode ? (data?.transactions || []) : [];
+  const registerRows = isAccountMode ? (data?.rows || []) : null;
 
   return (
     <div>
@@ -304,7 +326,7 @@ export function TransactionsPage() {
       {error && <ErrorBanner error={error} />}
       {data && (
         <>
-          {selectedFids.size > 0 && (
+          {!isAccountMode && selectedFids.size > 0 && (
             <BulkActionBar
               selectedFids={selectedFids}
               transactions={transactions}
@@ -314,7 +336,8 @@ export function TransactionsPage() {
           )}
           <TransactionTable
             transactions={transactions}
-            focusedAccount={account}
+            registerRows={registerRows}
+            focusedAccount={!isAccountMode ? account : undefined}
             onStatusChange={onStatusChange}
             accounts={accountsData?.accounts || []}
             selectedFids={selectedFids}
@@ -358,6 +381,17 @@ function buildQuery(dateFrom, dateTo, account, tag, status, payee) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (account) tokens.push(`acct:${account}`);
+  if (tag) tokens.push(`tag:${tag}`);
+  if (payee === PAYEE_NONE) tokens.push("not:payee:.+");
+  else if (payee) tokens.push(`payee:${payee}`);
+  if (status === "reviewed") tokens.push("status:*");
+  if (status === "unreviewed") tokens.push("not:status:*");
+  return tokens;
+}
+
+function buildAregisterQuery(dateFrom, dateTo, tag, status, payee) {
+  const tokens = [];
+  if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (tag) tokens.push(`tag:${tag}`);
   if (payee === PAYEE_NONE) tokens.push("not:payee:.+");
   else if (payee) tokens.push(`payee:${payee}`);
