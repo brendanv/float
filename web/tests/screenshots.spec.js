@@ -123,6 +123,51 @@ test("import page", async ({ page }) => {
   await page.screenshot({ path: "test-results/import.png", fullPage: true });
 });
 
+test("import page - profile selected with edit delete buttons", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector('[data-testid="select-trigger"], button[role="combobox"], [role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Open the Select dropdown and pick a profile
+  const trigger = page.locator('[role="combobox"]').first();
+  await trigger.click();
+  await page.waitForTimeout(200);
+  await page.locator('[role="option"]').first().click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/import-profile-selected.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
+});
+
+test("import page - edit profile modal", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Select a profile
+  await page.locator('[role="combobox"]').first().click();
+  await page.waitForTimeout(200);
+  await page.locator('[role="option"]').first().click();
+  await page.waitForTimeout(300);
+  // Click edit button
+  await page.click('button[title="Edit bank profile"]');
+  await page.waitForSelector('[role="dialog"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: "test-results/import-edit-profile-modal.png", fullPage: true });
+});
+
+test("import page - delete profile dialog", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Select a profile
+  await page.locator('[role="combobox"]').first().click();
+  await page.waitForTimeout(200);
+  await page.locator('[role="option"]').first().click();
+  await page.waitForTimeout(300);
+  // Use JS click to bypass the file input that overlaps this button at some viewport sizes
+  await page.evaluate(() => document.querySelector('button[title="Delete bank profile"]').click());
+  await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import-delete-profile-dialog.png", fullPage: true });
+});
+
 test("import page - create profile modal", async ({ page }) => {
   await page.goto("/#/import");
   await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
