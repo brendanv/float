@@ -192,6 +192,21 @@ func (c *Client) Register(ctx context.Context, query ...string) ([]RegisterRow, 
 	return parseRegisterRows(stdout)
 }
 
+// Aregister runs `hledger areg -O json -f <journal> <account> [query...]`.
+// Returns one row per transaction touching the focused account, with a signed
+// change amount and running balance pre-computed by hledger.
+func (c *Client) Aregister(ctx context.Context, account string, query ...string) ([]AregisterRow, error) {
+	args := []string{"areg", "-O", "json", "-f", c.journal, account}
+	args = append(args, query...)
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger areg: %w", err))
+	}
+
+	return parseAregisterRows(stdout)
+}
+
 // Accounts runs `hledger accounts --types [--tree] -f <journal>`.
 // tree=true: returns populated tree. tree=false: flat list with no children.
 func (c *Client) Accounts(ctx context.Context, tree bool) ([]*AccountNode, error) {

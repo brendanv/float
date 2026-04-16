@@ -82,6 +82,34 @@ message GetBalancesResponse {
   BalanceReport report = 1;
 }
 
+// AccountRegisterRow is one row from `hledger areg <account>`: a single
+// transaction touching the focused account, with a signed net change and a
+// running balance pre-computed by hledger.
+message AccountRegisterRow {
+  string fid = 1;                     // 8-char UUID prefix of underlying txn; "" if untagged
+  string date = 2;                    // "YYYY-MM-DD"
+  string description = 3;
+  optional string payee = 4;          // part before "|" in description; nil if no "|"
+  optional string note = 5;           // part after "|" in description; nil if no "|"
+  string status = 6;                  // "", "Pending", "Cleared"; empty means Unmarked
+  repeated string other_accounts = 7; // Accounts in the txn not in or under the focused account
+  repeated Amount change = 8;         // Signed net change to the focused account for this txn
+  repeated Amount running_total = 9;  // Running balance of the focused account after this row
+}
+
+message GetAccountRegisterRequest {
+  string account = 1;        // required - focused account (full colon path)
+  repeated string query = 2; // optional extra hledger query tokens (date:..., status:..., tag:...)
+  int32 limit = 3;           // max rows to return; 0 = no limit
+  int32 offset = 4;          // number of rows to skip
+}
+
+message GetAccountRegisterResponse {
+  repeated AccountRegisterRow rows = 1;
+  int32 total = 2;   // total matching rows (before limit/offset)
+  bool has_next = 3; // true if there are more rows after this page
+}
+
 message ListAccountsRequest {}
 
 message ListAccountsResponse {
@@ -379,6 +407,7 @@ message ApplyRulesResponse {
 
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+  rpc GetAccountRegister(GetAccountRegisterRequest) returns (GetAccountRegisterResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
   rpc ListTags(ListTagsRequest) returns (ListTagsResponse);

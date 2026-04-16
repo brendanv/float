@@ -239,6 +239,93 @@ func TestRegister(t *testing.T) {
 	}
 }
 
+func TestAregister(t *testing.T) {
+	type expected struct {
+		fid           string
+		change        float64
+		balance       float64
+		otherAccounts []string
+	}
+	tests := []struct {
+		name    string
+		account string
+		query   []string
+		want    []expected
+	}{
+		{
+			name:    "assets:checking full history",
+			account: "assets:checking",
+			want: []expected{
+				{fid: "aa001100", change: 3500, balance: 3500, otherAccounts: []string{"income:salary"}},
+				{fid: "bb002200", change: -45, balance: 3455, otherAccounts: []string{"expenses:shopping"}},
+				{fid: "cc003300", change: -120, balance: 3335, otherAccounts: []string{"expenses:food"}},
+				{fid: "dd004400", change: -15, balance: 3320, otherAccounts: []string{"expenses:shopping"}},
+				{fid: "ee005500", change: 3500, balance: 6820, otherAccounts: []string{"income:salary"}},
+			},
+		},
+		{
+			name:    "assets subtree matches checking",
+			account: "assets",
+			want: []expected{
+				{fid: "aa001100", change: 3500, balance: 3500, otherAccounts: []string{"income:salary"}},
+				{fid: "bb002200", change: -45, balance: 3455, otherAccounts: []string{"expenses:shopping"}},
+				{fid: "cc003300", change: -120, balance: 3335, otherAccounts: []string{"expenses:food"}},
+				{fid: "dd004400", change: -15, balance: 3320, otherAccounts: []string{"expenses:shopping"}},
+				{fid: "ee005500", change: 3500, balance: 6820, otherAccounts: []string{"income:salary"}},
+			},
+		},
+		{
+			name:    "date query filters to January",
+			account: "assets:checking",
+			query:   []string{"date:2026-01"},
+			want: []expected{
+				{fid: "aa001100", change: 3500, balance: 3500, otherAccounts: []string{"income:salary"}},
+				{fid: "bb002200", change: -45, balance: 3455, otherAccounts: []string{"expenses:shopping"}},
+				{fid: "cc003300", change: -120, balance: 3335, otherAccounts: []string{"expenses:food"}},
+			},
+		},
+	}
+	c := mustClient(t, "simple.journal")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows, err := c.Aregister(t.Context(), tt.account, tt.query...)
+			if err != nil {
+				t.Fatalf("Aregister: %v", err)
+			}
+			if len(rows) != len(tt.want) {
+				t.Fatalf("got %d rows, want %d", len(rows), len(tt.want))
+			}
+			for i, want := range tt.want {
+				got := rows[i]
+				if got.Transaction.FID != want.fid {
+					t.Errorf("row %d FID = %q, want %q", i, got.Transaction.FID, want.fid)
+				}
+				if len(got.Change) != 1 {
+					t.Fatalf("row %d Change: expected 1 amount, got %d", i, len(got.Change))
+				}
+				if fp := got.Change[0].Quantity.FloatingPoint; fp < want.change-0.5 || fp > want.change+0.5 {
+					t.Errorf("row %d Change ≈ %v, got %v", i, want.change, fp)
+				}
+				if len(got.Balance) != 1 {
+					t.Fatalf("row %d Balance: expected 1 amount, got %d", i, len(got.Balance))
+				}
+				if fp := got.Balance[0].Quantity.FloatingPoint; fp < want.balance-0.5 || fp > want.balance+0.5 {
+					t.Errorf("row %d Balance ≈ %v, got %v", i, want.balance, fp)
+				}
+				if len(got.OtherAccounts) != len(want.otherAccounts) {
+					t.Errorf("row %d OtherAccounts = %v, want %v", i, got.OtherAccounts, want.otherAccounts)
+				} else {
+					for j, a := range want.otherAccounts {
+						if got.OtherAccounts[j] != a {
+							t.Errorf("row %d OtherAccounts[%d] = %q, want %q", i, j, got.OtherAccounts[j], a)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestAccounts(t *testing.T) {
 	tests := []struct {
 		name  string

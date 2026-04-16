@@ -54,6 +54,12 @@ func balancesKey(depth int, query []string) string {
 	return fmt.Sprintf("balances:%d:%s", depth, strings.Join(sorted, "|"))
 }
 
+func accountRegisterKey(account string, query []string) string {
+	sorted := append([]string(nil), query...)
+	sort.Strings(sorted)
+	return fmt.Sprintf("aregister:%s:%s", account, strings.Join(sorted, "|"))
+}
+
 const accountsKey = "accounts"
 const tagsKey = "tags"
 const payeesKey = "payees"
@@ -88,6 +94,20 @@ func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 		return nil, err
 	}
 	return val.(*hledger.BalanceReport), nil
+}
+
+// cachedAregister fetches account register rows from cache or hledger.
+func cachedAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, account string, query []string) ([]hledger.AregisterRow, error) {
+	if c == nil {
+		return hl.Aregister(ctx, account, query...)
+	}
+	val, err := c.Get(ctx, accountRegisterKey(account, query), func(ctx context.Context) (any, error) {
+		return hl.Aregister(ctx, account, query...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.([]hledger.AregisterRow), nil
 }
 
 // cachedNetWorth fetches a balance sheet timeseries from cache or hledger.
@@ -171,6 +191,39 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 		proto[i] = toProtoTransaction(t)
 	}
 	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto, Total: total, HasNext: hasNext}), nil
+}
+
+func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[floatv1.GetAccountRegisterRequest]) (*connect.Response[floatv1.GetAccountRegisterResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	account := strings.TrimSpace(req.Msg.Account)
+	if account == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account is required"))
+	}
+	rows, err := cachedAregister(ctx, h.cache, h.hl, account, req.Msg.Query)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger aregister failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	total := int32(len(rows))
+	if req.Msg.Offset > 0 {
+		if int(req.Msg.Offset) >= len(rows) {
+			rows = nil
+		} else {
+			rows = rows[req.Msg.Offset:]
+		}
+	}
+	hasNext := false
+	if req.Msg.Limit > 0 && int(req.Msg.Limit) < len(rows) {
+		rows = rows[:req.Msg.Limit]
+		hasNext = true
+	}
+	proto := make([]*floatv1.AccountRegisterRow, len(rows))
+	for i, r := range rows {
+		proto[i] = toProtoAccountRegisterRow(r)
+	}
+	return connect.NewResponse(&floatv1.GetAccountRegisterResponse{
+		Rows: proto, Total: total, HasNext: hasNext,
+	}), nil
 }
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
@@ -524,6 +577,34 @@ func toProtoAmount(a hledger.Amount) *floatv1.Amount {
 		Commodity: a.Commodity,
 		Quantity:  quantity,
 	}
+}
+
+func toProtoAccountRegisterRow(r hledger.AregisterRow) *floatv1.AccountRegisterRow {
+	change := make([]*floatv1.Amount, len(r.Change))
+	for i, a := range r.Change {
+		change[i] = toProtoAmount(a)
+	}
+	balance := make([]*floatv1.Amount, len(r.Balance))
+	for i, a := range r.Balance {
+		balance[i] = toProtoAmount(a)
+	}
+	// Normalize "Unmarked" to "" for proto contract, matching toProtoTransaction.
+	status := r.Transaction.Status
+	if status == "Unmarked" {
+		status = ""
+	}
+	row := &floatv1.AccountRegisterRow{
+		Fid:           r.Transaction.FID,
+		Date:          r.Transaction.Date,
+		Description:   r.Transaction.Description,
+		Status:        status,
+		OtherAccounts: append([]string(nil), r.OtherAccounts...),
+		Change:        change,
+		RunningTotal:  balance,
+	}
+	row.Payee = r.Transaction.Payee
+	row.Note = r.Transaction.Note
+	return row
 }
 
 func toProtoBalanceRow(r hledger.BalanceRow) *floatv1.BalanceRow {

@@ -1338,6 +1338,255 @@ func TestListTransactions_FloatMetaFiltered(t *testing.T) {
 	}
 }
 
+// aregJSON is a two-row fixture for `hledger areg assets:checking -O json`.
+// Each row is the documented 6-element array:
+//
+//	[Transaction, Transaction, Bool, [string], [Amount], [Amount]].
+const aregJSON = `[
+  [
+    {"tcode":"aa001100","tcomment":"","tdate":"2026-01-05","tdate2":null,"tdescription":"PAYROLL | monthly","tindex":1,"tpostings":[],"tprecedingcomment":"","tstatus":"Cleared","ttags":[],"tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
+    {"tcode":"aa001100","tcomment":"","tdate":"2026-01-05","tdate2":null,"tdescription":"PAYROLL | monthly","tindex":1,"tpostings":[],"tprecedingcomment":"","tstatus":"Cleared","ttags":[],"tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
+    false,
+    ["income:salary"],
+    [{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":350000,"decimalPlaces":2,"floatingPoint":3500}}],
+    [{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":350000,"decimalPlaces":2,"floatingPoint":3500}}]
+  ],
+  [
+    {"tcode":"bb002200","tcomment":"","tdate":"2026-01-15","tdate2":null,"tdescription":"AMAZON","tindex":2,"tpostings":[],"tprecedingcomment":"","tstatus":"Unmarked","ttags":[],"tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
+    {"tcode":"bb002200","tcomment":"","tdate":"2026-01-15","tdate2":null,"tdescription":"AMAZON","tindex":2,"tpostings":[],"tprecedingcomment":"","tstatus":"Unmarked","ttags":[],"tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
+    false,
+    ["expenses:shopping"],
+    [{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":-4500,"decimalPlaces":2,"floatingPoint":-45}}],
+    [{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":345500,"decimalPlaces":2,"floatingPoint":3455}}]
+  ]
+]`
+
+func TestGetAccountRegister(t *testing.T) {
+	h := mustHandler(t, map[string][]byte{"areg": []byte(aregJSON)})
+
+	resp, err := h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "assets:checking",
+	}))
+	if err != nil {
+		t.Fatalf("GetAccountRegister: %v", err)
+	}
+	rows := resp.Msg.Rows
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if resp.Msg.Total != 2 {
+		t.Errorf("Total = %d, want 2", resp.Msg.Total)
+	}
+	if resp.Msg.HasNext {
+		t.Error("HasNext should be false when all rows returned")
+	}
+
+	// Row 0: payroll deposit, status normalized from "Cleared" stays "Cleared",
+	// payee/note parsed from "PAYROLL | monthly".
+	r0 := rows[0]
+	if r0.Fid != "aa001100" {
+		t.Errorf("row 0 Fid = %q, want aa001100", r0.Fid)
+	}
+	if r0.Date != "2026-01-05" {
+		t.Errorf("row 0 Date = %q, want 2026-01-05", r0.Date)
+	}
+	if r0.Description != "PAYROLL | monthly" {
+		t.Errorf("row 0 Description = %q", r0.Description)
+	}
+	if r0.Payee == nil || *r0.Payee != "PAYROLL" {
+		t.Errorf("row 0 Payee = %v, want PAYROLL", r0.Payee)
+	}
+	if r0.Note == nil || *r0.Note != "monthly" {
+		t.Errorf("row 0 Note = %v, want monthly", r0.Note)
+	}
+	if r0.Status != "Cleared" {
+		t.Errorf("row 0 Status = %q, want Cleared", r0.Status)
+	}
+	if len(r0.OtherAccounts) != 1 || r0.OtherAccounts[0] != "income:salary" {
+		t.Errorf("row 0 OtherAccounts = %v", r0.OtherAccounts)
+	}
+	if len(r0.Change) != 1 || r0.Change[0].Quantity != "3500.00" || r0.Change[0].Commodity != "$" {
+		t.Errorf("row 0 Change = %+v", r0.Change)
+	}
+	if len(r0.RunningTotal) != 1 || r0.RunningTotal[0].Quantity != "3500.00" {
+		t.Errorf("row 0 RunningTotal = %+v", r0.RunningTotal)
+	}
+
+	// Row 1: $45 expense — signed negative, running balance 3455, status
+	// normalized from "Unmarked" to "", description without "|" yields nil
+	// payee/note.
+	r1 := rows[1]
+	if r1.Status != "" {
+		t.Errorf("row 1 Status = %q, want empty (Unmarked normalized)", r1.Status)
+	}
+	if r1.Payee != nil || r1.Note != nil {
+		t.Errorf("row 1 Payee/Note should be nil, got %v/%v", r1.Payee, r1.Note)
+	}
+	if r1.Change[0].Quantity != "-45.00" {
+		t.Errorf("row 1 Change = %q, want -45.00", r1.Change[0].Quantity)
+	}
+	if r1.RunningTotal[0].Quantity != "3455.00" {
+		t.Errorf("row 1 RunningTotal = %q, want 3455.00", r1.RunningTotal[0].Quantity)
+	}
+}
+
+func TestGetAccountRegister_EmptyAccount(t *testing.T) {
+	h := mustHandler(t, map[string][]byte{"areg": []byte(aregJSON)})
+	_, err := h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "   ",
+	}))
+	if err == nil {
+		t.Fatal("expected error for empty account, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+	}
+}
+
+func TestGetAccountRegister_PassesArgsToHledger(t *testing.T) {
+	var capturedArgs []string
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		capturedArgs = args
+		return []byte("[]"), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "journal.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
+
+	_, err = h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "assets:checking",
+		Query:   []string{"date:2026-01", "status:cleared"},
+	}))
+	if err != nil {
+		t.Fatalf("GetAccountRegister: %v", err)
+	}
+
+	joined := strings.Join(capturedArgs, " ")
+	if !strings.Contains(joined, "areg") {
+		t.Errorf("args %v missing areg subcommand", capturedArgs)
+	}
+	// Focused account must appear as a positional arg, not a query token.
+	if !strings.Contains(joined, "assets:checking") {
+		t.Errorf("args %v missing focused account 'assets:checking'", capturedArgs)
+	}
+	if !strings.Contains(joined, "date:2026-01") {
+		t.Errorf("args %v missing query token 'date:2026-01'", capturedArgs)
+	}
+	if !strings.Contains(joined, "status:cleared") {
+		t.Errorf("args %v missing query token 'status:cleared'", capturedArgs)
+	}
+}
+
+func TestGetAccountRegister_Pagination(t *testing.T) {
+	h := mustHandler(t, map[string][]byte{"areg": []byte(aregJSON)})
+
+	// limit=1 → first row only, HasNext=true, Total=2.
+	resp, err := h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "assets:checking",
+		Limit:   1,
+	}))
+	if err != nil {
+		t.Fatalf("GetAccountRegister: %v", err)
+	}
+	if len(resp.Msg.Rows) != 1 || resp.Msg.Rows[0].Fid != "aa001100" {
+		t.Errorf("limit=1: unexpected rows %+v", resp.Msg.Rows)
+	}
+	if resp.Msg.Total != 2 {
+		t.Errorf("Total = %d, want 2", resp.Msg.Total)
+	}
+	if !resp.Msg.HasNext {
+		t.Error("HasNext should be true when limit truncates results")
+	}
+
+	// offset=1, limit=10 → second row, HasNext=false.
+	resp, err = h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "assets:checking",
+		Offset:  1,
+		Limit:   10,
+	}))
+	if err != nil {
+		t.Fatalf("GetAccountRegister: %v", err)
+	}
+	if len(resp.Msg.Rows) != 1 || resp.Msg.Rows[0].Fid != "bb002200" {
+		t.Errorf("offset=1: unexpected rows %+v", resp.Msg.Rows)
+	}
+	if resp.Msg.HasNext {
+		t.Error("HasNext should be false when fewer than limit rows remain")
+	}
+
+	// offset >= total → empty result.
+	resp, err = h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "assets:checking",
+		Offset:  5,
+	}))
+	if err != nil {
+		t.Fatalf("GetAccountRegister: %v", err)
+	}
+	if len(resp.Msg.Rows) != 0 {
+		t.Errorf("offset>total should yield empty rows, got %d", len(resp.Msg.Rows))
+	}
+	if resp.Msg.Total != 2 {
+		t.Errorf("Total = %d, want 2 (pre-pagination total)", resp.Msg.Total)
+	}
+}
+
+func TestGetAccountRegister_HledgerError(t *testing.T) {
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		return nil, []byte("boom"), errors.New("exec failed")
+	}
+	c, err := hledger.NewWithRunner("hledger", "journal.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
+
+	_, err = h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "assets:checking",
+	}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInternal {
+		t.Errorf("code = %v, want Internal", connect.CodeOf(err))
+	}
+}
+
+func TestGetAccountRegister_CacheHit(t *testing.T) {
+	var callCount atomic.Int32
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		callCount.Add(1)
+		return []byte(aregJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "journal.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	cch := cache.New[any](func() uint64 { return 0 })
+	h := serverledger.NewHandler(c, nil, "", "", cch, nil, nil)
+
+	req := connect.NewRequest(&floatv1.GetAccountRegisterRequest{Account: "assets:checking"})
+	if _, err := h.GetAccountRegister(t.Context(), req); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	if _, err := h.GetAccountRegister(t.Context(), req); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	if got := callCount.Load(); got != 1 {
+		t.Errorf("expected 1 hledger call (second served from cache), got %d", got)
+	}
+}
+
 func TestBulkEditTransactionsHandler(t *testing.T) {
 	// appendTx is a helper that adds a transaction and returns its FID.
 	appendTx := func(t *testing.T, c *hledger.Client, dir string, tx journal.TransactionInput) string {

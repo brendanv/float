@@ -92,24 +92,72 @@ func splitPayeeNote(desc string) (payee, note *string) {
 	return nil, nil
 }
 
+// enrichTransaction populates the derived FID, Payee, Note, and FloatMeta
+// fields on a freshly-unmarshaled Transaction. Safe to call on a zero-value
+// Transaction; fields without a matching source are left nil / empty.
+func enrichTransaction(t *Transaction) {
+	t.FID = t.Code
+	t.Payee, t.Note = splitPayeeNote(t.Description)
+	for _, kv := range t.Tags {
+		if strings.HasPrefix(kv[0], HiddenMetaPrefix) {
+			if t.FloatMeta == nil {
+				t.FloatMeta = make(map[string]string)
+			}
+			t.FloatMeta[kv[0]] = kv[1]
+		}
+	}
+}
+
 func parseTransactions(data []byte) ([]Transaction, error) {
 	var txns []Transaction
 	if err := json.Unmarshal(data, &txns); err != nil {
 		return nil, fmt.Errorf("parseTransactions: %w", err)
 	}
 	for i := range txns {
-		txns[i].FID = txns[i].Code
-		txns[i].Payee, txns[i].Note = splitPayeeNote(txns[i].Description)
-		for _, kv := range txns[i].Tags {
-			if strings.HasPrefix(kv[0], HiddenMetaPrefix) {
-				if txns[i].FloatMeta == nil {
-					txns[i].FloatMeta = make(map[string]string)
-				}
-				txns[i].FloatMeta[kv[0]] = kv[1]
-			}
-		}
+		enrichTransaction(&txns[i])
 	}
 	return txns, nil
+}
+
+// parseAregisterRows parses the output of `hledger areg -O json`.
+// Each row is a heterogeneous 6-element JSON array:
+//
+//	[ Transaction, Transaction, Bool, []string, []Amount, []Amount ]
+//	  source       displayed    flag  others    change    balance
+//
+// We keep the source transaction (element 0) and discard the duplicate
+// displayed transaction (1) and the subaccount-included flag (2).
+func parseAregisterRows(data []byte) ([]AregisterRow, error) {
+	var rawRows []json.RawMessage
+	if err := json.Unmarshal(data, &rawRows); err != nil {
+		return nil, fmt.Errorf("parseAregisterRows: unmarshal outer: %w", err)
+	}
+
+	rows := make([]AregisterRow, 0, len(rawRows))
+	for i, raw := range rawRows {
+		var fields [6]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return nil, fmt.Errorf("parseAregisterRows: row %d unmarshal fields: %w", i, err)
+		}
+		var row AregisterRow
+		if err := json.Unmarshal(fields[0], &row.Transaction); err != nil {
+			return nil, fmt.Errorf("parseAregisterRows: row %d Transaction: %w", i, err)
+		}
+		enrichTransaction(&row.Transaction)
+		// fields[1] (displayed txn) and fields[2] (subaccount flag) ignored.
+		if err := json.Unmarshal(fields[3], &row.OtherAccounts); err != nil {
+			return nil, fmt.Errorf("parseAregisterRows: row %d OtherAccounts: %w", i, err)
+		}
+		if err := json.Unmarshal(fields[4], &row.Change); err != nil {
+			return nil, fmt.Errorf("parseAregisterRows: row %d Change: %w", i, err)
+		}
+		if err := json.Unmarshal(fields[5], &row.Balance); err != nil {
+			return nil, fmt.Errorf("parseAregisterRows: row %d Balance: %w", i, err)
+		}
+		rows = append(rows, row)
+	}
+
+	return rows, nil
 }
 
 // parseBalanceSheetTimeseries parses the JSON object emitted by
