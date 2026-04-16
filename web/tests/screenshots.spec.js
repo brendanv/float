@@ -71,6 +71,23 @@ test("transactions page - payee filter", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-payee-filter.png", fullPage: true });
 });
 
+test("transactions page - account register view", async ({ page }) => {
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/transactions-account-register.png", fullPage: true });
+});
+
+test("transactions page - account register mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/transactions-account-register-mobile.png", fullPage: true });
+});
+
 test("transactions page - mobile bulk edit toolbar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");

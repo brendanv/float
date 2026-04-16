@@ -171,6 +171,56 @@ export const mockBankProfiles = [
   { name: "Capital One Visa", rulesFile: "rules/capitalone.rules" },
 ];
 
+export const mockAccountRegisterRows = [
+  {
+    fid: "b2c3d4e5",
+    date: "2026-03-24",
+    description: "Acme Corp | March salary",
+    payee: "Acme Corp",
+    note: "March salary",
+    status: "Cleared",
+    otherAccounts: ["income:salary"],
+    change: [{ commodity: "$", quantity: "5200.00" }],
+    runningTotal: [{ commodity: "$", quantity: "5200.00" }],
+  },
+  {
+    fid: "c3d4e5f8",
+    date: "2026-03-22",
+    description: "Metro Transit",
+    status: "Cleared",
+    otherAccounts: ["expenses:transport"],
+    change: [{ commodity: "$", quantity: "-3.25" }],
+    runningTotal: [{ commodity: "$", quantity: "5196.75" }],
+  },
+  {
+    fid: "d4e5f6g7",
+    date: "2026-03-20",
+    description: "Electric Bill",
+    status: "Cleared",
+    otherAccounts: ["expenses:utilities"],
+    change: [{ commodity: "$", quantity: "-95.00" }],
+    runningTotal: [{ commodity: "$", quantity: "5101.75" }],
+  },
+  {
+    fid: "e5f6g7h9",
+    date: "2026-03-15",
+    description: "Grocery Store",
+    status: "Cleared",
+    otherAccounts: ["expenses:groceries"],
+    change: [{ commodity: "$", quantity: "-62.18" }],
+    runningTotal: [{ commodity: "$", quantity: "5039.57" }],
+  },
+  {
+    fid: "f6g7h8i9",
+    date: "2026-03-10",
+    description: "Rent Payment",
+    status: "Cleared",
+    otherAccounts: ["expenses:rent"],
+    change: [{ commodity: "$", quantity: "-1500.00" }],
+    runningTotal: [{ commodity: "$", quantity: "3539.57" }],
+  },
+];
+
 export const mockRules = [
   { id: "aabb1122", pattern: "AMAZON|amazon\\.com", payee: "Amazon", account: "expenses:shopping", tags: {}, priority: 5 },
   { id: "ccdd3344", pattern: "STARBUCKS|starbucks", payee: "Starbucks", account: "expenses:dining", tags: { category: "coffee" }, priority: 10 },
@@ -269,7 +319,7 @@ export const mockApplyPreviews = [
     addTags: {},
   },
 ];
-export async function mockLedgerApi(page) {
+export async function mockLedgerApi(page, { accountRegisterRows } = {}) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
     const method = url.split("/").pop();
@@ -315,6 +365,9 @@ export async function mockLedgerApi(page) {
         body = { transactions: txs };
         break;
       }
+      case "GetAccountRegister":
+        body = { rows: accountRegisterRows ?? mockAccountRegisterRows, total: (accountRegisterRows ?? mockAccountRegisterRows).length, hasNext: false };
+        break;
       case "GetNetWorthTimeseries":
         body = { snapshots: mockNetWorthSnapshots };
         break;
