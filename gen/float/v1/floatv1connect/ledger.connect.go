@@ -36,6 +36,9 @@ const (
 	// LedgerServiceListTransactionsProcedure is the fully-qualified name of the LedgerService's
 	// ListTransactions RPC.
 	LedgerServiceListTransactionsProcedure = "/float.v1.LedgerService/ListTransactions"
+	// LedgerServiceGetAccountRegisterProcedure is the fully-qualified name of the LedgerService's
+	// GetAccountRegister RPC.
+	LedgerServiceGetAccountRegisterProcedure = "/float.v1.LedgerService/GetAccountRegister"
 	// LedgerServiceGetBalancesProcedure is the fully-qualified name of the LedgerService's GetBalances
 	// RPC.
 	LedgerServiceGetBalancesProcedure = "/float.v1.LedgerService/GetBalances"
@@ -118,6 +121,7 @@ const (
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
 type LedgerServiceClient interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
+	GetAccountRegister(context.Context, *connect.Request[v1.GetAccountRegisterRequest]) (*connect.Response[v1.GetAccountRegisterResponse], error)
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
@@ -164,6 +168,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceListTransactionsProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("ListTransactions")),
+			connect.WithClientOptions(opts...),
+		),
+		getAccountRegister: connect.NewClient[v1.GetAccountRegisterRequest, v1.GetAccountRegisterResponse](
+			httpClient,
+			baseURL+LedgerServiceGetAccountRegisterProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetAccountRegister")),
 			connect.WithClientOptions(opts...),
 		),
 		getBalances: connect.NewClient[v1.GetBalancesRequest, v1.GetBalancesResponse](
@@ -334,6 +344,7 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 // ledgerServiceClient implements LedgerServiceClient.
 type ledgerServiceClient struct {
 	listTransactions        *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
+	getAccountRegister      *connect.Client[v1.GetAccountRegisterRequest, v1.GetAccountRegisterResponse]
 	getBalances             *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
 	listAccounts            *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
 	listTags                *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
@@ -366,6 +377,11 @@ type ledgerServiceClient struct {
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
 func (c *ledgerServiceClient) ListTransactions(ctx context.Context, req *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error) {
 	return c.listTransactions.CallUnary(ctx, req)
+}
+
+// GetAccountRegister calls float.v1.LedgerService.GetAccountRegister.
+func (c *ledgerServiceClient) GetAccountRegister(ctx context.Context, req *connect.Request[v1.GetAccountRegisterRequest]) (*connect.Response[v1.GetAccountRegisterResponse], error) {
+	return c.getAccountRegister.CallUnary(ctx, req)
 }
 
 // GetBalances calls float.v1.LedgerService.GetBalances.
@@ -506,6 +522,7 @@ func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Reque
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
+	GetAccountRegister(context.Context, *connect.Request[v1.GetAccountRegisterRequest]) (*connect.Response[v1.GetAccountRegisterResponse], error)
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
@@ -548,6 +565,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceListTransactionsProcedure,
 		svc.ListTransactions,
 		connect.WithSchema(ledgerServiceMethods.ByName("ListTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceGetAccountRegisterHandler := connect.NewUnaryHandler(
+		LedgerServiceGetAccountRegisterProcedure,
+		svc.GetAccountRegister,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetAccountRegister")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceGetBalancesHandler := connect.NewUnaryHandler(
@@ -716,6 +739,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
 			ledgerServiceListTransactionsHandler.ServeHTTP(w, r)
+		case LedgerServiceGetAccountRegisterProcedure:
+			ledgerServiceGetAccountRegisterHandler.ServeHTTP(w, r)
 		case LedgerServiceGetBalancesProcedure:
 			ledgerServiceGetBalancesHandler.ServeHTTP(w, r)
 		case LedgerServiceListAccountsProcedure:
@@ -781,6 +806,10 @@ type UnimplementedLedgerServiceHandler struct{}
 
 func (UnimplementedLedgerServiceHandler) ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListTransactions is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetAccountRegister(context.Context, *connect.Request[v1.GetAccountRegisterRequest]) (*connect.Response[v1.GetAccountRegisterResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetAccountRegister is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error) {

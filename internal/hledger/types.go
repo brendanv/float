@@ -88,6 +88,26 @@ type RegisterRow struct {
 	Balance     []Amount
 }
 
+// AregisterRow is one row from `hledger areg <account> -O json`.
+// Unlike RegisterRow (one row per posting), each AregisterRow corresponds to
+// a single transaction that touches the focused account. The JSON wire format
+// is a heterogeneous 6-element array — see parseAregisterRows.
+type AregisterRow struct {
+	// Transaction is the source transaction from element [0] of the hledger row.
+	// FID/Payee/Note/FloatMeta are populated by the parser, matching the behavior
+	// of Transactions().
+	Transaction Transaction
+	// OtherAccounts are the accounts in the transaction that are NOT in or under
+	// the focused account (element [3] of the hledger row).
+	OtherAccounts []string
+	// Change is the signed net change to the focused account for this
+	// transaction (element [4]).
+	Change []Amount
+	// Balance is the running balance of the focused account after this row
+	// (element [5]).
+	Balance []Amount
+}
+
 // BalanceRow is one account entry from `hledger bal -O json`.
 // The JSON encodes each row as a heterogeneous 4-element array — see parseBalanceReport.
 type BalanceRow struct {
