@@ -5,7 +5,6 @@ import (
 
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 )
@@ -95,12 +94,10 @@ func primaryPosting(tx *floatv1.Transaction) *floatv1.Posting {
 
 func (p *TransactionsPanel) formatDescription(tx *floatv1.Transaction) string {
 	if tx.Payee != nil {
-		payee := lipgloss.NewStyle().Bold(true).Render(tx.GetPayee())
 		if tx.Note != nil {
-			note := p.styles.Help.Render("· " + tx.GetNote())
-			return payee + " " + note
+			return tx.GetPayee() + " · " + tx.GetNote()
 		}
-		return payee
+		return tx.GetPayee()
 	}
 	return tx.Description
 }
