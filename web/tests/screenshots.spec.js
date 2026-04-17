@@ -200,6 +200,20 @@ test("import page - preview loaded", async ({ page }) => {
   await page.screenshot({ path: "test-results/import-preview.png", fullPage: true });
 });
 
+test("import history page", async ({ page }) => {
+  await page.goto("/#/imports");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import-history.png", fullPage: true });
+});
+
+test("import detail page", async ({ page }) => {
+  await page.goto("/#/imports/2026-03-28-a1b2c3d4");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import-detail.png", fullPage: true });
+});
+
 test("rules page", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
