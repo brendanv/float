@@ -208,6 +208,34 @@ func (RulesPreviewKeyMap) FullHelp() [][]key.Binding {
 }
 
 
+// ImportsListKeyMap is for the imports tab in list mode.
+type ImportsListKeyMap struct{}
+
+func (ImportsListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyExpand, keyHelp}
+}
+func (ImportsListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyExpand, keyRetry},
+	}
+}
+
+var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+
+// ImportsDetailKeyMap is for the imports tab in batch detail mode.
+type ImportsDetailKeyMap struct{}
+
+func (ImportsDetailKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keyBack, keyHelp}
+}
+func (ImportsDetailKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyBack, keyRetry},
+	}
+}
+
 // SettingsKeyMap is for the settings tab.
 type SettingsKeyMap struct{}
 

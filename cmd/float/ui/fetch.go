@@ -344,3 +344,38 @@ func ApplyRulesCmd(client floatv1connect.LedgerServiceClient, fids []string) tea
 		return ApplyRulesMsg{AppliedCount: resp.Msg.AppliedCount}
 	}
 }
+
+// ImportsMsg carries the list of import summaries.
+type ImportsMsg struct {
+	Imports []*floatv1.ImportSummary
+	Err     error
+}
+
+// ImportedTransactionsMsg carries transactions for a specific import batch.
+type ImportedTransactionsMsg struct {
+	BatchId      string
+	Transactions []*floatv1.Transaction
+	Err          error
+}
+
+func FetchImports(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListImports(context.Background(), connect.NewRequest(&floatv1.ListImportsRequest{}))
+		if err != nil {
+			return ImportsMsg{Err: err}
+		}
+		return ImportsMsg{Imports: resp.Msg.Imports}
+	}
+}
+
+func FetchImportedTransactions(client floatv1connect.LedgerServiceClient, batchId string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetImportedTransactions(context.Background(), connect.NewRequest(&floatv1.GetImportedTransactionsRequest{
+			ImportBatchId: batchId,
+		}))
+		if err != nil {
+			return ImportedTransactionsMsg{BatchId: batchId, Err: err}
+		}
+		return ImportedTransactionsMsg{BatchId: batchId, Transactions: resp.Msg.Transactions}
+	}
+}
