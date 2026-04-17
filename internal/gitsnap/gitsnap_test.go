@@ -186,6 +186,45 @@ func TestRestore_RevertsFiles(t *testing.T) {
 	}
 }
 
+func TestRestore_PreservesIgnoredFiles(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	journalPath := filepath.Join(dir, "main.journal")
+	configPath := filepath.Join(dir, "config.toml")
+
+	if err := os.WriteFile(journalPath, []byte("version-A"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "commit A"); err != nil {
+		t.Fatalf("Commit A: %v", err)
+	}
+	snapsA, _ := repo.List(ctx, 1)
+	hashA := snapsA[0].Hash
+
+	if err := os.WriteFile(journalPath, []byte("version-B"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte("[server]\nport=8080\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "commit B"); err != nil {
+		t.Fatalf("Commit B: %v", err)
+	}
+
+	if err := repo.Restore(ctx, hashA); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	if _, err := os.Stat(configPath); err != nil {
+		t.Errorf("config.toml deleted by restore: %v", err)
+	}
+}
+
 func TestRestore_InvalidHash(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()

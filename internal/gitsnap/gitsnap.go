@@ -122,6 +122,8 @@ func (r *Repo) List(_ context.Context, limit int) ([]Snapshot, error) {
 	return snaps, nil
 }
 
+var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key"}
+
 func (r *Repo) Restore(_ context.Context, hash string) error {
 	h := plumbing.NewHash(hash)
 	if h.IsZero() {
@@ -134,11 +136,26 @@ func (r *Repo) Restore(_ context.Context, hash string) error {
 	if err != nil {
 		return fmt.Errorf("gitsnap: restore: worktree: %w", err)
 	}
+
+	saved := map[string][]byte{}
+	for _, name := range preservedFiles {
+		data, err := os.ReadFile(filepath.Join(r.dir, name))
+		if err == nil {
+			saved[name] = data
+		}
+	}
+
 	if err := wt.Reset(&git.ResetOptions{
 		Commit: h,
 		Mode:   git.HardReset,
 	}); err != nil {
 		return fmt.Errorf("gitsnap: restore: reset: %w", err)
+	}
+
+	for name, data := range saved {
+		if err := os.WriteFile(filepath.Join(r.dir, name), data, 0600); err != nil {
+			return fmt.Errorf("gitsnap: restore: restore %s: %w", name, err)
+		}
 	}
 	return nil
 }
