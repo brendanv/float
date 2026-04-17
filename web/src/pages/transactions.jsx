@@ -60,22 +60,22 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
   }
 
   function bulkMarkStatus(reviewed) {
-    return runBulk([{ markReviewed: { reviewed } }]);
+    return runBulk([{ operation: { case: "markReviewed", value: { reviewed } } }]);
   }
 
   function bulkAddTag() {
     if (!tagKey.trim()) return;
-    return runBulk([{ addTag: { key: tagKey.trim(), value: tagValue.trim() } }]);
+    return runBulk([{ operation: { case: "addTag", value: { key: tagKey.trim(), value: tagValue.trim() } } }]);
   }
 
   function bulkRemoveTag() {
     if (!removeTagKey) return;
-    return runBulk([{ removeTag: { key: removeTagKey } }]);
+    return runBulk([{ operation: { case: "removeTag", value: { key: removeTagKey } } }]);
   }
 
   function bulkSetPayee() {
     if (!payee.trim()) return;
-    return runBulk([{ setPayee: { payee: payee.trim() } }]);
+    return runBulk([{ operation: { case: "setPayee", value: { payee: payee.trim() } } }]);
   }
 
   return (
