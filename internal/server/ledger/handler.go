@@ -1196,6 +1196,8 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		selectedSet[idx] = true
 	}
 
+	importBatchID := time.Now().Format("2006-01-02") + "-" + journal.MintFID()
+
 	var importedFIDs []string
 	err = h.lock.Do(ctx, "import transactions", func() error {
 		for i, c := range candidates {
@@ -1206,6 +1208,12 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			if convErr != nil {
 				return fmt.Errorf("convert transaction %d: %w", i, convErr)
 			}
+
+			// Tag every transaction with the import batch ID.
+			if txInput.Tags == nil {
+				txInput.Tags = make(map[string]string)
+			}
+			txInput.Tags["import"] = importBatchID
 
 			// Apply float rules during import.
 			if r := rules.Match(rulesList, c.Description); r != nil {
@@ -1221,9 +1229,6 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 					}
 				}
 				if len(r.Tags) > 0 {
-					if txInput.Tags == nil {
-						txInput.Tags = make(map[string]string)
-					}
 					for k, v := range r.Tags {
 						txInput.Tags[k] = v
 					}
