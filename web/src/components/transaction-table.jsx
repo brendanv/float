@@ -1,6 +1,15 @@
 import { useState, useRef } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { formatAmounts, formatDate } from "../format.js";
 import { PostingFields } from "./posting-fields.jsx";
 import { useNavigate } from "@tanstack/react-router";
@@ -182,7 +191,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
   );
 }
 
-function EditableDetailRow({ tx, accounts, onSaved }) {
+function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   function toFields(ps) {
     return (ps || []).map((p) => ({ account: p.account, amount: formatAmounts(p.amounts) }));
   }
@@ -190,6 +199,8 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
   const [postings, setPostings] = useState(() => toFields(tx.postings));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const containerRef = useRef(null);
   // Track current postings in a ref so the focusout handler always sees the latest value
   const postingsRef = useRef(postings);
@@ -219,6 +230,19 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
     }
   }
 
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await ledgerClient.deleteTransaction({ fid: tx.fid });
+      setDeleteOpen(false);
+      if (onDeleted) onDeleted();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div
       ref={containerRef}
@@ -232,6 +256,29 @@ function EditableDetailRow({ tx, accounts, onSaved }) {
         <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
       )}
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      <div className="mt-3 flex justify-end">
+        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="xs" className="text-destructive hover:text-destructive" disabled={saving || deleting}>
+              <Trash2 className="h-3 w-3" /> Delete
+            </Button>
+          </DialogTrigger>
+          <DialogContent showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>Delete transaction?</DialogTitle>
+              <DialogDescription>
+                This will permanently remove &ldquo;{tx.description}&rdquo; from the journal. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+              <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
@@ -247,7 +294,7 @@ function resolveRegisterCells(row) {
   return { otherAccounts, change, balance, changePositive, changeNegative };
 }
 
-export function TransactionTable({ transactions, registerRows, focusedAccount, onStatusChange, accounts = [], selectedFids, onSelectionChange }) {
+export function TransactionTable({ transactions, registerRows, focusedAccount, onStatusChange, onDeleted, accounts = [], selectedFids, onSelectionChange }) {
   const [expanded, setExpanded] = useState(null);
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
@@ -419,7 +466,7 @@ export function TransactionTable({ transactions, registerRows, focusedAccount, o
                   !isRegisterMode && expanded === row.fid && (
                     <TableRow key={key + "-detail"} className="bg-muted/30 hover:bg-muted/30">
                       <TableCell colSpan={colSpan} className="p-0">
-                        <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} />
+                        <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} onDeleted={() => { setExpanded(null); if (onDeleted) onDeleted(); }} />
                       </TableCell>
                     </TableRow>
                   ),
@@ -509,7 +556,7 @@ export function TransactionTable({ transactions, registerRows, focusedAccount, o
                     </div>
                   )}
                   {!isRegisterMode && expanded === row.fid && (
-                    <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} />
+                    <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} onDeleted={() => { setExpanded(null); if (onDeleted) onDeleted(); }} />
                   )}
                 </CardContent>
               </Card>

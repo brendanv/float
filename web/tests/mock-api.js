@@ -420,6 +420,9 @@ export async function mockLedgerApi(page, { accountRegisterRows } = {}) {
       case "UpdateTransaction":
         body = {};
         break;
+      case "DeleteTransaction":
+        body = {};
+        break;
       case "ModifyTags":
         body = {};
         break;

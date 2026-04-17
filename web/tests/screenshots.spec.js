@@ -21,6 +21,18 @@ test("transactions page", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions.png", fullPage: true });
 });
 
+test("transactions page - delete confirmation", async ({ page }) => {
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.click("tbody tr:first-child");
+  await page.waitForTimeout(200);
+  await page.click("button:has-text('Delete')");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/transactions-delete.png", fullPage: true });
+});
+
 test("add transaction page", async ({ page }) => {
   await page.goto("/#/add");
   await page.waitForSelector("form", { timeout: 5000 }).catch(() => {});

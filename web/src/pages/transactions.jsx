@@ -355,6 +355,7 @@ export function TransactionsPage() {
             registerRows={registerRows}
             focusedAccount={!isAccountMode ? account : undefined}
             onStatusChange={onStatusChange}
+            onDeleted={onBulkActionComplete}
             accounts={accountsData?.accounts || []}
             selectedFids={selectedFids}
             onSelectionChange={setSelectedFids}
