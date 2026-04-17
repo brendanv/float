@@ -310,7 +310,7 @@ func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[fl
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
 	}
-	err := h.lock.Do(ctx, "delete transaction", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("delete transaction %s", fid), func() error {
 		return journal.DeleteTransaction(ctx, h.hl, h.dataDir, fid)
 	})
 	if err != nil {
@@ -329,7 +329,7 @@ func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.M
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
 	}
-	err := h.lock.Do(ctx, "modify transaction tags", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("modify tags on transaction %s", fid), func() error {
 		return journal.ModifyTags(ctx, h.hl, h.dataDir, fid, req.Msg.Tags)
 	})
 	if err != nil {
@@ -352,7 +352,7 @@ func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("new_date is required"))
 	}
 	var updated hledger.Transaction
-	err := h.lock.Do(ctx, "update transaction date", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("update date on transaction %s", fid), func() error {
 		var e error
 		updated, e = journal.UpdateTransactionDate(ctx, h.hl, h.dataDir, fid, req.Msg.NewDate)
 		return e
@@ -418,7 +418,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 	}
 
 	var fid string
-	err := h.lock.Do(ctx, "add transaction", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("add transaction: %s", desc), func() error {
 		var e error
 		fid, e = journal.AppendTransaction(ctx, h.hl, h.dataDir, tx)
 		return e
@@ -474,7 +474,7 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	}
 
 	var updated hledger.Transaction
-	err := h.lock.Do(ctx, "update transaction", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("update transaction %s", fid), func() error {
 		var e error
 		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, postings)
 		return e
@@ -506,7 +506,16 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid status %q: must be \"\", \"Pending\", or \"Cleared\"", req.Msg.Status))
 	}
-	err := h.lock.Do(ctx, "update transaction status", func() error {
+	var statusMsg string
+	switch req.Msg.Status {
+	case "Cleared":
+		statusMsg = "mark transaction " + fid + " as cleared"
+	case "Pending":
+		statusMsg = "mark transaction " + fid + " as pending"
+	case "":
+		statusMsg = "unmark transaction " + fid
+	}
+	err := h.lock.Do(ctx, statusMsg, func() error {
 		return journal.UpdateTransactionStatus(ctx, h.hl, h.dataDir, fid, req.Msg.Status)
 	})
 	if err != nil {
@@ -678,7 +687,7 @@ func (h *Handler) AddPrice(ctx context.Context, req *connect.Request[floatv1.Add
 	}
 
 	var pid string
-	err := h.lock.Do(ctx, "add price directive", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("add price: %s %s @ %s %s", date, req.Msg.Commodity, req.Msg.Quantity, req.Msg.Currency), func() error {
 		var e error
 		pid, e = journal.AppendPrice(h.dataDir, date, req.Msg.Commodity, req.Msg.Quantity, req.Msg.Currency)
 		return e
@@ -702,7 +711,7 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 	if req.Msg.Pid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pid is required"))
 	}
-	err := h.lock.Do(ctx, "delete price directive", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("delete price %s", req.Msg.Pid), func() error {
 		return journal.DeletePrice(h.dataDir, req.Msg.Pid)
 	})
 	if err != nil {
@@ -750,7 +759,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		}
 	}
 
-	err := h.lock.Do(ctx, "bulk edit transactions", func() error {
+	err := h.lock.Do(ctx, bulkEditMessage(req.Msg.Fids, req.Msg.Operations), func() error {
 		for _, fid := range req.Msg.Fids {
 			txns, err := h.hl.Transactions(ctx, "code:"+fid)
 			if err != nil {
@@ -1210,7 +1219,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	importBatchID := time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 
 	var importedFIDs []string
-	err = h.lock.Do(ctx, "import transactions", func() error {
+	err = h.lock.Do(ctx, fmt.Sprintf("import %d transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), func() error {
 		for i, c := range candidates {
 			if !selectedSet[int32(i)] {
 				continue
@@ -1403,7 +1412,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 	}
 
 	var newRule rules.Rule
-	err := h.lock.Do(ctx, "add rule", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("add rule: %s", req.Msg.Pattern), func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -1437,7 +1446,7 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 	}
 
 	var updated rules.Rule
-	err := h.lock.Do(ctx, "update rule", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("update rule %s", req.Msg.Id), func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -1480,7 +1489,7 @@ func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.D
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
 
-	err := h.lock.Do(ctx, "delete rule", func() error {
+	err := h.lock.Do(ctx, fmt.Sprintf("delete rule %s", req.Msg.Id), func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -1590,7 +1599,7 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 	}
 
 	var applied int
-	err = h.lock.Do(ctx, "apply rules", func() error {
+	err = h.lock.Do(ctx, fmt.Sprintf("apply rules to %d transactions", len(matches)), func() error {
 		var applyErr error
 		applied, applyErr = rules.Apply(ctx, h.hl, h.dataDir, matches)
 		return applyErr
@@ -1615,6 +1624,28 @@ func filterRules(rulesList []rules.Rule, ids []string) []rules.Rule {
 		}
 	}
 	return filtered
+}
+
+func bulkEditMessage(fids []string, ops []*floatv1.BulkEditOperation) string {
+	if len(fids) == 1 && len(ops) == 1 {
+		fid := fids[0]
+		switch v := ops[0].Operation.(type) {
+		case *floatv1.BulkEditOperation_MarkReviewed:
+			if v.MarkReviewed.Reviewed {
+				return "mark transaction " + fid + " as reviewed"
+			}
+			return "unmark transaction " + fid + " as reviewed"
+		case *floatv1.BulkEditOperation_AddTag:
+			return fmt.Sprintf("add tag %q to transaction %s", v.AddTag.Key, fid)
+		case *floatv1.BulkEditOperation_RemoveTag:
+			return fmt.Sprintf("remove tag %q from transaction %s", v.RemoveTag.Key, fid)
+		case *floatv1.BulkEditOperation_SetPayee:
+			return fmt.Sprintf("set payee on transaction %s", fid)
+		case *floatv1.BulkEditOperation_ClearPayee:
+			return "clear payee on transaction " + fid
+		}
+	}
+	return fmt.Sprintf("bulk edit %d transactions", len(fids))
 }
 
 // categoryPostingIndex returns the index of the non-asset/liability posting

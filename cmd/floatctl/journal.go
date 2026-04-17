@@ -451,7 +451,7 @@ func runJournalDelete(args []string) error {
 		return err
 	}
 	lock := txlock.New(dataDir, client)
-	if err := lock.Do(context.Background(), "delete transaction", func() error {
+	if err := lock.Do(context.Background(), fmt.Sprintf("delete transaction %s", fid), func() error {
 		return journal.DeleteTransaction(context.Background(), client, dataDir, fid)
 	}); err != nil {
 		return err
@@ -522,7 +522,7 @@ func runJournalAdd(args []string) error {
 	lock := txlock.New(dataDir, client)
 
 	var fid string
-	if err := lock.Do(context.Background(), "add transaction", func() error {
+	if err := lock.Do(context.Background(), fmt.Sprintf("add transaction: %s", *description), func() error {
 		var addErr error
 		fid, addErr = journal.AppendTransaction(context.Background(), client, dataDir, tx)
 		return addErr
@@ -668,7 +668,7 @@ func runJournalImport(args []string) error {
 		if convErr != nil {
 			return fmt.Errorf("import: convert transaction: %w", convErr)
 		}
-		if err := lock.Do(ctx, "import transaction", func() error {
+		if err := lock.Do(ctx, fmt.Sprintf("import transaction: %s", e.txn.Description), func() error {
 			_, writeErr := journal.AppendTransaction(ctx, client, dataDir, txInput)
 			return writeErr
 		}); err != nil {
