@@ -360,6 +360,18 @@ message GetImportedTransactionsRequest {
   int32 offset = 3;           // number of transactions to skip
 }
 
+message ImportSummary {
+  string import_batch_id = 1; // e.g. "2026-04-17-a1b2c3d4"
+  string date = 2;            // "YYYY-MM-DD" extracted from batch ID
+  int32 transaction_count = 3;
+}
+
+message ListImportsRequest {}
+
+message ListImportsResponse {
+  repeated ImportSummary imports = 1;
+}
+
 // ---- Categorization Rules ----
 
 message TransactionRule {
@@ -468,6 +480,7 @@ service LedgerService {
   rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
   rpc ImportTransactions(ImportTransactionsRequest) returns (ImportTransactionsResponse);
   rpc GetImportedTransactions(GetImportedTransactionsRequest) returns (ListTransactionsResponse);
+  rpc ListImports(ListImportsRequest) returns (ListImportsResponse);
 
   // Rules
   rpc ListRules(ListRulesRequest) returns (ListRulesResponse);

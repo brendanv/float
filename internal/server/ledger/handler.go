@@ -1296,6 +1296,55 @@ func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Requ
 	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto, Total: total, HasNext: hasNext}), nil
 }
 
+func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.ListImportsRequest]) (*connect.Response[floatv1.ListImportsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	txns, err := cachedTransactions(ctx, h.cache, h.hl, []string{"tag:float-import"})
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Group transactions by import batch ID, preserving newest-first order.
+	type batchEntry struct {
+		batchID string
+		date    string
+		count   int32
+	}
+	seen := make(map[string]int) // batchID -> index in batches
+	var batches []batchEntry
+	for _, t := range txns {
+		batchID := t.FloatMeta["float-import"]
+		if batchID == "" {
+			continue
+		}
+		if idx, ok := seen[batchID]; ok {
+			batches[idx].count++
+		} else {
+			date := ""
+			if len(batchID) >= 10 {
+				date = batchID[:10]
+			}
+			seen[batchID] = len(batches)
+			batches = append(batches, batchEntry{batchID: batchID, date: date, count: 1})
+		}
+	}
+
+	// Sort descending by batch ID (which starts with YYYY-MM-DD).
+	sort.Slice(batches, func(i, j int) bool {
+		return batches[i].batchID > batches[j].batchID
+	})
+
+	out := make([]*floatv1.ImportSummary, len(batches))
+	for i, b := range batches {
+		out[i] = &floatv1.ImportSummary{
+			ImportBatchId:    b.batchID,
+			Date:             b.date,
+			TransactionCount: b.count,
+		}
+	}
+	return connect.NewResponse(&floatv1.ListImportsResponse{Imports: out}), nil
+}
+
 // isAssetOrLiabilityAccount returns true if the account name looks like an
 // asset or liability account based on common prefixes.
 func isAssetOrLiabilityAccount(account string) bool {
