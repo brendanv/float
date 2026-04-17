@@ -227,12 +227,13 @@ var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
 type ImportsDetailKeyMap struct{}
 
 func (ImportsDetailKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyQuit, keyNav, keyBack, keyHelp}
+	return []key.Binding{keyQuit, keyNav, keyEdit, keyDelete, keyReview, keyBack, keyHelp}
 }
 func (ImportsDetailKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
 		{keyNav, keyBack, keyRetry},
+		{keyEdit, keyDelete, keyReview, keySplit},
 	}
 }
 

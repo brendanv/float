@@ -153,6 +153,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rules, cmd = m.rules.Update(msg)
 			return m, cmd
 		}
+		// When the imports tab has the edit form or delete confirmation active, let it
+		// consume all key events (tab/shift+tab for field nav, q should not quit).
+		if m.activeTab == TabImports && (m.imports.addTxForm.Active() || m.imports.confirmDeleteTx != nil) {
+			var cmd tea.Cmd
+			m.imports, cmd = m.imports.Update(msg)
+			return m, cmd
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
