@@ -1136,12 +1136,23 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	out := make([]*floatv1.ImportCandidate, len(candidates))
 	for i, c := range candidates {
 		candidate := &floatv1.ImportCandidate{
-			Transaction: toProtoTransaction(c),
 			IsDuplicate: fpSet[journal.TxnFingerprint(c)],
 		}
 		if r := rules.Match(rulesList, c.Description); r != nil {
 			candidate.MatchedRuleId = r.ID
+			// Apply rule transformations so the preview reflects what will actually be imported.
+			if r.Payee != "" {
+				c.Description = r.Payee + " | " + c.Description
+			}
+			if r.Account != "" && len(c.Postings) == 2 {
+				for j, p := range c.Postings {
+					if !isAssetOrLiabilityAccount(p.Account) {
+						c.Postings[j].Account = r.Account
+					}
+				}
+			}
 		}
+		candidate.Transaction = toProtoTransaction(c)
 		out[i] = candidate
 	}
 	return connect.NewResponse(&floatv1.PreviewImportResponse{Candidates: out}), nil

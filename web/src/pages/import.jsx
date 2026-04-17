@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, CircleCheck, Pencil, Trash2 } from "lucide-react";
+import { Plus, CircleCheck, Pencil, Trash2, Tag } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -535,7 +535,7 @@ export function ImportPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Postings</TableHead>
-                  <TableHead>Rule</TableHead>
+                  <TableHead>Matched</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -567,8 +567,11 @@ export function ImportPage() {
                         </div>
                       ))}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {c.matchedRuleId || "—"}
+                    <TableCell>
+                      {c.matchedRuleId
+                        ? <Tag className="h-3.5 w-3.5 text-primary" title="Matched a rule" />
+                        : <span className="text-muted-foreground">—</span>
+                      }
                     </TableCell>
                   </TableRow>
                 ))}
