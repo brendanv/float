@@ -1196,6 +1196,8 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		selectedSet[idx] = true
 	}
 
+	importBatchID := time.Now().Format("2006-01-02") + "-" + journal.MintFID()
+
 	var importedFIDs []string
 	err = h.lock.Do(ctx, "import transactions", func() error {
 		for i, c := range candidates {
@@ -1206,6 +1208,12 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			if convErr != nil {
 				return fmt.Errorf("convert transaction %d: %w", i, convErr)
 			}
+
+			// Stamp every transaction with the import batch ID as hidden metadata.
+			if txInput.FloatMeta == nil {
+				txInput.FloatMeta = make(map[string]string)
+			}
+			txInput.FloatMeta["float-import"] = importBatchID
 
 			// Apply float rules during import.
 			if r := rules.Match(rulesList, c.Description); r != nil {
@@ -1221,9 +1229,6 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 					}
 				}
 				if len(r.Tags) > 0 {
-					if txInput.Tags == nil {
-						txInput.Tags = make(map[string]string)
-					}
 					for k, v := range r.Tags {
 						txInput.Tags[k] = v
 					}
@@ -1256,7 +1261,39 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	return connect.NewResponse(&floatv1.ImportTransactionsResponse{
 		ImportedCount: int32(len(importedFIDs)),
 		Transactions:  txnProtos,
+		ImportBatchId: importBatchID,
 	}), nil
+}
+
+func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Request[floatv1.GetImportedTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.ImportBatchId == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("import_batch_id is required"))
+	}
+	query := []string{"tag:float-import=" + req.Msg.ImportBatchId}
+	txns, err := cachedTransactions(ctx, h.cache, h.hl, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	total := int32(len(txns))
+	if req.Msg.Offset > 0 {
+		if int(req.Msg.Offset) >= len(txns) {
+			txns = nil
+		} else {
+			txns = txns[req.Msg.Offset:]
+		}
+	}
+	hasNext := false
+	if req.Msg.Limit > 0 && int(req.Msg.Limit) < len(txns) {
+		txns = txns[:req.Msg.Limit]
+		hasNext = true
+	}
+	proto := make([]*floatv1.Transaction, len(txns))
+	for i, t := range txns {
+		proto[i] = toProtoTransaction(t)
+	}
+	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto, Total: total, HasNext: hasNext}), nil
 }
 
 // isAssetOrLiabilityAccount returns true if the account name looks like an

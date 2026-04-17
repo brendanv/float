@@ -351,6 +351,13 @@ message ImportTransactionsRequest {
 message ImportTransactionsResponse {
   int32 imported_count = 1;
   repeated Transaction transactions = 2; // the imported transactions
+  string import_batch_id = 3;            // unique ID for this import batch (e.g. "2026-04-17-a1b2c3d4")
+}
+
+message GetImportedTransactionsRequest {
+  string import_batch_id = 1; // required
+  int32 limit = 2;            // max transactions to return; 0 = no limit
+  int32 offset = 3;           // number of transactions to skip
 }
 
 // ---- Categorization Rules ----
@@ -460,6 +467,7 @@ service LedgerService {
   rpc DeleteBankProfile(DeleteBankProfileRequest) returns (DeleteBankProfileResponse);
   rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
   rpc ImportTransactions(ImportTransactionsRequest) returns (ImportTransactionsResponse);
+  rpc GetImportedTransactions(GetImportedTransactionsRequest) returns (ListTransactionsResponse);
 
   // Rules
   rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
