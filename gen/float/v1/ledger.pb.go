@@ -3970,6 +3970,7 @@ type TransactionRule struct {
 	Account       string                 `protobuf:"bytes,4,opt,name=account,proto3" json:"account,omitempty"`                                                                     // set category account (empty = no change)
 	Tags          map[string]string      `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // tags to add
 	Priority      int32                  `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
+	AutoReviewed  bool                   `protobuf:"varint,7,opt,name=auto_reviewed,json=autoReviewed,proto3" json:"auto_reviewed,omitempty"` // if true, matched transactions are marked Cleared on import
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4044,6 +4045,13 @@ func (x *TransactionRule) GetPriority() int32 {
 		return x.Priority
 	}
 	return 0
+}
+
+func (x *TransactionRule) GetAutoReviewed() bool {
+	if x != nil {
+		return x.AutoReviewed
+	}
+	return false
 }
 
 type ListRulesRequest struct {
@@ -4133,6 +4141,7 @@ type AddRuleRequest struct {
 	Account       string                 `protobuf:"bytes,3,opt,name=account,proto3" json:"account,omitempty"`
 	Tags          map[string]string      `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Priority      int32                  `protobuf:"varint,5,opt,name=priority,proto3" json:"priority,omitempty"`
+	AutoReviewed  bool                   `protobuf:"varint,6,opt,name=auto_reviewed,json=autoReviewed,proto3" json:"auto_reviewed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4202,6 +4211,13 @@ func (x *AddRuleRequest) GetPriority() int32 {
 	return 0
 }
 
+func (x *AddRuleRequest) GetAutoReviewed() bool {
+	if x != nil {
+		return x.AutoReviewed
+	}
+	return false
+}
+
 type AddRuleResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Rule          *TransactionRule       `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
@@ -4254,6 +4270,7 @@ type UpdateRuleRequest struct {
 	Account       string                 `protobuf:"bytes,4,opt,name=account,proto3" json:"account,omitempty"`
 	Tags          map[string]string      `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Priority      int32                  `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
+	AutoReviewed  bool                   `protobuf:"varint,7,opt,name=auto_reviewed,json=autoReviewed,proto3" json:"auto_reviewed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4328,6 +4345,13 @@ func (x *UpdateRuleRequest) GetPriority() int32 {
 		return x.Priority
 	}
 	return 0
+}
+
+func (x *UpdateRuleRequest) GetAutoReviewed() bool {
+	if x != nil {
+		return x.AutoReviewed
+	}
+	return false
 }
 
 type UpdateRuleResponse struct {
@@ -5002,38 +5026,41 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x11transaction_count\x18\x03 \x01(\x05R\x10transactionCount\"\x14\n" +
 	"\x12ListImportsRequest\"H\n" +
 	"\x13ListImportsResponse\x121\n" +
-	"\aimports\x18\x01 \x03(\v2\x17.float.v1.ImportSummaryR\aimports\"\xf9\x01\n" +
+	"\aimports\x18\x01 \x03(\v2\x17.float.v1.ImportSummaryR\aimports\"\x9e\x02\n" +
 	"\x0fTransactionRule\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\apattern\x18\x02 \x01(\tR\apattern\x12\x14\n" +
 	"\x05payee\x18\x03 \x01(\tR\x05payee\x12\x18\n" +
 	"\aaccount\x18\x04 \x01(\tR\aaccount\x127\n" +
 	"\x04tags\x18\x05 \x03(\v2#.float.v1.TransactionRule.TagsEntryR\x04tags\x12\x1a\n" +
-	"\bpriority\x18\x06 \x01(\x05R\bpriority\x1a7\n" +
+	"\bpriority\x18\x06 \x01(\x05R\bpriority\x12#\n" +
+	"\rauto_reviewed\x18\a \x01(\bR\fautoReviewed\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x12\n" +
 	"\x10ListRulesRequest\"D\n" +
 	"\x11ListRulesResponse\x12/\n" +
-	"\x05rules\x18\x01 \x03(\v2\x19.float.v1.TransactionRuleR\x05rules\"\xe7\x01\n" +
+	"\x05rules\x18\x01 \x03(\v2\x19.float.v1.TransactionRuleR\x05rules\"\x8c\x02\n" +
 	"\x0eAddRuleRequest\x12\x18\n" +
 	"\apattern\x18\x01 \x01(\tR\apattern\x12\x14\n" +
 	"\x05payee\x18\x02 \x01(\tR\x05payee\x12\x18\n" +
 	"\aaccount\x18\x03 \x01(\tR\aaccount\x126\n" +
 	"\x04tags\x18\x04 \x03(\v2\".float.v1.AddRuleRequest.TagsEntryR\x04tags\x12\x1a\n" +
-	"\bpriority\x18\x05 \x01(\x05R\bpriority\x1a7\n" +
+	"\bpriority\x18\x05 \x01(\x05R\bpriority\x12#\n" +
+	"\rauto_reviewed\x18\x06 \x01(\bR\fautoReviewed\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"@\n" +
 	"\x0fAddRuleResponse\x12-\n" +
-	"\x04rule\x18\x01 \x01(\v2\x19.float.v1.TransactionRuleR\x04rule\"\xfd\x01\n" +
+	"\x04rule\x18\x01 \x01(\v2\x19.float.v1.TransactionRuleR\x04rule\"\xa2\x02\n" +
 	"\x11UpdateRuleRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\apattern\x18\x02 \x01(\tR\apattern\x12\x14\n" +
 	"\x05payee\x18\x03 \x01(\tR\x05payee\x12\x18\n" +
 	"\aaccount\x18\x04 \x01(\tR\aaccount\x129\n" +
 	"\x04tags\x18\x05 \x03(\v2%.float.v1.UpdateRuleRequest.TagsEntryR\x04tags\x12\x1a\n" +
-	"\bpriority\x18\x06 \x01(\x05R\bpriority\x1a7\n" +
+	"\bpriority\x18\x06 \x01(\x05R\bpriority\x12#\n" +
+	"\rauto_reviewed\x18\a \x01(\bR\fautoReviewed\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"C\n" +

@@ -25,7 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 
 function emptyForm() {
-  return { pattern: "", payee: "", account: "", priority: "0", tags: "" };
+  return { pattern: "", payee: "", account: "", priority: "0", tags: "", autoReviewed: true };
 }
 
 function tagsFromString(str) {
@@ -104,6 +104,7 @@ export function RulesPage() {
       account: rule.account,
       priority: String(rule.priority),
       tags: tagsToString(rule.tags),
+      autoReviewed: rule.autoReviewed ?? false,
     });
     setFormError(null);
   }
@@ -123,6 +124,7 @@ export function RulesPage() {
       account: form.account,
       priority: parseInt(form.priority, 10) || 0,
       tags: tagsFromString(form.tags),
+      autoReviewed: form.autoReviewed,
     };
     saveRuleMutation.mutate(payload);
   }
@@ -255,6 +257,14 @@ export function RulesPage() {
                 />
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="rule-auto-reviewed"
+                checked={form.autoReviewed}
+                onCheckedChange={(v) => setField("autoReviewed", v)}
+              />
+              <Label htmlFor="rule-auto-reviewed">Auto-mark as reviewed on import</Label>
+            </div>
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={saveRuleMutation.isPending}>
                 {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
@@ -300,6 +310,7 @@ export function RulesPage() {
                   <TableHead>Payee</TableHead>
                   <TableHead>Account</TableHead>
                   <TableHead>Tags</TableHead>
+                  <TableHead>Auto-reviewed</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -317,6 +328,11 @@ export function RulesPage() {
                     <TableCell className="text-xs">
                       {r.tags && Object.keys(r.tags).length > 0
                         ? tagsToString(r.tags)
+                        : <span className="text-muted-foreground/60">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      {r.autoReviewed
+                        ? <CircleCheck className="h-4 w-4 text-success" />
                         : <span className="text-muted-foreground/60">—</span>}
                     </TableCell>
                     <TableCell>

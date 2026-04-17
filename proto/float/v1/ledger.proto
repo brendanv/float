@@ -381,6 +381,7 @@ message TransactionRule {
   string account = 4;           // set category account (empty = no change)
   map<string, string> tags = 5; // tags to add
   int32 priority = 6;
+  bool auto_reviewed = 7;       // if true, matched transactions are marked Cleared on import
 }
 
 message ListRulesRequest {}
@@ -395,6 +396,7 @@ message AddRuleRequest {
   string account = 3;
   map<string, string> tags = 4;
   int32 priority = 5;
+  bool auto_reviewed = 6;
 }
 
 message AddRuleResponse {
@@ -408,6 +410,7 @@ message UpdateRuleRequest {
   string account = 4;
   map<string, string> tags = 5;
   int32 priority = 6;
+  bool auto_reviewed = 7;
 }
 
 message UpdateRuleResponse {

@@ -12,12 +12,13 @@ import (
 // Rule is a categorization rule that matches transactions by description and
 // applies payee, account, and/or tag changes.
 type Rule struct {
-	ID       string            `json:"id"`       // 8-char hex (MintFID)
-	Pattern  string            `json:"pattern"`  // regex matched against description (case-insensitive)
-	Payee    string            `json:"payee"`    // set payee (empty = no change)
-	Account  string            `json:"account"`  // set category account (empty = no change)
-	Tags     map[string]string `json:"tags"`     // tags to add (empty = no change)
-	Priority int               `json:"priority"` // lower = higher priority, matched first
+	ID           string            `json:"id"`            // 8-char hex (MintFID)
+	Pattern      string            `json:"pattern"`       // regex matched against description (case-insensitive)
+	Payee        string            `json:"payee"`         // set payee (empty = no change)
+	Account      string            `json:"account"`       // set category account (empty = no change)
+	Tags         map[string]string `json:"tags"`          // tags to add (empty = no change)
+	Priority     int               `json:"priority"`      // lower = higher priority, matched first
+	AutoReviewed bool              `json:"auto_reviewed"` // if true, mark transaction Cleared on import
 }
 
 const rulesFile = "rules.json"

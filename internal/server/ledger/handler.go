@@ -1244,6 +1244,9 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 						txInput.Tags[k] = v
 					}
 				}
+				if r.AutoReviewed {
+					txInput.Status = "Cleared"
+				}
 			}
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
@@ -1406,12 +1409,13 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 			return loadErr
 		}
 		newRule = rules.Rule{
-			ID:       journal.MintFID(),
-			Pattern:  req.Msg.Pattern,
-			Payee:    req.Msg.Payee,
-			Account:  req.Msg.Account,
-			Tags:     req.Msg.Tags,
-			Priority: int(req.Msg.Priority),
+			ID:           journal.MintFID(),
+			Pattern:      req.Msg.Pattern,
+			Payee:        req.Msg.Payee,
+			Account:      req.Msg.Account,
+			Tags:         req.Msg.Tags,
+			Priority:     int(req.Msg.Priority),
+			AutoReviewed: req.Msg.AutoReviewed,
 		}
 		rulesList = append(rulesList, newRule)
 		return rules.Save(h.dataDir, rulesList)
@@ -1442,12 +1446,13 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 		for i, r := range rulesList {
 			if r.ID == req.Msg.Id {
 				rulesList[i] = rules.Rule{
-					ID:       req.Msg.Id,
-					Pattern:  req.Msg.Pattern,
-					Payee:    req.Msg.Payee,
-					Account:  req.Msg.Account,
-					Tags:     req.Msg.Tags,
-					Priority: int(req.Msg.Priority),
+					ID:           req.Msg.Id,
+					Pattern:      req.Msg.Pattern,
+					Payee:        req.Msg.Payee,
+					Account:      req.Msg.Account,
+					Tags:         req.Msg.Tags,
+					Priority:     int(req.Msg.Priority),
+					AutoReviewed: req.Msg.AutoReviewed,
 				}
 				updated = rulesList[i]
 				found = true
@@ -1628,11 +1633,12 @@ func categoryPostingIndex(txn hledger.Transaction) int {
 
 func toProtoRule(r rules.Rule) *floatv1.TransactionRule {
 	return &floatv1.TransactionRule{
-		Id:       r.ID,
-		Pattern:  r.Pattern,
-		Payee:    r.Payee,
-		Account:  r.Account,
-		Tags:     r.Tags,
-		Priority: int32(r.Priority),
+		Id:           r.ID,
+		Pattern:      r.Pattern,
+		Payee:        r.Payee,
+		Account:      r.Account,
+		Tags:         r.Tags,
+		Priority:     int32(r.Priority),
+		AutoReviewed: r.AutoReviewed,
 	}
 }
