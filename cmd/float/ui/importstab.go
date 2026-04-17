@@ -168,7 +168,7 @@ func newImportsListTable(st Styles) table.Model {
 		table.WithColumns([]table.Column{
 			{Title: "Date", Width: 12},
 			{Title: "Batch ID", Width: 24},
-			{Title: "Transactions", Width: 13},
+			{Title: "Txns", Width: 6},
 		}),
 		table.WithStyles(styledTableStyles(st)),
 		table.WithFocused(true),
@@ -191,14 +191,15 @@ func (p *importsListPanel) setStyles(st Styles) {
 func (p *importsListPanel) SetSize(w, h int) {
 	p.width = w
 	p.height = h
-	batchW := w - 12 - 13 - 6
+	// 1 (leading pad) + 12 (date) + 2 (sep) + 2 (sep) + 6 (txns) = 23 fixed
+	batchW := w - 23
 	if batchW < 10 {
 		batchW = 10
 	}
 	p.table.SetColumns([]table.Column{
 		{Title: "Date", Width: 12},
 		{Title: "Batch ID", Width: batchW},
-		{Title: "Transactions", Width: 13},
+		{Title: "Txns", Width: 6},
 	})
 	p.table.SetWidth(w)
 	p.table.SetHeight(h)

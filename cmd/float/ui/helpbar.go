@@ -221,16 +221,18 @@ func (ImportsListKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+var keyBack = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back"))
+
 // ImportsDetailKeyMap is for the imports tab in batch detail mode.
 type ImportsDetailKeyMap struct{}
 
 func (ImportsDetailKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyQuit, keyNav, keyEsc, keyHelp}
+	return []key.Binding{keyQuit, keyNav, keyBack, keyHelp}
 }
 func (ImportsDetailKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
-		{keyNav, keyEsc, keyRetry},
+		{keyNav, keyBack, keyRetry},
 	}
 }
 
