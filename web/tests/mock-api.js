@@ -287,6 +287,49 @@ export const mockImportCandidates = [
   },
 ];
 
+export const mockImports = [
+  { importBatchId: "2026-03-28-a1b2c3d4", date: "2026-03-28", transactionCount: 3 },
+  { importBatchId: "2026-03-15-b2c3d4e5", date: "2026-03-15", transactionCount: 5 },
+  { importBatchId: "2026-02-28-c3d4e5f6", date: "2026-02-28", transactionCount: 8 },
+  { importBatchId: "2026-01-31-d4e5f6a7", date: "2026-01-31", transactionCount: 12 },
+];
+
+export const mockImportedTransactions = [
+  {
+    fid: "a1b2c3d4",
+    date: "2026-03-28",
+    description: "AMAZON.COM PURCHASE",
+    postings: [
+      { account: "expenses:shopping", amounts: [{ commodity: "$", quantity: "42.99" }] },
+      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-42.99" }] },
+    ],
+    tags: {},
+    status: "Pending",
+  },
+  {
+    fid: "a1b2c3d5",
+    date: "2026-03-28",
+    description: "STARBUCKS #4821",
+    postings: [
+      { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "6.75" }] },
+      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-6.75" }] },
+    ],
+    tags: {},
+    status: "Pending",
+  },
+  {
+    fid: "a1b2c3d6",
+    date: "2026-03-27",
+    description: "MONTHLY GAS BILL",
+    postings: [
+      { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "84.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-84.00" }] },
+    ],
+    tags: {},
+    status: "Pending",
+  },
+];
+
 export const mockApplyPreviews = [
   {
     fid: "a1b2c3d5",
@@ -406,6 +449,12 @@ export async function mockLedgerApi(page, { accountRegisterRows } = {}) {
         break;
       case "ImportTransactions":
         body = { importedCount: 3, transactions: [] };
+        break;
+      case "ListImports":
+        body = { imports: mockImports };
+        break;
+      case "GetImportedTransactions":
+        body = { transactions: mockImportedTransactions, total: mockImportedTransactions.length, hasNext: false };
         break;
       case "ListRules":
         body = { rules: mockRules };

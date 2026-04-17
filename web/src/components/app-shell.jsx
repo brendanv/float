@@ -12,6 +12,7 @@ import {
   ListFilter,
   Sun,
   Moon,
+  ClockArrowUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { href: "/prices", label: "Prices", icon: Tag },
   { href: "/snapshots", label: "Snapshots", icon: History },
   { href: "/import", label: "Import", icon: Upload },
+  { href: "/imports", label: "Import History", icon: ClockArrowUp },
   { href: "/rules", label: "Rules", icon: ListFilter },
   { href: "/add", label: "Add Transaction", icon: PlusCircle },
 ];
