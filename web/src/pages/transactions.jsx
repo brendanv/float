@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useSearch } from "@tanstack/react-router";
+import { useSearch, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, X, ArrowLeft } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { SearchControls, DATE_PRESETS, PAYEE_NONE } from "../components/search-controls.jsx";
@@ -210,9 +210,11 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
 
 export function TransactionsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const routeSearch = useSearch({ from: "/transactions" });
 
-  const initialRange = DATE_PRESETS[0].fn(); // "This month"
+  const importBatchId = routeSearch.importBatchId || "";
+  const initialRange = importBatchId ? { from: "", to: "" } : DATE_PRESETS[0].fn(); // skip date filter when viewing import
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
   const [account, setAccount] = useState(routeSearch.account || "");
@@ -224,10 +226,10 @@ export function TransactionsPage() {
 
   const isAccountMode = !!account;
 
-  const txQuery = buildQuery(dateFrom, dateTo, account, tag, status, payee);
+  const txQuery = buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId);
   const txParams = { query: txQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
 
-  const aregQuery = buildAregisterQuery(dateFrom, dateTo, tag, status, payee);
+  const aregQuery = buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId);
   const aregParams = { account, query: aregQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
 
   const { data: txData, isLoading: txLoading, error: txError } = useQuery({
@@ -307,6 +309,20 @@ export function TransactionsPage() {
 
   return (
     <div>
+      {importBatchId && (
+        <div className="mb-3 flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.navigate({ to: "/imports" })}
+            className="gap-1.5"
+          >
+            <ArrowLeft size={16} />
+            Import History
+          </Button>
+          <span className="text-sm text-muted-foreground font-mono">{importBatchId}</span>
+        </div>
+      )}
       <SearchControls
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -377,11 +393,12 @@ export function TransactionsPage() {
   );
 }
 
-function buildQuery(dateFrom, dateTo, account, tag, status, payee) {
+function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (account) tokens.push(`acct:${account}`);
-  if (tag) tokens.push(`tag:${tag}`);
+  if (importBatchId) tokens.push(`tag:float-import=${importBatchId}`);
+  else if (tag) tokens.push(`tag:${tag}`);
   if (payee === PAYEE_NONE) tokens.push("not:payee:.+");
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
@@ -389,10 +406,11 @@ function buildQuery(dateFrom, dateTo, account, tag, status, payee) {
   return tokens;
 }
 
-function buildAregisterQuery(dateFrom, dateTo, tag, status, payee) {
+function buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
-  if (tag) tokens.push(`tag:${tag}`);
+  if (importBatchId) tokens.push(`tag:float-import=${importBatchId}`);
+  else if (tag) tokens.push(`tag:${tag}`);
   if (payee === PAYEE_NONE) tokens.push("not:payee:.+");
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");

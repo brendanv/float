@@ -15,7 +15,7 @@ import { PricesPage } from "./pages/prices.jsx";
 import { SnapshotsPage } from "./pages/snapshots.jsx";
 import { ImportPage } from "./pages/import.jsx";
 import { RulesPage } from "./pages/rules.jsx";
-import { ImportsHistoryPage, ImportDetailPage } from "./pages/imports-history.jsx";
+import { ImportsHistoryPage } from "./pages/imports-history.jsx";
 
 const rootRoute = createRootRoute({
   component: function Root() {
@@ -45,6 +45,7 @@ export const transactionsRoute = createRoute({
   validateSearch: (search) => ({
     account: search.account ?? "",
     payee: search.payee ?? "",
+    importBatchId: search.importBatchId ?? "",
   }),
   component: TransactionsPage,
 });
@@ -91,12 +92,6 @@ const importsHistoryRoute = createRoute({
   component: ImportsHistoryPage,
 });
 
-const importDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/imports/$batchId",
-  component: ImportDetailPage,
-});
-
 const routeTree = rootRoute.addChildren([
   indexRoute,
   transactionsRoute,
@@ -107,7 +102,6 @@ const routeTree = rootRoute.addChildren([
   importRoute,
   rulesRoute,
   importsHistoryRoute,
-  importDetailRoute,
 ]);
 
 export const router = createRouter({
