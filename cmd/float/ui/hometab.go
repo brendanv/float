@@ -135,7 +135,7 @@ func (m HomeTab) SetSize(w, h int) HomeTab {
 		txH = 3
 	}
 	m.unreviewed.SetSize(m.unreviewedInnerW, txH)
-	m.addTxForm.SetSize(m.unreviewedInnerW, m.unreviewedInnerH)
+	m.addTxForm.SetSize(m.width, m.height)
 	return m
 }
 
@@ -417,6 +417,10 @@ func (m *HomeTab) updateFocus() {
 }
 
 func (m HomeTab) View() string {
+	if m.addTxForm.Active() {
+		return m.addTxForm.View()
+	}
+
 	// ── Chart panel (top-left) ────────────────────────────────────────
 	chartContent := lipgloss.NewStyle().
 		Width(m.chartInnerW).
@@ -444,16 +448,6 @@ func (m HomeTab) View() string {
 	var bottomContent string
 	var bottomTitle string
 	switch {
-	case m.addTxForm.Active():
-		bottomContent = lipgloss.NewStyle().
-			Width(m.unreviewedInnerW).
-			Height(m.unreviewedInnerH).
-			Render(m.addTxForm.View())
-		if m.addTxForm.editFID != "" {
-			bottomTitle = "Edit Transaction"
-		} else {
-			bottomTitle = "Add Transaction"
-		}
 	case m.confirmDeleteTx != nil:
 		bottomContent = lipgloss.NewStyle().
 			Width(m.unreviewedInnerW).

@@ -108,7 +108,7 @@ func (m ManagerTab) SetSize(w, h int) ManagerTab {
 	m.tree.height = m.rightInnerH
 	m.tree.clampOffset()
 	m.register.SetSize(m.rightInnerW, m.rightInnerH)
-	m.addTxForm.SetSize(m.rightInnerW, m.rightInnerH)
+	m.addTxForm.SetSize(m.width, m.height)
 
 	return m
 }
@@ -311,6 +311,10 @@ func (m ManagerTab) KeyMap() help.KeyMap {
 }
 
 func (m ManagerTab) View() string {
+	if m.addTxForm.Active() {
+		return m.addTxForm.View()
+	}
+
 	// Left column: summary + placeholder (same in both modes).
 	summaryContent := lipgloss.NewStyle().
 		Width(m.leftInnerW).
@@ -341,11 +345,6 @@ func (m ManagerTab) View() string {
 	if m.mode == managerModeRegister {
 		var inner string
 		switch {
-		case m.addTxForm.Active():
-			inner = lipgloss.NewStyle().
-				Width(m.rightInnerW).
-				Height(m.rightInnerH).
-				Render(m.addTxForm.View())
 		case m.confirmDeleteRow != nil:
 			inner = lipgloss.NewStyle().
 				Width(m.rightInnerW).
@@ -367,13 +366,7 @@ func (m ManagerTab) View() string {
 			}
 		}
 		rightContent = inner
-		if m.addTxForm.Active() {
-			if m.addTxForm.editFID != "" {
-				rightTitle = "Edit Transaction"
-			} else {
-				rightTitle = "Add Transaction"
-			}
-		} else if m.confirmDeleteRow != nil {
+		if m.confirmDeleteRow != nil {
 			rightTitle = "Delete Transaction"
 		} else {
 			rightTitle = m.register.Title()

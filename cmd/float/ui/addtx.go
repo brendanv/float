@@ -102,7 +102,9 @@ func (f *AddTxForm) SetSize(w, h int) {
 }
 
 func (f *AddTxForm) rebuildWidths() {
-	w := f.width
+	modalW := calcModalWidth(f.width)
+	border := f.styles.FocusedBorder.Padding(modalVertPad, modalHorizPad)
+	w := modalW - border.GetHorizontalFrameSize()
 	if w < 20 {
 		w = 20
 	}
@@ -539,11 +541,6 @@ func (f AddTxForm) View() string {
 		return ""
 	}
 
-	w := f.width
-	if w < 20 {
-		w = 20
-	}
-
 	var lines []string
 
 	// Date field
@@ -597,10 +594,11 @@ func (f AddTxForm) View() string {
 	}
 
 	content := strings.Join(lines, "\n")
-	return lipgloss.NewStyle().
-		Width(w).
-		Height(f.height).
-		Render(content)
+	title := "Add Transaction"
+	if f.editFID != "" {
+		title = "Edit Transaction"
+	}
+	return RenderModal(f.width, f.height, title, content, f.styles)
 }
 
 // renderDropdown renders a suggestion list as a small bordered box.

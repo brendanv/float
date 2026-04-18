@@ -147,6 +147,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.home, cmd = m.home.Update(msg)
 			return m, cmd
 		}
+		// When the manager tab has the edit form or delete confirmation active, let it
+		// consume all key events (tab/shift+tab for field nav, q should not quit).
+		if m.activeTab == TabManager && (m.manager.addTxForm.Active() || m.manager.confirmDeleteRow != nil) {
+			var cmd tea.Cmd
+			m.manager, cmd = m.manager.Update(msg)
+			return m, cmd
+		}
 		// When the rules tab is in form or preview mode, let it consume all key events.
 		if m.activeTab == TabRules && (m.rules.mode == rulesModeForm || m.rules.mode == rulesModePreview) {
 			var cmd tea.Cmd

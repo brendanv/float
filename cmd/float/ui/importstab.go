@@ -60,7 +60,7 @@ func (m ImportsTab) SetSize(w, h int) ImportsTab {
 	m.height = h
 	m.list.SetSize(w, h)
 	m.detail.SetSize(w, h)
-	m.addTxForm.SetSize(w, h-2) // 2 = detail header height
+	m.addTxForm.SetSize(w, h)
 	return m
 }
 
@@ -239,11 +239,12 @@ func (m ImportsTab) View() string {
 	case importsModeList:
 		return m.list.View()
 	case importsModeDetail:
+		if m.addTxForm.Active() {
+			return m.addTxForm.View()
+		}
 		header := m.detail.renderHeader()
 		var body string
 		switch {
-		case m.addTxForm.Active():
-			body = lipgloss.NewStyle().Width(m.width).Height(m.height - 2).Render(m.addTxForm.View())
 		case m.confirmDeleteTx != nil:
 			body = lipgloss.NewStyle().Width(m.width).Height(m.height - 2).Render(m.renderDeleteConfirm(m.width))
 		default:
