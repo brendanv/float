@@ -1,6 +1,9 @@
 package ui
 
-import "charm.land/bubbles/v2/key"
+import (
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+)
 
 // Key bindings used across contexts.
 var (
@@ -28,8 +31,9 @@ var (
 	keySubmit     = key.NewBinding(key.WithKeys("shift+enter"), key.WithHelp("shift+enter", "submit"))
 	keyConfirm    = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
 	keySearch     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
-	keyStatusFilter = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "cycle view"))
-	keyToggleChart  = key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "toggle chart"))
+	keyStatusFilter    = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "cycle view"))
+	keyToggleChart     = key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "toggle chart"))
+	keyManageSection   = key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "switch section"))
 )
 
 // HomeChartKeyMap is for the home tab with the chart panel focused.
@@ -247,6 +251,23 @@ func (ImportsDetailKeyMap) FullHelp() [][]key.Binding {
 		{keyNav, keyBack, keyRetry},
 		{keyEdit, keyDelete, keyReview, keySplit},
 	}
+}
+
+// ManageKeyMap wraps an inner key map (from the active sub-tab) and prepends
+// the [/] section-switching binding so it appears in the help bar.
+type ManageKeyMap struct {
+	inner help.KeyMap
+}
+
+func (m ManageKeyMap) ShortHelp() []key.Binding {
+	return append([]key.Binding{keyManageSection}, m.inner.ShortHelp()...)
+}
+func (m ManageKeyMap) FullHelp() [][]key.Binding {
+	full := m.inner.FullHelp()
+	if len(full) > 0 {
+		full[0] = append([]key.Binding{keyManageSection}, full[0]...)
+	}
+	return full
 }
 
 // SettingsKeyMap is for the settings tab.

@@ -9,10 +9,9 @@ func RenderTabBar(activeTab int, width int, st Styles) string {
 		active bool
 	}{
 		{"Home", activeTab == TabHome},
-		{"Manager", activeTab == TabManager},
+		{"Accounts", activeTab == TabAccounts},
 		{"Trends", activeTab == TabTrends},
-		{"Rules", activeTab == TabRules},
-		{"Imports", activeTab == TabImports},
+		{"Manage", activeTab == TabManage},
 		{"Settings", activeTab == TabSettings},
 	}
 
