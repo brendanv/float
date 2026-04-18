@@ -138,12 +138,13 @@ func (ManagerTreeKeyMap) FullHelp() [][]key.Binding {
 type ManagerRegisterKeyMap struct{}
 
 func (ManagerRegisterKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyQuit, keyNav, keyEsc, keyHelp}
+	return []key.Binding{keyQuit, keyNav, keyEdit, keyDelete, keyReview, keyEsc, keyHelp}
 }
 func (ManagerRegisterKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
 		{keyNav, keyEsc, keyRetry},
+		{keyEdit, keyDelete, keyReview},
 	}
 }
 

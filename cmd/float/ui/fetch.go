@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 	connect "connectrpc.com/connect"
@@ -330,6 +331,28 @@ func FetchAccountRegister(client floatv1connect.LedgerServiceClient, account str
 			Rows:    resp.Msg.Rows,
 			Total:   resp.Msg.Total,
 		}
+	}
+}
+
+// ManagerTxFetchedMsg carries a single transaction fetched for editing in the Manager register.
+type ManagerTxFetchedMsg struct {
+	Transaction *floatv1.Transaction
+	Err         error
+}
+
+// FetchManagerTransaction fetches a single transaction by fid for the Manager tab edit flow.
+func FetchManagerTransaction(client floatv1connect.LedgerServiceClient, fid string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+			Query: []string{"code:" + fid},
+		}))
+		if err != nil {
+			return ManagerTxFetchedMsg{Err: err}
+		}
+		if len(resp.Msg.Transactions) == 0 {
+			return ManagerTxFetchedMsg{Err: fmt.Errorf("transaction not found")}
+		}
+		return ManagerTxFetchedMsg{Transaction: resp.Msg.Transactions[0]}
 	}
 }
 

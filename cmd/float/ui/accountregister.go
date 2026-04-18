@@ -119,6 +119,21 @@ func (p *AccountRegisterPanel) Title() string {
 	return p.account
 }
 
+func (p *AccountRegisterPanel) SelectedRow() *floatv1.AccountRegisterRow {
+	if len(p.rows) == 0 || p.table.Cursor() >= len(p.rows) {
+		return nil
+	}
+	return p.rows[p.table.Cursor()]
+}
+
+func (p *AccountRegisterPanel) SelectedFid() string {
+	row := p.SelectedRow()
+	if row == nil {
+		return ""
+	}
+	return row.Fid
+}
+
 func (p *AccountRegisterPanel) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
+
 	"charm.land/bubbles/v2/help"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	floatv1 "github.com/brendanv/float/gen/float/v1"
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 )
 
@@ -39,15 +43,22 @@ type ManagerTab struct {
 	rightInnerH int
 	tree        AccountTree
 	register    AccountRegisterPanel
+
+	// Register edit overlays.
+	addTxForm        AddTxForm
+	confirmDeleteRow *floatv1.AccountRegisterRow
+	deleteErrMsg     string
+	statusErrMsg     string
 }
 
 func NewManagerTab(client floatv1connect.LedgerServiceClient, st Styles) ManagerTab {
 	return ManagerTab{
-		styles:   st,
-		client:   client,
-		summary:  NewSummaryPanel(st),
-		tree:     NewAccountTree(),
-		register: NewAccountRegisterPanel(st),
+		styles:    st,
+		client:    client,
+		summary:   NewSummaryPanel(st),
+		tree:      NewAccountTree(),
+		register:  NewAccountRegisterPanel(st),
+		addTxForm: NewAddTxForm(client, st),
 	}
 }
 
@@ -55,6 +66,7 @@ func (m ManagerTab) setStyles(st Styles) ManagerTab {
 	m.styles = st
 	m.summary.setStyles(st)
 	m.register.setStyles(st)
+	m.addTxForm.setStyles(st)
 	return m
 }
 
@@ -91,6 +103,7 @@ func (m ManagerTab) SetSize(w, h int) ManagerTab {
 	m.tree.height = m.rightInnerH
 	m.tree.clampOffset()
 	m.register.SetSize(m.rightInnerW, m.rightInnerH)
+	m.addTxForm.SetSize(m.rightInnerW, m.rightInnerH)
 
 	return m
 }
@@ -103,6 +116,7 @@ func (m ManagerTab) Init() tea.Cmd {
 		FetchManagerAccounts(m.client),
 		FetchManagerBalances(m.client),
 		FetchManagerSummary(m.client),
+		FetchAccounts(m.client),
 	)
 }
 
@@ -140,13 +154,76 @@ func (m ManagerTab) Update(msg tea.Msg) (ManagerTab, tea.Cmd) {
 		}
 		return m, nil
 
+	case AccountsMsg:
+		if msg.Err == nil {
+			m.addTxForm.SetAccounts(msg.Accounts)
+		}
+		return m, nil
+
+	case UpdateTransactionMsg:
+		m.addTxForm.submitting = false
+		if msg.Err != nil {
+			m.addTxForm.errMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.addTxForm.Deactivate()
+		account := m.register.account
+		m.register.state = stateLoading
+		return m, FetchAccountRegister(m.client, account)
+
+	case DeleteTransactionMsg:
+		m.confirmDeleteRow = nil
+		if msg.Err != nil {
+			m.deleteErrMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.deleteErrMsg = ""
+		account := m.register.account
+		m.register.state = stateLoading
+		return m, FetchAccountRegister(m.client, account)
+
+	case UpdateTransactionStatusMsg:
+		if msg.Err != nil {
+			m.statusErrMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.statusErrMsg = ""
+		account := m.register.account
+		m.register.state = stateLoading
+		return m, FetchAccountRegister(m.client, account)
+
+	case ManagerTxFetchedMsg:
+		if msg.Err != nil {
+			m.statusErrMsg = msg.Err.Error()
+			return m, nil
+		}
+		m.addTxForm.ActivateEdit(msg.Transaction)
+		return m, nil
+
 	case tea.KeyMsg:
 		switch m.mode {
 		case managerModeRegister:
+			if m.addTxForm.Active() {
+				newForm, cmd := m.addTxForm.Update(msg)
+				m.addTxForm = newForm
+				return m, cmd
+			}
+			if m.confirmDeleteRow != nil {
+				switch msg.String() {
+				case "y":
+					fid := m.confirmDeleteRow.Fid
+					m.confirmDeleteRow = nil
+					return m, DeleteTransactionCmd(m.client, fid)
+				case "esc", "n":
+					m.confirmDeleteRow = nil
+					m.deleteErrMsg = ""
+				}
+				return m, nil
+			}
 			switch msg.String() {
 			case "esc":
 				m.mode = managerModeTree
-				// Reset register state so re-opening shows a fresh spinner.
+				m.statusErrMsg = ""
 				m.register = NewAccountRegisterPanel(m.styles)
 				m.register.SetSize(m.rightInnerW, m.rightInnerH)
 				return m, m.register.spinner.Tick()
@@ -154,7 +231,26 @@ func (m ManagerTab) Update(msg tea.Msg) (ManagerTab, tea.Cmd) {
 				account := m.register.account
 				if account != "" {
 					m.register.state = stateLoading
+					m.statusErrMsg = ""
 					return m, FetchAccountRegister(m.client, account)
+				}
+			case "e":
+				if fid := m.register.SelectedFid(); fid != "" {
+					return m, FetchManagerTransaction(m.client, fid)
+				}
+			case "d":
+				if row := m.register.SelectedRow(); row != nil && row.Fid != "" {
+					m.confirmDeleteRow = row
+					m.deleteErrMsg = ""
+				}
+			case "c":
+				if row := m.register.SelectedRow(); row != nil && row.Fid != "" {
+					newStatus := "Cleared"
+					if row.Status == "Cleared" {
+						newStatus = "Pending"
+					}
+					m.statusErrMsg = ""
+					return m, UpdateTransactionStatusCmd(m.client, row.Fid, newStatus)
 				}
 			default:
 				cmd := m.register.Update(msg)
@@ -198,6 +294,12 @@ func (m ManagerTab) Update(msg tea.Msg) (ManagerTab, tea.Cmd) {
 
 func (m ManagerTab) KeyMap() help.KeyMap {
 	if m.mode == managerModeRegister {
+		if m.addTxForm.Active() {
+			return HomeFormKeyMap{}
+		}
+		if m.confirmDeleteRow != nil {
+			return DeleteConfirmKeyMap{}
+		}
 		return ManagerRegisterKeyMap{}
 	}
 	return ManagerTreeKeyMap{}
@@ -232,11 +334,45 @@ func (m ManagerTab) View() string {
 	var rightContent string
 	var rightTitle string
 	if m.mode == managerModeRegister {
-		rightContent = lipgloss.NewStyle().
-			Width(m.rightInnerW).
-			Height(m.rightInnerH).
-			Render(m.register.View())
-		rightTitle = m.register.Title()
+		var inner string
+		switch {
+		case m.addTxForm.Active():
+			inner = lipgloss.NewStyle().
+				Width(m.rightInnerW).
+				Height(m.rightInnerH).
+				Render(m.addTxForm.View())
+		case m.confirmDeleteRow != nil:
+			inner = lipgloss.NewStyle().
+				Width(m.rightInnerW).
+				Height(m.rightInnerH).
+				Render(m.renderDeleteConfirm(m.rightInnerW))
+		default:
+			registerView := m.register.View()
+			if m.statusErrMsg != "" {
+				errLine := m.styles.Error.Width(m.rightInnerW).Render("  Error: " + m.statusErrMsg)
+				inner = lipgloss.NewStyle().
+					Width(m.rightInnerW).
+					Height(m.rightInnerH).
+					Render(lipgloss.JoinVertical(lipgloss.Left, registerView, errLine))
+			} else {
+				inner = lipgloss.NewStyle().
+					Width(m.rightInnerW).
+					Height(m.rightInnerH).
+					Render(registerView)
+			}
+		}
+		rightContent = inner
+		if m.addTxForm.Active() {
+			if m.addTxForm.editFID != "" {
+				rightTitle = "Edit Transaction"
+			} else {
+				rightTitle = "Add Transaction"
+			}
+		} else if m.confirmDeleteRow != nil {
+			rightTitle = "Delete Transaction"
+		} else {
+			rightTitle = m.register.Title()
+		}
 	} else {
 		rightContent = lipgloss.NewStyle().
 			Width(m.rightInnerW).
@@ -248,4 +384,30 @@ func (m ManagerTab) View() string {
 	rightPanel := renderCard(rightContent, rightTitle, true, m.rightWidth, m.height, m.styles)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+}
+
+func (m ManagerTab) renderDeleteConfirm(w int) string {
+	row := m.confirmDeleteRow
+	var lines []string
+
+	desc := row.Description
+	if row.Payee != nil {
+		desc = row.GetPayee()
+		if row.Note != nil {
+			desc += " · " + row.GetNote()
+		}
+	}
+	lines = append(lines, fmt.Sprintf("  %s  %s", row.Date, desc))
+	if len(row.Change) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("    %s", formatBalance(row.Change)))
+	}
+	lines = append(lines, "")
+	if m.deleteErrMsg != "" {
+		lines = append(lines, m.styles.Error.Render("  Error: "+m.deleteErrMsg))
+		lines = append(lines, "")
+	}
+	lines = append(lines, m.styles.Help.Render("  Press y to confirm, esc to cancel"))
+
+	return strings.Join(lines, "\n")
 }
