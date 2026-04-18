@@ -1610,7 +1610,8 @@ type AddTransactionRequest struct {
 	Date          string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"` // "YYYY-MM-DD"; empty = today
 	Comment       string                 `protobuf:"bytes,3,opt,name=comment,proto3" json:"comment,omitempty"`
 	Postings      []*PostingInput        `protobuf:"bytes,4,rep,name=postings,proto3" json:"postings,omitempty"`
-	Payee         string                 `protobuf:"bytes,5,opt,name=payee,proto3" json:"payee,omitempty"` // optional; if set, description becomes "payee | description"
+	Payee         string                 `protobuf:"bytes,5,opt,name=payee,proto3" json:"payee,omitempty"`                                                                         // optional; if set, description becomes "payee | description"
+	Tags          map[string]string      `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // optional; user-visible tags (must not have "float-" prefix)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1680,6 +1681,13 @@ func (x *AddTransactionRequest) GetPayee() string {
 	return ""
 }
 
+func (x *AddTransactionRequest) GetTags() map[string]string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
 type AddTransactionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Transaction   *Transaction           `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`
@@ -1726,12 +1734,13 @@ func (x *AddTransactionResponse) GetTransaction() *Transaction {
 
 type UpdateTransactionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`                 // required
-	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"` // required; replaces existing
-	Date          string                 `protobuf:"bytes,3,opt,name=date,proto3" json:"date,omitempty"`               // "YYYY-MM-DD"; empty = keep existing date
-	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`         // optional; replaces existing non-fid comment
-	Postings      []*PostingInput        `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`       // required; replaces all existing postings
-	Payee         string                 `protobuf:"bytes,6,opt,name=payee,proto3" json:"payee,omitempty"`             // optional; if set, description becomes "payee | description"
+	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`                                                                             // required
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`                                                             // required; replaces existing
+	Date          string                 `protobuf:"bytes,3,opt,name=date,proto3" json:"date,omitempty"`                                                                           // "YYYY-MM-DD"; empty = keep existing date
+	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`                                                                     // optional; replaces existing non-fid comment
+	Postings      []*PostingInput        `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`                                                                   // required; replaces all existing postings
+	Payee         string                 `protobuf:"bytes,6,opt,name=payee,proto3" json:"payee,omitempty"`                                                                         // optional; if set, description becomes "payee | description"
+	Tags          map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // optional; if set, replaces all user-visible tags
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1806,6 +1815,13 @@ func (x *UpdateTransactionRequest) GetPayee() string {
 		return x.Payee
 	}
 	return ""
+}
+
+func (x *UpdateTransactionRequest) GetTags() map[string]string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
 }
 
 type UpdateTransactionResponse struct {
@@ -4889,22 +4905,30 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\fPostingInput\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x16\n" +
 	"\x06amount\x18\x02 \x01(\tR\x06amount\x12\x18\n" +
-	"\acomment\x18\x03 \x01(\tR\acomment\"\xb1\x01\n" +
+	"\acomment\x18\x03 \x01(\tR\acomment\"\xa9\x02\n" +
 	"\x15AddTransactionRequest\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12\x18\n" +
 	"\acomment\x18\x03 \x01(\tR\acomment\x122\n" +
 	"\bpostings\x18\x04 \x03(\v2\x16.float.v1.PostingInputR\bpostings\x12\x14\n" +
-	"\x05payee\x18\x05 \x01(\tR\x05payee\"Q\n" +
+	"\x05payee\x18\x05 \x01(\tR\x05payee\x12=\n" +
+	"\x04tags\x18\x06 \x03(\v2).float.v1.AddTransactionRequest.TagsEntryR\x04tags\x1a7\n" +
+	"\tTagsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Q\n" +
 	"\x16AddTransactionResponse\x127\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"\xc6\x01\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"\xc1\x02\n" +
 	"\x18UpdateTransactionRequest\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x12\n" +
 	"\x04date\x18\x03 \x01(\tR\x04date\x12\x18\n" +
 	"\acomment\x18\x04 \x01(\tR\acomment\x122\n" +
 	"\bpostings\x18\x05 \x03(\v2\x16.float.v1.PostingInputR\bpostings\x12\x14\n" +
-	"\x05payee\x18\x06 \x01(\tR\x05payee\"T\n" +
+	"\x05payee\x18\x06 \x01(\tR\x05payee\x12@\n" +
+	"\x04tags\x18\a \x03(\v2,.float.v1.UpdateTransactionRequest.TagsEntryR\x04tags\x1a7\n" +
+	"\tTagsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"T\n" +
 	"\x19UpdateTransactionResponse\x127\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"J\n" +
 	"\x1eUpdateTransactionStatusRequest\x12\x10\n" +
@@ -5147,7 +5171,7 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 95)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 97)
 var file_float_v1_ledger_proto_goTypes = []any{
 	(*Amount)(nil),                          // 0: float.v1.Amount
 	(*Posting)(nil),                         // 1: float.v1.Posting
@@ -5240,10 +5264,12 @@ var file_float_v1_ledger_proto_goTypes = []any{
 	(*ApplyRulesResponse)(nil),              // 88: float.v1.ApplyRulesResponse
 	nil,                                     // 89: float.v1.Transaction.TagsEntry
 	nil,                                     // 90: float.v1.ModifyTagsRequest.TagsEntry
-	nil,                                     // 91: float.v1.TransactionRule.TagsEntry
-	nil,                                     // 92: float.v1.AddRuleRequest.TagsEntry
-	nil,                                     // 93: float.v1.UpdateRuleRequest.TagsEntry
-	nil,                                     // 94: float.v1.RuleApplicationPreview.AddTagsEntry
+	nil,                                     // 91: float.v1.AddTransactionRequest.TagsEntry
+	nil,                                     // 92: float.v1.UpdateTransactionRequest.TagsEntry
+	nil,                                     // 93: float.v1.TransactionRule.TagsEntry
+	nil,                                     // 94: float.v1.AddRuleRequest.TagsEntry
+	nil,                                     // 95: float.v1.UpdateRuleRequest.TagsEntry
+	nil,                                     // 96: float.v1.RuleApplicationPreview.AddTagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,  // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
@@ -5265,109 +5291,111 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	90, // 16: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
 	2,  // 17: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
 	28, // 18: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
-	2,  // 19: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
-	28, // 20: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
-	2,  // 21: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
-	2,  // 22: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
-	0,  // 23: float.v1.PriceDirective.price:type_name -> float.v1.Amount
-	35, // 24: float.v1.ListPricesResponse.prices:type_name -> float.v1.PriceDirective
-	35, // 25: float.v1.AddPriceResponse.price:type_name -> float.v1.PriceDirective
-	42, // 26: float.v1.BulkEditOperation.mark_reviewed:type_name -> float.v1.MarkReviewedOperation
-	43, // 27: float.v1.BulkEditOperation.add_tag:type_name -> float.v1.AddTagOperation
-	44, // 28: float.v1.BulkEditOperation.remove_tag:type_name -> float.v1.RemoveTagOperation
-	45, // 29: float.v1.BulkEditOperation.set_payee:type_name -> float.v1.SetPayeeOperation
-	46, // 30: float.v1.BulkEditOperation.clear_payee:type_name -> float.v1.ClearPayeeOperation
-	47, // 31: float.v1.BulkEditTransactionsRequest.operations:type_name -> float.v1.BulkEditOperation
-	2,  // 32: float.v1.BulkEditTransactionsResponse.transactions:type_name -> float.v1.Transaction
-	50, // 33: float.v1.ListSnapshotsResponse.snapshots:type_name -> float.v1.Snapshot
-	55, // 34: float.v1.ListBankProfilesResponse.profiles:type_name -> float.v1.BankProfile
-	55, // 35: float.v1.CreateBankProfileResponse.profile:type_name -> float.v1.BankProfile
-	55, // 36: float.v1.UpdateBankProfileResponse.profile:type_name -> float.v1.BankProfile
-	2,  // 37: float.v1.ImportCandidate.transaction:type_name -> float.v1.Transaction
-	67, // 38: float.v1.PreviewImportResponse.candidates:type_name -> float.v1.ImportCandidate
-	2,  // 39: float.v1.ImportTransactionsResponse.transactions:type_name -> float.v1.Transaction
-	72, // 40: float.v1.ListImportsResponse.imports:type_name -> float.v1.ImportSummary
-	91, // 41: float.v1.TransactionRule.tags:type_name -> float.v1.TransactionRule.TagsEntry
-	75, // 42: float.v1.ListRulesResponse.rules:type_name -> float.v1.TransactionRule
-	92, // 43: float.v1.AddRuleRequest.tags:type_name -> float.v1.AddRuleRequest.TagsEntry
-	75, // 44: float.v1.AddRuleResponse.rule:type_name -> float.v1.TransactionRule
-	93, // 45: float.v1.UpdateRuleRequest.tags:type_name -> float.v1.UpdateRuleRequest.TagsEntry
-	75, // 46: float.v1.UpdateRuleResponse.rule:type_name -> float.v1.TransactionRule
-	94, // 47: float.v1.RuleApplicationPreview.add_tags:type_name -> float.v1.RuleApplicationPreview.AddTagsEntry
-	85, // 48: float.v1.PreviewApplyRulesResponse.previews:type_name -> float.v1.RuleApplicationPreview
-	9,  // 49: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
-	14, // 50: float.v1.LedgerService.GetAccountRegister:input_type -> float.v1.GetAccountRegisterRequest
-	11, // 51: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
-	16, // 52: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
-	18, // 53: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
-	20, // 54: float.v1.LedgerService.ListPayees:input_type -> float.v1.ListPayeesRequest
-	22, // 55: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
-	24, // 56: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
-	26, // 57: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
-	31, // 58: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
-	29, // 59: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
-	33, // 60: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
-	7,  // 61: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
-	36, // 62: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
-	38, // 63: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
-	40, // 64: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
-	48, // 65: float.v1.LedgerService.BulkEditTransactions:input_type -> float.v1.BulkEditTransactionsRequest
-	51, // 66: float.v1.LedgerService.ListSnapshots:input_type -> float.v1.ListSnapshotsRequest
-	53, // 67: float.v1.LedgerService.RestoreSnapshot:input_type -> float.v1.RestoreSnapshotRequest
-	56, // 68: float.v1.LedgerService.ListBankProfiles:input_type -> float.v1.ListBankProfilesRequest
-	58, // 69: float.v1.LedgerService.CreateBankProfile:input_type -> float.v1.CreateBankProfileRequest
-	60, // 70: float.v1.LedgerService.GetBankProfileContent:input_type -> float.v1.GetBankProfileContentRequest
-	62, // 71: float.v1.LedgerService.UpdateBankProfile:input_type -> float.v1.UpdateBankProfileRequest
-	64, // 72: float.v1.LedgerService.DeleteBankProfile:input_type -> float.v1.DeleteBankProfileRequest
-	66, // 73: float.v1.LedgerService.PreviewImport:input_type -> float.v1.PreviewImportRequest
-	69, // 74: float.v1.LedgerService.ImportTransactions:input_type -> float.v1.ImportTransactionsRequest
-	71, // 75: float.v1.LedgerService.GetImportedTransactions:input_type -> float.v1.GetImportedTransactionsRequest
-	73, // 76: float.v1.LedgerService.ListImports:input_type -> float.v1.ListImportsRequest
-	76, // 77: float.v1.LedgerService.ListRules:input_type -> float.v1.ListRulesRequest
-	78, // 78: float.v1.LedgerService.AddRule:input_type -> float.v1.AddRuleRequest
-	80, // 79: float.v1.LedgerService.UpdateRule:input_type -> float.v1.UpdateRuleRequest
-	82, // 80: float.v1.LedgerService.DeleteRule:input_type -> float.v1.DeleteRuleRequest
-	84, // 81: float.v1.LedgerService.PreviewApplyRules:input_type -> float.v1.PreviewApplyRulesRequest
-	87, // 82: float.v1.LedgerService.ApplyRules:input_type -> float.v1.ApplyRulesRequest
-	10, // 83: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	15, // 84: float.v1.LedgerService.GetAccountRegister:output_type -> float.v1.GetAccountRegisterResponse
-	12, // 85: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	17, // 86: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	19, // 87: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
-	21, // 88: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
-	23, // 89: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	25, // 90: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	27, // 91: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	32, // 92: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
-	30, // 93: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	34, // 94: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
-	8,  // 95: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	37, // 96: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
-	39, // 97: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
-	41, // 98: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
-	49, // 99: float.v1.LedgerService.BulkEditTransactions:output_type -> float.v1.BulkEditTransactionsResponse
-	52, // 100: float.v1.LedgerService.ListSnapshots:output_type -> float.v1.ListSnapshotsResponse
-	54, // 101: float.v1.LedgerService.RestoreSnapshot:output_type -> float.v1.RestoreSnapshotResponse
-	57, // 102: float.v1.LedgerService.ListBankProfiles:output_type -> float.v1.ListBankProfilesResponse
-	59, // 103: float.v1.LedgerService.CreateBankProfile:output_type -> float.v1.CreateBankProfileResponse
-	61, // 104: float.v1.LedgerService.GetBankProfileContent:output_type -> float.v1.GetBankProfileContentResponse
-	63, // 105: float.v1.LedgerService.UpdateBankProfile:output_type -> float.v1.UpdateBankProfileResponse
-	65, // 106: float.v1.LedgerService.DeleteBankProfile:output_type -> float.v1.DeleteBankProfileResponse
-	68, // 107: float.v1.LedgerService.PreviewImport:output_type -> float.v1.PreviewImportResponse
-	70, // 108: float.v1.LedgerService.ImportTransactions:output_type -> float.v1.ImportTransactionsResponse
-	10, // 109: float.v1.LedgerService.GetImportedTransactions:output_type -> float.v1.ListTransactionsResponse
-	74, // 110: float.v1.LedgerService.ListImports:output_type -> float.v1.ListImportsResponse
-	77, // 111: float.v1.LedgerService.ListRules:output_type -> float.v1.ListRulesResponse
-	79, // 112: float.v1.LedgerService.AddRule:output_type -> float.v1.AddRuleResponse
-	81, // 113: float.v1.LedgerService.UpdateRule:output_type -> float.v1.UpdateRuleResponse
-	83, // 114: float.v1.LedgerService.DeleteRule:output_type -> float.v1.DeleteRuleResponse
-	86, // 115: float.v1.LedgerService.PreviewApplyRules:output_type -> float.v1.PreviewApplyRulesResponse
-	88, // 116: float.v1.LedgerService.ApplyRules:output_type -> float.v1.ApplyRulesResponse
-	83, // [83:117] is the sub-list for method output_type
-	49, // [49:83] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	91, // 19: float.v1.AddTransactionRequest.tags:type_name -> float.v1.AddTransactionRequest.TagsEntry
+	2,  // 20: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
+	28, // 21: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
+	92, // 22: float.v1.UpdateTransactionRequest.tags:type_name -> float.v1.UpdateTransactionRequest.TagsEntry
+	2,  // 23: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
+	2,  // 24: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
+	0,  // 25: float.v1.PriceDirective.price:type_name -> float.v1.Amount
+	35, // 26: float.v1.ListPricesResponse.prices:type_name -> float.v1.PriceDirective
+	35, // 27: float.v1.AddPriceResponse.price:type_name -> float.v1.PriceDirective
+	42, // 28: float.v1.BulkEditOperation.mark_reviewed:type_name -> float.v1.MarkReviewedOperation
+	43, // 29: float.v1.BulkEditOperation.add_tag:type_name -> float.v1.AddTagOperation
+	44, // 30: float.v1.BulkEditOperation.remove_tag:type_name -> float.v1.RemoveTagOperation
+	45, // 31: float.v1.BulkEditOperation.set_payee:type_name -> float.v1.SetPayeeOperation
+	46, // 32: float.v1.BulkEditOperation.clear_payee:type_name -> float.v1.ClearPayeeOperation
+	47, // 33: float.v1.BulkEditTransactionsRequest.operations:type_name -> float.v1.BulkEditOperation
+	2,  // 34: float.v1.BulkEditTransactionsResponse.transactions:type_name -> float.v1.Transaction
+	50, // 35: float.v1.ListSnapshotsResponse.snapshots:type_name -> float.v1.Snapshot
+	55, // 36: float.v1.ListBankProfilesResponse.profiles:type_name -> float.v1.BankProfile
+	55, // 37: float.v1.CreateBankProfileResponse.profile:type_name -> float.v1.BankProfile
+	55, // 38: float.v1.UpdateBankProfileResponse.profile:type_name -> float.v1.BankProfile
+	2,  // 39: float.v1.ImportCandidate.transaction:type_name -> float.v1.Transaction
+	67, // 40: float.v1.PreviewImportResponse.candidates:type_name -> float.v1.ImportCandidate
+	2,  // 41: float.v1.ImportTransactionsResponse.transactions:type_name -> float.v1.Transaction
+	72, // 42: float.v1.ListImportsResponse.imports:type_name -> float.v1.ImportSummary
+	93, // 43: float.v1.TransactionRule.tags:type_name -> float.v1.TransactionRule.TagsEntry
+	75, // 44: float.v1.ListRulesResponse.rules:type_name -> float.v1.TransactionRule
+	94, // 45: float.v1.AddRuleRequest.tags:type_name -> float.v1.AddRuleRequest.TagsEntry
+	75, // 46: float.v1.AddRuleResponse.rule:type_name -> float.v1.TransactionRule
+	95, // 47: float.v1.UpdateRuleRequest.tags:type_name -> float.v1.UpdateRuleRequest.TagsEntry
+	75, // 48: float.v1.UpdateRuleResponse.rule:type_name -> float.v1.TransactionRule
+	96, // 49: float.v1.RuleApplicationPreview.add_tags:type_name -> float.v1.RuleApplicationPreview.AddTagsEntry
+	85, // 50: float.v1.PreviewApplyRulesResponse.previews:type_name -> float.v1.RuleApplicationPreview
+	9,  // 51: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
+	14, // 52: float.v1.LedgerService.GetAccountRegister:input_type -> float.v1.GetAccountRegisterRequest
+	11, // 53: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
+	16, // 54: float.v1.LedgerService.ListAccounts:input_type -> float.v1.ListAccountsRequest
+	18, // 55: float.v1.LedgerService.ListTags:input_type -> float.v1.ListTagsRequest
+	20, // 56: float.v1.LedgerService.ListPayees:input_type -> float.v1.ListPayeesRequest
+	22, // 57: float.v1.LedgerService.DeleteTransaction:input_type -> float.v1.DeleteTransactionRequest
+	24, // 58: float.v1.LedgerService.ModifyTags:input_type -> float.v1.ModifyTagsRequest
+	26, // 59: float.v1.LedgerService.UpdateTransactionDate:input_type -> float.v1.UpdateTransactionDateRequest
+	31, // 60: float.v1.LedgerService.UpdateTransaction:input_type -> float.v1.UpdateTransactionRequest
+	29, // 61: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
+	33, // 62: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
+	7,  // 63: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
+	36, // 64: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
+	38, // 65: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
+	40, // 66: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
+	48, // 67: float.v1.LedgerService.BulkEditTransactions:input_type -> float.v1.BulkEditTransactionsRequest
+	51, // 68: float.v1.LedgerService.ListSnapshots:input_type -> float.v1.ListSnapshotsRequest
+	53, // 69: float.v1.LedgerService.RestoreSnapshot:input_type -> float.v1.RestoreSnapshotRequest
+	56, // 70: float.v1.LedgerService.ListBankProfiles:input_type -> float.v1.ListBankProfilesRequest
+	58, // 71: float.v1.LedgerService.CreateBankProfile:input_type -> float.v1.CreateBankProfileRequest
+	60, // 72: float.v1.LedgerService.GetBankProfileContent:input_type -> float.v1.GetBankProfileContentRequest
+	62, // 73: float.v1.LedgerService.UpdateBankProfile:input_type -> float.v1.UpdateBankProfileRequest
+	64, // 74: float.v1.LedgerService.DeleteBankProfile:input_type -> float.v1.DeleteBankProfileRequest
+	66, // 75: float.v1.LedgerService.PreviewImport:input_type -> float.v1.PreviewImportRequest
+	69, // 76: float.v1.LedgerService.ImportTransactions:input_type -> float.v1.ImportTransactionsRequest
+	71, // 77: float.v1.LedgerService.GetImportedTransactions:input_type -> float.v1.GetImportedTransactionsRequest
+	73, // 78: float.v1.LedgerService.ListImports:input_type -> float.v1.ListImportsRequest
+	76, // 79: float.v1.LedgerService.ListRules:input_type -> float.v1.ListRulesRequest
+	78, // 80: float.v1.LedgerService.AddRule:input_type -> float.v1.AddRuleRequest
+	80, // 81: float.v1.LedgerService.UpdateRule:input_type -> float.v1.UpdateRuleRequest
+	82, // 82: float.v1.LedgerService.DeleteRule:input_type -> float.v1.DeleteRuleRequest
+	84, // 83: float.v1.LedgerService.PreviewApplyRules:input_type -> float.v1.PreviewApplyRulesRequest
+	87, // 84: float.v1.LedgerService.ApplyRules:input_type -> float.v1.ApplyRulesRequest
+	10, // 85: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	15, // 86: float.v1.LedgerService.GetAccountRegister:output_type -> float.v1.GetAccountRegisterResponse
+	12, // 87: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	17, // 88: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	19, // 89: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
+	21, // 90: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
+	23, // 91: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	25, // 92: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	27, // 93: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	32, // 94: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	30, // 95: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	34, // 96: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
+	8,  // 97: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	37, // 98: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
+	39, // 99: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
+	41, // 100: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
+	49, // 101: float.v1.LedgerService.BulkEditTransactions:output_type -> float.v1.BulkEditTransactionsResponse
+	52, // 102: float.v1.LedgerService.ListSnapshots:output_type -> float.v1.ListSnapshotsResponse
+	54, // 103: float.v1.LedgerService.RestoreSnapshot:output_type -> float.v1.RestoreSnapshotResponse
+	57, // 104: float.v1.LedgerService.ListBankProfiles:output_type -> float.v1.ListBankProfilesResponse
+	59, // 105: float.v1.LedgerService.CreateBankProfile:output_type -> float.v1.CreateBankProfileResponse
+	61, // 106: float.v1.LedgerService.GetBankProfileContent:output_type -> float.v1.GetBankProfileContentResponse
+	63, // 107: float.v1.LedgerService.UpdateBankProfile:output_type -> float.v1.UpdateBankProfileResponse
+	65, // 108: float.v1.LedgerService.DeleteBankProfile:output_type -> float.v1.DeleteBankProfileResponse
+	68, // 109: float.v1.LedgerService.PreviewImport:output_type -> float.v1.PreviewImportResponse
+	70, // 110: float.v1.LedgerService.ImportTransactions:output_type -> float.v1.ImportTransactionsResponse
+	10, // 111: float.v1.LedgerService.GetImportedTransactions:output_type -> float.v1.ListTransactionsResponse
+	74, // 112: float.v1.LedgerService.ListImports:output_type -> float.v1.ListImportsResponse
+	77, // 113: float.v1.LedgerService.ListRules:output_type -> float.v1.ListRulesResponse
+	79, // 114: float.v1.LedgerService.AddRule:output_type -> float.v1.AddRuleResponse
+	81, // 115: float.v1.LedgerService.UpdateRule:output_type -> float.v1.UpdateRuleResponse
+	83, // 116: float.v1.LedgerService.DeleteRule:output_type -> float.v1.DeleteRuleResponse
+	86, // 117: float.v1.LedgerService.PreviewApplyRules:output_type -> float.v1.PreviewApplyRulesResponse
+	88, // 118: float.v1.LedgerService.ApplyRules:output_type -> float.v1.ApplyRulesResponse
+	85, // [85:119] is the sub-list for method output_type
+	51, // [51:85] is the sub-list for method input_type
+	51, // [51:51] is the sub-list for extension type_name
+	51, // [51:51] is the sub-list for extension extendee
+	0,  // [0:51] is the sub-list for field type_name
 }
 
 func init() { file_float_v1_ledger_proto_init() }
@@ -5390,7 +5418,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   95,
+			NumMessages:   97,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

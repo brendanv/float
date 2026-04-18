@@ -413,6 +413,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		Date:        date,
 		Description: desc,
 		Comment:     req.Msg.Comment,
+		Tags:        req.Msg.Tags,
 		Postings:    postings,
 		Status:      "Pending",
 	}
@@ -476,7 +477,7 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	var updated hledger.Transaction
 	err := h.lock.Do(ctx, fmt.Sprintf("update transaction %s", fid), func() error {
 		var e error
-		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, postings)
+		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, req.Msg.Tags, postings)
 		return e
 	})
 	if err != nil {

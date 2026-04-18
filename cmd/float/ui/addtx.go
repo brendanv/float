@@ -31,6 +31,20 @@ func newPostingField() postingField {
 	return postingField{account: acc, amount: amt}
 }
 
+// tagField holds the inputs for a single tag row.
+type tagField struct {
+	key   textinput.Model
+	value textinput.Model
+}
+
+func newTagField() tagField {
+	k := textinput.New()
+	k.Placeholder = "key"
+	v := textinput.New()
+	v.Placeholder = "value"
+	return tagField{key: k, value: v}
+}
+
 // AddTxForm is the add/edit-transaction overlay form.
 // When editFID is non-empty the form operates in edit mode:
 //   - the title changes to "Edit Transaction"
@@ -50,12 +64,14 @@ type AddTxForm struct {
 	amtColW      int
 
 	// Header inputs
-	// focused field 0 = date, 1 = desc, 2 = comment
-	dateInput    textinput.Model
-	descInput    textinput.Model
-	commentInput textinput.Model
+	// focused field 0 = date, 1 = desc
+	dateInput textinput.Model
+	descInput textinput.Model
 
-	// Postings (focused field 3+2*r for account, 3+2*r+1 for amount)
+	// Tags (focused field 2..2+2*len(tags)-1)
+	tags []tagField
+
+	// Postings (focused field postingBase()+2*r for account, postingBase()+2*r+1 for amount)
 	postings []postingField
 	focused  int // flat field index
 
@@ -75,15 +91,11 @@ func NewAddTxForm(client floatv1connect.LedgerServiceClient, st Styles) AddTxFor
 	desc := textinput.New()
 	desc.Placeholder = "description"
 
-	comment := textinput.New()
-	comment.Placeholder = "comment / tags (e.g. category:food)"
-
 	f := AddTxForm{
 		client:        client,
 		styles:        st,
 		dateInput:     date,
 		descInput:     desc,
-		commentInput:  comment,
 		postings:      []postingField{newPostingField(), newPostingField()},
 		focused:       0,
 		activeSuggIdx: -1,
@@ -121,7 +133,10 @@ func (f *AddTxForm) rebuildWidths() {
 	// Apply widths to all inputs
 	f.dateInput.SetWidth(f.headerInputW)
 	f.descInput.SetWidth(f.headerInputW)
-	f.commentInput.SetWidth(f.headerInputW)
+	for i := range f.tags {
+		f.tags[i].key.SetWidth(f.accColW)
+		f.tags[i].value.SetWidth(f.amtColW)
+	}
 	for i := range f.postings {
 		f.postings[i].account.SetWidth(f.accColW)
 		f.postings[i].amount.SetWidth(f.amtColW)
@@ -136,6 +151,11 @@ func (f *AddTxForm) SetAccounts(accounts []*floatv1.Account) {
 	sort.Strings(f.allAccounts)
 }
 
+// postingBase returns the flat field index of the first posting field.
+func (f *AddTxForm) postingBase() int {
+	return 2 + 2*len(f.tags)
+}
+
 // Activate opens the form in add mode with today's date pre-filled.
 func (f *AddTxForm) Activate() {
 	f.active = true
@@ -143,15 +163,13 @@ func (f *AddTxForm) Activate() {
 	f.errMsg = ""
 	f.submitting = false
 	f.focused = 0
-	// Reset all inputs
 	today := time.Now().Format("2006-01-02")
 	f.dateInput.Reset()
 	f.dateInput.SetValue(today)
 	f.dateInput.SetWidth(f.headerInputW)
 	f.descInput.Reset()
 	f.descInput.SetWidth(f.headerInputW)
-	f.commentInput.Reset()
-	f.commentInput.SetWidth(f.headerInputW)
+	f.tags = nil
 	p1 := newPostingField()
 	p1.account.SetWidth(f.accColW)
 	p1.amount.SetWidth(f.amtColW)
@@ -175,7 +193,6 @@ func (f *AddTxForm) ActivateEdit(tx *floatv1.Transaction) {
 	f.submitting = false
 	f.focused = 0
 
-	// Pre-populate header fields
 	f.dateInput.Reset()
 	f.dateInput.SetValue(tx.Date)
 	f.dateInput.SetWidth(f.headerInputW)
@@ -184,12 +201,23 @@ func (f *AddTxForm) ActivateEdit(tx *floatv1.Transaction) {
 	f.descInput.SetValue(tx.Description)
 	f.descInput.SetWidth(f.headerInputW)
 
-	cleanComment := strings.TrimSpace(tx.Comment)
-	f.commentInput.Reset()
-	f.commentInput.SetValue(cleanComment)
-	f.commentInput.SetWidth(f.headerInputW)
+	// Populate tags from tx.Tags (sorted for stable display order).
+	f.tags = nil
+	keys := make([]string, 0, len(tx.Tags))
+	for k := range tx.Tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		tf := newTagField()
+		tf.key.SetWidth(f.accColW)
+		tf.value.SetWidth(f.amtColW)
+		tf.key.SetValue(k)
+		tf.value.SetValue(tx.Tags[k])
+		f.tags = append(f.tags, tf)
+	}
 
-	// Pre-populate postings
+	// Pre-populate postings.
 	f.postings = nil
 	for _, p := range tx.Postings {
 		pf := newPostingField()
@@ -202,7 +230,6 @@ func (f *AddTxForm) ActivateEdit(tx *floatv1.Transaction) {
 		}
 		f.postings = append(f.postings, pf)
 	}
-	// Ensure at least 2 postings
 	for len(f.postings) < 2 {
 		pf := newPostingField()
 		pf.account.SetWidth(f.accColW)
@@ -230,26 +257,44 @@ func (f AddTxForm) EditMode() bool {
 }
 
 func (f *AddTxForm) totalFields() int {
-	return 3 + len(f.postings)*2
+	return 2 + len(f.tags)*2 + len(f.postings)*2
 }
 
-// isAccountField returns true if the flat index corresponds to an account input.
-func isAccountField(idx int) bool {
-	if idx < 3 {
+// isTagKeyField returns true if idx is a tag key field.
+func isTagKeyField(idx, postingBase int) bool {
+	return idx >= 2 && idx < postingBase && (idx-2)%2 == 0
+}
+
+// isTagValueField returns true if idx is a tag value field.
+func isTagValueField(idx, postingBase int) bool {
+	return idx >= 2 && idx < postingBase && (idx-2)%2 == 1
+}
+
+// tagRowForField returns the tag row index for a flat field index in the tag range.
+func tagRowForField(idx int) int {
+	return (idx - 2) / 2
+}
+
+// isAccountField returns true if the flat index corresponds to a posting account input.
+func isAccountField(idx, postingBase int) bool {
+	if idx < postingBase {
 		return false
 	}
-	return (idx-3)%2 == 0
+	return (idx-postingBase)%2 == 0
 }
 
-// postingRowForField returns the posting row index for a flat field index >= 3.
-func postingRowForField(idx int) int {
-	return (idx - 3) / 2
+// postingRowForField returns the posting row index for a flat field index in the posting range.
+func postingRowForField(idx, postingBase int) int {
+	return (idx - postingBase) / 2
 }
 
 func (f *AddTxForm) blurAll() {
 	f.dateInput.Blur()
 	f.descInput.Blur()
-	f.commentInput.Blur()
+	for i := range f.tags {
+		f.tags[i].key.Blur()
+		f.tags[i].value.Blur()
+	}
 	for i := range f.postings {
 		f.postings[i].account.Blur()
 		f.postings[i].amount.Blur()
@@ -259,19 +304,28 @@ func (f *AddTxForm) blurAll() {
 func (f *AddTxForm) focusField(idx int) {
 	f.blurAll()
 	f.focused = idx
-	switch idx {
-	case 0:
+	pb := f.postingBase()
+	switch {
+	case idx == 0:
 		f.dateInput.Focus()
-	case 1:
+	case idx == 1:
 		f.descInput.Focus()
-	case 2:
-		f.commentInput.Focus()
+	case idx >= 2 && idx < pb:
+		row := tagRowForField(idx)
+		if row >= len(f.tags) {
+			return
+		}
+		if isTagKeyField(idx, pb) {
+			f.tags[row].key.Focus()
+		} else {
+			f.tags[row].value.Focus()
+		}
 	default:
-		row := postingRowForField(idx)
+		row := postingRowForField(idx, pb)
 		if row >= len(f.postings) {
 			return
 		}
-		if (idx-3)%2 == 0 {
+		if isAccountField(idx, pb) {
 			f.postings[row].account.Focus()
 			f.updateSuggestions()
 		} else {
@@ -283,12 +337,13 @@ func (f *AddTxForm) focusField(idx int) {
 }
 
 func (f *AddTxForm) updateSuggestions() {
-	if !isAccountField(f.focused) {
+	pb := f.postingBase()
+	if !isAccountField(f.focused, pb) {
 		f.suggestions = nil
 		f.activeSuggIdx = -1
 		return
 	}
-	row := postingRowForField(f.focused)
+	row := postingRowForField(f.focused, pb)
 	query := strings.ToLower(f.postings[row].account.Value())
 	if query == "" {
 		f.suggestions = nil
@@ -330,6 +385,13 @@ func (f *AddTxForm) retreat() {
 	f.focusField(prev)
 }
 
+func (f *AddTxForm) addTag() {
+	t := newTagField()
+	t.key.SetWidth(f.accColW)
+	t.value.SetWidth(f.amtColW)
+	f.tags = append(f.tags, t)
+}
+
 func (f *AddTxForm) addPosting() {
 	p := newPostingField()
 	p.account.SetWidth(f.accColW)
@@ -337,24 +399,54 @@ func (f *AddTxForm) addPosting() {
 	f.postings = append(f.postings, p)
 }
 
-func (f *AddTxForm) deleteCurrentPosting() {
-	if len(f.postings) <= 1 {
+func (f *AddTxForm) deleteCurrentTag() {
+	pb := f.postingBase()
+	if f.focused < 2 || f.focused >= pb {
 		return
 	}
-	if !isAccountField(f.focused) && f.focused < 3 {
+	row := tagRowForField(f.focused)
+	if row < 0 || row >= len(f.tags) {
 		return
 	}
-	row := postingRowForField(f.focused)
-	if row < 0 || row >= len(f.postings) {
-		return
-	}
-	f.postings = append(f.postings[:row], f.postings[row+1:]...)
-	// Reposition focus
+	f.tags = append(f.tags[:row], f.tags[row+1:]...)
 	newFocused := f.focused
 	if newFocused >= f.totalFields() {
 		newFocused = f.totalFields() - 1
 	}
 	f.focusField(newFocused)
+}
+
+func (f *AddTxForm) deleteCurrentPosting() {
+	pb := f.postingBase()
+	if len(f.postings) <= 1 {
+		return
+	}
+	if f.focused < pb {
+		return
+	}
+	row := postingRowForField(f.focused, pb)
+	if row < 0 || row >= len(f.postings) {
+		return
+	}
+	f.postings = append(f.postings[:row], f.postings[row+1:]...)
+	newFocused := f.focused
+	if newFocused >= f.totalFields() {
+		newFocused = f.totalFields() - 1
+	}
+	f.focusField(newFocused)
+}
+
+// buildTags collects non-empty, non-float-prefixed tag rows into a map.
+func (f *AddTxForm) buildTags() map[string]string {
+	tags := make(map[string]string)
+	for _, t := range f.tags {
+		k := strings.TrimSpace(t.key.Value())
+		if k == "" || strings.HasPrefix(k, "float-") {
+			continue
+		}
+		tags[k] = strings.TrimSpace(t.value.Value())
+	}
+	return tags
 }
 
 // buildPostings collects non-empty posting rows into PostingInput protos.
@@ -387,10 +479,15 @@ func (f *AddTxForm) buildAddRequest() (*floatv1.AddTransactionRequest, string) {
 	if errMsg != "" {
 		return nil, errMsg
 	}
+	tags := f.buildTags()
+	var tagsArg map[string]string
+	if len(tags) > 0 {
+		tagsArg = tags
+	}
 	return &floatv1.AddTransactionRequest{
 		Description: desc,
 		Date:        strings.TrimSpace(f.dateInput.Value()),
-		Comment:     strings.TrimSpace(f.commentInput.Value()),
+		Tags:        tagsArg,
 		Postings:    postings,
 	}, ""
 }
@@ -408,7 +505,7 @@ func (f *AddTxForm) buildUpdateRequest() (*floatv1.UpdateTransactionRequest, str
 		Fid:         f.editFID,
 		Description: desc,
 		Date:        strings.TrimSpace(f.dateInput.Value()),
-		Comment:     strings.TrimSpace(f.commentInput.Value()),
+		Tags:        f.buildTags(),
 		Postings:    postings,
 	}, ""
 }
@@ -422,7 +519,6 @@ func (f AddTxForm) Update(msg tea.Msg) (AddTxForm, tea.Cmd) {
 		switch key {
 		case "esc":
 			if len(f.suggestions) > 0 {
-				// First esc closes the suggestions dropdown
 				f.suggestions = nil
 				f.activeSuggIdx = -1
 				return f, nil
@@ -450,14 +546,25 @@ func (f AddTxForm) Update(msg tea.Msg) (AddTxForm, tea.Cmd) {
 			f.errMsg = ""
 			return f, AddTransactionCmd(f.client, req)
 
+		case "ctrl+t":
+			f.addTag()
+			// Focus the new tag's key field.
+			f.focusField(2 + (len(f.tags)-1)*2)
+			return f, nil
+
 		case "ctrl+a":
 			f.addPosting()
-			// Focus the new posting's account field
+			// Focus the new posting's account field.
 			f.focusField(f.totalFields() - 2)
 			return f, nil
 
 		case "ctrl+d":
-			f.deleteCurrentPosting()
+			pb := f.postingBase()
+			if f.focused >= 2 && f.focused < pb {
+				f.deleteCurrentTag()
+			} else {
+				f.deleteCurrentPosting()
+			}
 			return f, nil
 
 		case "shift+tab":
@@ -469,7 +576,8 @@ func (f AddTxForm) Update(msg tea.Msg) (AddTxForm, tea.Cmd) {
 			return f, nil
 
 		case "up":
-			if isAccountField(f.focused) && len(f.suggestions) > 0 {
+			pb := f.postingBase()
+			if isAccountField(f.focused, pb) && len(f.suggestions) > 0 {
 				if f.activeSuggIdx > 0 {
 					f.activeSuggIdx--
 				} else {
@@ -477,12 +585,12 @@ func (f AddTxForm) Update(msg tea.Msg) (AddTxForm, tea.Cmd) {
 				}
 				return f, nil
 			}
-			// Navigate to previous field like shift+tab
 			f.retreat()
 			return f, nil
 
 		case "down":
-			if isAccountField(f.focused) && len(f.suggestions) > 0 {
+			pb := f.postingBase()
+			if isAccountField(f.focused, pb) && len(f.suggestions) > 0 {
 				if f.activeSuggIdx < len(f.suggestions)-1 {
 					f.activeSuggIdx++
 				} else {
@@ -490,41 +598,47 @@ func (f AddTxForm) Update(msg tea.Msg) (AddTxForm, tea.Cmd) {
 				}
 				return f, nil
 			}
-			// Navigate to next field like tab
 			f.advance()
 			return f, nil
 
 		case "enter":
-			if isAccountField(f.focused) && f.activeSuggIdx >= 0 && f.activeSuggIdx < len(f.suggestions) {
-				// Select the highlighted suggestion
-				row := postingRowForField(f.focused)
+			pb := f.postingBase()
+			if isAccountField(f.focused, pb) && f.activeSuggIdx >= 0 && f.activeSuggIdx < len(f.suggestions) {
+				row := postingRowForField(f.focused, pb)
 				f.postings[row].account.SetValue(f.suggestions[f.activeSuggIdx])
 				f.suggestions = nil
 				f.activeSuggIdx = -1
-				// Advance to amount field
 				f.advance()
 				return f, nil
 			}
-			// Confirm typed text and advance
 			f.advance()
 			return f, nil
 		}
 
-		// Route key to focused input
+		// Route key to focused input.
 		var cmd tea.Cmd
-		switch f.focused {
-		case 0:
+		pb := f.postingBase()
+		switch {
+		case f.focused == 0:
 			f.dateInput, cmd = f.dateInput.Update(msg)
-		case 1:
+		case f.focused == 1:
 			f.descInput, cmd = f.descInput.Update(msg)
-		case 2:
-			f.commentInput, cmd = f.commentInput.Update(msg)
+		case f.focused >= 2 && f.focused < pb:
+			row := tagRowForField(f.focused)
+			if row >= len(f.tags) {
+				return f, nil
+			}
+			if isTagKeyField(f.focused, pb) {
+				f.tags[row].key, cmd = f.tags[row].key.Update(msg)
+			} else {
+				f.tags[row].value, cmd = f.tags[row].value.Update(msg)
+			}
 		default:
-			row := postingRowForField(f.focused)
+			row := postingRowForField(f.focused, pb)
 			if row >= len(f.postings) {
 				return f, nil
 			}
-			if (f.focused-3)%2 == 0 {
+			if isAccountField(f.focused, pb) {
 				f.postings[row].account, cmd = f.postings[row].account.Update(msg)
 				f.updateSuggestions()
 			} else {
@@ -548,29 +662,39 @@ func (f AddTxForm) View() string {
 
 	// Description field
 	lines = append(lines, "Description: "+f.descInput.View())
-
-	// Comment field
-	lines = append(lines, "Comment:     "+f.commentInput.View())
 	lines = append(lines, "")
 
-	// Postings header
+	// Tags section
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Render("Tags"))
+	if len(f.tags) == 0 {
+		lines = append(lines, f.styles.Help.Render("  (none — ctrl+t to add)"))
+	} else {
+		colHeader := f.styles.Help.Render(
+			padRight("  Key", f.accColW+2)+"  Value",
+		)
+		lines = append(lines, colHeader)
+		for _, t := range f.tags {
+			tagLine := "  " + t.key.View() + "  " + t.value.View()
+			lines = append(lines, tagLine)
+		}
+	}
+	lines = append(lines, "")
+
+	// Postings section
 	lines = append(lines, lipgloss.NewStyle().Bold(true).Render("Postings"))
 
-	// Column header
 	colHeader := f.styles.Help.Render(
-		padRight("  Account", f.accColW+2) + "  Amount",
+		padRight("  Account", f.accColW+2)+"  Amount",
 	)
 	lines = append(lines, colHeader)
 
-	// Posting rows with optional suggestion dropdown
+	pb := f.postingBase()
 	for i, p := range f.postings {
-		accountFocusIdx := 3 + i*2
+		accountFocusIdx := pb + i*2
 
-		// Build the posting row line
 		postingLine := "  " + p.account.View() + "  " + p.amount.View()
 		lines = append(lines, postingLine)
 
-		// Show autocomplete dropdown below the account input if this row is focused
 		if f.focused == accountFocusIdx && len(f.suggestions) > 0 {
 			dropdownLines := renderDropdown(f.suggestions, f.activeSuggIdx, f.accColW+2, f.styles)
 			lines = append(lines, dropdownLines...)
@@ -579,16 +703,13 @@ func (f AddTxForm) View() string {
 
 	lines = append(lines, "")
 
-	// Help hint
-	hint := f.styles.Help.Render("  ctrl+a add posting  ctrl+d del posting  shift+enter submit  esc cancel")
+	hint := f.styles.Help.Render("  ctrl+t add tag  ctrl+a add posting  ctrl+d del row  shift+enter submit  esc cancel")
 	lines = append(lines, hint)
 
-	// Error message
 	if f.errMsg != "" {
 		lines = append(lines, f.styles.Error.Render("  Error: "+f.errMsg))
 	}
 
-	// Submitting indicator
 	if f.submitting {
 		lines = append(lines, f.styles.Help.Render("  Submitting..."))
 	}

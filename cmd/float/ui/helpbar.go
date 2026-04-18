@@ -22,8 +22,9 @@ var (
 	keyEsc        = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
 	keyNextField  = key.NewBinding(key.WithKeys("tab", "enter"), key.WithHelp("tab/enter", "next field"))
 	keyPrevField  = key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev field"))
+	keyAddTag     = key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "add tag"))
 	keyAddPosting = key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "add posting"))
-	keyDelPosting = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "del posting"))
+	keyDelRow     = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "del row"))
 	keySubmit     = key.NewBinding(key.WithKeys("shift+enter"), key.WithHelp("shift+enter", "submit"))
 	keyConfirm    = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
 	keySearch     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
@@ -81,7 +82,7 @@ func (HomeFormKeyMap) ShortHelp() []key.Binding {
 func (HomeFormKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyNextField, keyPrevField},
-		{keyAddPosting, keyDelPosting},
+		{keyAddTag, keyAddPosting, keyDelRow},
 		{keySubmit, keyEsc},
 	}
 }

@@ -162,6 +162,7 @@ message AddTransactionRequest {
   string comment = 3;
   repeated PostingInput postings = 4;
   string payee = 5; // optional; if set, description becomes "payee | description"
+  map<string, string> tags = 6; // optional; user-visible tags (must not have "float-" prefix)
 }
 
 message AddTransactionResponse {
@@ -175,6 +176,7 @@ message UpdateTransactionRequest {
   string comment = 4; // optional; replaces existing non-fid comment
   repeated PostingInput postings = 5; // required; replaces all existing postings
   string payee = 6; // optional; if set, description becomes "payee | description"
+  map<string, string> tags = 7; // optional; if set, replaces all user-visible tags
 }
 
 message UpdateTransactionResponse {
