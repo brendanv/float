@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function SnapshotsPage() {
@@ -48,7 +49,7 @@ export function SnapshotsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-bold">Snapshots</h2>
 
       <Card>
@@ -84,6 +85,7 @@ export function SnapshotsPage() {
                           disabled={restoring === s.hash}
                           onClick={() => handleRestore(s.hash)}
                         >
+                          {restoring === s.hash && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                           {restoring === s.hash ? "Restoring…" : "Restore"}
                         </Button>
                       </TableCell>

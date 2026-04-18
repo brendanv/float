@@ -1,14 +1,17 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { formatAmounts } from "../format.js";
 
 function StatItem({ title, value, valueClass }) {
   return (
     <Card className="flex-1">
-      <CardContent>
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
+      <CardHeader>
+        <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
           {title}
-        </div>
-        <div className={`mt-1 font-mono text-2xl font-semibold ${valueClass || ""}`}>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className={cn("font-mono text-2xl font-semibold", valueClass)}>
           {value}
         </div>
       </CardContent>

@@ -1,22 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export function AccountInput({ value, onChange, accounts, placeholder = "Account" }) {
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [open, setOpen] = useState(false);
   const [filtered, setFiltered] = useState([]);
-  const wrapperRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setShowSuggestions(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   function handleInput(e) {
     const v = e.target.value;
@@ -28,47 +18,51 @@ export function AccountInput({ value, onChange, accounts, placeholder = "Account
           .filter((a) => a.fullName.toLowerCase().includes(lower))
           .slice(0, 8)
       );
-      setShowSuggestions(true);
+      setOpen(true);
     } else {
-      setShowSuggestions(false);
+      setOpen(false);
     }
   }
 
   function select(fullName) {
     onChange(fullName);
-    setShowSuggestions(false);
+    setOpen(false);
   }
 
   return (
-    <div ref={wrapperRef} className="relative flex-1">
-      <Input
-        type="text"
-        placeholder={placeholder}
-        value={value}
-        onInput={handleInput}
-        onFocus={() => {
-          if (accounts && value.length === 0) {
-            setFiltered(accounts.slice(0, 8));
-            setShowSuggestions(true);
-          } else if (value.length > 0 && filtered.length > 0) {
-            setShowSuggestions(true);
-          }
-        }}
+    <Popover open={open && filtered.length > 0} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Input
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onInput={handleInput}
+            onFocus={() => {
+              if (accounts && value.length === 0) {
+                setFiltered(accounts.slice(0, 8));
+                setOpen(true);
+              } else if (value.length > 0 && filtered.length > 0) {
+                setOpen(true);
+              }
+            }}
+            className="flex-1"
+          />
+        }
       />
-      {showSuggestions && filtered.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border bg-popover p-1 shadow-md ring-1 ring-foreground/10">
-          {filtered.map((a) => (
-            <li
-              key={a.fullName}
-              onClick={() => select(a.fullName)}
-              className="cursor-pointer rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-            >
-              {a.fullName}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+      <PopoverContent align="start" className="w-(--anchor-width) max-h-48 overflow-y-auto p-1" onOpenAutoFocus={(e) => e.preventDefault()}>
+        {filtered.map((a) => (
+          <button
+            key={a.fullName}
+            type="button"
+            onClick={() => select(a.fullName)}
+            className="flex w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+          >
+            {a.fullName}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -90,7 +84,7 @@ export function PostingFields({ postings, onChange, accounts }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       {postings.map((p, i) => (
         <div key={i} className="flex items-start gap-2">
           <AccountInput
@@ -118,7 +112,7 @@ export function PostingFields({ postings, onChange, accounts }) {
         </div>
       ))}
       <Button variant="ghost" size="sm" onClick={addRow} type="button">
-        <Plus /> Add posting
+        <Plus data-icon="inline-start" /> Add posting
       </Button>
     </div>
   );

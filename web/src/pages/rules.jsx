@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, Loader2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -192,7 +192,7 @@ export function RulesPage() {
   const matchingRule = getMatchingRule();
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-bold">Categorization Rules</h2>
 
       {/* Card 1: Rule Editor */}
@@ -201,8 +201,8 @@ export function RulesPage() {
           <CardTitle>{editingId ? "Edit Rule" : "Add Rule"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="space-y-1.5">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="rule-pattern">Pattern (regex)</Label>
               <Input
                 id="rule-pattern"
@@ -215,7 +215,7 @@ export function RulesPage() {
               />
             </div>
             <div className="flex flex-wrap gap-3">
-              <div className="min-w-40 flex-1 space-y-1.5">
+              <div className="min-w-40 flex-1 flex flex-col gap-1.5">
                 <Label htmlFor="rule-payee">Set Payee</Label>
                 <Input
                   id="rule-payee"
@@ -225,7 +225,7 @@ export function RulesPage() {
                   onChange={(e) => setField("payee", e.target.value)}
                 />
               </div>
-              <div className="min-w-40 flex-1 space-y-1.5">
+              <div className="min-w-40 flex-1 flex flex-col gap-1.5">
                 <Label>Set Category Account</Label>
                 <AccountInput
                   value={form.account}
@@ -234,7 +234,7 @@ export function RulesPage() {
                   placeholder="expenses:shopping"
                 />
               </div>
-              <div className="min-w-40 flex-1 space-y-1.5">
+              <div className="min-w-40 flex-1 flex flex-col gap-1.5">
                 <Label htmlFor="rule-tags">
                   Add Tags <span className="text-xs text-muted-foreground">key=val, key2</span>
                 </Label>
@@ -247,7 +247,7 @@ export function RulesPage() {
                   onChange={(e) => setField("tags", e.target.value)}
                 />
               </div>
-              <div className="w-24 space-y-1.5">
+              <div className="w-24 flex flex-col gap-1.5">
                 <Label htmlFor="rule-priority">Priority</Label>
                 <Input
                   id="rule-priority"
@@ -267,6 +267,7 @@ export function RulesPage() {
             </div>
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={saveRuleMutation.isPending}>
+                {saveRuleMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                 {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
               </Button>
               {editingId && (
@@ -291,6 +292,7 @@ export function RulesPage() {
               onClick={handlePreviewApply}
               disabled={applyLoading}
             >
+              {applyLoading && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
               {applyLoading ? "Previewing…" : "Preview Changes"}
             </Button>
           </div>
@@ -332,7 +334,7 @@ export function RulesPage() {
                     </TableCell>
                     <TableCell>
                       {r.autoReviewed
-                        ? <CircleCheck className="h-4 w-4 text-success" />
+                        ? <CircleCheck className="size-4 text-success" />
                         : <span className="text-muted-foreground/60">—</span>}
                     </TableCell>
                     <TableCell>
@@ -382,7 +384,7 @@ export function RulesPage() {
           {applyError && <div className="mt-3"><ErrorBanner error={applyError} /></div>}
           {applyResult !== null && (
             <Alert className="mt-3">
-              <CircleCheck className="h-4 w-4 text-success" />
+              <CircleCheck className="size-4 text-success" />
               <AlertDescription>
                 Applied changes to {applyResult} transaction(s).
               </AlertDescription>
@@ -392,7 +394,7 @@ export function RulesPage() {
             <p className="mt-3 text-muted-foreground">No transactions match any rules.</p>
           )}
           {applyPreviews && applyPreviews.length > 0 && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 flex flex-col gap-3">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -454,6 +456,7 @@ export function RulesPage() {
                 onClick={handleApply}
                 disabled={applying || selectedFids.size === 0}
               >
+                {applying && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                 {applying ? "Applying…" : `Apply to ${selectedFids.size} Transaction(s)`}
               </Button>
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, CircleCheck, Pencil, Trash2, Tag } from "lucide-react";
+import { Plus, CircleCheck, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -35,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_RULES_CONTENT = `# hledger CSV import rules
@@ -89,8 +90,8 @@ function CreateProfileModal({ open, onCreated, onClose }) {
         <DialogHeader>
           <DialogTitle>Create Bank Profile</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="profile-name">Profile Name</Label>
             <Input
               id="profile-name"
@@ -101,7 +102,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
               required
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between">
               <Label htmlFor="rules-file">Rules File Path</Label>
               <span className="text-xs text-muted-foreground">relative to data dir</span>
@@ -116,7 +117,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
               required
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between">
               <Label htmlFor="rules-content">Rules File Content</Label>
               <span className="text-xs text-muted-foreground">hledger CSV import rules</span>
@@ -132,6 +133,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={saving}>
+              {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
               {saving ? "Creating…" : "Create Profile"}
             </Button>
           </DialogFooter>
@@ -186,8 +188,8 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
         {loading ? (
           <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-profile-name">Profile Name</Label>
               <Input
                 id="edit-profile-name"
@@ -197,7 +199,7 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
                 required
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <div className="flex items-baseline justify-between">
                 <Label htmlFor="edit-rules-content">Rules File Content</Label>
                 <span className="text-xs text-muted-foreground">{profile?.rulesFile}</span>
@@ -213,6 +215,7 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={saving}>
+                {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                 {saving ? "Saving…" : "Save Changes"}
               </Button>
             </DialogFooter>
@@ -251,7 +254,7 @@ function DeleteProfileDialog({ profile, open, onDeleted, onClose }) {
         <DialogHeader>
           <DialogTitle>Delete Bank Profile</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <p className="text-sm">
             Are you sure you want to delete <strong>{profile?.name}</strong>?
           </p>
@@ -270,6 +273,7 @@ function DeleteProfileDialog({ profile, open, onDeleted, onClose }) {
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+            {deleting && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
             {deleting ? "Deleting…" : "Delete Profile"}
           </Button>
         </DialogFooter>
@@ -398,7 +402,7 @@ export function ImportPage() {
   const newCount = candidates ? candidates.filter((c) => !c.isDuplicate).length : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-bold">Import Transactions</h2>
 
       {/* Upload form */}
@@ -408,7 +412,7 @@ export function ImportPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handlePreview} className="flex flex-wrap items-end gap-3">
-            <div className="w-full space-y-1.5 sm:w-56">
+            <div className="flex w-full flex-col gap-1.5 sm:w-56">
               <Label>Bank Profile</Label>
               <div className="flex items-center gap-2">
                 {profilesLoading ? (
@@ -434,44 +438,62 @@ export function ImportPage() {
                     </SelectContent>
                   </Select>
                 )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Create new bank profile"
-                  onClick={() => setShowCreateModal(true)}
-                >
-                  <Plus />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setShowCreateModal(true)}
+                      >
+                        <Plus />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>Create new bank profile</TooltipContent>
+                </Tooltip>
                 {selectedProfile && (
                   <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      title="Edit bank profile"
-                      onClick={() => setEditingProfile(
-                        profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
-                      )}
-                    >
-                      <Pencil />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      title="Delete bank profile"
-                      onClick={() => setDeletingProfile(
-                        profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
-                      )}
-                    >
-                      <Trash2 />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => setEditingProfile(
+                              profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                            )}
+                          >
+                            <Pencil />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Edit bank profile</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => setDeletingProfile(
+                              profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                            )}
+                          >
+                            <Trash2 />
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Delete bank profile</TooltipContent>
+                    </Tooltip>
                   </>
                 )}
               </div>
             </div>
-            <div className="w-full flex-1 space-y-1.5 sm:w-auto">
+            <div className="flex w-full flex-1 flex-col gap-1.5 sm:w-auto">
               <Label htmlFor="csv-file">CSV File</Label>
               <Input
                 id="csv-file"
@@ -485,6 +507,7 @@ export function ImportPage() {
               type="submit"
               disabled={previewing || !csvFile || !selectedProfile}
             >
+              {previewing && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
               {previewing ? "Previewing…" : "Preview"}
             </Button>
           </form>
@@ -496,7 +519,7 @@ export function ImportPage() {
       {/* Import result */}
       {importResult && (
         <Alert>
-          <CircleCheck className="h-4 w-4 text-success" />
+          <CircleCheck className="size-4 text-success" />
           <AlertDescription>
             Imported {importResult.importedCount} transaction(s) successfully.
           </AlertDescription>
@@ -521,6 +544,7 @@ export function ImportPage() {
                   onClick={handleImport}
                   disabled={importing || selectedIndices.size === 0}
                 >
+                  {importing && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                   {importing ? "Importing…" : `Import ${selectedIndices.size} Selected`}
                 </Button>
               </div>
@@ -569,7 +593,7 @@ export function ImportPage() {
                     </TableCell>
                     <TableCell>
                       {c.matchedRuleId
-                        ? <Tag className="h-3.5 w-3.5 text-primary" title="Matched a rule" />
+                        ? <Tag className="size-3.5 text-primary" title="Matched a rule" />
                         : <span className="text-muted-foreground">—</span>
                       }
                     </TableCell>

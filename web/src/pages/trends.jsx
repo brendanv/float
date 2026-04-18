@@ -5,7 +5,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -48,9 +48,11 @@ function formatLabel(dateStr) {
 function StatCard({ title, value, desc, valueClass }) {
   return (
     <Card className="flex-1">
+      <CardHeader>
+        <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
+      </CardHeader>
       <CardContent>
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">{title}</div>
-        <div className={cn("mt-1 font-mono text-2xl font-semibold", valueClass)}>{value}</div>
+        <div className={cn("font-mono text-2xl font-semibold", valueClass)}>{value}</div>
         {desc && <div className="mt-1 text-xs text-muted-foreground">{desc}</div>}
       </CardContent>
     </Card>
@@ -139,7 +141,7 @@ function NetWorthChart({ snapshots }) {
   }, [snapshots]);
 
   return (
-    <div className="trends-chart" style={{ position: "relative", height: "320px" }}>
+    <div className="trends-chart relative h-80">
       <canvas ref={canvasRef} />
     </div>
   );
@@ -172,7 +174,7 @@ export function TrendsPage() {
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Trends</h2>
         <div className="flex gap-1">

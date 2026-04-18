@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { cn } from "@/lib/utils";
 import { formatAmounts } from "../format.js";
 
 function parseAmount(amounts) {
@@ -14,7 +15,7 @@ function BarChart({ rows, colorClass }) {
   const maxVal = Math.max(...rows.map((r) => parseAmount(r.amounts)), 1);
 
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col gap-1">
       {rows.map((row) => {
         const val = parseAmount(row.amounts);
         const pct = (val / maxVal) * 100;
@@ -28,7 +29,7 @@ function BarChart({ rows, colorClass }) {
             </span>
             <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
               <div
-                className={`h-full rounded transition-all duration-300 ${colorClass}`}
+                className={cn("h-full rounded transition-all duration-300", colorClass)}
                 style={{ width: pct + "%" }}
               />
             </div>

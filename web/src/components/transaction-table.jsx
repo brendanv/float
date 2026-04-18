@@ -15,6 +15,7 @@ import { PostingFields } from "./posting-fields.jsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
@@ -100,20 +101,26 @@ function StatusButton({ fid, status, onStatusChange }) {
   const title = isReviewed ? "Reviewed — click to mark pending" : "Unreviewed — click to mark reviewed";
 
   return (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      onClick={handleClick}
-      disabled={updating}
-      title={title}
-      className="rounded-full"
-    >
-      {updating ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : (
-        <Check className={isReviewed ? "text-success" : "text-muted-foreground/40"} />
-      )}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={handleClick}
+            disabled={updating}
+            className="rounded-full"
+          >
+            {updating ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Check className={isReviewed ? "text-success" : "text-muted-foreground/40"} />
+            )}
+          </Button>
+        }
+      />
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -153,7 +160,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
     return (
       <span onClick={(e) => e.stopPropagation()}>
         {saving ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Loader2 className="size-3 animate-spin" />
         ) : (
           <Input
             className="h-6 w-full"
@@ -251,7 +258,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
       onFocusOut={handleFocusOut}
     >
       {saving ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <Loader2 className="size-3 animate-spin" />
       ) : (
         <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
       )}
@@ -260,7 +267,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="xs" className="text-destructive hover:text-destructive" disabled={saving || deleting}>
-              <Trash2 className="h-3 w-3" /> Delete
+              <Trash2 className="size-3" data-icon="inline-start" /> Delete
             </Button>
           </DialogTrigger>
           <DialogContent showCloseButton={false}>
@@ -273,7 +280,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
               <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
+                {deleting ? <Loader2 className="size-3 animate-spin" /> : "Delete"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -478,7 +485,7 @@ export function TransactionTable({ transactions, registerRows, focusedAccount, o
       </div>
 
       {/* Mobile cards */}
-      <div className="max-h-[calc(100vh-14rem)] space-y-2 overflow-y-auto sm:hidden">
+      <div className="flex max-h-[calc(100vh-14rem)] flex-col gap-2 overflow-y-auto sm:hidden">
         {dateGroups.map((group) => [
           <div key={"date-" + group.date} className="sticky top-0 z-[1] bg-background px-1 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
             {formatDate(group.date)}
@@ -510,7 +517,7 @@ export function TransactionTable({ transactions, registerRows, focusedAccount, o
                 )}
                 onClick={() => toggle(row.fid)}
               >
-                <CardContent className="space-y-1.5">
+                <CardContent className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between gap-2">
                     {selectable && (
                       <span onClick={(e) => e.stopPropagation()}>

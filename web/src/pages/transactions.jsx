@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 const PAGE_SIZE = 50;
 
@@ -91,7 +92,6 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             size="xs"
             disabled={working}
             onClick={() => bulkMarkStatus(true)}
-            title="Mark selected as reviewed"
           >
             Mark reviewed
           </Button>
@@ -100,7 +100,6 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             size="xs"
             disabled={working}
             onClick={() => bulkMarkStatus(false)}
-            title="Mark selected as unreviewed"
           >
             Mark unreviewed
           </Button>
@@ -150,7 +149,7 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             onKeyDown={(e) => { if (e.key === "Enter") bulkAddTag(); if (e.key === "Escape") cancelMode(); }}
           />
           <Button size="xs" disabled={working || !tagKey.trim()} onClick={bulkAddTag}>
-            {working ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+            {working ? <Loader2 className="size-3 animate-spin" /> : "Apply"}
           </Button>
           <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
         </>
@@ -169,7 +168,7 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             </SelectContent>
           </Select>
           <Button size="xs" disabled={working || !removeTagKey} onClick={bulkRemoveTag}>
-            {working ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+            {working ? <Loader2 className="size-3 animate-spin" /> : "Apply"}
           </Button>
           <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
         </>
@@ -186,7 +185,7 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             autoFocus
           />
           <Button size="xs" disabled={working || !payee.trim()} onClick={bulkSetPayee}>
-            {working ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+            {working ? <Loader2 className="size-3 animate-spin" /> : "Apply"}
           </Button>
           <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
         </>
@@ -200,9 +199,8 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
         className="ml-auto"
         disabled={working}
         onClick={onClearSelection}
-        title="Clear selection"
       >
-        <X className="h-3 w-3" /> Clear
+        <X className="size-3" data-icon="inline-start" /> Clear
       </Button>
     </div>
   );
@@ -308,7 +306,7 @@ export function TransactionsPage() {
   const registerRows = isAccountMode ? (data?.rows || []) : null;
 
   return (
-    <div>
+    <div className="flex flex-col gap-6">
       {importBatchId && (
         <div className="mb-3 flex items-center gap-2">
           <Button
@@ -317,7 +315,7 @@ export function TransactionsPage() {
             onClick={() => router.navigate({ to: "/imports" })}
             className="gap-1.5"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft data-icon="inline-start" />
             Import History
           </Button>
           <span className="text-sm text-muted-foreground font-mono">{importBatchId}</span>
@@ -361,7 +359,9 @@ export function TransactionsPage() {
             onSelectionChange={setSelectedFids}
           />
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border px-2 py-3">
+            <>
+            <Separator />
+            <div className="flex items-center justify-between px-2 py-3">
               <span className="text-sm text-muted-foreground">
                 {rangeStart}–{rangeEnd} of {total}
               </span>
@@ -387,6 +387,7 @@ export function TransactionsPage() {
                 </Button>
               </div>
             </div>
+            </>
           )}
         </>
       )}

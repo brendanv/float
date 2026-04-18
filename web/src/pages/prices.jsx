@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
@@ -63,7 +64,7 @@ export function PricesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-bold">Commodity Prices</h2>
 
       <Card>
@@ -72,7 +73,7 @@ export function PricesPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
-            <div className="w-full space-y-1.5 sm:w-36">
+            <div className="w-full flex flex-col gap-1.5 sm:w-36">
               <Label htmlFor="price-date">Date</Label>
               <Input
                 id="price-date"
@@ -82,7 +83,7 @@ export function PricesPage() {
                 required
               />
             </div>
-            <div className="w-full space-y-1.5 sm:w-32">
+            <div className="w-full flex flex-col gap-1.5 sm:w-32">
               <Label htmlFor="price-commodity">Commodity</Label>
               <Input
                 id="price-commodity"
@@ -93,7 +94,7 @@ export function PricesPage() {
                 required
               />
             </div>
-            <div className="w-full space-y-1.5 sm:w-32">
+            <div className="w-full flex flex-col gap-1.5 sm:w-32">
               <Label htmlFor="price-quantity">Price</Label>
               <Input
                 id="price-quantity"
@@ -104,7 +105,7 @@ export function PricesPage() {
                 required
               />
             </div>
-            <div className="w-full space-y-1.5 sm:w-24">
+            <div className="w-full flex flex-col gap-1.5 sm:w-24">
               <Label htmlFor="price-currency">Currency</Label>
               <Input
                 id="price-currency"
@@ -115,6 +116,7 @@ export function PricesPage() {
               />
             </div>
             <Button type="submit" disabled={addMutation.isPending}>
+              {addMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
               {addMutation.isPending ? "Adding…" : "Add"}
             </Button>
           </form>

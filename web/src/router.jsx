@@ -6,6 +6,7 @@ import {
   Outlet,
   useRouterState,
 } from "@tanstack/react-router";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "./components/app-shell.jsx";
 import { HomePage } from "./pages/home.jsx";
 import { TransactionsPage } from "./pages/transactions.jsx";
@@ -21,9 +22,11 @@ const rootRoute = createRootRoute({
   component: function Root() {
     const { location } = useRouterState();
     return (
-      <AppShell currentPath={location.pathname}>
-        <Outlet />
-      </AppShell>
+      <TooltipProvider>
+        <AppShell currentPath={location.pathname}>
+          <Outlet />
+        </AppShell>
+      </TooltipProvider>
     );
   },
   notFoundComponent: () => (

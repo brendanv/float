@@ -26,7 +26,7 @@ export function ImportsHistoryPage() {
   const imports = data?.imports ?? [];
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-bold">Import History</h2>
 
       <Card>

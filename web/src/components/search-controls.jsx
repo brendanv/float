@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 function pad2(n) {
@@ -248,7 +249,7 @@ export function SearchControls({
   }
 
   return (
-    <div className="mb-4 space-y-2">
+    <div className="mb-4 flex flex-col gap-2">
       {/* Date range + quick filters row */}
       <div className="flex flex-wrap items-center gap-1">
         <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(-1)} aria-label="Previous month">
@@ -284,7 +285,8 @@ export function SearchControls({
                 </button>
               );
             })}
-            <div className="mt-1 space-y-1 border-t border-border px-2 pt-2 pb-1">
+            <Separator className="my-1" />
+            <div className="flex flex-col gap-1 px-2 pt-1 pb-1">
               <div className="mb-1 text-xs text-muted-foreground">Custom range</div>
               <Input
                 type="date"

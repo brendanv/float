@@ -75,7 +75,7 @@ export function AddTransactionPage() {
     return (
       <Card className="mx-auto mt-8 max-w-lg">
         <CardContent className="flex flex-col items-center text-center">
-          <CircleCheck className="mb-2 h-12 w-12 text-success" />
+          <CircleCheck className="mb-2 size-12 text-success" />
           <p className="text-lg font-medium">Transaction added successfully!</p>
           <p className="text-sm text-muted-foreground">Redirecting to transactions...</p>
         </CardContent>
@@ -84,13 +84,13 @@ export function AddTransactionPage() {
   }
 
   return (
-    <div>
-      <h2 className="mb-6 text-2xl font-bold">Add Transaction</h2>
+    <div className="flex flex-col gap-6">
+      <h2 className="text-xl font-bold">Add Transaction</h2>
       <Card className="max-w-lg">
         <CardContent>
           {error && <div className="mb-4"><ErrorBanner error={error} /></div>}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="date">Date</Label>
               <Input
                 id="date"
@@ -100,7 +100,7 @@ export function AddTransactionPage() {
                 required
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="description">Description</Label>
               <Input
                 id="description"
@@ -111,7 +111,7 @@ export function AddTransactionPage() {
                 required
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-1.5">
               <Label>Postings</Label>
               <PostingFields
                 postings={postings}
@@ -120,7 +120,7 @@ export function AddTransactionPage() {
               />
             </div>
             <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Transaction"}
+              {submitting ? <Loader2 className="size-4 animate-spin" /> : "Add Transaction"}
             </Button>
           </form>
         </CardContent>

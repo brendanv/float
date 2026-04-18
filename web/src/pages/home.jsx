@@ -38,7 +38,7 @@ export function HomePage() {
   const accountBalanceRows = accountBalancesData?.report?.rows || [];
 
   return (
-    <div>
+    <div className="flex flex-col gap-6">
       <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
       <BalanceSummary balanceRows={balanceRows} />
 

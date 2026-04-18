@@ -59,7 +59,7 @@ function ThemeSwitcher() {
       onClick={toggle}
       className="w-full justify-start gap-2"
     >
-      {isDark ? <Moon /> : <Sun />}
+      {isDark ? <Moon data-icon="inline-start" /> : <Sun data-icon="inline-start" />}
       {isDark ? "Dark mode" : "Light mode"}
     </Button>
   );
@@ -94,7 +94,7 @@ function SidebarContent({ currentPath, onNavigate }) {
           onClick={onNavigate}
           className="flex items-center gap-3 transition-opacity hover:opacity-80"
         >
-          <img src="/icon.png" alt="" className="h-9 w-9 rounded" />
+          <img src="/icon.png" alt="" className="size-9 rounded" />
           <span className="text-xl font-semibold text-sidebar-foreground">
             float
           </span>
@@ -156,7 +156,7 @@ export function AppShell({ children, currentPath }) {
             </SheetContent>
           </Sheet>
           <Link to="/" className="flex items-center gap-2 text-xl font-semibold">
-            <img src="/icon.png" alt="" className="h-8 w-8 rounded" />
+            <img src="/icon.png" alt="" className="size-8 rounded" />
             float
           </Link>
         </header>
