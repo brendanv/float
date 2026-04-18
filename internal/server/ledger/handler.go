@@ -1110,12 +1110,12 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	if _, err := tmp.Write(req.Msg.CsvData); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
 	}
-	tmp.Close()
+	_ = tmp.Close()
 
 	// Parse CSV with hledger.
 	candidates, err := h.hl.PrintCSV(ctx, tmp.Name(), rulesFile)
@@ -1190,12 +1190,12 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	if _, err := tmp.Write(req.Msg.CsvData); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
 	}
-	tmp.Close()
+	_ = tmp.Close()
 
 	candidates, err := h.hl.PrintCSV(ctx, tmp.Name(), rulesFile)
 	if err != nil {

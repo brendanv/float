@@ -382,6 +382,7 @@ func TestAccounts(t *testing.T) {
 				}
 				if expensesNode == nil {
 					t.Fatal("expenses root node not found")
+					return
 				}
 				if len(expensesNode.Children) != 2 {
 					t.Errorf("expected expenses to have 2 children, got %d", len(expensesNode.Children))
@@ -605,9 +606,11 @@ func TestBalanceSheetTimeseries(t *testing.T) {
 	}
 	if assetsSub == nil {
 		t.Fatal("Assets subreport not found")
+		return
 	}
 	if liabSub == nil {
 		t.Fatal("Liabilities subreport not found")
+		return
 	}
 
 	// simple.journal has assets:checking with $3335 in Jan (historical).

@@ -239,7 +239,7 @@ func runRulesApply(args []string) error {
 	if !*yes {
 		fmt.Printf("Apply changes to %d transaction(s)? [y/N]: ", len(matches))
 		var answer string
-		fmt.Scanln(&answer)
+		_, _ = fmt.Scanln(&answer)
 		if answer != "y" && answer != "Y" {
 			fmt.Println("aborted")
 			return nil

@@ -212,6 +212,7 @@ func TestGetBalances(t *testing.T) {
 	report := resp.Msg.Report
 	if report == nil {
 		t.Fatal("expected non-nil report")
+		return
 	}
 	if len(report.Rows) != 2 {
 		t.Fatalf("expected 2 rows, got %d", len(report.Rows))

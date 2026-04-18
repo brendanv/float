@@ -357,7 +357,7 @@ func generateMonth(rng *rand.Rand, year, month int, isFirst bool) []transaction 
 		for _, p := range t.postings {
 			if strings.HasPrefix(p.account, "expenses:") && p.amount != "" {
 				var v float64
-				fmt.Sscanf(p.amount, "$%f", &v)
+				_, _ = fmt.Sscanf(p.amount, "$%f", &v)
 				ccCharged += v
 			}
 		}

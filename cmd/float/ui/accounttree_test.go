@@ -88,6 +88,7 @@ func TestBuildTree_SiblingsMergeUnderParent(t *testing.T) {
 	}
 	if food == nil {
 		t.Fatal("food node not found under expenses")
+		return
 	}
 	if len(food.children) != 1 || food.children[0].segment != "coffee" {
 		t.Errorf("expected coffee under food, got %v", food.children)
