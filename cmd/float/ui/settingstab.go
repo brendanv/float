@@ -66,7 +66,7 @@ func (m SettingsTab) Update(msg tea.Msg) (SettingsTab, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "enter", " ":
+		case "enter", "space":
 			selected := Theme(m.cursor)
 			m.applied = selected
 			return m, func() tea.Msg { return ThemeSelectedMsg{Theme: selected} }

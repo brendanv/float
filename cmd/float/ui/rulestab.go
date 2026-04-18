@@ -59,12 +59,13 @@ type RulesTab struct {
 
 	// ─── Form state (add / edit) ───────────────────────────────────────
 	editingID      string // non-empty = edit mode
-	formField      int    // 0=pattern 1=priority 2=payee 3=account 4=tags
+	formField      int    // 0=pattern 1=priority 2=payee 3=account 4=tags 5=autoReviewed
 	patternInput   textinput.Model
 	priorityInput  textinput.Model
 	payeeInput     textinput.Model
 	accountInput   textinput.Model
 	tagsInput      textinput.Model
+	autoReviewed   bool
 	formErr        string
 	formSubmitting bool
 
@@ -134,6 +135,7 @@ func newRulesTable(st Styles) table.Model {
 			{Title: "Payee", Width: 15},
 			{Title: "Account", Width: 20},
 			{Title: "Tags", Width: 15},
+			{Title: "Rev", Width: 3},
 		}),
 		table.WithStyles(styledTableStyles(st)),
 		table.WithFocused(true),
@@ -199,39 +201,55 @@ func (m RulesTab) SetSize(w, h int) RulesTab {
 func (m *RulesTab) rebuildRulesColumns() {
 	w := m.leftInnerW
 	// The bubbles table applies Padding(0,1) to every cell = 2 chars per column.
-	// Always keep all 5 column entries; set Width=0 to hide a column (the table
+	// Always keep all 6 column entries; set Width=0 to hide a column (the table
 	// skips zero-width columns in both header and row rendering, so row values
 	// stay aligned with their column positions and no index-out-of-range panic
 	// occurs).
 	const cellPad = 2
 
-	// 5-column layout: Pri(3) + Pattern(?) + Payee(15) + Account(20) + Tags(15)
-	// Visible overhead = 53 content + 5*2 padding = 63. Show when patW >= 8.
-	if patW := w - (3 + 15 + 20 + 15 + 5*cellPad); patW >= 8 {
+	// 6-column layout: Pri(3) + Pattern(?) + Payee(15) + Account(20) + Tags(15) + Rev(3)
+	// Visible overhead = 56 content + 6*2 padding = 68. Show when patW >= 8.
+	if patW := w - (3 + 15 + 20 + 15 + 3 + 6*cellPad); patW >= 8 {
 		m.rulesTable.SetColumns([]table.Column{
 			{Title: "Pri", Width: 3},
 			{Title: "Pattern", Width: patW},
 			{Title: "Payee", Width: 15},
 			{Title: "Account", Width: 20},
 			{Title: "Tags", Width: 15},
+			{Title: "Rev", Width: 3},
 		})
 		return
 	}
 
-	// 4-column layout: hide Tags.
-	// Visible overhead = 38 content + 4*2 padding = 46. Show when patW >= 6.
-	if patW := w - (3 + 15 + 20 + 4*cellPad); patW >= 6 {
+	// 5-column layout: hide Tags; keep Rev.
+	// Visible overhead = 41 content + 5*2 padding = 51. Show when patW >= 6.
+	if patW := w - (3 + 15 + 20 + 3 + 5*cellPad); patW >= 6 {
 		m.rulesTable.SetColumns([]table.Column{
 			{Title: "Pri", Width: 3},
 			{Title: "Pattern", Width: patW},
 			{Title: "Payee", Width: 15},
 			{Title: "Account", Width: 20},
 			{Title: "Tags", Width: 0},
+			{Title: "Rev", Width: 3},
 		})
 		return
 	}
 
-	// 3-column layout: hide Tags + Account.
+	// 4-column layout: hide Tags + Account; keep Rev.
+	// Visible overhead = 21 content + 4*2 padding = 29. Show when patW >= 4.
+	if patW := w - (3 + 15 + 3 + 4*cellPad); patW >= 4 {
+		m.rulesTable.SetColumns([]table.Column{
+			{Title: "Pri", Width: 3},
+			{Title: "Pattern", Width: patW},
+			{Title: "Payee", Width: 15},
+			{Title: "Account", Width: 0},
+			{Title: "Tags", Width: 0},
+			{Title: "Rev", Width: 3},
+		})
+		return
+	}
+
+	// 3-column layout: hide Tags + Account + Rev.
 	// Visible overhead = 18 content + 3*2 padding = 24. Minimum patW 4.
 	patW := w - (3 + 15 + 3*cellPad)
 	if patW < 4 {
@@ -243,6 +261,7 @@ func (m *RulesTab) rebuildRulesColumns() {
 		{Title: "Payee", Width: 15},
 		{Title: "Account", Width: 0},
 		{Title: "Tags", Width: 0},
+		{Title: "Rev", Width: 0},
 	})
 }
 
@@ -399,7 +418,7 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 				m.previewCursor--
 				m.previewTable.SetCursor(m.previewCursor)
 			}
-		case " ":
+		case "space":
 			if m.previewCursor < len(m.previews) {
 				fid := m.previews[m.previewCursor].Fid
 				m.selectedFIDs[fid] = !m.selectedFIDs[fid]
@@ -442,13 +461,18 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 		case "shift+enter":
 			return m.submitForm()
 		case "tab", "enter":
-			m.formField = (m.formField + 1) % 5
+			m.formField = (m.formField + 1) % 6
 			m.focusFormField()
 			return m, nil
 		case "shift+tab":
-			m.formField = (m.formField + 4) % 5
+			m.formField = (m.formField + 5) % 6
 			m.focusFormField()
 			return m, nil
+		case "space":
+			if m.formField == 5 {
+				m.autoReviewed = !m.autoReviewed
+				return m, nil
+			}
 		}
 		// Forward to focused field.
 		return m.updateFormField(msg)
@@ -536,6 +560,7 @@ func (m *RulesTab) startAdd() {
 	m.payeeInput.SetValue("")
 	m.accountInput.SetValue("")
 	m.tagsInput.SetValue("")
+	m.autoReviewed = false
 	m.mode = rulesModeForm
 	m.focusFormField()
 }
@@ -549,6 +574,7 @@ func (m *RulesTab) startEdit(r *floatv1.TransactionRule) {
 	m.payeeInput.SetValue(r.Payee)
 	m.accountInput.SetValue(r.Account)
 	m.tagsInput.SetValue(tagsToString(r.Tags))
+	m.autoReviewed = r.AutoReviewed
 	m.mode = rulesModeForm
 	m.focusFormField()
 }
@@ -575,6 +601,7 @@ func (m *RulesTab) focusFormField() {
 		m.accountInput.Focus()
 	case 4:
 		m.tagsInput.Focus()
+	// case 5: autoReviewed toggle — no textinput to focus
 	}
 }
 
@@ -628,21 +655,23 @@ func (m RulesTab) submitForm() (RulesTab, tea.Cmd) {
 
 	if m.editingID == "" {
 		req := &floatv1.AddRuleRequest{
-			Pattern:  pattern,
-			Payee:    strings.TrimSpace(m.payeeInput.Value()),
-			Account:  strings.TrimSpace(m.accountInput.Value()),
-			Tags:     tags,
-			Priority: priority,
+			Pattern:      pattern,
+			Payee:        strings.TrimSpace(m.payeeInput.Value()),
+			Account:      strings.TrimSpace(m.accountInput.Value()),
+			Tags:         tags,
+			Priority:     priority,
+			AutoReviewed: m.autoReviewed,
 		}
 		return m, AddRuleCmd(m.client, req)
 	}
 	req := &floatv1.UpdateRuleRequest{
-		Id:       m.editingID,
-		Pattern:  pattern,
-		Payee:    strings.TrimSpace(m.payeeInput.Value()),
-		Account:  strings.TrimSpace(m.accountInput.Value()),
-		Tags:     tags,
-		Priority: priority,
+		Id:           m.editingID,
+		Pattern:      pattern,
+		Payee:        strings.TrimSpace(m.payeeInput.Value()),
+		Account:      strings.TrimSpace(m.accountInput.Value()),
+		Tags:         tags,
+		Priority:     priority,
+		AutoReviewed: m.autoReviewed,
 	}
 	return m, UpdateRuleCmd(m.client, req)
 }
@@ -660,12 +689,17 @@ func (m *RulesTab) rebuildRulesRows() {
 		return sorted[i].Id < sorted[j].Id
 	})
 	for _, r := range sorted {
+		rev := ""
+		if r.AutoReviewed {
+			rev = "✓"
+		}
 		rows = append(rows, table.Row{
 			strconv.Itoa(int(r.Priority)),
 			r.Pattern,
 			r.Payee,
 			r.Account,
 			tagsToString(r.Tags),
+			rev,
 		})
 	}
 	m.rulesTable.SetRows(rows)
@@ -844,12 +878,17 @@ func (m RulesTab) viewRight() string {
 
 // viewForm renders the add/edit rule form.
 func (m RulesTab) viewForm() string {
+	autoRevVal := "[ ] no"
+	if m.autoReviewed {
+		autoRevVal = "[x] yes"
+	}
 	lines := []string{
 		m.fieldLabel("Pattern", 0) + m.patternInput.View(),
 		m.fieldLabel("Priority", 1) + m.priorityInput.View(),
 		m.fieldLabel("Payee", 2) + m.payeeInput.View(),
 		m.fieldLabel("Account", 3) + m.accountInput.View(),
 		m.fieldLabel("Tags", 4) + m.tagsInput.View(),
+		m.fieldLabel("AutoRev", 5) + autoRevVal,
 		"",
 	}
 

@@ -209,7 +209,7 @@ func (t *AccountTree) Update(msg tea.Msg) tea.Cmd {
 				t.cursor--
 				t.clampOffset()
 			}
-		case "enter", " ":
+		case "enter", "space":
 			if t.cursor < len(t.flat) {
 				nd := t.flat[t.cursor]
 				if !nd.isLeaf() {
