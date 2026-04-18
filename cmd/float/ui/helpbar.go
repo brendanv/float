@@ -253,6 +253,32 @@ func (ImportsDetailKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+// TagsListKeyMap is for the tags tab in list mode.
+type TagsListKeyMap struct{}
+
+func (TagsListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyExpand, keyHelp}
+}
+func (TagsListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyExpand, keyRetry},
+	}
+}
+
+// TagsDetailKeyMap is for the tags tab when viewing transactions for a tag.
+type TagsDetailKeyMap struct{}
+
+func (TagsDetailKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keySplit, keyBack, keyHelp}
+}
+func (TagsDetailKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyBack, keySplit, keyRetry},
+	}
+}
+
 // ManageKeyMap wraps an inner key map (from the active sub-tab) and prepends
 // the [/] section-switching binding so it appears in the help bar.
 type ManageKeyMap struct {

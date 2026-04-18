@@ -265,11 +265,6 @@ func isTagKeyField(idx, postingBase int) bool {
 	return idx >= 2 && idx < postingBase && (idx-2)%2 == 0
 }
 
-// isTagValueField returns true if idx is a tag value field.
-func isTagValueField(idx, postingBase int) bool {
-	return idx >= 2 && idx < postingBase && (idx-2)%2 == 1
-}
-
 // tagRowForField returns the tag row index for a flat field index in the tag range.
 func tagRowForField(idx int) int {
 	return (idx - 2) / 2

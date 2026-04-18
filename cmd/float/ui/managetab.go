@@ -11,10 +11,11 @@ import (
 const (
 	manageSubTabRules   = 0
 	manageSubTabImports = 1
-	numManageSubTabs    = 2
+	manageSubTabTags    = 2
+	numManageSubTabs    = 3
 )
 
-// ManageTab combines the Rules and Imports sub-tabs into a single top-level tab.
+// ManageTab combines the Rules, Imports, and Tags sub-tabs into a single top-level tab.
 type ManageTab struct {
 	width        int
 	height       int
@@ -22,6 +23,7 @@ type ManageTab struct {
 	activeSubTab int
 	rules        RulesTab
 	imports      ImportsTab
+	tags         TagsTab
 }
 
 func NewManageTab(client floatv1connect.LedgerServiceClient, st Styles) ManageTab {
@@ -30,6 +32,7 @@ func NewManageTab(client floatv1connect.LedgerServiceClient, st Styles) ManageTa
 		activeSubTab: manageSubTabRules,
 		rules:        NewRulesTab(client, st),
 		imports:      NewImportsTab(client, st),
+		tags:         NewTagsTab(client, st),
 	}
 }
 
@@ -37,6 +40,7 @@ func (m ManageTab) setStyles(st Styles) ManageTab {
 	m.styles = st
 	m.rules = m.rules.setStyles(st)
 	m.imports = m.imports.setStyles(st)
+	m.tags = m.tags.setStyles(st)
 	return m
 }
 
@@ -46,11 +50,12 @@ func (m ManageTab) SetSize(w, h int) ManageTab {
 	subBarH := 1
 	m.rules = m.rules.SetSize(w, h-subBarH)
 	m.imports = m.imports.SetSize(w, h-subBarH)
+	m.tags = m.tags.SetSize(w, h-subBarH)
 	return m
 }
 
 func (m ManageTab) Init() tea.Cmd {
-	return tea.Batch(m.rules.Init(), m.imports.Init())
+	return tea.Batch(m.rules.Init(), m.imports.Init(), m.tags.Init())
 }
 
 // capturesAllKeys reports whether the active sub-tab is in a mode that should
@@ -72,6 +77,8 @@ func (m ManageTab) KeyMap() help.KeyMap {
 		inner = m.rules.KeyMap()
 	case manageSubTabImports:
 		inner = m.imports.KeyMap()
+	case manageSubTabTags:
+		inner = m.tags.KeyMap()
 	default:
 		inner = m.rules.KeyMap()
 	}
@@ -103,12 +110,17 @@ func (m ManageTab) Update(msg tea.Msg) (ManageTab, tea.Cmd) {
 			var cmd tea.Cmd
 			m.imports, cmd = m.imports.Update(msg)
 			return m, cmd
+		case manageSubTabTags:
+			var cmd tea.Cmd
+			m.tags, cmd = m.tags.Update(msg)
+			return m, cmd
 		}
 	default:
-		var cmd1, cmd2 tea.Cmd
+		var cmd1, cmd2, cmd3 tea.Cmd
 		m.rules, cmd1 = m.rules.Update(msg)
 		m.imports, cmd2 = m.imports.Update(msg)
-		return m, tea.Batch(cmd1, cmd2)
+		m.tags, cmd3 = m.tags.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3)
 	}
 	return m, nil
 }
@@ -121,6 +133,8 @@ func (m ManageTab) View() string {
 		content = m.rules.View()
 	case manageSubTabImports:
 		content = m.imports.View()
+	case manageSubTabTags:
+		content = m.tags.View()
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, subBar, content)
 }
@@ -132,6 +146,7 @@ func (m ManageTab) renderSubBar() string {
 	}{
 		{"Rules", m.activeSubTab == manageSubTabRules},
 		{"Imports", m.activeSubTab == manageSubTabImports},
+		{"Tags", m.activeSubTab == manageSubTabTags},
 	}
 
 	var rendered string

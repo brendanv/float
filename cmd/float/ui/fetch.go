@@ -402,3 +402,38 @@ func FetchImportedTransactions(client floatv1connect.LedgerServiceClient, batchI
 		return ImportedTransactionsMsg{BatchId: batchId, Transactions: resp.Msg.Transactions}
 	}
 }
+
+// TagsMsg carries the list of tag keys.
+type TagsMsg struct {
+	Tags []string
+	Err  error
+}
+
+// TagTransactionsMsg carries transactions for a specific tag.
+type TagTransactionsMsg struct {
+	Tag          string
+	Transactions []*floatv1.Transaction
+	Err          error
+}
+
+func FetchTags(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListTags(context.Background(), connect.NewRequest(&floatv1.ListTagsRequest{}))
+		if err != nil {
+			return TagsMsg{Err: err}
+		}
+		return TagsMsg{Tags: resp.Msg.Tags}
+	}
+}
+
+func FetchTagTransactions(client floatv1connect.LedgerServiceClient, tag string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+			Query: []string{"tag:" + tag},
+		}))
+		if err != nil {
+			return TagTransactionsMsg{Tag: tag, Err: err}
+		}
+		return TagTransactionsMsg{Tag: tag, Transactions: resp.Msg.Transactions}
+	}
+}

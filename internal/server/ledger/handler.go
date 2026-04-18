@@ -286,10 +286,16 @@ func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1
 
 func (h *Handler) ListTags(ctx context.Context, req *connect.Request[floatv1.ListTagsRequest]) (*connect.Response[floatv1.ListTagsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	tags, err := cachedTags(ctx, h.cache, h.hl)
+	all, err := cachedTags(ctx, h.cache, h.hl)
 	if err != nil {
 		logger.ErrorContext(ctx, "hledger tags failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	tags := make([]string, 0, len(all))
+	for _, t := range all {
+		if !strings.HasPrefix(t, hledger.HiddenMetaPrefix) {
+			tags = append(tags, t)
+		}
 	}
 	return connect.NewResponse(&floatv1.ListTagsResponse{Tags: tags}), nil
 }
