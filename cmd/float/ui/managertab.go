@@ -86,8 +86,13 @@ func (m ManagerTab) SetSize(w, h int) ManagerTab {
 
 	m.leftInnerW, m.leftInnerH = innerSize(m.leftWidth, h, m.styles.Border)
 
-	// Left sub-layout: summary top 40%, placeholder fills remainder.
+	// Left sub-layout: summary top 40%, but always at least enough for the 9
+	// fixed rows the summary renders. Placeholder fills the remainder.
+	const summaryRows = 9
 	m.summaryH = m.leftInnerH * 40 / 100
+	if m.summaryH < summaryRows && m.leftInnerH >= summaryRows {
+		m.summaryH = summaryRows
+	}
 	if m.summaryH < 3 {
 		m.summaryH = 3
 	}

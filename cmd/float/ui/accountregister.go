@@ -53,8 +53,8 @@ func (p *AccountRegisterPanel) setStyles(st Styles) {
 func (p *AccountRegisterPanel) SetSize(w, h int) {
 	p.width = w
 	p.height = h
-	// Fixed columns: St(2) + Date(10) + Change(13) + Balance(13) + separators(5) = 43
-	fixed := 2 + 10 + 13 + 13 + 5
+	// Fixed columns: St(2) + Date(10) + Change(13) + Balance(13) + 6 cols * 2 padding = 50.
+	fixed := 2 + 10 + 13 + 13 + (6 * 2)
 	remaining := w - fixed
 	if remaining < 4 {
 		remaining = 4

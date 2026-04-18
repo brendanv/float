@@ -134,6 +134,11 @@ func (p SummaryPanel) renderSummary() string {
 
 	row := func(label, val string, emphasize bool) string {
 		l := fmt.Sprintf("%-*s", labelW, label)
+		valRunes := []rune(val)
+		if len(valRunes) > valW {
+			valRunes = valRunes[:valW]
+			val = string(valRunes)
+		}
 		v := fmt.Sprintf("%*s", valW, val)
 		if emphasize {
 			return bold.Render(l + v)
@@ -158,5 +163,6 @@ func (p SummaryPanel) renderSummary() string {
 	return lipgloss.NewStyle().
 		Width(p.width).
 		Height(p.height).
+		MaxHeight(p.height).
 		Render(content)
 }

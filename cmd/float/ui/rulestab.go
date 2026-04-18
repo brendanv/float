@@ -198,22 +198,57 @@ func (m RulesTab) SetSize(w, h int) RulesTab {
 
 func (m *RulesTab) rebuildRulesColumns() {
 	w := m.leftInnerW
-	fixed := 3 + 15 + 20 + 15 + 4 // pri + payee + account + tags + separators
-	patW := w - fixed
-	if patW < 10 {
-		patW = 10
+	// The bubbles table applies Padding(0,1) to every cell = 2 chars per column.
+	// Always keep all 5 column entries; set Width=0 to hide a column (the table
+	// skips zero-width columns in both header and row rendering, so row values
+	// stay aligned with their column positions and no index-out-of-range panic
+	// occurs).
+	const cellPad = 2
+
+	// 5-column layout: Pri(3) + Pattern(?) + Payee(15) + Account(20) + Tags(15)
+	// Visible overhead = 53 content + 5*2 padding = 63. Show when patW >= 8.
+	if patW := w - (3 + 15 + 20 + 15 + 5*cellPad); patW >= 8 {
+		m.rulesTable.SetColumns([]table.Column{
+			{Title: "Pri", Width: 3},
+			{Title: "Pattern", Width: patW},
+			{Title: "Payee", Width: 15},
+			{Title: "Account", Width: 20},
+			{Title: "Tags", Width: 15},
+		})
+		return
+	}
+
+	// 4-column layout: hide Tags.
+	// Visible overhead = 38 content + 4*2 padding = 46. Show when patW >= 6.
+	if patW := w - (3 + 15 + 20 + 4*cellPad); patW >= 6 {
+		m.rulesTable.SetColumns([]table.Column{
+			{Title: "Pri", Width: 3},
+			{Title: "Pattern", Width: patW},
+			{Title: "Payee", Width: 15},
+			{Title: "Account", Width: 20},
+			{Title: "Tags", Width: 0},
+		})
+		return
+	}
+
+	// 3-column layout: hide Tags + Account.
+	// Visible overhead = 18 content + 3*2 padding = 24. Minimum patW 4.
+	patW := w - (3 + 15 + 3*cellPad)
+	if patW < 4 {
+		patW = 4
 	}
 	m.rulesTable.SetColumns([]table.Column{
 		{Title: "Pri", Width: 3},
 		{Title: "Pattern", Width: patW},
 		{Title: "Payee", Width: 15},
-		{Title: "Account", Width: 20},
-		{Title: "Tags", Width: 15},
+		{Title: "Account", Width: 0},
+		{Title: "Tags", Width: 0},
 	})
 }
 
 func (m *RulesTab) rebuildPreviewColumns(w int) {
-	fixed := 3 + 20 + 20 + 15 + 4 // sel + currAcct + newAcct + newPayee + sep
+	// Sel(3) + Curr Account(20) + New Account(20) + New Payee(15) + 5*2 padding = 68.
+	fixed := 3 + 20 + 20 + 15 + (5 * 2)
 	descW := w - fixed
 	if descW < 10 {
 		descW = 10
