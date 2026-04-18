@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/help"
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -35,13 +34,10 @@ type RulesTab struct {
 	styles Styles
 	client floatv1connect.LedgerServiceClient
 
-	// Layout
-	leftWidth   int
-	leftInnerW  int
-	leftInnerH  int
-	rightWidth  int
-	rightInnerW int
-	rightInnerH int
+	// Layout — single full-width card; modals use calcModalWidth.
+	innerW      int
+	innerH      int
+	modalInnerW int
 
 	// Core state
 	mode      rulesMode
@@ -69,19 +65,19 @@ type RulesTab struct {
 	formErr        string
 	formSubmitting bool
 
-	// ─── Pattern tester (right panel in list mode) ─────────────────────
+	// ─── Pattern tester modal ──────────────────────────────────────────
 	testInput   textinput.Model
-	testFocused bool    // true = test input has keyboard focus
-	testMatch   string  // display name of the first matching rule, "" if none
+	testFocused bool   // true = tester modal is open
+	testMatch   string // display name of the first matching rule, "" if none
 
 	// ─── Preview / apply state ─────────────────────────────────────────
-	previews        []*floatv1.RuleApplicationPreview
-	selectedFIDs    map[string]bool
-	previewCursor   int
-	previewErr      string
-	previewLoading  bool
-	applyResult     string
-	previewTable    table.Model
+	previews       []*floatv1.RuleApplicationPreview
+	selectedFIDs   map[string]bool
+	previewCursor  int
+	previewErr     string
+	previewLoading bool
+	applyResult    string
+	previewTable   table.Model
 }
 
 // ─── Constructor ────────────────────────────────────────────────────────────
@@ -162,44 +158,36 @@ func (m RulesTab) SetSize(w, h int) RulesTab {
 	m.width = w
 	m.height = h
 
-	// 55% left / 45% right.
-	m.leftWidth = w * 55 / 100
-	if m.leftWidth < 20 {
-		m.leftWidth = 20
-	}
-	m.rightWidth = w - m.leftWidth
-	if m.rightWidth < 0 {
-		m.rightWidth = 0
-	}
+	m.innerW, m.innerH = innerSize(w, h, m.styles.Border)
 
-	m.leftInnerW, m.leftInnerH = innerSize(m.leftWidth, h, m.styles.Border)
-	m.rightInnerW, m.rightInnerH = innerSize(m.rightWidth, h, m.styles.Border)
-
-	m.rulesTable.SetWidth(m.leftInnerW)
-	m.rulesTable.SetHeight(m.leftInnerH)
+	m.rulesTable.SetWidth(m.innerW)
+	m.rulesTable.SetHeight(m.innerH)
 	m.rebuildRulesColumns()
 
 	m.previewTable.SetWidth(w - 2) // full-width minus border
 	m.previewTable.SetHeight(h - 6)
 	m.rebuildPreviewColumns(w - 2)
 
-	// Resize text inputs.
-	fw := m.rightInnerW
-	if fw < 10 {
-		fw = 10
+	// Compute the inner width available inside the modal for text inputs.
+	modalW := calcModalWidth(w)
+	modalBorder := m.styles.FocusedBorder.Padding(modalVertPad, modalHorizPad)
+	m.modalInnerW = modalW - modalBorder.GetHorizontalFrameSize()
+	if m.modalInnerW < 10 {
+		m.modalInnerW = 10
 	}
-	m.patternInput.SetWidth(fw)
-	m.priorityInput.SetWidth(fw)
-	m.payeeInput.SetWidth(fw)
-	m.accountInput.SetWidth(fw)
-	m.tagsInput.SetWidth(fw)
-	m.testInput.SetWidth(m.rightInnerW)
+
+	m.patternInput.SetWidth(m.modalInnerW)
+	m.priorityInput.SetWidth(m.modalInnerW)
+	m.payeeInput.SetWidth(m.modalInnerW)
+	m.accountInput.SetWidth(m.modalInnerW)
+	m.tagsInput.SetWidth(m.modalInnerW)
+	m.testInput.SetWidth(m.modalInnerW)
 
 	return m
 }
 
 func (m *RulesTab) rebuildRulesColumns() {
-	w := m.leftInnerW
+	w := m.innerW
 	// The bubbles table applies Padding(0,1) to every cell = 2 chars per column.
 	// Always keep all 6 column entries; set Width=0 to hide a column (the table
 	// skips zero-width columns in both header and row rendering, so row values
@@ -787,6 +775,9 @@ func (m RulesTab) KeyMap() help.KeyMap {
 		if m.confirmDeleteID != "" {
 			return DeleteConfirmKeyMap{}
 		}
+		if m.testFocused {
+			return RulesTesterKeyMap{}
+		}
 		return RulesListKeyMap{}
 	}
 }
@@ -794,89 +785,67 @@ func (m RulesTab) KeyMap() help.KeyMap {
 // ─── View ────────────────────────────────────────────────────────────────────
 
 func (m RulesTab) View() string {
-	// Full-screen preview mode.
 	if m.mode == rulesModePreview {
 		return m.viewPreview()
 	}
 
-	// 2-column layout: rules list (left) + form/tester (right).
-	leftContent := m.viewLeft()
-	rightContent := m.viewRight()
-
-	var rightTitle string
-	switch m.mode {
-	case rulesModeForm:
+	if m.mode == rulesModeForm {
+		title := "Add Rule"
 		if m.editingID != "" {
-			rightTitle = "Edit Rule"
-		} else {
-			rightTitle = "Add Rule"
+			title = "Edit Rule"
 		}
-	default:
-		rightTitle = "Pattern Tester"
+		return RenderModal(m.width, m.height, title, m.viewForm(), m.styles)
 	}
-	leftPanel := renderCard(leftContent, "Rules", false, m.leftWidth, m.height, m.styles)
-	rightPanel := renderCard(rightContent, rightTitle, false, m.rightWidth, m.height, m.styles)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+	if m.testFocused {
+		return RenderModal(m.width, m.height, "Pattern Tester", m.viewTester(), m.styles)
+	}
+
+	if m.confirmDeleteID != "" {
+		return RenderModal(m.width, m.height, "Confirm Delete",
+			"Delete this rule?\n\n[y] confirm  [esc] cancel", m.styles)
+	}
+
+	return renderCard(m.viewTable(), "Rules", false, m.width, m.height, m.styles)
 }
 
-// viewLeft renders the rules list table (left column).
-func (m RulesTab) viewLeft() string {
+// viewTable renders the full-width rules list.
+func (m RulesTab) viewTable() string {
 	if m.loadState == stateLoading {
 		return lipgloss.NewStyle().
-			Width(m.leftInnerW).Height(m.leftInnerH).
+			Width(m.innerW).Height(m.innerH).
 			Align(lipgloss.Center, lipgloss.Center).
 			Render(m.spinner.View())
 	}
 	if m.loadState == stateError {
 		return lipgloss.NewStyle().
-			Width(m.leftInnerW).Height(m.leftInnerH).
+			Width(m.innerW).Height(m.innerH).
 			Align(lipgloss.Center, lipgloss.Center).
 			Render("! " + m.errMsg + "\n\nPress r to retry")
+	}
+	if len(m.rules) == 0 {
+		return m.styles.Help.
+			Width(m.innerW).Height(m.innerH).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render("No rules yet.\nPress 'a' to add one.")
 	}
 
 	content := m.rulesTable.View()
 
-	// Apply-result banner
 	if m.applyResult != "" {
 		banner := lipgloss.NewStyle().
 			Foreground(m.styles.FocusedFg).
-			Width(m.leftInnerW).
+			Width(m.innerW).
 			Render(m.applyResult)
 		content = lipgloss.JoinVertical(lipgloss.Left, banner, content)
 	}
 
-	// Delete confirmation overlay
-	if m.confirmDeleteID != "" {
-		overlay := lipgloss.NewStyle().
-			Width(m.leftInnerW).Height(m.leftInnerH).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render("Delete this rule?\n\n[y] confirm  [esc] cancel")
-		return overlay
-	}
-
-	if len(m.rules) == 0 {
-		empty := m.styles.Help.
-			Width(m.leftInnerW).Height(m.leftInnerH).
-			Align(lipgloss.Center, lipgloss.Center).
-			Render("No rules yet.\nPress 'a' to add one.")
-		return empty
-	}
-
 	return lipgloss.NewStyle().
-		Width(m.leftInnerW).Height(m.leftInnerH).
+		Width(m.innerW).Height(m.innerH).
 		Render(content)
 }
 
-// viewRight renders either the add/edit form or the pattern tester.
-func (m RulesTab) viewRight() string {
-	if m.mode == rulesModeForm {
-		return m.viewForm()
-	}
-	return m.viewTester()
-}
-
-// viewForm renders the add/edit rule form.
+// viewForm renders the add/edit rule form content for display inside a modal.
 func (m RulesTab) viewForm() string {
 	autoRevVal := "[ ] no"
 	if m.autoReviewed {
@@ -900,9 +869,7 @@ func (m RulesTab) viewForm() string {
 		lines = append(lines, m.styles.Help.Render("shift+enter to save  esc to cancel"))
 	}
 
-	return lipgloss.NewStyle().
-		Width(m.rightInnerW).Height(m.rightInnerH).
-		Render(strings.Join(lines, "\n"))
+	return strings.Join(lines, "\n")
 }
 
 func (m RulesTab) fieldLabel(name string, idx int) string {
@@ -913,10 +880,10 @@ func (m RulesTab) fieldLabel(name string, idx int) string {
 	return style.Render(fmt.Sprintf("%-9s ", name))
 }
 
-// viewTester renders the pattern tester panel (right column in list mode).
+// viewTester renders the pattern tester content for display inside a modal.
 func (m RulesTab) viewTester() string {
 	lines := []string{
-		"Press 't' to focus, type a transaction description:",
+		"Type a transaction description to test rules:",
 		m.testInput.View(),
 		"",
 	}
@@ -928,14 +895,8 @@ func (m RulesTab) viewTester() string {
 		}
 	}
 	lines = append(lines, "")
-	for _, b := range []key.Binding{keyAdd, keyEdit, keyDelete, keyPreview, keyTest, keyRetry} {
-		h := b.Help()
-		lines = append(lines, m.styles.Help.Render(h.Key+"  "+h.Desc))
-	}
-
-	return lipgloss.NewStyle().
-		Width(m.rightInnerW).Height(m.rightInnerH).
-		Render(strings.Join(lines, "\n"))
+	lines = append(lines, m.styles.Help.Render("esc to close"))
+	return strings.Join(lines, "\n")
 }
 
 // viewPreview renders the full-screen preview/apply panel.

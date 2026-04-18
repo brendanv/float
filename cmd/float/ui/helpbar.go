@@ -196,6 +196,16 @@ func (RulesFormKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+// RulesTesterKeyMap is for the rules tab pattern tester modal.
+type RulesTesterKeyMap struct{}
+
+func (RulesTesterKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyEsc}
+}
+func (RulesTesterKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keyEsc}}
+}
+
 // RulesPreviewKeyMap is for the rules tab in preview/apply mode.
 type RulesPreviewKeyMap struct{}
 
