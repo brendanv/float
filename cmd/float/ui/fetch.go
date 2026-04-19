@@ -437,3 +437,34 @@ func FetchTagTransactions(client floatv1connect.LedgerServiceClient, tag string)
 		return TagTransactionsMsg{Tag: tag, Transactions: resp.Msg.Transactions}
 	}
 }
+
+// SnapshotsMsg carries the list of git snapshots.
+type SnapshotsMsg struct {
+	Snapshots []*floatv1.Snapshot
+	Err       error
+}
+
+// RestoreSnapshotMsg carries the result of a RestoreSnapshot RPC.
+type RestoreSnapshotMsg struct {
+	Hash string
+	Err  error
+}
+
+// FetchSnapshots fetches the list of snapshots from the server.
+func FetchSnapshots(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListSnapshots(context.Background(), connect.NewRequest(&floatv1.ListSnapshotsRequest{}))
+		if err != nil {
+			return SnapshotsMsg{Err: err}
+		}
+		return SnapshotsMsg{Snapshots: resp.Msg.Snapshots}
+	}
+}
+
+// RestoreSnapshotCmd issues a RestoreSnapshot RPC for the given commit hash.
+func RestoreSnapshotCmd(client floatv1connect.LedgerServiceClient, hash string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.RestoreSnapshot(context.Background(), connect.NewRequest(&floatv1.RestoreSnapshotRequest{Hash: hash}))
+		return RestoreSnapshotMsg{Hash: hash, Err: err}
+	}
+}
