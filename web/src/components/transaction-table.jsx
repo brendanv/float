@@ -1,5 +1,13 @@
-import { useState, useRef } from "react";
-import { Check, Loader2, Trash2 } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getExpandedRowModel,
+  createColumnHelper,
+  flexRender,
+} from "@tanstack/react-table";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -27,7 +35,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+
+// ── helpers ────────────────────────────────────────────────────────────────
 
 function firstQuantity(posting) {
   if (!posting.amounts || posting.amounts.length === 0) return 0;
@@ -65,7 +76,6 @@ function accountRegisterDisplay(tx, focusedAccount) {
   }
   const others = postings.filter((p) => p.account !== focusedAccount && !p.account.startsWith(focusedAccount + ":"));
   const otherAccounts = others.length === 0 ? focusedAccount : others.length === 1 ? others[0].account : "various accounts";
-
   let amount;
   if (focused.length === 1) {
     amount = formatAmounts(focused[0].amounts);
@@ -80,6 +90,19 @@ function accountRegisterDisplay(tx, focusedAccount) {
   }
   return { otherAccounts, amount };
 }
+
+function resolveRegisterCells(row) {
+  const otherAccounts = row.otherAccounts.length === 0 ? ""
+    : row.otherAccounts.length === 1 ? row.otherAccounts[0]
+    : "various accounts";
+  const change = formatAmounts(row.change);
+  const balance = formatAmounts(row.runningTotal);
+  const changePositive = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) > 0;
+  const changeNegative = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) < 0;
+  return { otherAccounts, change, balance, changePositive, changeNegative };
+}
+
+// ── sub-components ─────────────────────────────────────────────────────────
 
 function StatusButton({ fid, status, onStatusChange }) {
   const [updating, setUpdating] = useState(false);
@@ -209,7 +232,6 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const containerRef = useRef(null);
-  // Track current postings in a ref so the focusout handler always sees the latest value
   const postingsRef = useRef(postings);
   postingsRef.current = postings;
 
@@ -231,7 +253,6 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   }
 
   function handleFocusOut(e) {
-    // Only save when focus leaves the entire container (not when moving between fields within it)
     if (containerRef.current && !containerRef.current.contains(e.relatedTarget)) {
       save(postingsRef.current);
     }
@@ -290,46 +311,249 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   );
 }
 
-function resolveRegisterCells(row) {
-  const otherAccounts = row.otherAccounts.length === 0 ? ""
-    : row.otherAccounts.length === 1 ? row.otherAccounts[0]
-    : "various accounts";
-  const change = formatAmounts(row.change);
-  const balance = formatAmounts(row.runningTotal);
-  const changePositive = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) > 0;
-  const changeNegative = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) < 0;
-  return { otherAccounts, change, balance, changePositive, changeNegative };
-}
+// ── column definitions ─────────────────────────────────────────────────────
+// Cell renderers read mutable state from table.options.meta to avoid stale
+// closures when useMemo deps are unchanged between renders.
 
-export function TransactionTable({ transactions, registerRows, focusedAccount, onStatusChange, onDeleted, accounts = [], selectedFids, onSelectionChange }) {
-  const [expanded, setExpanded] = useState(null);
+const txHelper = createColumnHelper();
+const regHelper = createColumnHelper();
+
+// General transactions columns (also used for focusedAccount / non-register mode)
+const transactionColumns = [
+  txHelper.display({
+    id: "select",
+    header: ({ table }) => {
+      const { allSelected, someSelected, toggleSelectAll } = table.options.meta;
+      return (
+        <Checkbox
+          checked={allSelected}
+          indeterminate={!allSelected && someSelected}
+          onCheckedChange={toggleSelectAll}
+          onClick={(e) => e.stopPropagation()}
+          title={allSelected ? "Deselect all" : "Select all"}
+        />
+      );
+    },
+    cell: ({ row, table }) => {
+      const { selectedFids, onSelectionChange } = table.options.meta;
+      return (
+        <span onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selectedFids?.has(row.original.fid) ?? false}
+            onCheckedChange={() => {
+              if (!row.original.fid) return;
+              const next = new Set(selectedFids);
+              if (next.has(row.original.fid)) next.delete(row.original.fid);
+              else next.add(row.original.fid);
+              onSelectionChange(next);
+            }}
+          />
+        </span>
+      );
+    },
+    meta: { headerClass: "w-6 pr-0", cellClass: "w-6 pr-0" },
+  }),
+  txHelper.accessor("date", {
+    id: "date",
+    header: "Date",
+    cell: ({ getValue }) => (
+      <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+        {formatDate(getValue())}
+      </span>
+    ),
+    meta: { headerClass: "w-28", cellClass: "w-28" },
+  }),
+  txHelper.display({
+    id: "status",
+    header: "",
+    cell: ({ row, table }) => {
+      const { onStatusChange } = table.options.meta;
+      return <StatusButton fid={row.original.fid} status={row.original.status} onStatusChange={onStatusChange} />;
+    },
+    meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
+  }),
+  txHelper.display({
+    id: "description",
+    header: "Description",
+    cell: ({ row, table }) => {
+      const { onStatusChange } = table.options.meta;
+      const tx = row.original;
+      return (
+        <span className="whitespace-normal">
+          <EditableDescriptionCell
+            fid={tx.fid}
+            description={tx.description}
+            date={tx.date}
+            postings={tx.postings}
+            payee={tx.payee}
+            note={tx.note}
+            onSaved={onStatusChange}
+          />
+          {tx.tags && Object.keys(tx.tags).length > 0 && (
+            <span className="ml-2 inline-flex flex-wrap gap-1">
+              {Object.entries(tx.tags).map(([k, v]) => (
+                <Badge key={k} variant="secondary" className="text-xs">
+                  {v ? `${k}:${v}` : k}
+                </Badge>
+              ))}
+            </span>
+          )}
+        </span>
+      );
+    },
+  }),
+  txHelper.display({
+    id: "accounts",
+    header: ({ table }) => table.options.meta.focusedAccount ? "Other accounts" : "From \u2192 To",
+    cell: ({ row, table }) => {
+      const { focusedAccount } = table.options.meta;
+      const tx = row.original;
+      if (focusedAccount) {
+        const display = accountRegisterDisplay(tx, focusedAccount);
+        return <span className="text-sm text-muted-foreground">{display?.otherAccounts || ""}</span>;
+      }
+      const display = generalDisplay(tx);
+      if (!display) return null;
+      const accountText = display.from === "various accounts" && display.to === "various accounts"
+        ? "various accounts"
+        : `${display.from} \u2192 ${display.to}`;
+      return <span className="text-sm text-muted-foreground">{accountText}</span>;
+    },
+  }),
+  txHelper.display({
+    id: "amount",
+    header: () => <span className="block text-right">Amount</span>,
+    cell: ({ row, table }) => {
+      const { focusedAccount } = table.options.meta;
+      const tx = row.original;
+      let amount = "";
+      if (focusedAccount) {
+        const display = accountRegisterDisplay(tx, focusedAccount);
+        amount = display?.amount || "";
+      } else {
+        const display = generalDisplay(tx);
+        amount = display?.amount || "";
+      }
+      return <span className="block whitespace-nowrap text-right font-mono text-sm">{amount}</span>;
+    },
+    meta: { headerClass: "text-right", cellClass: "text-right" },
+  }),
+];
+
+// Account register columns (register mode)
+const registerColumns = [
+  regHelper.accessor("date", {
+    id: "date",
+    header: "Date",
+    cell: ({ getValue }) => (
+      <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+        {formatDate(getValue())}
+      </span>
+    ),
+    meta: { headerClass: "w-28", cellClass: "w-28" },
+  }),
+  regHelper.display({
+    id: "status",
+    header: "",
+    cell: ({ row, table }) => {
+      const { onStatusChange } = table.options.meta;
+      return <StatusButton fid={row.original.fid} status={row.original.status} onStatusChange={onStatusChange} />;
+    },
+    meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
+  }),
+  regHelper.display({
+    id: "description",
+    header: "Description",
+    cell: ({ row, table }) => {
+      const { onStatusChange } = table.options.meta;
+      const tx = row.original;
+      return (
+        <span className="whitespace-normal">
+          <EditableDescriptionCell
+            fid={tx.fid}
+            description={tx.description}
+            date={tx.date}
+            postings={tx.postings}
+            payee={tx.payee}
+            note={tx.note}
+            onSaved={onStatusChange}
+          />
+          {tx.tags && Object.keys(tx.tags).length > 0 && (
+            <span className="ml-2 inline-flex flex-wrap gap-1">
+              {Object.entries(tx.tags).map(([k, v]) => (
+                <Badge key={k} variant="secondary" className="text-xs">
+                  {v ? `${k}:${v}` : k}
+                </Badge>
+              ))}
+            </span>
+          )}
+        </span>
+      );
+    },
+  }),
+  regHelper.display({
+    id: "otherAccounts",
+    header: "Other accounts",
+    cell: ({ row }) => {
+      const cells = resolveRegisterCells(row.original);
+      return <span className="text-sm text-muted-foreground">{cells.otherAccounts}</span>;
+    },
+  }),
+  regHelper.display({
+    id: "change",
+    header: () => <span className="block text-right">Change</span>,
+    cell: ({ row }) => {
+      const cells = resolveRegisterCells(row.original);
+      return (
+        <span className={cn(
+          "block whitespace-nowrap text-right font-mono text-sm",
+          cells.changePositive && "text-success",
+          cells.changeNegative && "text-destructive",
+        )}>
+          {cells.change}
+        </span>
+      );
+    },
+    meta: { cellClass: "text-right" },
+  }),
+  regHelper.display({
+    id: "balance",
+    header: () => <span className="block text-right">Balance</span>,
+    cell: ({ row }) => {
+      const cells = resolveRegisterCells(row.original);
+      return (
+        <span className="block whitespace-nowrap text-right font-mono text-sm text-muted-foreground">
+          {cells.balance}
+        </span>
+      );
+    },
+    meta: { cellClass: "text-right" },
+  }),
+];
+
+// ── main component ─────────────────────────────────────────────────────────
+
+export function TransactionTable({
+  transactions,
+  registerRows,
+  focusedAccount,
+  onStatusChange,
+  onDeleted,
+  accounts = [],
+  selectedFids,
+  onSelectionChange,
+  pageSize = 50,
+  hiddenColumns = [],
+}) {
+  const [expanded, setExpanded] = useState({});
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
   const isRegisterMode = !!registerRows;
 
-  const rows = isRegisterMode ? registerRows : (transactions || []);
+  const rows = isRegisterMode ? (registerRows || []) : (transactions || []);
 
-  if (!rows || rows.length === 0) {
-    return <p className="py-4 text-muted-foreground">No transactions for this period.</p>;
-  }
-
-  function toggle(fid) {
-    if (isRegisterMode) return;
-    setExpanded(expanded === fid ? null : fid);
-  }
-
-  function toggleSelect(fid) {
-    if (!selectable || !fid) return;
-    const next = new Set(selectedFids);
-    if (next.has(fid)) {
-      next.delete(fid);
-    } else {
-      next.add(fid);
-    }
-    onSelectionChange(next);
-  }
-
-  const allFids = rows.filter((r) => r.fid).map((r) => r.fid);
+  const allFids = useMemo(() => rows.filter((r) => r.fid).map((r) => r.fid), [rows]);
   const allSelected = selectable && allFids.length > 0 && allFids.every((fid) => selectedFids.has(fid));
   const someSelected = selectable && allFids.some((fid) => selectedFids.has(fid));
 
@@ -346,231 +570,290 @@ export function TransactionTable({ transactions, registerRows, focusedAccount, o
     }
   }
 
-  const isAccountRegister = isRegisterMode || !!focusedAccount;
+  const columnVisibility = useMemo(() => {
+    const vis = { select: selectable };
+    for (const col of hiddenColumns) vis[col] = false;
+    return vis;
+  }, [selectable, hiddenColumns]);
 
-  function resolveDisplay(tx) {
-    if (focusedAccount) return accountRegisterDisplay(tx, focusedAccount);
-    return generalDisplay(tx);
+  const columns = isRegisterMode ? registerColumns : transactionColumns;
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { expanded, pagination, columnVisibility },
+    onExpandedChange: setExpanded,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+    getRowCanExpand: (row) => !isRegisterMode && !!row.original.fid,
+    getRowId: (row, idx) => row.fid ? row.fid : `${row.date}-${idx}`,
+    // Pass mutable state through meta so column cell renderers always read current values
+    meta: {
+      selectedFids,
+      onSelectionChange,
+      selectable,
+      onStatusChange,
+      onDeleted,
+      accounts,
+      focusedAccount,
+      allSelected,
+      someSelected,
+      toggleSelectAll,
+    },
+  });
+
+  if (rows.length === 0) {
+    return <p className="py-4 text-muted-foreground">No transactions for this period.</p>;
   }
 
-  // Group rows by date
-  const dateGroups = [];
-  let currentGroup = null;
-  let rowIndex = 0;
-  for (const row of rows) {
-    if (!currentGroup || row.date !== currentGroup.date) {
-      currentGroup = { date: row.date, rows: [] };
-      dateGroups.push(currentGroup);
-    }
-    currentGroup.rows.push({ row, index: rowIndex++ });
-  }
+  const pageRows = table.getRowModel().rows;
+  const { pageIndex } = table.getState().pagination;
+  const pageCount = table.getPageCount();
+  const total = rows.length;
+  const rangeStart = total === 0 ? 0 : pageIndex * pagination.pageSize + 1;
+  const rangeEnd = Math.min((pageIndex + 1) * pagination.pageSize, total);
+  const showPagination = pageCount > 1;
 
-  const extraCols = isRegisterMode ? 1 : 0;
-  const colSpan = (selectable ? 5 : 4) + extraCols;
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
 
   return (
     <div>
       {/* Desktop table */}
-      <div className="hidden max-h-[calc(100vh-14rem)] overflow-x-auto overflow-y-auto sm:block">
+      <div className="hidden overflow-x-auto sm:block">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
-            <TableRow>
-              {selectable && (
-                <TableHead className="w-6 pr-0">
-                  <Checkbox
-                    checked={allSelected}
-                    indeterminate={!allSelected && someSelected}
-                    onCheckedChange={toggleSelectAll}
-                    onClick={(e) => e.stopPropagation()}
-                    title={allSelected ? "Deselect all" : "Select all"}
-                  />
-                </TableHead>
-              )}
-              <TableHead className="w-8"></TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>{isAccountRegister ? "Other accounts" : "From \u2192 To"}</TableHead>
-              <TableHead className="text-right">{isRegisterMode ? "Change" : "Amount"}</TableHead>
-              {isRegisterMode && <TableHead className="text-right">Balance</TableHead>}
-            </TableRow>
-          </TableHeader>
-          {dateGroups.map((group) => [
-            <TableHeader key={"date-" + group.date}>
-              <TableRow>
-                <TableHead colSpan={colSpan} className="py-1 font-mono text-[10px] font-normal text-muted-foreground">
-                  {formatDate(group.date)}
-                </TableHead>
-              </TableRow>
-            </TableHeader>,
-            <TableBody key={"body-" + group.date}>
-              {group.rows.map(({ row, index }) => {
-                let accountCell, amountCell, balanceCell, changePositive, changeNegative;
-                if (isRegisterMode) {
-                  const cells = resolveRegisterCells(row);
-                  accountCell = cells.otherAccounts;
-                  amountCell = cells.change;
-                  balanceCell = cells.balance;
-                  changePositive = cells.changePositive;
-                  changeNegative = cells.changeNegative;
-                } else {
-                  const display = resolveDisplay(row);
-                  accountCell = isAccountRegister
-                    ? (display?.otherAccounts || "")
-                    : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
-                  amountCell = display?.amount || "";
-                }
-                const key = row.fid ? row.fid + "-" + index : row.date + row.description + index;
-                const isSelected = selectable && row.fid && selectedFids.has(row.fid);
-                return [
-                  <TableRow
-                    key={key}
-                    onClick={() => toggle(row.fid)}
-                    className={cn(
-                      !isRegisterMode && "cursor-pointer",
-                      isSelected && "bg-primary/10 hover:bg-primary/15",
-                    )}
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    className={header.column.columnDef.meta?.headerClass}
                   >
-                    {selectable && (
-                      <TableCell className="w-6 pr-0" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelect(row.fid)}
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell className="w-8 pr-0">
-                      <StatusButton fid={row.fid} status={row.status} onStatusChange={onStatusChange} />
-                    </TableCell>
-                    <TableCell className="whitespace-normal">
-                      <EditableDescriptionCell
-                        fid={row.fid}
-                        description={row.description}
-                        date={row.date}
-                        postings={row.postings}
-                        payee={row.payee}
-                        note={row.note}
-                        onSaved={onStatusChange}
-                      />
-                      {row.tags && Object.keys(row.tags).length > 0 && (
-                        <span className="ml-2 inline-flex flex-wrap gap-1">
-                          {Object.entries(row.tags).map(([k, v]) => (
-                            <Badge key={k} variant="secondary" className="text-xs">
-                              {v ? `${k}:${v}` : k}
-                            </Badge>
-                          ))}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{accountCell}</TableCell>
-                    <TableCell className={cn(
-                      "whitespace-nowrap text-right font-mono text-sm",
-                      isRegisterMode && changePositive && "text-success",
-                      isRegisterMode && changeNegative && "text-destructive",
-                    )}>{amountCell}</TableCell>
-                    {isRegisterMode && (
-                      <TableCell className="whitespace-nowrap text-right font-mono text-sm text-muted-foreground">{balanceCell}</TableCell>
-                    )}
-                  </TableRow>,
-                  !isRegisterMode && expanded === row.fid && (
-                    <TableRow key={key + "-detail"} className="bg-muted/30 hover:bg-muted/30">
-                      <TableCell colSpan={colSpan} className="p-0">
-                        <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} onDeleted={() => { setExpanded(null); if (onDeleted) onDeleted(); }} />
-                      </TableCell>
-                    </TableRow>
-                  ),
-                ];
-              })}
-            </TableBody>,
-          ])}
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {pageRows.map((row) => (
+              <TableRowGroup
+                key={row.id}
+                row={row}
+                isRegisterMode={isRegisterMode}
+                selectable={selectable}
+                selectedFids={selectedFids}
+                accounts={accounts}
+                onStatusChange={onStatusChange}
+                onDeleted={onDeleted}
+                visibleColumnCount={visibleColumnCount}
+              />
+            ))}
+          </TableBody>
         </Table>
       </div>
 
       {/* Mobile cards */}
-      <div className="flex max-h-[calc(100vh-14rem)] flex-col gap-2 overflow-y-auto sm:hidden">
-        {dateGroups.map((group) => [
-          <div key={"date-" + group.date} className="sticky top-0 z-[1] bg-background px-1 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
-            {formatDate(group.date)}
-          </div>,
-          ...group.rows.map(({ row, index }) => {
-            let accountCell, amountCell, balanceCell, changePositive, changeNegative;
-            if (isRegisterMode) {
-              const cells = resolveRegisterCells(row);
-              accountCell = cells.otherAccounts;
-              amountCell = cells.change;
-              balanceCell = cells.balance;
-              changePositive = cells.changePositive;
-              changeNegative = cells.changeNegative;
-            } else {
-              const display = resolveDisplay(row);
-              accountCell = isAccountRegister
-                ? (display?.otherAccounts || "")
-                : display ? (display.from === "various accounts" && display.to === "various accounts" ? "various accounts" : `${display.from} \u2192 ${display.to}`) : "";
-              amountCell = display?.amount || "";
-            }
-            const isSelected = selectable && row.fid && selectedFids.has(row.fid);
-            return (
-              <Card
-                key={row.fid ? row.fid + "-" + index : row.date + row.description + index}
-                size="sm"
-                className={cn(
-                  !isRegisterMode && "cursor-pointer",
-                  isSelected && "bg-primary/5 ring-primary",
-                )}
-                onClick={() => toggle(row.fid)}
-              >
-                <CardContent className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    {selectable && (
-                      <span onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelect(row.fid)}
-                        />
-                      </span>
-                    )}
-                    <span className="truncate font-medium" onClick={(e) => e.stopPropagation()}>
-                      <EditableDescriptionCell
-                        fid={row.fid}
-                        description={row.description}
-                        date={row.date}
-                        postings={row.postings}
-                        payee={row.payee}
-                        note={row.note}
-                        onSaved={onStatusChange}
-                      />
-                    </span>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <span className={cn(
-                        "whitespace-nowrap font-mono text-sm",
-                        isRegisterMode && changePositive && "text-success",
-                        isRegisterMode && changeNegative && "text-destructive",
-                      )}>{amountCell}</span>
-                      <StatusButton fid={row.fid} status={row.status} onStatusChange={onStatusChange} />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="truncate text-xs text-muted-foreground">{accountCell}</div>
-                    {isRegisterMode && balanceCell && (
-                      <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
-                    )}
-                  </div>
-                  {row.tags && Object.keys(row.tags).length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {Object.entries(row.tags).map(([k, v]) => (
-                        <Badge key={k} variant="secondary" className="text-xs">
-                          {v ? `${k}:${v}` : k}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  {!isRegisterMode && expanded === row.fid && (
-                    <EditableDetailRow tx={row} accounts={accounts} onSaved={onStatusChange} onDeleted={() => { setExpanded(null); if (onDeleted) onDeleted(); }} />
-                  )}
-                </CardContent>
-              </Card>
-            );
-          }),
-        ])}
+      <div className="flex flex-col gap-2 sm:hidden">
+        {pageRows.map((row) => (
+          <MobileCard
+            key={row.id}
+            row={row}
+            isRegisterMode={isRegisterMode}
+            focusedAccount={focusedAccount}
+            selectable={selectable}
+            selectedFids={selectedFids}
+            onSelectionChange={onSelectionChange}
+            onStatusChange={onStatusChange}
+            accounts={accounts}
+            onDeleted={onDeleted}
+          />
+        ))}
       </div>
+
+      {/* Pagination */}
+      {showPagination && (
+        <>
+          <Separator className="mt-4" />
+          <div className="flex items-center justify-between px-2 py-3">
+            <span className="text-sm text-muted-foreground">
+              {rangeStart}–{rangeEnd} of {total}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <ChevronLeft />
+              </Button>
+              <span className="px-2 text-sm tabular-nums text-muted-foreground">
+                {pageIndex + 1} / {pageCount}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <ChevronRight />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+// ── desktop row (with optional expansion) ─────────────────────────────────
+
+function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onDeleted, visibleColumnCount }) {
+  const tx = row.original;
+  const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
+
+  return (
+    <>
+      <TableRow
+        onClick={() => { if (!isRegisterMode && tx.fid) row.toggleExpanded(); }}
+        className={cn(
+          !isRegisterMode && "cursor-pointer",
+          isSelected && "bg-primary/10 hover:bg-primary/15",
+        )}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className={cell.column.columnDef.meta?.cellClass}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+      {row.getIsExpanded() && (
+        <TableRow className="bg-muted/30 hover:bg-muted/30">
+          <TableCell colSpan={visibleColumnCount} className="p-0">
+            <EditableDetailRow
+              tx={tx}
+              accounts={accounts}
+              onSaved={onStatusChange}
+              onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+            />
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
+// ── mobile card ────────────────────────────────────────────────────────────
+
+function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
+  const tx = row.original;
+  let accountCell = "";
+  let amountCell = "";
+  let balanceCell = "";
+  let changePositive = false;
+  let changeNegative = false;
+
+  if (isRegisterMode) {
+    const cells = resolveRegisterCells(tx);
+    accountCell = cells.otherAccounts;
+    amountCell = cells.change;
+    balanceCell = cells.balance;
+    changePositive = cells.changePositive;
+    changeNegative = cells.changeNegative;
+  } else if (focusedAccount) {
+    const display = accountRegisterDisplay(tx, focusedAccount);
+    accountCell = display?.otherAccounts || "";
+    amountCell = display?.amount || "";
+  } else {
+    const display = generalDisplay(tx);
+    if (display) {
+      accountCell = display.from === "various accounts" && display.to === "various accounts"
+        ? "various accounts"
+        : `${display.from} \u2192 ${display.to}`;
+      amountCell = display.amount;
+    }
+  }
+
+  const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
+
+  return (
+    <Card
+      size="sm"
+      className={cn(
+        !isRegisterMode && "cursor-pointer",
+        isSelected && "bg-primary/5 ring-primary",
+      )}
+      onClick={() => { if (!isRegisterMode && tx.fid) row.toggleExpanded(); }}
+    >
+      <CardContent className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+            {formatDate(tx.date)}
+          </span>
+          {selectable && (
+            <span onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => {
+                  if (!tx.fid) return;
+                  const next = new Set(selectedFids);
+                  if (next.has(tx.fid)) next.delete(tx.fid);
+                  else next.add(tx.fid);
+                  onSelectionChange(next);
+                }}
+              />
+            </span>
+          )}
+          <span className="flex-1 truncate font-medium" onClick={(e) => e.stopPropagation()}>
+            <EditableDescriptionCell
+              fid={tx.fid}
+              description={tx.description}
+              date={tx.date}
+              postings={tx.postings}
+              payee={tx.payee}
+              note={tx.note}
+              onSaved={onStatusChange}
+            />
+          </span>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className={cn(
+              "whitespace-nowrap font-mono text-sm",
+              isRegisterMode && changePositive && "text-success",
+              isRegisterMode && changeNegative && "text-destructive",
+            )}>{amountCell}</span>
+            <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="truncate text-xs text-muted-foreground">{accountCell}</div>
+          {isRegisterMode && balanceCell && (
+            <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
+          )}
+        </div>
+        {tx.tags && Object.keys(tx.tags).length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {Object.entries(tx.tags).map(([k, v]) => (
+              <Badge key={k} variant="secondary" className="text-xs">
+                {v ? `${k}:${v}` : k}
+              </Badge>
+            ))}
+          </div>
+        )}
+        {row.getIsExpanded() && (
+          <EditableDetailRow
+            tx={tx}
+            accounts={accounts}
+            onSaved={onStatusChange}
+            onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }
