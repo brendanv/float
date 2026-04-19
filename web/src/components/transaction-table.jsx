@@ -379,25 +379,31 @@ const transactionColumns = [
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
       return (
-        <span className="whitespace-normal">
-          <EditableDescriptionCell
-            fid={tx.fid}
-            description={tx.description}
-            date={tx.date}
-            postings={tx.postings}
-            payee={tx.payee}
-            note={tx.note}
-            onSaved={onStatusChange}
-          />
-          {tx.tags && Object.keys(tx.tags).length > 0 && (
-            <span className="ml-2 inline-flex flex-wrap gap-1">
-              {Object.entries(tx.tags).map(([k, v]) => (
-                <Badge key={k} variant="secondary" className="text-xs">
-                  {v ? `${k}:${v}` : k}
-                </Badge>
-              ))}
-            </span>
-          )}
+        <EditableDescriptionCell
+          fid={tx.fid}
+          description={tx.description}
+          date={tx.date}
+          postings={tx.postings}
+          payee={tx.payee}
+          note={tx.note}
+          onSaved={onStatusChange}
+        />
+      );
+    },
+  }),
+  txHelper.display({
+    id: "tags",
+    header: "Tags",
+    cell: ({ row }) => {
+      const tags = row.original.tags;
+      if (!tags || Object.keys(tags).length === 0) return null;
+      return (
+        <span className="inline-flex flex-wrap gap-1">
+          {Object.entries(tags).map(([k, v]) => (
+            <Badge key={k} variant="secondary" className="text-xs">
+              {v ? `${k}:${v}` : k}
+            </Badge>
+          ))}
         </span>
       );
     },
@@ -468,25 +474,31 @@ const registerColumns = [
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
       return (
-        <span className="whitespace-normal">
-          <EditableDescriptionCell
-            fid={tx.fid}
-            description={tx.description}
-            date={tx.date}
-            postings={tx.postings}
-            payee={tx.payee}
-            note={tx.note}
-            onSaved={onStatusChange}
-          />
-          {tx.tags && Object.keys(tx.tags).length > 0 && (
-            <span className="ml-2 inline-flex flex-wrap gap-1">
-              {Object.entries(tx.tags).map(([k, v]) => (
-                <Badge key={k} variant="secondary" className="text-xs">
-                  {v ? `${k}:${v}` : k}
-                </Badge>
-              ))}
-            </span>
-          )}
+        <EditableDescriptionCell
+          fid={tx.fid}
+          description={tx.description}
+          date={tx.date}
+          postings={tx.postings}
+          payee={tx.payee}
+          note={tx.note}
+          onSaved={onStatusChange}
+        />
+      );
+    },
+  }),
+  regHelper.display({
+    id: "tags",
+    header: "Tags",
+    cell: ({ row }) => {
+      const tags = row.original.tags;
+      if (!tags || Object.keys(tags).length === 0) return null;
+      return (
+        <span className="inline-flex flex-wrap gap-1">
+          {Object.entries(tags).map(([k, v]) => (
+            <Badge key={k} variant="secondary" className="text-xs">
+              {v ? `${k}:${v}` : k}
+            </Badge>
+          ))}
         </span>
       );
     },
@@ -542,7 +554,7 @@ export function TransactionTable({
   accounts = [],
   selectedFids,
   onSelectionChange,
-  pageSize = 50,
+  pageSize = 10,
   hiddenColumns = [],
 }) {
   const [expanded, setExpanded] = useState({});

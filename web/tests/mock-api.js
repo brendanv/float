@@ -140,6 +140,111 @@ export const mockTransactions = [
     ],
     tags: {},
   },
+  {
+    fid: "f6g7h8i9",
+    date: "2026-03-15",
+    description: "Rent Payment",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:rent", amounts: [{ commodity: "$", quantity: "1500.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-1500.00" }] },
+    ],
+    tags: {},
+  },
+  {
+    fid: "g7h8i9j0",
+    date: "2026-03-14",
+    description: "Netflix",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:subscriptions", amounts: [{ commodity: "$", quantity: "17.99" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-17.99" }] },
+    ],
+    tags: { auto: "yes" },
+  },
+  {
+    fid: "h8i9j0k1",
+    date: "2026-03-12",
+    description: "Gas Station",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:transport", amounts: [{ commodity: "$", quantity: "54.20" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-54.20" }] },
+    ],
+    tags: {},
+  },
+  {
+    fid: "i9j0k1l2",
+    date: "2026-03-10",
+    description: "Target | household supplies",
+    payee: "Target",
+    note: "household supplies",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:household", amounts: [{ commodity: "$", quantity: "43.57" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-43.57" }] },
+    ],
+    tags: { reimbursable: "" },
+  },
+  {
+    fid: "j0k1l2m3",
+    date: "2026-03-08",
+    description: "Spotify",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:subscriptions", amounts: [{ commodity: "$", quantity: "10.99" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-10.99" }] },
+    ],
+    tags: { auto: "yes" },
+  },
+  {
+    fid: "k1l2m3n4",
+    date: "2026-03-07",
+    description: "Chipotle | team lunch",
+    payee: "Chipotle",
+    note: "team lunch",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "38.50" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-38.50" }] },
+    ],
+    tags: { reimbursable: "" },
+  },
+  {
+    fid: "l2m3n4o5",
+    date: "2026-03-05",
+    description: "Internet Bill",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "79.99" }] },
+      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-79.99" }] },
+    ],
+    tags: {},
+  },
+  {
+    fid: "m3n4o5p6",
+    date: "2026-03-03",
+    description: "Whole Foods Market | weekly shop",
+    payee: "Whole Foods Market",
+    note: "weekly shop",
+    status: "Pending",
+    postings: [
+      { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "91.33" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-91.33" }] },
+    ],
+    tags: {},
+  },
+  {
+    fid: "n4o5p6q7",
+    date: "2026-03-01",
+    description: "Phone Bill",
+    status: "Cleared",
+    postings: [
+      { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "45.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-45.00" }] },
+    ],
+    tags: {},
+  },
 ];
 
 export const mockPrices = [
