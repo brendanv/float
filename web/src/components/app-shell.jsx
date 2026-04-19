@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   House,
   List,
   TrendingUp,
   Tag,
   PlusCircle,
-  Menu,
   History,
   Upload,
   ListFilter,
@@ -15,20 +14,32 @@ import {
   ClockArrowUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 
-const NAV_ITEMS = [
+const NAV_MAIN = [
   { href: "/", label: "Home", icon: House },
   { href: "/transactions", label: "Transactions", icon: List },
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/prices", label: "Prices", icon: Tag },
   { href: "/snapshots", label: "Snapshots", icon: History },
+];
+
+const NAV_MANAGE = [
   { href: "/import", label: "Import", icon: Upload },
   { href: "/imports", label: "Import History", icon: ClockArrowUp },
   { href: "/rules", label: "Rules", icon: ListFilter },
@@ -65,107 +76,82 @@ function ThemeSwitcher() {
   );
 }
 
-function NavLink({ href, label, icon: Icon, current, onClick }) {
-  const active = current === href;
+function NavGroup({ label, items, currentPath }) {
   return (
-    <Link
-      to={href}
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-        active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-      )}
-    >
-      <Icon size={18} />
-      {label}
-    </Link>
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton
+                isActive={currentPath === item.href}
+                tooltip={item.label}
+                render={<Link to={item.href} />}
+              >
+                <item.icon />
+                <span>{item.label}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 
-function SidebarContent({ currentPath, onNavigate }) {
+function AppSidebar({ currentPath }) {
   return (
-    <div className="flex h-full flex-col bg-sidebar">
-      {/* Brand */}
-      <div className="border-b border-sidebar-border p-4">
-        <Link
-          to="/"
-          onClick={onNavigate}
-          className="flex items-center gap-3 transition-opacity hover:opacity-80"
-        >
-          <img src="/icon.png" alt="" className="size-9 rounded" />
-          <span className="text-xl font-semibold text-sidebar-foreground">
-            float
-          </span>
-        </Link>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex flex-1 flex-col gap-1 p-3">
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={item.icon}
-            current={currentPath}
-            onClick={onNavigate}
-          />
-        ))}
-      </nav>
-
-      {/* Theme switcher */}
-      <div className="border-t border-sidebar-border p-3">
+    <Sidebar variant="inset">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" render={<Link to="/" />}>
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <img src="/icon.png" alt="" className="size-6 rounded" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">float</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  Personal Finance
+                </span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <NavGroup label="Overview" items={NAV_MAIN} currentPath={currentPath} />
+        <NavGroup label="Manage" items={NAV_MANAGE} currentPath={currentPath} />
+      </SidebarContent>
+      <SidebarFooter>
         <ThemeSwitcher />
-      </div>
-    </div>
+      </SidebarFooter>
+    </Sidebar>
   );
 }
 
 export function AppShell({ children, currentPath }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">
-        <div className="sticky top-0 h-screen">
-          <SidebarContent currentPath={currentPath} />
-        </div>
-      </aside>
-
-      {/* Main content area */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile top navbar */}
-        <header className="flex items-center gap-2 border-b border-border bg-background p-3 lg:hidden">
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger
-              render={
-                <Button variant="ghost" size="icon">
-                  <Menu />
-                </Button>
-              }
-            />
-            <SheetContent side="left" className="w-64 p-0">
-              <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <SidebarContent
-                currentPath={currentPath}
-                onNavigate={() => setMobileOpen(false)}
-              />
-            </SheetContent>
-          </Sheet>
-          <Link to="/" className="flex items-center gap-2 text-xl font-semibold">
-            <img src="/icon.png" alt="" className="size-8 rounded" />
-            float
-          </Link>
+    <SidebarProvider>
+      <AppSidebar currentPath={currentPath} />
+      <SidebarInset>
+        <header className="flex h-12 shrink-0 items-center gap-2 px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator
+            orientation="vertical"
+            className="mr-2 data-vertical:h-4 data-vertical:self-auto"
+          />
+          <span className="text-sm font-medium text-muted-foreground">
+            {[...NAV_MAIN, ...NAV_MANAGE].find((i) => i.href === currentPath)?.label ?? "float"}
+          </span>
         </header>
-
-        {/* Page content */}
-        <main className="container mx-auto max-w-7xl flex-1 px-4 py-6">
-          {children}
-        </main>
-      </div>
-    </div>
+        <div className="flex flex-1 flex-col p-4 pt-0">
+          <div className="container mx-auto max-w-7xl flex-1">
+            {children}
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
