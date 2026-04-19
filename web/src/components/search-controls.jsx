@@ -1,4 +1,5 @@
-import { ChevronLeft, ChevronRight, Check, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight, Check, X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -223,6 +224,35 @@ export function PeriodBar({ dateFrom, dateTo, onChange }) {
   );
 }
 
+function DebouncedSearch({ value, onChange }) {
+  const [local, setLocal] = useState(value || "");
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    setLocal(value || "");
+  }, [value]);
+
+  function handleInput(e) {
+    const v = e.target.value;
+    setLocal(v);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => onChange(v), 300);
+  }
+
+  return (
+    <div className="relative ml-auto">
+      <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        type="search"
+        placeholder="Search..."
+        value={local}
+        onInput={handleInput}
+        className="h-8 w-48 pl-7 text-sm"
+      />
+    </div>
+  );
+}
+
 export function SearchControls({
   dateFrom,
   dateTo,
@@ -230,10 +260,12 @@ export function SearchControls({
   tag,
   status,
   payee,
+  search,
   onDateRangeChange,
   onAccountChange,
   onTagChange,
   onPayeeChange,
+  onSearchChange,
   onQuickFilter,
   accounts,
   tags,
@@ -383,11 +415,28 @@ export function SearchControls({
             </SelectContent>
           </Select>
         </div>
+
+        {onSearchChange && (
+          <DebouncedSearch value={search} onChange={onSearchChange} />
+        )}
       </div>
 
       {/* Active filter chips */}
-      {(account || tag || payee) && (
+      {(account || tag || payee || search) && (
         <div className="flex flex-wrap gap-1">
+          {search && (
+            <Badge variant="secondary" className="gap-1">
+              search: {search}
+              <button
+                type="button"
+                className="cursor-pointer opacity-60 hover:opacity-100"
+                onClick={() => onSearchChange("")}
+                aria-label="Clear search filter"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          )}
           {payee && (
             <Badge variant="secondary" className="gap-1">
               {payee === PAYEE_NONE ? "no payee set" : `payee: ${payee}`}

@@ -219,15 +219,16 @@ export function TransactionsPage() {
   const [tag, setTag] = useState("");
   const [status, setStatus] = useState("");
   const [payee, setPayee] = useState(routeSearch.payee || "");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [selectedFids, setSelectedFids] = useState(new Set());
 
   const isAccountMode = !!account;
 
-  const txQuery = buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId);
+  const txQuery = buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId, search);
   const txParams = { query: txQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
 
-  const aregQuery = buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId);
+  const aregQuery = buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId, search);
   const aregParams = { account, query: aregQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
 
   const { data: txData, isLoading: txLoading, error: txError } = useQuery({
@@ -328,10 +329,12 @@ export function TransactionsPage() {
         tag={tag}
         status={status}
         payee={payee}
+        search={search}
         onDateRangeChange={onDateRangeChange}
         onAccountChange={onFilterChange(setAccount)}
         onTagChange={onFilterChange(setTag)}
         onPayeeChange={onFilterChange(setPayee)}
+        onSearchChange={onFilterChange(setSearch)}
         onQuickFilter={applyQuickFilter}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
@@ -395,7 +398,7 @@ export function TransactionsPage() {
   );
 }
 
-function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId) {
+function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId, search) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (account) tokens.push(`acct:${account}`);
@@ -405,10 +408,11 @@ function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
+  if (search) tokens.push(`desc:${search}`);
   return tokens;
 }
 
-function buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId) {
+function buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId, search) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (importBatchId) tokens.push(`tag:float-import=${importBatchId}`);
@@ -417,5 +421,6 @@ function buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
+  if (search) tokens.push(`desc:${search}`);
   return tokens;
 }
