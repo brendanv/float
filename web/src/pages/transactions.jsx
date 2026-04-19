@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearch, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ChevronLeft, ChevronRight, X, ArrowLeft } from "lucide-react";
+import { Loader2, X, ArrowLeft } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { SearchControls } from "../components/search-controls.jsx";
@@ -18,9 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-
-const PAGE_SIZE = 50;
 
 function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSelection }) {
   const [mode, setMode] = useState("idle"); // 'idle' | 'add-tag' | 'remove-tag' | 'set-payee'
@@ -221,16 +218,15 @@ export function TransactionsPage() {
   const [status, setStatus] = useState("");
   const [payee, setPayee] = useState(routeSearch.payee || "");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
   const [selectedFids, setSelectedFids] = useState(new Set());
 
   const isAccountMode = !!account;
 
   const txQuery = buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId, search);
-  const txParams = { query: txQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+  const txParams = { query: txQuery, limit: 0, offset: 0 };
 
   const aregQuery = buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId, search);
-  const aregParams = { account, query: aregQuery, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+  const aregParams = { account, query: aregQuery, limit: 0, offset: 0 };
 
   const { data: txData, isLoading: txLoading, error: txError } = useQuery({
     queryKey: queryKeys.transactions(txParams),
@@ -261,14 +257,12 @@ export function TransactionsPage() {
   function onDateRangeChange(from, to) {
     setDateFrom(from);
     setDateTo(to);
-    setPage(0);
     setSelectedFids(new Set());
   }
 
   function onFilterChange(setter) {
     return (value) => {
       setter(value);
-      setPage(0);
       setSelectedFids(new Set());
     };
   }
@@ -294,15 +288,8 @@ export function TransactionsPage() {
     setTag(filters.tag);
     setStatus(filters.status);
     setPayee(filters.payee);
-    setPage(0);
     setSelectedFids(new Set());
   }
-
-  const total = data?.total ?? 0;
-  const hasNext = data?.hasNext ?? false;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
-  const rangeEnd = Math.min((page + 1) * PAGE_SIZE, total);
 
   const transactions = !isAccountMode ? (data?.transactions || []) : [];
   const registerRows = isAccountMode ? (data?.rows || []) : null;
@@ -362,37 +349,6 @@ export function TransactionsPage() {
             selectedFids={selectedFids}
             onSelectionChange={setSelectedFids}
           />
-          {totalPages > 1 && (
-            <>
-            <Separator />
-            <div className="flex items-center justify-between px-2 py-3">
-              <span className="text-sm text-muted-foreground">
-                {rangeStart}–{rangeEnd} of {total}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => p - 1)}
-                  disabled={page === 0}
-                >
-                  <ChevronLeft />
-                </Button>
-                <span className="px-2 text-sm tabular-nums text-muted-foreground">
-                  {page + 1} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={!hasNext}
-                >
-                  <ChevronRight />
-                </Button>
-              </div>
-            </div>
-            </>
-          )}
         </>
       )}
     </div>

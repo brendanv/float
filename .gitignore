@@ -25,5 +25,6 @@ web/package-lock.json
 # Playwright
 web/test-results/
 web/playwright-report/
+test-results/
 
 .claude/worktrees
