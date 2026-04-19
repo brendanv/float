@@ -51,6 +51,9 @@ function AddTransactionForm({ onSuccess }) {
         postings: postingInputs,
       });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
+      queryClient.invalidateQueries({ queryKey: ["balances"] });
+      queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
       onSuccess?.();
     } catch (err) {
       setError(err);
