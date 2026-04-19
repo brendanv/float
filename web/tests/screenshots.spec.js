@@ -40,6 +40,15 @@ test("add transaction page", async ({ page }) => {
   await page.screenshot({ path: "test-results/add-transaction.png", fullPage: true });
 });
 
+test("add transaction modal", async ({ page }) => {
+  await page.goto("/#/");
+  await page.waitForTimeout(400);
+  await page.click('button:has-text("Add Transaction")');
+  await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/add-transaction-modal.png", fullPage: true });
+});
+
 test("trends page", async ({ page }) => {
   await page.goto("/#/trends");
   await page.waitForSelector(".trends-chart canvas", { timeout: 5000 }).catch(() => {});
