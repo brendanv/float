@@ -30,6 +30,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { AddTransactionModal } from "./add-transaction-modal.jsx";
 
 const NAV_MAIN = [
   { href: "/", label: "Home", icon: House },
@@ -43,7 +44,6 @@ const NAV_MANAGE = [
   { href: "/import", label: "Import", icon: Upload },
   { href: "/imports", label: "Import History", icon: ClockArrowUp },
   { href: "/rules", label: "Rules", icon: ListFilter },
-  { href: "/add", label: "Add Transaction", icon: PlusCircle },
 ];
 
 function ThemeSwitcher() {
@@ -100,7 +100,7 @@ function NavGroup({ label, items, currentPath }) {
   );
 }
 
-function AppSidebar({ currentPath }) {
+function AppSidebar({ currentPath, onAddTransaction }) {
   return (
     <Sidebar variant="inset">
       <SidebarHeader>
@@ -123,6 +123,18 @@ function AppSidebar({ currentPath }) {
       <SidebarContent>
         <NavGroup label="Overview" items={NAV_MAIN} currentPath={currentPath} />
         <NavGroup label="Manage" items={NAV_MANAGE} currentPath={currentPath} />
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Add Transaction" onClick={onAddTransaction}>
+                  <PlusCircle />
+                  <span>Add Transaction</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <ThemeSwitcher />
@@ -132,9 +144,11 @@ function AppSidebar({ currentPath }) {
 }
 
 export function AppShell({ children, currentPath }) {
+  const [addTxnOpen, setAddTxnOpen] = useState(false);
+
   return (
     <SidebarProvider>
-      <AppSidebar currentPath={currentPath} />
+      <AppSidebar currentPath={currentPath} onAddTransaction={() => setAddTxnOpen(true)} />
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
@@ -152,6 +166,7 @@ export function AppShell({ children, currentPath }) {
           </div>
         </div>
       </SidebarInset>
+      <AddTransactionModal open={addTxnOpen} onOpenChange={setAddTxnOpen} />
     </SidebarProvider>
   );
 }
