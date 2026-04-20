@@ -296,6 +296,31 @@ func (m ManageKeyMap) FullHelp() [][]key.Binding {
 	return full
 }
 
+var keyRestore = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "restore"))
+
+// SnapshotsListKeyMap is for the snapshots tab in list mode.
+type SnapshotsListKeyMap struct{}
+
+func (SnapshotsListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyRestore, keyHelp}
+}
+func (SnapshotsListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyRestore, keyRetry},
+	}
+}
+
+// RestoreConfirmKeyMap is for the restore confirmation dialog.
+type RestoreConfirmKeyMap struct{}
+
+func (RestoreConfirmKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyConfirm, keyEsc}
+}
+func (RestoreConfirmKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keyConfirm, keyEsc}}
+}
+
 // SettingsKeyMap is for the settings tab.
 type SettingsKeyMap struct{}
 
