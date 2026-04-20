@@ -12,6 +12,19 @@ on:
         required: false
 
 jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Check bun.lock is in sync
+        run: |
+          cd web
+          bun install --frozen-lockfile
+
   test:
     runs-on: ubuntu-latest
     steps:
