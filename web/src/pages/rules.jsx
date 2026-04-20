@@ -1,6 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Loader2 } from "lucide-react";
+import { useForm } from "@tanstack/react-form";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  createColumnHelper,
+  flexRender,
+} from "@tanstack/react-table";
+import { CircleCheck, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -44,6 +53,79 @@ function tagsToString(tags) {
     .join(", ");
 }
 
+function SortHeader({ column, children }) {
+  const sorted = column.getIsSorted();
+  const Icon = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
+  return (
+    <button
+      className="flex items-center gap-1 hover:text-foreground"
+      onClick={column.getToggleSortingHandler()}
+    >
+      {children}
+      <Icon className="size-3.5" />
+    </button>
+  );
+}
+
+const columnHelper = createColumnHelper();
+
+const rulesColumns = [
+  columnHelper.accessor("priority", {
+    header: ({ column }) => <SortHeader column={column}>Priority</SortHeader>,
+    cell: ({ getValue }) => (
+      <Badge variant="secondary" className="font-mono">{getValue()}</Badge>
+    ),
+    sortingFn: "basic",
+  }),
+  columnHelper.accessor("pattern", {
+    header: ({ column }) => <SortHeader column={column}>Pattern</SortHeader>,
+    cell: ({ getValue }) => (
+      <span className="max-w-xs truncate font-mono text-xs" title={getValue()}>{getValue()}</span>
+    ),
+    filterFn: "includesString",
+  }),
+  columnHelper.accessor("payee", {
+    header: ({ column }) => <SortHeader column={column}>Payee</SortHeader>,
+    cell: ({ getValue }) =>
+      getValue() || <span className="text-muted-foreground/60">—</span>,
+    filterFn: "includesString",
+  }),
+  columnHelper.accessor("account", {
+    header: ({ column }) => <SortHeader column={column}>Account</SortHeader>,
+    cell: ({ getValue }) =>
+      getValue() ? (
+        <span className="font-mono text-xs">{getValue()}</span>
+      ) : (
+        <span className="text-muted-foreground/60">—</span>
+      ),
+    filterFn: "includesString",
+  }),
+  columnHelper.accessor((row) => tagsToString(row.tags), {
+    id: "tags",
+    header: "Tags",
+    cell: ({ getValue }) =>
+      getValue() || <span className="text-muted-foreground/60">—</span>,
+    meta: { headerClass: "text-xs" },
+    enableSorting: false,
+  }),
+  columnHelper.accessor("autoReviewed", {
+    header: "Auto-reviewed",
+    cell: ({ getValue }) =>
+      getValue() ? (
+        <CircleCheck className="size-4 text-success" />
+      ) : (
+        <span className="text-muted-foreground/60">—</span>
+      ),
+    enableSorting: false,
+    enableColumnFilter: false,
+  }),
+  columnHelper.display({
+    id: "actions",
+    header: "",
+    cell: () => null, // rendered inline via meta
+  }),
+];
+
 export function RulesPage() {
   const queryClient = useQueryClient();
 
@@ -57,9 +139,43 @@ export function RulesPage() {
     queryFn: () => ledgerClient.listAccounts({}),
   });
 
-  const [form, setForm] = useState(emptyForm());
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState(null);
+
+  const form = useForm({
+    defaultValues: emptyForm(),
+    onSubmit: async ({ value }) => {
+      setFormError(null);
+      const payload = {
+        pattern: value.pattern,
+        payee: value.payee,
+        account: value.account,
+        priority: parseInt(value.priority, 10) || 0,
+        tags: tagsFromString(value.tags),
+        autoReviewed: value.autoReviewed,
+      };
+      saveRuleMutation.mutate(payload);
+    },
+  });
+
+  // Table state
+  const [sorting, setSorting] = useState([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+
+  const rules = useMemo(() => rulesData?.rules ?? [], [rulesData]);
+
+  const table = useReactTable({
+    data: rules,
+    columns: rulesColumns,
+    state: { sorting, globalFilter },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => row.id,
+    globalFilterFn: "includesString",
+  });
 
   // Pattern test
   const [testDesc, setTestDesc] = useState("");
@@ -79,7 +195,7 @@ export function RulesPage() {
         : ledgerClient.addRule(payload),
     onSuccess: () => {
       setEditingId(null);
-      setForm(emptyForm());
+      form.reset();
       setFormError(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.rules() });
     },
@@ -92,41 +208,22 @@ export function RulesPage() {
     onError: (err) => setFormError(err),
   });
 
-  function setField(name, value) {
-    setForm((f) => ({ ...f, [name]: value }));
-  }
-
   function startEdit(rule) {
     setEditingId(rule.id);
-    setForm({
-      pattern: rule.pattern,
-      payee: rule.payee,
-      account: rule.account,
-      priority: String(rule.priority),
-      tags: tagsToString(rule.tags),
-      autoReviewed: rule.autoReviewed ?? false,
-    });
+    form.reset();
+    form.setFieldValue("pattern", rule.pattern);
+    form.setFieldValue("payee", rule.payee);
+    form.setFieldValue("account", rule.account);
+    form.setFieldValue("priority", String(rule.priority));
+    form.setFieldValue("tags", tagsToString(rule.tags));
+    form.setFieldValue("autoReviewed", rule.autoReviewed ?? false);
     setFormError(null);
   }
 
   function cancelEdit() {
     setEditingId(null);
-    setForm(emptyForm());
+    form.reset();
     setFormError(null);
-  }
-
-  function handleSubmit(e) {
-    e.preventDefault();
-    setFormError(null);
-    const payload = {
-      pattern: form.pattern,
-      payee: form.payee,
-      account: form.account,
-      priority: parseInt(form.priority, 10) || 0,
-      tags: tagsFromString(form.tags),
-      autoReviewed: form.autoReviewed,
-    };
-    saveRuleMutation.mutate(payload);
   }
 
   function handleDelete(id) {
@@ -201,81 +298,132 @@ export function RulesPage() {
           <CardTitle>{editingId ? "Edit Rule" : "Add Rule"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rule-pattern">Pattern (regex)</Label>
-              <Input
-                id="rule-pattern"
-                type="text"
-                className="font-mono"
-                placeholder="AMAZON|amazon\.com"
-                value={form.pattern}
-                onChange={(e) => setField("pattern", e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <div className="min-w-40 flex-1 flex flex-col gap-1.5">
-                <Label htmlFor="rule-payee">Set Payee</Label>
-                <Input
-                  id="rule-payee"
-                  type="text"
-                  placeholder="Amazon"
-                  value={form.payee}
-                  onChange={(e) => setField("payee", e.target.value)}
-                />
-              </div>
-              <div className="min-w-40 flex-1 flex flex-col gap-1.5">
-                <Label>Set Category Account</Label>
-                <AccountInput
-                  value={form.account}
-                  onChange={(v) => setField("account", v)}
-                  accounts={accountsData?.accounts ?? []}
-                  placeholder="expenses:shopping"
-                />
-              </div>
-              <div className="min-w-40 flex-1 flex flex-col gap-1.5">
-                <Label htmlFor="rule-tags">
-                  Add Tags <span className="text-xs text-muted-foreground">key=val, key2</span>
-                </Label>
-                <Input
-                  id="rule-tags"
-                  type="text"
-                  className="font-mono"
-                  placeholder="source=import"
-                  value={form.tags}
-                  onChange={(e) => setField("tags", e.target.value)}
-                />
-              </div>
-              <div className="w-24 flex flex-col gap-1.5">
-                <Label htmlFor="rule-priority">Priority</Label>
-                <Input
-                  id="rule-priority"
-                  type="number"
-                  value={form.priority}
-                  onChange={(e) => setField("priority", e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="rule-auto-reviewed"
-                checked={form.autoReviewed}
-                onCheckedChange={(v) => setField("autoReviewed", v)}
-              />
-              <Label htmlFor="rule-auto-reviewed">Auto-mark as reviewed on import</Label>
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={saveRuleMutation.isPending}>
-                {saveRuleMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
-              </Button>
-              {editingId && (
-                <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
-                  Cancel
-                </Button>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              form.handleSubmit();
+            }}
+            className="flex flex-col gap-3"
+          >
+            <form.Field
+              name="pattern"
+              validators={{
+                onChange: ({ value }) => (!value ? "Pattern is required" : undefined),
+              }}
+              children={(field) => (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rule-pattern">Pattern (regex)</Label>
+                  <Input
+                    id="rule-pattern"
+                    type="text"
+                    className="font-mono"
+                    placeholder="AMAZON|amazon\.com"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                  {field.state.meta.isTouched && !field.state.meta.isValid && (
+                    <p className="text-xs text-destructive">{field.state.meta.errors.join(", ")}</p>
+                  )}
+                </div>
               )}
+            />
+            <div className="flex flex-wrap gap-3">
+              <form.Field
+                name="payee"
+                children={(field) => (
+                  <div className="min-w-40 flex-1 flex flex-col gap-1.5">
+                    <Label htmlFor="rule-payee">Set Payee</Label>
+                    <Input
+                      id="rule-payee"
+                      type="text"
+                      placeholder="Amazon"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </div>
+                )}
+              />
+              <form.Field
+                name="account"
+                children={(field) => (
+                  <div className="min-w-40 flex-1 flex flex-col gap-1.5">
+                    <Label>Set Category Account</Label>
+                    <AccountInput
+                      value={field.state.value}
+                      onChange={(v) => field.handleChange(v)}
+                      accounts={accountsData?.accounts ?? []}
+                      placeholder="expenses:shopping"
+                    />
+                  </div>
+                )}
+              />
+              <form.Field
+                name="tags"
+                children={(field) => (
+                  <div className="min-w-40 flex-1 flex flex-col gap-1.5">
+                    <Label htmlFor="rule-tags">
+                      Add Tags <span className="text-xs text-muted-foreground">key=val, key2</span>
+                    </Label>
+                    <Input
+                      id="rule-tags"
+                      type="text"
+                      className="font-mono"
+                      placeholder="source=import"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </div>
+                )}
+              />
+              <form.Field
+                name="priority"
+                children={(field) => (
+                  <div className="w-24 flex flex-col gap-1.5">
+                    <Label htmlFor="rule-priority">Priority</Label>
+                    <Input
+                      id="rule-priority"
+                      type="number"
+                      value={field.state.value}
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                    />
+                  </div>
+                )}
+              />
             </div>
+            <form.Field
+              name="autoReviewed"
+              children={(field) => (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rule-auto-reviewed"
+                    checked={field.state.value}
+                    onCheckedChange={(v) => field.handleChange(v)}
+                  />
+                  <Label htmlFor="rule-auto-reviewed">Auto-mark as reviewed on import</Label>
+                </div>
+              )}
+            />
+            <form.Subscribe
+              selector={(state) => state.canSubmit}
+              children={(canSubmit) => (
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" disabled={!canSubmit || saveRuleMutation.isPending}>
+                    {saveRuleMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                    {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
+                  </Button>
+                  {editingId && (
+                    <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              )}
+            />
           </form>
           {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
         </CardContent>
@@ -286,80 +434,77 @@ export function RulesPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <CardTitle>Rules</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePreviewApply}
-              disabled={applyLoading}
-            >
-              {applyLoading && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {applyLoading ? "Previewing…" : "Preview Changes"}
-            </Button>
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <Input
+                type="text"
+                placeholder="Filter rules…"
+                className="h-8 min-w-0 flex-1 sm:w-48 sm:flex-none"
+                value={globalFilter ?? ""}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviewApply}
+                disabled={applyLoading}
+              >
+                {applyLoading && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {applyLoading ? "Previewing…" : "Preview Changes"}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           {rulesLoading && <Loading />}
           {rulesError && <ErrorBanner error={rulesError} />}
-          {rulesData && rulesData.rules.length === 0 && (
+          {rulesData && rules.length === 0 && (
             <p className="text-muted-foreground">No rules yet. Add one above.</p>
           )}
-          {rulesData && rulesData.rules.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Pattern</TableHead>
-                  <TableHead>Payee</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Tags</TableHead>
-                  <TableHead>Auto-reviewed</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rulesData.rules.map((r) => (
-                  <TableRow key={r.id} className={cn(editingId === r.id && "bg-primary/10")}>
-                    <TableCell>
-                      <Badge variant="secondary" className="font-mono">{r.priority}</Badge>
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate font-mono text-xs" title={r.pattern}>{r.pattern}</TableCell>
-                    <TableCell>{r.payee || <span className="text-muted-foreground/60">—</span>}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {r.account || <span className="text-muted-foreground/60">—</span>}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {r.tags && Object.keys(r.tags).length > 0
-                        ? tagsToString(r.tags)
-                        : <span className="text-muted-foreground/60">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {r.autoReviewed
-                        ? <CircleCheck className="size-4 text-success" />
-                        : <span className="text-muted-foreground/60">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => startEdit(r)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="text-destructive"
-                          onClick={() => handleDelete(r.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          {rulesData && rules.length > 0 && (
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead key={header.id}>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id} className={cn(editingId === row.original.id && "bg-primary/10")}>
+                      {row.getVisibleCells().map((cell) =>
+                        cell.column.id === "actions" ? (
+                          <TableCell key={cell.id}>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="xs" onClick={() => startEdit(row.original)}>
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                className="text-destructive"
+                                onClick={() => handleDelete(row.original.id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        ) : (
+                          <TableCell key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        )
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
           )}
           <Separator className="my-4" />
           <div className="flex items-center gap-3">

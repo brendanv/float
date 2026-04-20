@@ -50,7 +50,7 @@ export function AccountInput({ value, onChange, accounts, placeholder = "Account
           />
         }
       />
-      <PopoverContent align="start" className="w-(--anchor-width) max-h-48 overflow-y-auto p-1" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent align="start" className="w-(--anchor-width) max-h-48 overflow-y-auto p-1">
         {filtered.map((a) => (
           <button
             key={a.fullName}
