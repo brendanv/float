@@ -33,8 +33,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=hledger /usr/local/bin/hledger /usr/local/bin/hledger
 COPY --from=go-build /floatd /usr/local/bin/floatd
-RUN useradd --create-home --shell /bin/bash float
-USER float
 VOLUME /data
 EXPOSE 8080 2222
 ENTRYPOINT ["floatd"]
