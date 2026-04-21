@@ -61,7 +61,16 @@ func main() {
 		listenAddr = fmt.Sprintf(":%d", port)
 	}
 
-	hl, err := hledger.New("hledger", filepath.Join(*dataDir, "main.journal"))
+	mainJournal := filepath.Join(*dataDir, "main.journal")
+	if _, err := os.Stat(mainJournal); os.IsNotExist(err) {
+		slog.Info("main.journal not found, creating empty file", "path", mainJournal)
+		if err := os.WriteFile(mainJournal, nil, 0644); err != nil {
+			slog.Error("create main.journal", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	hl, err := hledger.New("hledger", mainJournal)
 	if err != nil {
 		slog.Error("hledger init", "error", err)
 		os.Exit(1)
