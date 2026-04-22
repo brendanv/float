@@ -2306,8 +2306,9 @@ func (*DeletePriceResponse) Descriptor() ([]byte, []int) {
 
 type AccountDeclaration struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Aid           string                 `protobuf:"bytes,1,opt,name=aid,proto3" json:"aid,omitempty"`   // 8-char hex; empty if no aid comment
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"` // full account name, e.g. "assets:checking"
+	Aid           string                 `protobuf:"bytes,1,opt,name=aid,proto3" json:"aid,omitempty"`                                     // 8-char hex; empty if no aid comment
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                   // full account name, e.g. "assets:checking"
+	HasPostings   bool                   `protobuf:"varint,3,opt,name=has_postings,json=hasPostings,proto3" json:"has_postings,omitempty"` // true if at least one posting references this account
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2354,6 +2355,13 @@ func (x *AccountDeclaration) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *AccountDeclaration) GetHasPostings() bool {
+	if x != nil {
+		return x.HasPostings
+	}
+	return false
 }
 
 type ListAccountDeclarationsRequest struct {
@@ -5253,10 +5261,11 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x05price\x18\x01 \x01(\v2\x18.float.v1.PriceDirectiveR\x05price\"&\n" +
 	"\x12DeletePriceRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\tR\x03pid\"\x15\n" +
-	"\x13DeletePriceResponse\":\n" +
+	"\x13DeletePriceResponse\"]\n" +
 	"\x12AccountDeclaration\x12\x10\n" +
 	"\x03aid\x18\x01 \x01(\tR\x03aid\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\" \n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
+	"\fhas_postings\x18\x03 \x01(\bR\vhasPostings\" \n" +
 	"\x1eListAccountDeclarationsRequest\"c\n" +
 	"\x1fListAccountDeclarationsResponse\x12@\n" +
 	"\fdeclarations\x18\x01 \x03(\v2\x1c.float.v1.AccountDeclarationR\fdeclarations\"+\n" +

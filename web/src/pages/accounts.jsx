@@ -5,18 +5,97 @@ import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+
+function buildTree(declarations) {
+  const byName = new Map(declarations.map((d) => [d.name, d]));
+  const children = new Map();
+  const roots = [];
+
+  const sorted = [...declarations].sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const d of sorted) {
+    const parts = d.name.split(":");
+    if (parts.length === 1) {
+      roots.push(d.name);
+    } else {
+      const parent = parts.slice(0, -1).join(":");
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent).push(d.name);
+      if (!byName.has(parent)) {
+        roots.push(parent);
+        byName.set(parent, { name: parent, aid: null, hasPostings: null });
+      }
+    }
+  }
+
+  const uniqueRoots = [...new Set(roots)].sort();
+  return { byName, children, roots: uniqueRoots };
+}
+
+function AccountTreeNode({ name, byName, children, depth, onDelete, deletingAid }) {
+  const [expanded, setExpanded] = useState(true);
+  const kids = children.get(name) ?? [];
+  const decl = byName.get(name);
+  const hasKids = kids.length > 0;
+  const label = name.split(":").at(-1);
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-1 py-0.5 rounded hover:bg-muted/50 group"
+        style={{ paddingLeft: `${depth * 1.25 + 0.25}rem` }}
+      >
+        <button
+          className="flex items-center justify-center w-4 h-4 shrink-0"
+          onClick={() => hasKids && setExpanded((e) => !e)}
+          tabIndex={hasKids ? 0 : -1}
+          aria-label={expanded ? "Collapse" : "Expand"}
+        >
+          {hasKids && (
+            <ChevronRight
+              className={`size-3 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`}
+            />
+          )}
+        </button>
+        <span className="font-mono text-sm flex-1">{label}</span>
+        {decl?.aid && !decl.hasPostings && (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity mr-1"
+            disabled={deletingAid === decl.aid}
+            onClick={() => onDelete(decl.aid)}
+          >
+            {deletingAid === decl.aid ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              "Delete"
+            )}
+          </Button>
+        )}
+      </div>
+      {hasKids && expanded && (
+        <div>
+          {kids.map((child) => (
+            <AccountTreeNode
+              key={child}
+              name={child}
+              byName={byName}
+              children={children}
+              depth={depth + 1}
+              onDelete={onDelete}
+              deletingAid={deletingAid}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AccountsPage() {
   const queryClient = useQueryClient();
@@ -28,6 +107,7 @@ export function AccountsPage() {
 
   const [name, setName] = useState("");
   const [formError, setFormError] = useState(null);
+  const [deletingAid, setDeletingAid] = useState(null);
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.declareAccount(vars),
@@ -41,8 +121,14 @@ export function AccountsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: ({ aid }) => ledgerClient.deleteAccountDeclaration({ aid }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() }),
-    onError: (err) => setFormError(err),
+    onSuccess: () => {
+      setDeletingAid(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
+    },
+    onError: (err) => {
+      setDeletingAid(null);
+      setFormError(err);
+    },
   });
 
   function handleSubmit(e) {
@@ -51,9 +137,14 @@ export function AccountsPage() {
     addMutation.mutate({ name: name.trim() });
   }
 
-  const sorted = [...(data?.declarations ?? [])].sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
+  function handleDelete(aid) {
+    setDeletingAid(aid);
+    setFormError(null);
+    deleteMutation.mutate({ aid });
+  }
+
+  const declarations = data?.declarations ?? [];
+  const { byName, children, roots } = buildTree(declarations);
 
   return (
     <div className="flex flex-col gap-6">
@@ -95,34 +186,20 @@ export function AccountsPage() {
           {isLoading && <Loading />}
           {fetchError && <ErrorBanner error={fetchError} />}
           {data && (
-            sorted.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Account</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sorted.map((d) => (
-                    <TableRow key={d.aid || d.name}>
-                      <TableCell className="font-mono">{d.name}</TableCell>
-                      <TableCell>
-                        {d.aid && (
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            className="text-destructive"
-                            onClick={() => deleteMutation.mutate({ aid: d.aid })}
-                          >
-                            Delete
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            declarations.length > 0 ? (
+              <div className="rounded-md border">
+                {roots.map((root) => (
+                  <AccountTreeNode
+                    key={root}
+                    name={root}
+                    byName={byName}
+                    children={children}
+                    depth={0}
+                    onDelete={handleDelete}
+                    deletingAid={deletingAid}
+                  />
+                ))}
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">No account declarations yet.</p>
             )

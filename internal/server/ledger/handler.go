@@ -744,9 +744,20 @@ func (h *Handler) ListAccountDeclarations(ctx context.Context, _ *connect.Reques
 		slogctx.FromContext(ctx).ErrorContext(ctx, "list account declarations failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	unused, err := h.hl.UnusedAccounts(ctx)
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "unused accounts failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	unusedSet := make(map[string]bool, len(unused))
+	for _, name := range unused {
+		unusedSet[name] = true
+	}
 	out := make([]*floatv1.AccountDeclaration, len(decls))
 	for i, d := range decls {
-		out[i] = toProtoAccountDeclaration(d)
+		pd := toProtoAccountDeclaration(d)
+		pd.HasPostings = !unusedSet[d.Name]
+		out[i] = pd
 	}
 	return connect.NewResponse(&floatv1.ListAccountDeclarationsResponse{Declarations: out}), nil
 }

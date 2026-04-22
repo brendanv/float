@@ -225,6 +225,7 @@ message DeletePriceResponse {}
 message AccountDeclaration {
   string aid = 1;  // 8-char hex; empty if no aid comment
   string name = 2; // full account name, e.g. "assets:checking"
+  bool has_postings = 3; // true if at least one posting references this account
 }
 
 message ListAccountDeclarationsRequest {}
