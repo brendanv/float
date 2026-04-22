@@ -226,16 +226,17 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
     return (ps || []).map((p) => ({ account: p.account, amount: formatAmounts(p.amounts) }));
   }
 
-  const [postings, setPostings] = useState(() => toFields(tx.postings));
+  const initialPostings = toFields(tx.postings);
+  const [postings, setPostings] = useState(initialPostings);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const containerRef = useRef(null);
-  const postingsRef = useRef(postings);
-  postingsRef.current = postings;
 
-  async function save(currentPostings) {
+  const isDirty = JSON.stringify(postings) !== JSON.stringify(initialPostings);
+
+  async function save() {
     setSaving(true);
     setError(null);
     try {
@@ -243,19 +244,19 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
-        postings: currentPostings.map((p) => ({ account: p.account.trim(), amount: p.amount.trim() })),
+        postings: postings.map((p) => ({ account: p.account.trim(), amount: p.amount.trim() })),
       });
       if (onSaved) onSaved();
     } catch (err) {
       setError(err.message || String(err));
+    } finally {
       setSaving(false);
     }
   }
 
-  function handleFocusOut(e) {
-    if (containerRef.current && !containerRef.current.contains(e.relatedTarget)) {
-      save(postingsRef.current);
-    }
+  function cancel() {
+    setPostings(initialPostings);
+    setError(null);
   }
 
   async function handleDelete() {
@@ -276,7 +277,6 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
       ref={containerRef}
       className="p-3"
       onClick={(e) => e.stopPropagation()}
-      onFocusOut={handleFocusOut}
     >
       {saving ? (
         <Loader2 className="size-3 animate-spin" />
@@ -284,7 +284,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
         <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
       )}
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex justify-between gap-2">
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="xs" className="text-destructive hover:text-destructive" disabled={saving || deleting}>
@@ -306,6 +306,14 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <div className="flex gap-2">
+          <Button variant="outline" size="xs" onClick={cancel} disabled={!isDirty || saving || deleting}>
+            Cancel
+          </Button>
+          <Button size="xs" onClick={save} disabled={!isDirty || saving || deleting}>
+            {saving ? <Loader2 className="size-3 animate-spin" /> : "Save"}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -751,7 +759,7 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
             <EditableDetailRow
               tx={tx}
               accounts={accounts}
-              onSaved={onStatusChange}
+              onSaved={() => { row.toggleExpanded(); if (onStatusChange) onStatusChange(); }}
               onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
             />
           </TableCell>
