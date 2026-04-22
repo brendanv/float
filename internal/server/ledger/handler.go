@@ -1278,6 +1278,14 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
+	// Save a copy of the uploaded CSV to uploads/<importBatchID>.csv.
+	uploadsDir := filepath.Join(h.dataDir, "uploads")
+	if mkErr := os.MkdirAll(uploadsDir, 0o755); mkErr != nil {
+		logger.ErrorContext(ctx, "create uploads dir failed", "error", mkErr)
+	} else if wErr := os.WriteFile(filepath.Join(uploadsDir, importBatchID+".csv"), req.Msg.CsvData, 0o644); wErr != nil {
+		logger.ErrorContext(ctx, "save uploaded CSV failed", "error", wErr)
+	}
+
 	// Fetch the imported transactions to return.
 	var txnProtos []*floatv1.Transaction
 	for _, fid := range importedFIDs {
