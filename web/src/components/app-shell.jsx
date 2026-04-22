@@ -29,6 +29,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 
@@ -77,6 +78,7 @@ function ThemeSwitcher() {
 }
 
 function NavGroup({ label, items, currentPath }) {
+  const { isMobile, setOpenMobile } = useSidebar();
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
@@ -87,7 +89,7 @@ function NavGroup({ label, items, currentPath }) {
               <SidebarMenuButton
                 isActive={currentPath === item.href}
                 tooltip={item.label}
-                render={<Link to={item.href} />}
+                render={<Link to={item.href} onClick={() => isMobile && setOpenMobile(false)} />}
               >
                 <item.icon />
                 <span>{item.label}</span>
@@ -101,12 +103,14 @@ function NavGroup({ label, items, currentPath }) {
 }
 
 function AppSidebar({ currentPath, onAddTransaction }) {
+  const { isMobile, setOpenMobile } = useSidebar();
+  const closeMobile = () => isMobile && setOpenMobile(false);
   return (
     <Sidebar variant="inset">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" />}>
+            <SidebarMenuButton size="lg" render={<Link to="/" onClick={closeMobile} />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <img src="/icon.png" alt="" className="size-6 rounded" />
               </div>
