@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Check, X, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, X, Search, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -13,6 +13,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -165,6 +173,58 @@ function DebouncedSearch({ value, onChange }) {
   );
 }
 
+function AccountCombobox({ value, onChange, accounts }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "flex h-7 items-center gap-1 px-2.5 text-xs hover:bg-muted",
+              value ? "font-semibold" : "",
+            )}
+          >
+            <span className="truncate">{value || "All accounts"}</span>
+            <span className="text-xs opacity-40">▾</span>
+          </button>
+        }
+      />
+      <PopoverContent align="start" className="w-56 p-0">
+        <Command>
+          <CommandInput placeholder="Search accounts..." />
+          <CommandList>
+            <CommandEmpty>No account found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="__all__"
+                onSelect={() => { onChange(""); setOpen(false); }}
+                data-checked={!value ? "true" : undefined}
+              >
+                All accounts
+              </CommandItem>
+              {(accounts || []).map((a) => (
+                <CommandItem
+                  key={a.fullName}
+                  value={a.fullName}
+                  onSelect={() => { onChange(a.fullName); setOpen(false); }}
+                  data-checked={value === a.fullName ? "true" : undefined}
+                >
+                  {a.fullName}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function SearchControls({
   dateFrom,
   dateTo,
@@ -302,22 +362,11 @@ export function SearchControls({
           </>
         )}
 
-        <Select
-          value={account || ""}
-          onValueChange={(v) => onAccountChange(v === "__all__" ? "" : v)}
-        >
-          <SelectTrigger size="sm" className="border-0 bg-transparent shadow-none hover:bg-muted focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted">
-            <SelectValue placeholder="All accounts">
-              {account || "All accounts"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All accounts</SelectItem>
-            {(accounts || []).map((a) => (
-              <SelectItem key={a.fullName} value={a.fullName}>{a.fullName}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <AccountCombobox
+          value={account}
+          onChange={onAccountChange}
+          accounts={accounts}
+        />
 
         <Separator orientation="vertical" className="h-5" />
 

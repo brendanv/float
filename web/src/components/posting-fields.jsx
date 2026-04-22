@@ -1,66 +1,100 @@
 import { useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 export function AccountInput({ value, onChange, accounts, placeholder = "Account" }) {
   const [open, setOpen] = useState(false);
-  const [filtered, setFiltered] = useState([]);
+  const [search, setSearch] = useState("");
 
-  function handleInput(e) {
-    const v = e.target.value;
-    onChange(v);
-    if (v.length > 0 && accounts) {
-      const lower = v.toLowerCase();
-      setFiltered(
-        accounts
-          .filter((a) => a.fullName.toLowerCase().includes(lower))
-          .slice(0, 8)
-      );
-      setOpen(true);
-    } else {
-      setOpen(false);
-    }
-  }
-
-  function select(fullName) {
-    onChange(fullName);
-    setOpen(false);
-  }
+  const exactMatch = (accounts || []).some(
+    (a) => a.fullName.toLowerCase() === search.toLowerCase()
+  );
 
   return (
-    <Popover open={open && filtered.length > 0} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Input
-            type="text"
-            placeholder={placeholder}
-            value={value}
-            onInput={handleInput}
-            onFocus={() => {
-              if (accounts && value.length === 0) {
-                setFiltered(accounts.slice(0, 8));
-                setOpen(true);
-              } else if (value.length > 0 && filtered.length > 0) {
-                setOpen(true);
-              }
-            }}
-            className="flex-1"
-          />
+          <button
+            type="button"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "flex h-8 w-full items-center justify-between rounded-none border border-input bg-background px-3 text-xs outline-offset-0 outline-none hover:bg-background focus-visible:outline-[3px]",
+              !value && "text-muted-foreground",
+            )}
+          >
+            <span className="truncate">{value || placeholder}</span>
+            <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
+          </button>
         }
       />
-      <PopoverContent align="start" className="w-(--anchor-width) max-h-48 overflow-y-auto p-1">
-        {filtered.map((a) => (
-          <button
-            key={a.fullName}
-            type="button"
-            onClick={() => select(a.fullName)}
-            className="flex w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-          >
-            {a.fullName}
-          </button>
-        ))}
+      <PopoverContent align="start" className="w-(--anchor-width) p-0">
+        <Command>
+          <CommandInput
+            placeholder={`Search ${placeholder.toLowerCase()}...`}
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            <CommandEmpty>
+              {search ? (
+                <button
+                  type="button"
+                  className="w-full px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => {
+                    onChange(search);
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                >
+                  Use "<span className="font-medium">{search}</span>"
+                </button>
+              ) : (
+                "No account found."
+              )}
+            </CommandEmpty>
+            <CommandGroup>
+              {!exactMatch && search && (
+                <CommandItem
+                  value={`__use__${search}`}
+                  onSelect={() => {
+                    onChange(search);
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                  className="text-muted-foreground"
+                >
+                  Use "<span className="font-medium text-foreground">{search}</span>"
+                </CommandItem>
+              )}
+              {(accounts || []).map((a) => (
+                <CommandItem
+                  key={a.fullName}
+                  value={a.fullName}
+                  onSelect={() => {
+                    onChange(a.fullName === value ? "" : a.fullName);
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                  data-checked={value === a.fullName ? "true" : undefined}
+                >
+                  {a.fullName}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );
