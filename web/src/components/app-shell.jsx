@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   ClockArrowUp,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -38,6 +39,7 @@ const NAV_MAIN = [
   { href: "/transactions", label: "Transactions", icon: List },
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/prices", label: "Prices", icon: Tag },
+  { href: "/accounts", label: "Accounts", icon: BookOpen },
   { href: "/snapshots", label: "Snapshots", icon: History },
 ];
 

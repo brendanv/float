@@ -652,6 +652,13 @@ func toProtoAmounts(amounts []hledger.Amount) []*floatv1.Amount {
 	return result
 }
 
+func toProtoAccountDeclaration(d journal.AccountDeclaration) *floatv1.AccountDeclaration {
+	return &floatv1.AccountDeclaration{
+		Aid:  d.AID,
+		Name: d.Name,
+	}
+}
+
 func toProtoPriceDirective(p journal.Price) *floatv1.PriceDirective {
 	return &floatv1.PriceDirective{
 		Pid:       p.PID,
@@ -729,6 +736,58 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(&floatv1.DeletePriceResponse{}), nil
+}
+
+func (h *Handler) ListAccountDeclarations(ctx context.Context, _ *connect.Request[floatv1.ListAccountDeclarationsRequest]) (*connect.Response[floatv1.ListAccountDeclarationsResponse], error) {
+	decls, err := journal.ListAccountDeclarations(h.dataDir)
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "list account declarations failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	out := make([]*floatv1.AccountDeclaration, len(decls))
+	for i, d := range decls {
+		out[i] = toProtoAccountDeclaration(d)
+	}
+	return connect.NewResponse(&floatv1.ListAccountDeclarationsResponse{Declarations: out}), nil
+}
+
+func (h *Handler) DeclareAccount(ctx context.Context, req *connect.Request[floatv1.DeclareAccountRequest]) (*connect.Response[floatv1.DeclareAccountResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	name := strings.TrimSpace(req.Msg.Name)
+	if name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
+	}
+	var aid string
+	err := h.lock.Do(ctx, fmt.Sprintf("declare account: %s", name), func() error {
+		var e error
+		aid, e = journal.AppendAccountDeclaration(h.dataDir, name)
+		return e
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "declare account failed", "name", name, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.DeclareAccountResponse{
+		Declaration: toProtoAccountDeclaration(journal.AccountDeclaration{AID: aid, Name: name}),
+	}), nil
+}
+
+func (h *Handler) DeleteAccountDeclaration(ctx context.Context, req *connect.Request[floatv1.DeleteAccountDeclarationRequest]) (*connect.Response[floatv1.DeleteAccountDeclarationResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if req.Msg.Aid == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("aid is required"))
+	}
+	err := h.lock.Do(ctx, fmt.Sprintf("delete account declaration %s", req.Msg.Aid), func() error {
+		return journal.DeleteAccountDeclaration(h.dataDir, req.Msg.Aid)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return nil, connect.NewError(connect.CodeNotFound, err)
+		}
+		logger.ErrorContext(ctx, "delete account declaration failed", "aid", req.Msg.Aid, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.DeleteAccountDeclarationResponse{}), nil
 }
 
 func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request[floatv1.BulkEditTransactionsRequest]) (*connect.Response[floatv1.BulkEditTransactionsResponse], error) {

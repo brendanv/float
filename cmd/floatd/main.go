@@ -101,6 +101,28 @@ func main() {
 		slog.Info("fid backfill: assigned codes to transactions", "count", backfillCount)
 	}
 
+	if err := lock.Do(context.Background(), "declare undeclared accounts", func() error {
+		if err := journal.EnsureAccountsFile(*dataDir); err != nil {
+			return err
+		}
+		if err := journal.EnsureAccountsInclude(*dataDir); err != nil {
+			return err
+		}
+		undeclared, err := hl.UndeclaredAccounts(context.Background())
+		if err != nil {
+			return err
+		}
+		for _, name := range undeclared {
+			if _, err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		slog.Error("account declarations startup", "error", err)
+		os.Exit(1)
+	}
+
 	c := cache.New[any](lock.Generation)
 	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg)
 	mux := http.NewServeMux()
