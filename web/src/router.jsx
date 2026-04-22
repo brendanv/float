@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import {
   createHashHistory,
   createRouter,
@@ -11,12 +12,15 @@ import { AppShell } from "./components/app-shell.jsx";
 import { HomePage } from "./pages/home.jsx";
 import { TransactionsPage } from "./pages/transactions.jsx";
 import { AddTransactionPage } from "./pages/add-transaction.jsx";
-import { TrendsPage } from "./pages/trends.jsx";
 import { PricesPage } from "./pages/prices.jsx";
 import { SnapshotsPage } from "./pages/snapshots.jsx";
 import { ImportPage } from "./pages/import.jsx";
 import { RulesPage } from "./pages/rules.jsx";
 import { ImportsHistoryPage } from "./pages/imports-history.jsx";
+
+const LazyTrendsPage = lazy(() =>
+  import("./pages/trends.jsx").then((m) => ({ default: m.TrendsPage }))
+);
 
 const rootRoute = createRootRoute({
   component: function Root() {
@@ -62,7 +66,7 @@ const addRoute = createRoute({
 const trendsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/trends",
-  component: TrendsPage,
+  component: LazyTrendsPage,
 });
 
 const pricesRoute = createRoute({
