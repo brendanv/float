@@ -284,6 +284,14 @@ test("rules page - apply preview section zoomed", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules-apply-preview-zoomed.png", fullPage: true });
 });
 
+test("rules page - mobile form", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/rules");
+  await page.waitForSelector("input[placeholder*='AMAZON']", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/rules-mobile-form.png", fullPage: true });
+});
+
 test("hamburger icon - closed state", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");

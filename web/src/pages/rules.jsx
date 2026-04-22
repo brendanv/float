@@ -71,11 +71,12 @@ const columnHelper = createColumnHelper();
 
 const rulesColumns = [
   columnHelper.accessor("priority", {
-    header: ({ column }) => <SortHeader column={column}>Priority</SortHeader>,
+    header: ({ column }) => <SortHeader column={column}>P</SortHeader>,
     cell: ({ getValue }) => (
       <Badge variant="secondary" className="font-mono">{getValue()}</Badge>
     ),
     sortingFn: "basic",
+    meta: { headerClass: "w-10 text-center" },
   }),
   columnHelper.accessor("pattern", {
     header: ({ column }) => <SortHeader column={column}>Pattern</SortHeader>,
@@ -329,11 +330,11 @@ export function RulesPage() {
                 </div>
               )}
             />
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <form.Field
                 name="payee"
                 children={(field) => (
-                  <div className="min-w-40 flex-1 flex flex-col gap-1.5">
+                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
                     <Label htmlFor="rule-payee">Set Payee</Label>
                     <Input
                       id="rule-payee"
@@ -349,7 +350,7 @@ export function RulesPage() {
               <form.Field
                 name="account"
                 children={(field) => (
-                  <div className="min-w-40 flex-1 flex flex-col gap-1.5">
+                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
                     <Label>Set Category Account</Label>
                     <AccountInput
                       value={field.state.value}
@@ -363,7 +364,7 @@ export function RulesPage() {
               <form.Field
                 name="tags"
                 children={(field) => (
-                  <div className="min-w-40 flex-1 flex flex-col gap-1.5">
+                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
                     <Label htmlFor="rule-tags">
                       Add Tags <span className="text-xs text-muted-foreground">key=val, key2</span>
                     </Label>
@@ -382,7 +383,7 @@ export function RulesPage() {
               <form.Field
                 name="priority"
                 children={(field) => (
-                  <div className="w-24 flex flex-col gap-1.5">
+                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-24 sm:flex-none">
                     <Label htmlFor="rule-priority">Priority</Label>
                     <Input
                       id="rule-priority"
