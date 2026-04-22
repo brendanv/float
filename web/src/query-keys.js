@@ -5,6 +5,7 @@ export const queryKeys = {
   accountRegister:      (params) => ["accountRegister", params],
   tags:                 () => ["tags"],
   prices:               () => ["prices"],
+  accountDeclarations:  () => ["accountDeclarations"],
   snapshots:            () => ["snapshots"],
   bankProfiles:         () => ["bankProfiles"],
   rules:                () => ["rules"],

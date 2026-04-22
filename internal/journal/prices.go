@@ -147,10 +147,12 @@ func prependPricesInclude(dataDir string) error {
 		}
 	}
 
-	// Prepend before the first include line (or at top if none).
+	// Prepend before the first include line that is not accounts.journal
+	// (accounts must always appear first so declarations are in scope for prices).
 	insertAt := 0
 	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "include ") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "include ") && trimmed != "include "+accountsRelPath {
 			insertAt = i
 			break
 		}

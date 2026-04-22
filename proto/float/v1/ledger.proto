@@ -222,6 +222,32 @@ message DeletePriceRequest {
 
 message DeletePriceResponse {}
 
+message AccountDeclaration {
+  string aid = 1;  // 8-char hex; empty if no aid comment
+  string name = 2; // full account name, e.g. "assets:checking"
+  bool has_postings = 3; // true if at least one posting references this account
+}
+
+message ListAccountDeclarationsRequest {}
+
+message ListAccountDeclarationsResponse {
+  repeated AccountDeclaration declarations = 1;
+}
+
+message DeclareAccountRequest {
+  string name = 1; // full account name to declare, e.g. "assets:checking"
+}
+
+message DeclareAccountResponse {
+  AccountDeclaration declaration = 1;
+}
+
+message DeleteAccountDeclarationRequest {
+  string aid = 1; // AID of the declaration to delete
+}
+
+message DeleteAccountDeclarationResponse {}
+
 message MarkReviewedOperation {
   bool reviewed = 1; // true → "Cleared", false → "" (Unmarked)
 }
@@ -472,6 +498,9 @@ service LedgerService {
   rpc ListPrices(ListPricesRequest) returns (ListPricesResponse);
   rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
   rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);
+  rpc ListAccountDeclarations(ListAccountDeclarationsRequest) returns (ListAccountDeclarationsResponse);
+  rpc DeclareAccount(DeclareAccountRequest) returns (DeclareAccountResponse);
+  rpc DeleteAccountDeclaration(DeleteAccountDeclarationRequest) returns (DeleteAccountDeclarationResponse);
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);

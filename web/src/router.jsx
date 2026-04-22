@@ -17,6 +17,7 @@ import { SnapshotsPage } from "./pages/snapshots.jsx";
 import { ImportPage } from "./pages/import.jsx";
 import { RulesPage } from "./pages/rules.jsx";
 import { ImportsHistoryPage } from "./pages/imports-history.jsx";
+import { AccountsPage } from "./pages/accounts.jsx";
 
 const LazyTrendsPage = lazy(() =>
   import("./pages/trends.jsx").then((m) => ({ default: m.TrendsPage }))
@@ -75,6 +76,12 @@ const pricesRoute = createRoute({
   component: PricesPage,
 });
 
+const accountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/accounts",
+  component: AccountsPage,
+});
+
 const snapshotsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/snapshots",
@@ -105,6 +112,7 @@ const routeTree = rootRoute.addChildren([
   addRoute,
   trendsRoute,
   pricesRoute,
+  accountsRoute,
   snapshotsRoute,
   importRoute,
   rulesRoute,

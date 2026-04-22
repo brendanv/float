@@ -392,6 +392,21 @@ export const mockImportCandidates = [
   },
 ];
 
+export const mockAccountDeclarations = [
+  { aid: "a1b2c3d4", name: "assets:checking", hasPostings: true },
+  { aid: "a1b2c3d5", name: "assets:savings", hasPostings: true },
+  { aid: "b2c3d4e5", name: "expenses:dining", hasPostings: true },
+  { aid: "c3d4e5f6", name: "expenses:groceries", hasPostings: true },
+  { aid: "d4e5f6a7", name: "expenses:household", hasPostings: false },
+  { aid: "e5f6a7b8", name: "expenses:rent", hasPostings: true },
+  { aid: "f6a7b8c9", name: "expenses:shopping", hasPostings: true },
+  { aid: "g7b8c9d0", name: "expenses:subscriptions", hasPostings: false },
+  { aid: "h8c9d0e1", name: "expenses:transport", hasPostings: true },
+  { aid: "i9d0e1f2", name: "expenses:utilities", hasPostings: false },
+  { aid: "j0e1f2a3", name: "income:salary", hasPostings: true },
+  { aid: "k1f2a3b4", name: "liabilities:creditcard", hasPostings: true },
+];
+
 export const mockImports = [
   { importBatchId: "2026-03-28-a1b2c3d4", date: "2026-03-28", transactionCount: 3 },
   { importBatchId: "2026-03-15-b2c3d4e5", date: "2026-03-15", transactionCount: 5 },
@@ -467,7 +482,7 @@ export const mockApplyPreviews = [
     addTags: {},
   },
 ];
-export async function mockLedgerApi(page, { accountRegisterRows } = {}) {
+export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations } = {}) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
     const method = url.split("/").pop();
@@ -581,6 +596,15 @@ export async function mockLedgerApi(page, { accountRegisterRows } = {}) {
         break;
       case "ApplyRules":
         body = { appliedCount: 3 };
+        break;
+      case "ListAccountDeclarations":
+        body = { declarations: accountDeclarations ?? mockAccountDeclarations };
+        break;
+      case "DeclareAccount":
+        body = { declaration: { aid: "new00001", name: reqBody.name } };
+        break;
+      case "DeleteAccountDeclaration":
+        body = {};
         break;
       case "ListPrices":
         body = { prices: mockPrices };

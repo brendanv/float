@@ -63,6 +63,13 @@ test("prices page", async ({ page }) => {
   await page.screenshot({ path: "test-results/prices.png", fullPage: true });
 });
 
+test("accounts page", async ({ page }) => {
+  await page.goto("/#/accounts");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "test-results/accounts.png", fullPage: true });
+});
+
 test("transactions page - filter dropdown open", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
