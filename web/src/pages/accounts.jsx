@@ -13,27 +13,29 @@ import { Label } from "@/components/ui/label";
 function buildTree(declarations) {
   const byName = new Map(declarations.map((d) => [d.name, d]));
   const children = new Map();
-  const roots = [];
 
-  const sorted = [...declarations].sort((a, b) => a.name.localeCompare(b.name));
-
-  for (const d of sorted) {
-    const parts = d.name.split(":");
-    if (parts.length === 1) {
-      roots.push(d.name);
-    } else {
+  function ensureNode(name) {
+    if (!byName.has(name)) {
+      byName.set(name, { name, aid: null, hasPostings: null });
+    }
+    const parts = name.split(":");
+    if (parts.length > 1) {
       const parent = parts.slice(0, -1).join(":");
+      ensureNode(parent);
       if (!children.has(parent)) children.set(parent, []);
-      children.get(parent).push(d.name);
-      if (!byName.has(parent)) {
-        roots.push(parent);
-        byName.set(parent, { name: parent, aid: null, hasPostings: null });
-      }
+      const siblings = children.get(parent);
+      if (!siblings.includes(name)) siblings.push(name);
     }
   }
 
-  const uniqueRoots = [...new Set(roots)].sort();
-  return { byName, children, roots: uniqueRoots };
+  for (const d of [...declarations].sort((a, b) => a.name.localeCompare(b.name))) {
+    ensureNode(d.name);
+  }
+
+  for (const kids of children.values()) kids.sort();
+
+  const roots = [...byName.keys()].filter((n) => !n.includes(":")).sort();
+  return { byName, children, roots };
 }
 
 function AccountTreeNode({ name, byName, children, depth, onDelete, deletingAid }) {
@@ -187,18 +189,48 @@ export function AccountsPage() {
           {fetchError && <ErrorBanner error={fetchError} />}
           {data && (
             declarations.length > 0 ? (
-              <div className="rounded-md border">
-                {roots.map((root) => (
-                  <AccountTreeNode
-                    key={root}
-                    name={root}
-                    byName={byName}
-                    children={children}
-                    depth={0}
-                    onDelete={handleDelete}
-                    deletingAid={deletingAid}
-                  />
-                ))}
+              <div className="flex flex-col gap-3">
+                {roots.map((root) => {
+                  const rootDecl = byName.get(root);
+                  const kids = children.get(root) ?? [];
+                  return (
+                    <div key={root} className="rounded-md border overflow-hidden">
+                      <div className="px-3 py-2 bg-muted/40 border-b flex items-center justify-between">
+                        <span className="font-semibold text-sm capitalize">{root}</span>
+                        {rootDecl?.aid && !rootDecl.hasPostings && (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            className="text-destructive text-xs h-6"
+                            disabled={deletingAid === rootDecl.aid}
+                            onClick={() => handleDelete(rootDecl.aid)}
+                          >
+                            {deletingAid === rootDecl.aid ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              "Delete"
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      {kids.length > 0 && (
+                        <div>
+                          {kids.map((child) => (
+                            <AccountTreeNode
+                              key={child}
+                              name={child}
+                              byName={byName}
+                              children={children}
+                              depth={0}
+                              onDelete={handleDelete}
+                              deletingAid={deletingAid}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">No account declarations yet.</p>

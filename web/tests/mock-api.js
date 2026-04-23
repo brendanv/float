@@ -403,6 +403,9 @@ export const mockAccountDeclarations = [
   { aid: "g7b8c9d0", name: "expenses:subscriptions", hasPostings: false },
   { aid: "h8c9d0e1", name: "expenses:transport", hasPostings: true },
   { aid: "i9d0e1f2", name: "expenses:utilities", hasPostings: false },
+  { aid: "l1a2b3c4", name: "expenses:housing:mortgage:principal", hasPostings: true },
+  { aid: "m2b3c4d5", name: "expenses:housing:mortgage:interest", hasPostings: true },
+  { aid: "n3c4d5e6", name: "expenses:housing:insurance", hasPostings: false },
   { aid: "j0e1f2a3", name: "income:salary", hasPostings: true },
   { aid: "k1f2a3b4", name: "liabilities:creditcard", hasPostings: true },
 ];
