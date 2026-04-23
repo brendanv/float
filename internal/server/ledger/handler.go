@@ -654,7 +654,6 @@ func toProtoAmounts(amounts []hledger.Amount) []*floatv1.Amount {
 
 func toProtoAccountDeclaration(d journal.AccountDeclaration) *floatv1.AccountDeclaration {
 	return &floatv1.AccountDeclaration{
-		Aid:  d.AID,
 		Name: d.Name,
 	}
 }
@@ -768,34 +767,31 @@ func (h *Handler) DeclareAccount(ctx context.Context, req *connect.Request[float
 	if name == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
-	var aid string
 	err := h.lock.Do(ctx, fmt.Sprintf("declare account: %s", name), func() error {
-		var e error
-		aid, e = journal.AppendAccountDeclaration(h.dataDir, name)
-		return e
+		return journal.AppendAccountDeclaration(h.dataDir, name)
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "declare account failed", "name", name, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(&floatv1.DeclareAccountResponse{
-		Declaration: toProtoAccountDeclaration(journal.AccountDeclaration{AID: aid, Name: name}),
+		Declaration: toProtoAccountDeclaration(journal.AccountDeclaration{Name: name}),
 	}), nil
 }
 
 func (h *Handler) DeleteAccountDeclaration(ctx context.Context, req *connect.Request[floatv1.DeleteAccountDeclarationRequest]) (*connect.Response[floatv1.DeleteAccountDeclarationResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if req.Msg.Aid == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("aid is required"))
+	if req.Msg.Name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
-	err := h.lock.Do(ctx, fmt.Sprintf("delete account declaration %s", req.Msg.Aid), func() error {
-		return journal.DeleteAccountDeclaration(h.dataDir, req.Msg.Aid)
+	err := h.lock.Do(ctx, fmt.Sprintf("delete account declaration %s", req.Msg.Name), func() error {
+		return journal.DeleteAccountDeclaration(h.dataDir, req.Msg.Name)
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "delete account declaration failed", "aid", req.Msg.Aid, "error", err)
+		logger.ErrorContext(ctx, "delete account declaration failed", "name", req.Msg.Name, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(&floatv1.DeleteAccountDeclarationResponse{}), nil

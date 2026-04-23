@@ -113,7 +113,7 @@ func main() {
 			return err
 		}
 		for _, name := range undeclared {
-			if _, err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
+			if err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
 				return err
 			}
 		}

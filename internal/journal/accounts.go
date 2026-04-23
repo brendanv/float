@@ -12,14 +12,10 @@ const accountsRelPath = "accounts.journal"
 
 // AccountDeclaration is a parsed `account` directive from accounts.journal.
 type AccountDeclaration struct {
-	AID  string // 8-char hex from inline comment; empty if absent
 	Name string // full account name, e.g. "assets:checking"
 }
 
-var (
-	accountDeclRe = regexp.MustCompile(`^account\s+(\S+)`)
-	aidTagRe      = regexp.MustCompile(`aid:([0-9a-f]{8})`)
-)
+var accountDeclRe = regexp.MustCompile(`^account\s+(\S+)`)
 
 // ListAccountDeclarations reads accounts.journal and returns all parsed account directives.
 // Returns an empty slice (not an error) if accounts.journal does not yet exist.
@@ -40,47 +36,41 @@ func ListAccountDeclarations(dataDir string) ([]AccountDeclaration, error) {
 		if m == nil {
 			continue
 		}
-		d := AccountDeclaration{Name: m[1]}
-		if am := aidTagRe.FindStringSubmatch(line); am != nil {
-			d.AID = am[1]
-		}
-		decls = append(decls, d)
+		decls = append(decls, AccountDeclaration{Name: m[1]})
 	}
 	return decls, nil
 }
 
-// AppendAccountDeclaration writes a new account directive to accounts.journal, minting an AID.
+// AppendAccountDeclaration writes a new account directive to accounts.journal.
 // Ensures accounts.journal exists and is included in main.journal (prepended before any other
 // includes so account declarations are in scope for all transactions and prices).
-// Returns the minted AID.
 // Does NOT acquire txlock — callers must wrap in txlock.Do().
-func AppendAccountDeclaration(dataDir, name string) (string, error) {
-	aid := MintFID()
-	line := fmt.Sprintf("account %s  ; aid:%s\n", name, aid)
+func AppendAccountDeclaration(dataDir, name string) error {
+	line := fmt.Sprintf("account %s\n", name)
 
 	if err := EnsureAccountsFile(dataDir); err != nil {
-		return "", err
+		return err
 	}
 	if err := EnsureAccountsInclude(dataDir); err != nil {
-		return "", err
+		return err
 	}
 
 	path := filepath.Join(dataDir, accountsRelPath)
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return "", fmt.Errorf("journal: open %s: %w", accountsRelPath, err)
+		return fmt.Errorf("journal: open %s: %w", accountsRelPath, err)
 	}
 	defer func() { _ = f.Close() }()
 	if _, err := f.WriteString(line); err != nil {
-		return "", fmt.Errorf("journal: write %s: %w", accountsRelPath, err)
+		return fmt.Errorf("journal: write %s: %w", accountsRelPath, err)
 	}
-	return aid, nil
+	return nil
 }
 
-// DeleteAccountDeclaration removes the account directive with the given AID from accounts.journal.
-// Returns an error if accounts.journal does not exist or the AID is not found.
+// DeleteAccountDeclaration removes the account directive with the given name from accounts.journal.
+// Returns an error if accounts.journal does not exist or the name is not found.
 // Does NOT acquire txlock — callers must wrap in txlock.Do().
-func DeleteAccountDeclaration(dataDir, aid string) error {
+func DeleteAccountDeclaration(dataDir, name string) error {
 	path := filepath.Join(dataDir, accountsRelPath)
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -90,19 +80,18 @@ func DeleteAccountDeclaration(dataDir, aid string) error {
 		return fmt.Errorf("journal: read %s: %w", accountsRelPath, err)
 	}
 
-	needle := "aid:" + aid
 	lines := strings.Split(string(data), "\n")
 	found := false
 	newLines := lines[:0:0]
 	for _, line := range lines {
-		if strings.Contains(line, needle) {
+		if m := accountDeclRe.FindStringSubmatch(line); m != nil && m[1] == name {
 			found = true
 			continue
 		}
 		newLines = append(newLines, line)
 	}
 	if !found {
-		return fmt.Errorf("journal: account declaration with aid %q not found", aid)
+		return fmt.Errorf("journal: account declaration %q not found", name)
 	}
 
 	return os.WriteFile(path, []byte(strings.Join(newLines, "\n")), 0644)
