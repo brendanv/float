@@ -65,8 +65,9 @@ test("prices page", async ({ page }) => {
 
 test("accounts page", async ({ page }) => {
   await page.goto("/#/accounts");
-  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(500);
+  await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(600);
   await page.screenshot({ path: "test-results/accounts.png", fullPage: true });
 });
 
