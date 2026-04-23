@@ -23,10 +23,11 @@ func TestListAccountDeclarations(t *testing.T) {
 
 	t.Run("parses_directives", func(t *testing.T) {
 		dir := t.TempDir()
+		// Legacy files with aid comments are silently ignored (backward compat).
 		content := "; float: account declarations\n" +
 			"account assets:checking  ; aid:a1b2c3d4\n" +
 			"account expenses:food  ; aid:e5f6a7b8\n" +
-			"account income:salary\n" // no AID
+			"account income:salary\n"
 		if err := os.WriteFile(filepath.Join(dir, "accounts.journal"), []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}
@@ -39,22 +40,10 @@ func TestListAccountDeclarations(t *testing.T) {
 			t.Fatalf("expected 3 declarations, got %d", len(decls))
 		}
 
-		tests := []struct {
-			idx  int
-			name string
-			aid  string
-		}{
-			{0, "assets:checking", "a1b2c3d4"},
-			{1, "expenses:food", "e5f6a7b8"},
-			{2, "income:salary", ""},
-		}
-		for _, tt := range tests {
-			d := decls[tt.idx]
-			if d.Name != tt.name {
-				t.Errorf("[%d] Name = %q, want %q", tt.idx, d.Name, tt.name)
-			}
-			if d.AID != tt.aid {
-				t.Errorf("[%d] AID = %q, want %q", tt.idx, d.AID, tt.aid)
+		want := []string{"assets:checking", "expenses:food", "income:salary"}
+		for i, name := range want {
+			if decls[i].Name != name {
+				t.Errorf("[%d] Name = %q, want %q", i, decls[i].Name, name)
 			}
 		}
 	})
@@ -64,12 +53,8 @@ func TestAppendAccountDeclaration(t *testing.T) {
 	t.Run("creates_accounts_file", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 110, NumTxns: 1})
 
-		aid, err := AppendAccountDeclaration(dir, "assets:newaccount")
-		if err != nil {
+		if err := AppendAccountDeclaration(dir, "assets:newaccount"); err != nil {
 			t.Fatalf("AppendAccountDeclaration: %v", err)
-		}
-		if len(aid) != 8 {
-			t.Errorf("expected 8-char aid, got %q", aid)
 		}
 
 		decls, err := ListAccountDeclarations(dir)
@@ -79,19 +64,31 @@ func TestAppendAccountDeclaration(t *testing.T) {
 		if len(decls) != 1 {
 			t.Fatalf("expected 1 declaration, got %d", len(decls))
 		}
-		d := decls[0]
-		if d.AID != aid {
-			t.Errorf("AID = %q, want %q", d.AID, aid)
+		if decls[0].Name != "assets:newaccount" {
+			t.Errorf("Name = %q, want assets:newaccount", decls[0].Name)
 		}
-		if d.Name != "assets:newaccount" {
-			t.Errorf("Name = %q, want assets:newaccount", d.Name)
+	})
+
+	t.Run("no_aid_in_file", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 115, NumTxns: 1})
+
+		if err := AppendAccountDeclaration(dir, "assets:checking"); err != nil {
+			t.Fatalf("AppendAccountDeclaration: %v", err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, "accounts.journal"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "aid:") {
+			t.Errorf("accounts.journal should not contain aid comments, got:\n%s", data)
 		}
 	})
 
 	t.Run("include_prepended_in_main", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 111, NumTxns: 1})
 
-		if _, err := AppendAccountDeclaration(dir, "assets:newaccount"); err != nil {
+		if err := AppendAccountDeclaration(dir, "assets:newaccount"); err != nil {
 			t.Fatalf("AppendAccountDeclaration: %v", err)
 		}
 
@@ -122,7 +119,7 @@ func TestAppendAccountDeclaration(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 112, NumTxns: 1})
 
 		for i := range 3 {
-			if _, err := AppendAccountDeclaration(dir, "assets:newaccount"); err != nil {
+			if err := AppendAccountDeclaration(dir, "assets:newaccount"); err != nil {
 				t.Fatalf("AppendAccountDeclaration #%d: %v", i+1, err)
 			}
 		}
@@ -146,7 +143,7 @@ func TestAppendAccountDeclaration(t *testing.T) {
 		}
 
 		// Now declare an account — accounts include must still come before prices.
-		if _, err := AppendAccountDeclaration(dir, "assets:btc"); err != nil {
+		if err := AppendAccountDeclaration(dir, "assets:btc"); err != nil {
 			t.Fatalf("AppendAccountDeclaration: %v", err)
 		}
 
@@ -181,7 +178,7 @@ func TestAppendAccountDeclaration(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 114, NumTxns: 1})
 
 		// Add account first.
-		if _, err := AppendAccountDeclaration(dir, "assets:btc"); err != nil {
+		if err := AppendAccountDeclaration(dir, "assets:btc"); err != nil {
 			t.Fatalf("AppendAccountDeclaration: %v", err)
 		}
 
@@ -222,16 +219,14 @@ func TestDeleteAccountDeclaration(t *testing.T) {
 	t.Run("removes_declaration", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 120, NumTxns: 1})
 
-		aid1, err := AppendAccountDeclaration(dir, "assets:checking")
-		if err != nil {
+		if err := AppendAccountDeclaration(dir, "assets:checking"); err != nil {
 			t.Fatalf("AppendAccountDeclaration 1: %v", err)
 		}
-		aid2, err := AppendAccountDeclaration(dir, "assets:savings")
-		if err != nil {
+		if err := AppendAccountDeclaration(dir, "assets:savings"); err != nil {
 			t.Fatalf("AppendAccountDeclaration 2: %v", err)
 		}
 
-		if err := DeleteAccountDeclaration(dir, aid1); err != nil {
+		if err := DeleteAccountDeclaration(dir, "assets:checking"); err != nil {
 			t.Fatalf("DeleteAccountDeclaration: %v", err)
 		}
 
@@ -242,21 +237,44 @@ func TestDeleteAccountDeclaration(t *testing.T) {
 		if len(decls) != 1 {
 			t.Fatalf("expected 1 declaration after delete, got %d", len(decls))
 		}
-		if decls[0].AID != aid2 {
-			t.Errorf("remaining AID = %q, want %q", decls[0].AID, aid2)
+		if decls[0].Name != "assets:savings" {
+			t.Errorf("remaining Name = %q, want assets:savings", decls[0].Name)
+		}
+	})
+
+	t.Run("deletes_legacy_aid_line", func(t *testing.T) {
+		// Backward compat: delete works on lines that still have the old ; aid:xxx comment.
+		dir := t.TempDir()
+		content := "; float: account declarations\n" +
+			"account assets:checking  ; aid:a1b2c3d4\n" +
+			"account assets:savings\n"
+		if err := os.WriteFile(filepath.Join(dir, "accounts.journal"), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := DeleteAccountDeclaration(dir, "assets:checking"); err != nil {
+			t.Fatalf("DeleteAccountDeclaration: %v", err)
+		}
+
+		decls, err := ListAccountDeclarations(dir)
+		if err != nil {
+			t.Fatalf("ListAccountDeclarations after delete: %v", err)
+		}
+		if len(decls) != 1 || decls[0].Name != "assets:savings" {
+			t.Errorf("expected [assets:savings], got %v", decls)
 		}
 	})
 
 	t.Run("not_found", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 121, NumTxns: 1})
 
-		if _, err := AppendAccountDeclaration(dir, "assets:checking"); err != nil {
+		if err := AppendAccountDeclaration(dir, "assets:checking"); err != nil {
 			t.Fatalf("AppendAccountDeclaration: %v", err)
 		}
 
-		err := DeleteAccountDeclaration(dir, "00000000")
+		err := DeleteAccountDeclaration(dir, "assets:nonexistent")
 		if err == nil {
-			t.Fatal("expected error for non-existent aid, got nil")
+			t.Fatal("expected error for non-existent account, got nil")
 		}
 		if !strings.Contains(err.Error(), "not found") {
 			t.Errorf("unexpected error: %v", err)
@@ -266,7 +284,7 @@ func TestDeleteAccountDeclaration(t *testing.T) {
 	t.Run("no_accounts_file", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 122, NumTxns: 1})
 
-		err := DeleteAccountDeclaration(dir, "a1b2c3d4")
+		err := DeleteAccountDeclaration(dir, "assets:checking")
 		if err == nil {
 			t.Fatal("expected error when accounts.journal absent, got nil")
 		}

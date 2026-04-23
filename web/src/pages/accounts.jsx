@@ -16,7 +16,7 @@ function buildTree(declarations) {
 
   function ensureNode(name) {
     if (!byName.has(name)) {
-      byName.set(name, { name, aid: null, hasPostings: null });
+      byName.set(name, { name, hasPostings: null });
     }
     const parts = name.split(":");
     if (parts.length > 1) {
@@ -38,7 +38,7 @@ function buildTree(declarations) {
   return { byName, children, roots };
 }
 
-function AccountTreeNode({ name, byName, children, depth, onDelete, deletingAid }) {
+function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName, declaredNames }) {
   const [expanded, setExpanded] = useState(true);
   const kids = children.get(name) ?? [];
   const decl = byName.get(name);
@@ -64,15 +64,15 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, deletingAid 
           )}
         </button>
         <span className="font-mono text-sm flex-1">{label}</span>
-        {decl?.aid && !decl.hasPostings && (
+        {declaredNames.has(name) && !decl?.hasPostings && (
           <Button
             variant="ghost"
             size="xs"
             className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity mr-1"
-            disabled={deletingAid === decl.aid}
-            onClick={() => onDelete(decl.aid)}
+            disabled={deletingName === name}
+            onClick={() => onDelete(name)}
           >
-            {deletingAid === decl.aid ? (
+            {deletingName === name ? (
               <Loader2 className="size-3 animate-spin" />
             ) : (
               "Delete"
@@ -90,7 +90,8 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, deletingAid 
               children={children}
               depth={depth + 1}
               onDelete={onDelete}
-              deletingAid={deletingAid}
+              deletingName={deletingName}
+              declaredNames={declaredNames}
             />
           ))}
         </div>
@@ -109,7 +110,7 @@ export function AccountsPage() {
 
   const [name, setName] = useState("");
   const [formError, setFormError] = useState(null);
-  const [deletingAid, setDeletingAid] = useState(null);
+  const [deletingName, setDeletingName] = useState(null);
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.declareAccount(vars),
@@ -122,13 +123,13 @@ export function AccountsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: ({ aid }) => ledgerClient.deleteAccountDeclaration({ aid }),
+    mutationFn: ({ name }) => ledgerClient.deleteAccountDeclaration({ name }),
     onSuccess: () => {
-      setDeletingAid(null);
+      setDeletingName(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
     },
     onError: (err) => {
-      setDeletingAid(null);
+      setDeletingName(null);
       setFormError(err);
     },
   });
@@ -139,13 +140,14 @@ export function AccountsPage() {
     addMutation.mutate({ name: name.trim() });
   }
 
-  function handleDelete(aid) {
-    setDeletingAid(aid);
+  function handleDelete(name) {
+    setDeletingName(name);
     setFormError(null);
-    deleteMutation.mutate({ aid });
+    deleteMutation.mutate({ name });
   }
 
   const declarations = data?.declarations ?? [];
+  const declaredNames = new Set(declarations.map((d) => d.name));
   const { byName, children, roots } = buildTree(declarations);
 
   return (
@@ -197,15 +199,15 @@ export function AccountsPage() {
                     <div key={root} className="rounded-md border overflow-hidden">
                       <div className="px-3 py-2 bg-muted/40 border-b flex items-center justify-between">
                         <span className="font-semibold text-sm capitalize">{root}</span>
-                        {rootDecl?.aid && !rootDecl.hasPostings && (
+                        {declaredNames.has(root) && !rootDecl?.hasPostings && (
                           <Button
                             variant="ghost"
                             size="xs"
                             className="text-destructive text-xs h-6"
-                            disabled={deletingAid === rootDecl.aid}
-                            onClick={() => handleDelete(rootDecl.aid)}
+                            disabled={deletingName === root}
+                            onClick={() => handleDelete(root)}
                           >
-                            {deletingAid === rootDecl.aid ? (
+                            {deletingName === root ? (
                               <Loader2 className="size-3 animate-spin" />
                             ) : (
                               "Delete"
@@ -223,7 +225,8 @@ export function AccountsPage() {
                               children={children}
                               depth={0}
                               onDelete={handleDelete}
-                              deletingAid={deletingAid}
+                              deletingName={deletingName}
+                              declaredNames={declaredNames}
                             />
                           ))}
                         </div>
