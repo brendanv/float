@@ -38,33 +38,147 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_RULES_CONTENT = `# hledger CSV import rules
-# See: https://hledger.org/hledger.html#csv-rules-files
+const COLUMN_TYPES = [
+  { value: "date", label: "Date" },
+  { value: "description", label: "Description" },
+  { value: "amount", label: "Amount" },
+  { value: "debit", label: "Debit (money out)" },
+  { value: "credit", label: "Credit (money in)" },
+  { value: "balance", label: "Balance" },
+  { value: "ignore", label: "Ignore" },
+];
 
-# Skip the header row
-skip 1
+function slugifyProfileName(name) {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return slug ? `rules/${slug}.rules` : "";
+}
 
-# Map CSV columns to hledger fields
-# Adjust the column names to match your CSV format
-fields date, description, amount
+function parseCsvRows(text) {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  return lines.map((line) => {
+    const row = [];
+    let field = "";
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { field += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (ch === "," && !inQuote) {
+        row.push(field.trim());
+        field = "";
+      } else {
+        field += ch;
+      }
+    }
+    row.push(field.trim());
+    return row;
+  });
+}
 
-# Set the primary account (your bank account)
-account1 assets:checking
+function guessColumnType(header) {
+  const h = header.toLowerCase();
+  if (/date|posted|trans.*date/.test(h)) return "date";
+  if (/desc|narr|memo|detail|merchant|payee|ref/.test(h)) return "description";
+  if (/^amount$|^amt$|^value$|transaction amount/.test(h)) return "amount";
+  if (/debit|withdrawal/.test(h)) return "debit";
+  if (/credit|deposit/.test(h)) return "credit";
+  if (/balance|bal\.?$/.test(h)) return "balance";
+  return "ignore";
+}
 
-# Add conditional rules to categorize transactions:
-# if AMAZON
-#   account2 expenses:shopping
-#
-# if PAYROLL
-#   account2 income:salary
-`;
+function detectDateFormat(sample) {
+  const s = sample.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return "%Y-%m-%d";
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(s)) return "%Y/%m/%d";
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return "%m/%d/%Y";
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return "%m/%d/%Y";
+  if (/^\d{2}-\d{2}-\d{4}$/.test(s)) return "%m-%d-%Y";
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return "%d.%m.%Y";
+  if (/^\d{8}$/.test(s)) return "%Y%m%d";
+  return "%Y-%m-%d";
+}
+
+function buildRulesContent({ account, columnMappings, dateFormat }) {
+  let fieldsLine;
+  if (columnMappings && columnMappings.length > 0) {
+    const fieldNames = columnMappings.map((t) => {
+      if (t === "date") return "date";
+      if (t === "description") return "description";
+      if (t === "amount") return "amount";
+      if (t === "debit") return "amount-out";
+      if (t === "credit") return "amount-in";
+      if (t === "balance") return "balance";
+      return "_";
+    });
+    fieldsLine = `fields ${fieldNames.join(", ")}`;
+  } else {
+    fieldsLine = "fields date, description, amount";
+  }
+  return [
+    "skip 1",
+    fieldsLine,
+    `date-format ${dateFormat || "%Y-%m-%d"}`,
+    `account1 ${account || "assets:checking"}`,
+    "currency $",
+    "",
+    "# Add conditional rules to categorize transactions:",
+    "# if AMAZON",
+    "#   account2 expenses:shopping",
+    "#",
+    "# if PAYROLL",
+    "#   account2 income:salary",
+  ].join("\n");
+}
 
 function CreateProfileModal({ open, onCreated, onClose }) {
   const [name, setName] = useState("");
-  const [rulesFile, setRulesFile] = useState("rules/");
-  const [rulesContent, setRulesContent] = useState(DEFAULT_RULES_CONTENT);
+  const [account, setAccount] = useState("");
+  const [sampleCsv, setSampleCsv] = useState("");
+  const [parsedRows, setParsedRows] = useState([]);
+  const [columnMappings, setColumnMappings] = useState([]);
+  const [dateFormat, setDateFormat] = useState("%Y-%m-%d");
+  const [rulesContent, setRulesContent] = useState(buildRulesContent({}));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setName("");
+    setAccount("");
+    setSampleCsv("");
+    setParsedRows([]);
+    setColumnMappings([]);
+    setDateFormat("%Y-%m-%d");
+    setRulesContent(buildRulesContent({}));
+    setError(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!sampleCsv.trim()) {
+      setParsedRows([]);
+      setColumnMappings([]);
+      return;
+    }
+    const rows = parseCsvRows(sampleCsv);
+    if (rows.length === 0) return;
+    setParsedRows(rows);
+    const mappings = rows[0].map(guessColumnType);
+    setColumnMappings(mappings);
+    if (rows.length > 1) {
+      const dateIdx = mappings.findIndex((m) => m === "date");
+      if (dateIdx >= 0 && rows[1][dateIdx]) {
+        setDateFormat(detectDateFormat(rows[1][dateIdx]));
+      }
+    }
+  }, [sampleCsv]);
+
+  function handleGenerateRules() {
+    setRulesContent(buildRulesContent({ account, columnMappings, dateFormat }));
+  }
+
+  const rulesFilePath = slugifyProfileName(name);
+  const hasCsvColumns = parsedRows.length > 0 && columnMappings.length > 0;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -73,7 +187,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
     try {
       const res = await ledgerClient.createBankProfile({
         name,
-        rulesFile,
+        rulesFile: rulesFilePath,
         rulesContent: new TextEncoder().encode(rulesContent),
       });
       onCreated(res.profile);
@@ -86,11 +200,12 @@ function CreateProfileModal({ open, onCreated, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Bank Profile</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Profile name */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="profile-name">Profile Name</Label>
             <Input
@@ -101,38 +216,125 @@ function CreateProfileModal({ open, onCreated, onClose }) {
               onChange={(e) => setName(e.target.value)}
               required
             />
+            {rulesFilePath && (
+              <p className="text-xs text-muted-foreground font-mono">Saves to: {rulesFilePath}</p>
+            )}
           </div>
+
+          {/* Bank account */}
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-baseline justify-between">
-              <Label htmlFor="rules-file">Rules File Path</Label>
-              <span className="text-xs text-muted-foreground">relative to data dir</span>
-            </div>
+            <Label htmlFor="account1">Bank Account</Label>
             <Input
-              id="rules-file"
+              id="account1"
               type="text"
-              className="font-mono"
-              placeholder="rules/my-bank.rules"
-              value={rulesFile}
-              onChange={(e) => setRulesFile(e.target.value)}
-              required
+              placeholder="e.g. assets:checking"
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              The hledger account that holds money from this bank
+            </p>
           </div>
+
+          {/* CSV column mapping */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between">
+              <Label>CSV Column Mapping</Label>
+              <span className="text-xs text-muted-foreground">
+                paste 2–3 rows from your CSV to auto-detect columns
+              </span>
+            </div>
+            <Textarea
+              className="h-20 font-mono text-xs"
+              placeholder={"Date,Description,Amount\n2026-04-01,AMAZON,-45.00\n2026-04-02,PAYROLL,2000.00"}
+              value={sampleCsv}
+              onChange={(e) => setSampleCsv(e.target.value)}
+            />
+            {hasCsvColumns && (
+              <div className="flex flex-col gap-3 rounded-md border p-3">
+                <div className="flex flex-wrap gap-3">
+                  {parsedRows[0].map((header, idx) => (
+                    <div key={idx} className="flex flex-col gap-1">
+                      <span
+                        className="text-xs font-mono text-muted-foreground truncate max-w-28"
+                        title={header || `Col ${idx + 1}`}
+                      >
+                        {header || `Col ${idx + 1}`}
+                      </span>
+                      <Select
+                        value={columnMappings[idx]}
+                        onValueChange={(v) => {
+                          const next = [...columnMappings];
+                          next[idx] = v;
+                          setColumnMappings(next);
+                        }}
+                      >
+                        <SelectTrigger size="sm" className="w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COLUMN_TYPES.map((ct) => (
+                            <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Date Format</Label>
+                    <Input
+                      className="font-mono text-xs h-8 w-36"
+                      value={dateFormat}
+                      onChange={(e) => setDateFormat(e.target.value)}
+                      placeholder="%Y-%m-%d"
+                    />
+                  </div>
+                  <Button type="button" size="sm" variant="secondary" onClick={handleGenerateRules}>
+                    Generate Rules
+                  </Button>
+                </div>
+              </div>
+            )}
+            {!hasCsvColumns && account && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="self-start"
+                onClick={handleGenerateRules}
+              >
+                Generate Rules from Account
+              </Button>
+            )}
+          </div>
+
+          {/* Raw rules textarea */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-baseline justify-between">
-              <Label htmlFor="rules-content">Rules File Content</Label>
-              <span className="text-xs text-muted-foreground">hledger CSV import rules</span>
+              <Label htmlFor="rules-content">Rules File</Label>
+              <a
+                href="https://hledger.org/hledger.html#csv-rules-files"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-muted-foreground underline"
+              >
+                hledger CSV rules docs
+              </a>
             </div>
             <Textarea
               id="rules-content"
-              className="h-64 font-mono text-xs"
+              className="h-48 font-mono text-xs"
               value={rulesContent}
               onChange={(e) => setRulesContent(e.target.value)}
             />
           </div>
+
           {error && <ErrorBanner error={error} />}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !rulesFilePath}>
               {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
               {saving ? "Creating…" : "Create Profile"}
             </Button>

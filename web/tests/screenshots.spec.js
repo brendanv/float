@@ -175,7 +175,7 @@ test("import page - edit profile modal", async ({ page }) => {
   await page.locator('[role="option"]').first().click();
   await page.waitForTimeout(300);
   // Click edit button
-  await page.click('button[title="Edit bank profile"]');
+  await page.locator(".lucide-pencil").click();
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(600);
   await page.screenshot({ path: "test-results/import-edit-profile-modal.png", fullPage: true });
@@ -191,7 +191,7 @@ test("import page - delete profile dialog", async ({ page }) => {
   await page.locator('[role="option"]').first().click();
   await page.waitForTimeout(300);
   // Use JS click to bypass the file input that overlaps this button at some viewport sizes
-  await page.evaluate(() => document.querySelector('button[title="Delete bank profile"]').click());
+  await page.locator(".lucide-trash-2").click();
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/import-delete-profile-dialog.png", fullPage: true });
@@ -199,13 +199,31 @@ test("import page - delete profile dialog", async ({ page }) => {
 
 test("import page - create profile modal", async ({ page }) => {
   await page.goto("/#/import");
-  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  // Click the "+" button to open the create profile modal
-  await page.click('button[title="Create new bank profile"]');
-  await page.waitForSelector("dialog.modal-open", { timeout: 3000 }).catch(() => {});
-  await page.waitForTimeout(300);
+  // Click the "+" (Plus) button to open the create profile modal
+  await page.locator(".lucide-plus").click();
+  await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/import-create-profile-modal.png", fullPage: true });
+});
+
+test("import page - create profile modal with CSV wizard", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.locator(".lucide-plus").click();
+  await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Fill in profile name and bank account
+  await page.fill('input[placeholder="e.g. Chase Checking"]', "Chase Checking");
+  await page.fill('input[placeholder="e.g. assets:checking"]', "assets:checking");
+  // Paste a sample CSV to trigger column mapping UI
+  await page.fill('textarea[placeholder*="Date,Description,Amount"]',
+    "Date,Description,Amount\n2026-04-01,AMAZON.COM,-45.00\n2026-04-02,PAYROLL DIRECT DEPOSIT,2000.00"
+  );
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import-create-profile-modal-wizard.png", fullPage: true });
 });
 
 test("import page - preview loaded", async ({ page }) => {
