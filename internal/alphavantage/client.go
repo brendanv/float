@@ -79,7 +79,7 @@ func (c *Client) FetchWeeklyPrices(ctx context.Context, symbol, startDate, endDa
 			continue
 		}
 		if (d.Equal(start) || d.After(start)) && (d.Equal(end) || d.Before(end)) {
-			results = append(results, WeeklyPrice{Date: dateStr, Close: entry.Close, Currency: "USD"})
+			results = append(results, WeeklyPrice{Date: dateStr, Close: entry.Close, Currency: "$"})
 		}
 	}
 
