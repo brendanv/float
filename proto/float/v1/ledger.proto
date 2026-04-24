@@ -222,6 +222,18 @@ message DeletePriceRequest {
 
 message DeletePriceResponse {}
 
+message BackfillPricesRequest {
+  string commodity  = 1; // required; ticker symbol e.g. "AAPL"
+  string start_date = 2; // required; "YYYY-MM-DD"
+  string end_date   = 3; // required; "YYYY-MM-DD"
+  string currency   = 4; // optional; defaults to "USD"
+}
+
+message BackfillPricesResponse {
+  repeated PriceDirective prices = 1; // newly-written prices (skipped ones excluded)
+  int32 skipped_count = 2;            // dates already present, not written
+}
+
 message AccountDeclaration {
   reserved 1;
   reserved "aid";
@@ -499,6 +511,7 @@ service LedgerService {
   rpc ListPrices(ListPricesRequest) returns (ListPricesResponse);
   rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
   rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);
+  rpc BackfillPrices(BackfillPricesRequest) returns (BackfillPricesResponse);
   rpc ListAccountDeclarations(ListAccountDeclarationsRequest) returns (ListAccountDeclarationsResponse);
   rpc DeclareAccount(DeclareAccountRequest) returns (DeclareAccountResponse);
   rpc DeleteAccountDeclaration(DeleteAccountDeclarationRequest) returns (DeleteAccountDeclarationResponse);

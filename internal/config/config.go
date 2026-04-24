@@ -23,10 +23,15 @@ type BankProfile struct {
 	RulesFile string `toml:"rules_file"` // relative to data dir
 }
 
+type AlphaVantageConfig struct {
+	APIKey string `toml:"api_key"`
+}
+
 type Config struct {
-	Server       ServerConfig  `toml:"server"`
-	Users        []User        `toml:"users"`
-	BankProfiles []BankProfile `toml:"bank_profiles"`
+	Server       ServerConfig       `toml:"server"`
+	Users        []User             `toml:"users"`
+	BankProfiles []BankProfile      `toml:"bank_profiles"`
+	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 }
 
 // Load parses config.toml at path and returns a *Config.
