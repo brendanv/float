@@ -468,3 +468,67 @@ func RestoreSnapshotCmd(client floatv1connect.LedgerServiceClient, hash string) 
 		return RestoreSnapshotMsg{Hash: hash, Err: err}
 	}
 }
+
+// PricesMsg carries the list of commodity price directives.
+type PricesMsg struct {
+	Prices []*floatv1.PriceDirective
+	Err    error
+}
+
+// AddPriceMsg carries the result of an AddPrice RPC.
+type AddPriceMsg struct {
+	Price *floatv1.PriceDirective
+	Err   error
+}
+
+// DeletePriceMsg carries the result of a DeletePrice RPC.
+type DeletePriceMsg struct {
+	Err error
+}
+
+// BackfillPricesMsg carries the result of a BackfillPrices RPC.
+type BackfillPricesMsg struct {
+	Added   int
+	Skipped int
+	Err     error
+}
+
+func FetchPrices(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListPrices(context.Background(), connect.NewRequest(&floatv1.ListPricesRequest{}))
+		if err != nil {
+			return PricesMsg{Err: err}
+		}
+		return PricesMsg{Prices: resp.Msg.Prices}
+	}
+}
+
+func AddPriceCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddPriceRequest) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.AddPrice(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			return AddPriceMsg{Err: err}
+		}
+		return AddPriceMsg{Price: resp.Msg.Price}
+	}
+}
+
+func DeletePriceCmd(client floatv1connect.LedgerServiceClient, pid string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.DeletePrice(context.Background(), connect.NewRequest(&floatv1.DeletePriceRequest{Pid: pid}))
+		return DeletePriceMsg{Err: err}
+	}
+}
+
+func BackfillPricesCmd(client floatv1connect.LedgerServiceClient, req *floatv1.BackfillPricesRequest) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.BackfillPrices(context.Background(), connect.NewRequest(req))
+		if err != nil {
+			return BackfillPricesMsg{Err: err}
+		}
+		return BackfillPricesMsg{
+			Added:   len(resp.Msg.Prices),
+			Skipped: int(resp.Msg.SkippedCount),
+		}
+	}
+}

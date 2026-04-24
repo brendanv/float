@@ -46,11 +46,11 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 		theme:     theme,
 		styles:    st,
 		helpModel: NewHelpModel(st),
-		home:     NewHomeTab(client, st),
-		manager:  NewManagerTab(client, st),
-		trends:   NewTrendsTab(client, st),
-		manage:   NewManageTab(client, st),
-		settings: NewSettingsTab(st, theme),
+		home:      NewHomeTab(client, st),
+		manager:   NewManagerTab(client, st),
+		trends:    NewTrendsTab(client, st),
+		manage:    NewManageTab(client, st),
+		settings:  NewSettingsTab(st, theme),
 	}
 }
 
