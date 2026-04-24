@@ -341,88 +341,100 @@ export function SearchControls({
 
   return (
     <div className="mb-4 flex flex-col">
-      <div className="flex items-center border border-border">
-        <DateRangePicker
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onChange={onDateRangeChange}
-        />
+      <div className="flex flex-col border border-border md:flex-row md:items-center">
+        {/* Row 1 on mobile: date picker + search */}
+        <div className="flex items-center">
+          <DateRangePicker
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onChange={onDateRangeChange}
+          />
+          {onSearchChange && (
+            <div className="flex flex-1 items-center md:hidden">
+              <Separator orientation="vertical" className="h-5" />
+              <DebouncedSearch value={search} onChange={onSearchChange} />
+            </div>
+          )}
+        </div>
 
-        <Separator orientation="vertical" className="h-5" />
+        {/* Row 2 on mobile / inline on desktop: filter controls */}
+        <div className="flex items-center border-t border-border md:flex-1 md:border-t-0">
+          <Separator orientation="vertical" className="hidden h-5 md:block" />
 
-        {onQuickFilter && (
-          <>
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex h-7 items-center gap-1 px-2.5 text-xs hover:bg-muted",
-                      activeQuickFilter?.label !== "All" ? "font-semibold" : "",
-                    )}
-                  >
-                    {activeQuickFilter?.label ?? "Filter"}
-                    <span className="text-xs opacity-40">▾</span>
-                  </button>
-                }
-              />
-              <PopoverContent align="start" className="w-56 p-1">
-                {QUICK_FILTERS.map(qf => {
-                  const isActive = qf.isActive(currentFilters);
-                  return (
+          {onQuickFilter && (
+            <>
+              <Popover>
+                <PopoverTrigger
+                  render={
                     <button
-                      key={qf.label}
                       type="button"
                       className={cn(
-                        "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted",
-                        isActive && "font-semibold",
+                        "flex h-7 items-center gap-1 px-2.5 text-xs hover:bg-muted",
+                        activeQuickFilter?.label !== "All" ? "font-semibold" : "",
                       )}
-                      onClick={() => onQuickFilter(qf.apply(currentFilters))}
-                      title={qf.description ?? qf.label}
                     >
-                      {qf.label}
-                      {isActive && <Check className="size-3.5 text-primary" />}
+                      {activeQuickFilter?.label ?? "Filter"}
+                      <span className="text-xs opacity-40">▾</span>
                     </button>
-                  );
-                })}
-              </PopoverContent>
-            </Popover>
-            <Separator orientation="vertical" className="h-5" />
-          </>
-        )}
+                  }
+                />
+                <PopoverContent align="start" className="w-56 p-1">
+                  {QUICK_FILTERS.map(qf => {
+                    const isActive = qf.isActive(currentFilters);
+                    return (
+                      <button
+                        key={qf.label}
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted",
+                          isActive && "font-semibold",
+                        )}
+                        onClick={() => onQuickFilter(qf.apply(currentFilters))}
+                        title={qf.description ?? qf.label}
+                      >
+                        {qf.label}
+                        {isActive && <Check className="size-3.5 text-primary" />}
+                      </button>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
+              <Separator orientation="vertical" className="h-5" />
+            </>
+          )}
 
-        <AccountCombobox
-          value={account}
-          onChange={onAccountChange}
-          accounts={accounts}
-        />
+          <AccountCombobox
+            value={account}
+            onChange={onAccountChange}
+            accounts={accounts}
+          />
 
-        <Separator orientation="vertical" className="h-5" />
+          <Separator orientation="vertical" className="h-5" />
 
-        <Select
-          value={tag || ""}
-          onValueChange={(v) => onTagChange(v === "__any__" ? "" : v)}
-        >
-          <SelectTrigger size="sm" className="border-0 bg-transparent shadow-none hover:bg-muted focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted">
-            <SelectValue placeholder="Any tag">
-              {tag || "Any tag"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__any__">Any tag</SelectItem>
-            {(tags || []).map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select
+            value={tag || ""}
+            onValueChange={(v) => onTagChange(v === "__any__" ? "" : v)}
+          >
+            <SelectTrigger size="sm" className="border-0 bg-transparent shadow-none hover:bg-muted focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted">
+              <SelectValue placeholder="Any tag">
+                {tag || "Any tag"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__any__">Any tag</SelectItem>
+              {(tags || []).map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        {onSearchChange && (
-          <>
-            <Separator orientation="vertical" className="h-5" />
-            <DebouncedSearch value={search} onChange={onSearchChange} />
-          </>
-        )}
+          {onSearchChange && (
+            <div className="hidden flex-1 items-center md:flex">
+              <Separator orientation="vertical" className="h-5" />
+              <DebouncedSearch value={search} onChange={onSearchChange} />
+            </div>
+          )}
+        </div>
       </div>
 
       {hasActiveFilters && (
