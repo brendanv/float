@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
+	"github.com/brendanv/float/internal/alphavantage"
 	"github.com/brendanv/float/internal/cache"
 	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/gitsnap"
@@ -735,6 +736,98 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(&floatv1.DeletePriceResponse{}), nil
+}
+
+func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[floatv1.BackfillPricesRequest]) (*connect.Response[floatv1.BackfillPricesResponse], error) {
+	logger := slogctx.FromContext(ctx)
+
+	commodity := req.Msg.Commodity
+	startDate := req.Msg.StartDate
+	endDate := req.Msg.EndDate
+	if commodity == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("commodity is required"))
+	}
+	if startDate == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("start_date is required"))
+	}
+	if endDate == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("end_date is required"))
+	}
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid start_date %q: %w", startDate, err))
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid end_date %q: %w", endDate, err))
+	}
+	if end.Before(start) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("end_date must not be before start_date"))
+	}
+
+	if h.cfg == nil || h.cfg.AlphaVantage.APIKey == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("alpha_vantage.api_key is not configured"))
+	}
+
+	currency := req.Msg.Currency
+	if currency == "" {
+		currency = "USD"
+	}
+
+	av := alphavantage.NewClient(h.cfg.AlphaVantage.APIKey)
+	weeklyPrices, err := av.FetchWeeklyPrices(ctx, commodity, startDate, endDate)
+	if err != nil {
+		logger.ErrorContext(ctx, "backfill prices: fetch failed", "commodity", commodity, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	existing, err := journal.ListPrices(h.dataDir)
+	if err != nil {
+		logger.ErrorContext(ctx, "backfill prices: list existing failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	skip := make(map[string]struct{}, len(existing))
+	for _, p := range existing {
+		if p.Commodity == commodity {
+			skip[p.Date] = struct{}{}
+		}
+	}
+
+	var toWrite []alphavantage.WeeklyPrice
+	for _, wp := range weeklyPrices {
+		if _, exists := skip[wp.Date]; !exists {
+			toWrite = append(toWrite, wp)
+		}
+	}
+
+	skippedCount := int32(len(weeklyPrices) - len(toWrite))
+	if len(toWrite) == 0 {
+		return connect.NewResponse(&floatv1.BackfillPricesResponse{SkippedCount: skippedCount}), nil
+	}
+
+	var added []journal.Price
+	if err := h.lock.Do(ctx, fmt.Sprintf("backfill prices: %s %s to %s", commodity, startDate, endDate), func() error {
+		for _, wp := range toWrite {
+			pid, e := journal.AppendPrice(h.dataDir, wp.Date, commodity, wp.Close, currency)
+			if e != nil {
+				return e
+			}
+			added = append(added, journal.Price{PID: pid, Date: wp.Date, Commodity: commodity, Quantity: wp.Close, Currency: currency})
+		}
+		return nil
+	}); err != nil {
+		logger.ErrorContext(ctx, "backfill prices: write failed", "commodity", commodity, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	out := make([]*floatv1.PriceDirective, len(added))
+	for i, p := range added {
+		out[i] = toProtoPriceDirective(p)
+	}
+	return connect.NewResponse(&floatv1.BackfillPricesResponse{
+		Prices:       out,
+		SkippedCount: skippedCount,
+	}), nil
 }
 
 func (h *Handler) ListAccountDeclarations(ctx context.Context, _ *connect.Request[floatv1.ListAccountDeclarationsRequest]) (*connect.Response[floatv1.ListAccountDeclarationsResponse], error) {

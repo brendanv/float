@@ -79,6 +79,9 @@ const (
 	// LedgerServiceDeletePriceProcedure is the fully-qualified name of the LedgerService's DeletePrice
 	// RPC.
 	LedgerServiceDeletePriceProcedure = "/float.v1.LedgerService/DeletePrice"
+	// LedgerServiceBackfillPricesProcedure is the fully-qualified name of the LedgerService's
+	// BackfillPrices RPC.
+	LedgerServiceBackfillPricesProcedure = "/float.v1.LedgerService/BackfillPrices"
 	// LedgerServiceListAccountDeclarationsProcedure is the fully-qualified name of the LedgerService's
 	// ListAccountDeclarations RPC.
 	LedgerServiceListAccountDeclarationsProcedure = "/float.v1.LedgerService/ListAccountDeclarations"
@@ -160,6 +163,7 @@ type LedgerServiceClient interface {
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
+	BackfillPrices(context.Context, *connect.Request[v1.BackfillPricesRequest]) (*connect.Response[v1.BackfillPricesResponse], error)
 	ListAccountDeclarations(context.Context, *connect.Request[v1.ListAccountDeclarationsRequest]) (*connect.Response[v1.ListAccountDeclarationsResponse], error)
 	DeclareAccount(context.Context, *connect.Request[v1.DeclareAccountRequest]) (*connect.Response[v1.DeclareAccountResponse], error)
 	DeleteAccountDeclaration(context.Context, *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error)
@@ -290,6 +294,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceDeletePriceProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
+			connect.WithClientOptions(opts...),
+		),
+		backfillPrices: connect.NewClient[v1.BackfillPricesRequest, v1.BackfillPricesResponse](
+			httpClient,
+			baseURL+LedgerServiceBackfillPricesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("BackfillPrices")),
 			connect.WithClientOptions(opts...),
 		),
 		listAccountDeclarations: connect.NewClient[v1.ListAccountDeclarationsRequest, v1.ListAccountDeclarationsResponse](
@@ -439,6 +449,7 @@ type ledgerServiceClient struct {
 	listPrices               *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
 	addPrice                 *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
 	deletePrice              *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
+	backfillPrices           *connect.Client[v1.BackfillPricesRequest, v1.BackfillPricesResponse]
 	listAccountDeclarations  *connect.Client[v1.ListAccountDeclarationsRequest, v1.ListAccountDeclarationsResponse]
 	declareAccount           *connect.Client[v1.DeclareAccountRequest, v1.DeclareAccountResponse]
 	deleteAccountDeclaration *connect.Client[v1.DeleteAccountDeclarationRequest, v1.DeleteAccountDeclarationResponse]
@@ -540,6 +551,11 @@ func (c *ledgerServiceClient) AddPrice(ctx context.Context, req *connect.Request
 // DeletePrice calls float.v1.LedgerService.DeletePrice.
 func (c *ledgerServiceClient) DeletePrice(ctx context.Context, req *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error) {
 	return c.deletePrice.CallUnary(ctx, req)
+}
+
+// BackfillPrices calls float.v1.LedgerService.BackfillPrices.
+func (c *ledgerServiceClient) BackfillPrices(ctx context.Context, req *connect.Request[v1.BackfillPricesRequest]) (*connect.Response[v1.BackfillPricesResponse], error) {
+	return c.backfillPrices.CallUnary(ctx, req)
 }
 
 // ListAccountDeclarations calls float.v1.LedgerService.ListAccountDeclarations.
@@ -665,6 +681,7 @@ type LedgerServiceHandler interface {
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
+	BackfillPrices(context.Context, *connect.Request[v1.BackfillPricesRequest]) (*connect.Response[v1.BackfillPricesResponse], error)
 	ListAccountDeclarations(context.Context, *connect.Request[v1.ListAccountDeclarationsRequest]) (*connect.Response[v1.ListAccountDeclarationsResponse], error)
 	DeclareAccount(context.Context, *connect.Request[v1.DeclareAccountRequest]) (*connect.Response[v1.DeclareAccountResponse], error)
 	DeleteAccountDeclaration(context.Context, *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error)
@@ -791,6 +808,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceDeletePriceProcedure,
 		svc.DeletePrice,
 		connect.WithSchema(ledgerServiceMethods.ByName("DeletePrice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceBackfillPricesHandler := connect.NewUnaryHandler(
+		LedgerServiceBackfillPricesProcedure,
+		svc.BackfillPrices,
+		connect.WithSchema(ledgerServiceMethods.ByName("BackfillPrices")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceListAccountDeclarationsHandler := connect.NewUnaryHandler(
@@ -953,6 +976,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceAddPriceHandler.ServeHTTP(w, r)
 		case LedgerServiceDeletePriceProcedure:
 			ledgerServiceDeletePriceHandler.ServeHTTP(w, r)
+		case LedgerServiceBackfillPricesProcedure:
+			ledgerServiceBackfillPricesHandler.ServeHTTP(w, r)
 		case LedgerServiceListAccountDeclarationsProcedure:
 			ledgerServiceListAccountDeclarationsHandler.ServeHTTP(w, r)
 		case LedgerServiceDeclareAccountProcedure:
@@ -1066,6 +1091,10 @@ func (UnimplementedLedgerServiceHandler) AddPrice(context.Context, *connect.Requ
 
 func (UnimplementedLedgerServiceHandler) DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeletePrice is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) BackfillPrices(context.Context, *connect.Request[v1.BackfillPricesRequest]) (*connect.Response[v1.BackfillPricesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.BackfillPrices is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) ListAccountDeclarations(context.Context, *connect.Request[v1.ListAccountDeclarationsRequest]) (*connect.Response[v1.ListAccountDeclarationsResponse], error) {
