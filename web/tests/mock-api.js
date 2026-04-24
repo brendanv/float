@@ -618,6 +618,15 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "DeletePrice":
         body = {};
         break;
+      case "BackfillPrices":
+        body = {
+          prices: [
+            { pid: "", date: "2026-01-06", commodity: reqBody.commodity || "AAPL", price: { commodity: reqBody.currency || "USD", quantity: "185.00" } },
+            { pid: "", date: "2026-01-13", commodity: reqBody.commodity || "AAPL", price: { commodity: reqBody.currency || "USD", quantity: "183.50" } },
+          ],
+          skippedCount: 1,
+        };
+        break;
       default:
         body = {};
     }

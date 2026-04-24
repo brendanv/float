@@ -22,6 +22,12 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function oneYearAgo() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function PricesPage() {
   const queryClient = useQueryClient();
 
@@ -35,6 +41,13 @@ export function PricesPage() {
   const [quantity, setQuantity] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [formError, setFormError] = useState(null);
+
+  const [backfillCommodity, setBackfillCommodity] = useState("");
+  const [backfillStartDate, setBackfillStartDate] = useState(oneYearAgo);
+  const [backfillEndDate, setBackfillEndDate] = useState(today);
+  const [backfillCurrency, setBackfillCurrency] = useState("$");
+  const [backfillResult, setBackfillResult] = useState(null);
+  const [backfillError, setBackfillError] = useState(null);
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.addPrice(vars),
@@ -53,6 +66,19 @@ export function PricesPage() {
     onError: (err) => setFormError(err),
   });
 
+  const backfillMutation = useMutation({
+    mutationFn: (vars) => ledgerClient.backfillPrices(vars),
+    onSuccess: (data) => {
+      setBackfillResult({ added: data.prices?.length ?? 0, skipped: data.skippedCount ?? 0 });
+      setBackfillError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
+    },
+    onError: (err) => {
+      setBackfillResult(null);
+      setBackfillError(err);
+    },
+  });
+
   function handleSubmit(e) {
     e.preventDefault();
     setFormError(null);
@@ -61,6 +87,18 @@ export function PricesPage() {
 
   function handleDelete(pid) {
     deleteMutation.mutate({ pid });
+  }
+
+  function handleBackfill(e) {
+    e.preventDefault();
+    setBackfillResult(null);
+    setBackfillError(null);
+    backfillMutation.mutate({
+      commodity: backfillCommodity.trim(),
+      startDate: backfillStartDate,
+      endDate: backfillEndDate,
+      currency: backfillCurrency.trim(),
+    });
   }
 
   return (
@@ -121,6 +159,68 @@ export function PricesPage() {
             </Button>
           </form>
           {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Backfill Price History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleBackfill} className="flex flex-wrap items-end gap-3">
+            <div className="w-full flex flex-col gap-1.5 sm:w-32">
+              <Label htmlFor="backfill-commodity">Commodity</Label>
+              <Input
+                id="backfill-commodity"
+                type="text"
+                placeholder="AAPL"
+                value={backfillCommodity}
+                onChange={(e) => setBackfillCommodity(e.target.value)}
+                required
+              />
+            </div>
+            <div className="w-full flex flex-col gap-1.5 sm:w-36">
+              <Label htmlFor="backfill-start">Start Date</Label>
+              <Input
+                id="backfill-start"
+                type="date"
+                value={backfillStartDate}
+                onChange={(e) => setBackfillStartDate(e.target.value)}
+                required
+              />
+            </div>
+            <div className="w-full flex flex-col gap-1.5 sm:w-36">
+              <Label htmlFor="backfill-end">End Date</Label>
+              <Input
+                id="backfill-end"
+                type="date"
+                value={backfillEndDate}
+                onChange={(e) => setBackfillEndDate(e.target.value)}
+                required
+              />
+            </div>
+            <div className="w-full flex flex-col gap-1.5 sm:w-24">
+              <Label htmlFor="backfill-currency">Currency</Label>
+              <Input
+                id="backfill-currency"
+                type="text"
+                value={backfillCurrency}
+                onChange={(e) => setBackfillCurrency(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={backfillMutation.isPending}>
+              {backfillMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+              {backfillMutation.isPending ? "Fetching…" : "Backfill"}
+            </Button>
+          </form>
+          {backfillResult && (
+            <p className="mt-3 text-sm text-green-600 dark:text-green-400">
+              Added {backfillResult.added} {backfillResult.added === 1 ? "price" : "prices"}
+              {backfillResult.skipped > 0 && ` (${backfillResult.skipped} already existed)`}.
+            </p>
+          )}
+          {backfillError && <div className="mt-3"><ErrorBanner error={backfillError} /></div>}
         </CardContent>
       </Card>
 
