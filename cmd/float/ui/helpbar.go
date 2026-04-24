@@ -321,6 +321,31 @@ func (RestoreConfirmKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keyConfirm, keyEsc}}
 }
 
+var keyBackfill = key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "backfill"))
+
+// PricesListKeyMap is for the prices tab in list mode.
+type PricesListKeyMap struct{}
+
+func (PricesListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyAdd, keyDelete, keyBackfill, keyHelp}
+}
+func (PricesListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyAdd, keyDelete, keyBackfill, keyRetry},
+	}
+}
+
+// PricesFormKeyMap is for the prices tab add/backfill form modes.
+type PricesFormKeyMap struct{}
+
+func (PricesFormKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keySubmit, keyEsc, keyNextField}
+}
+func (PricesFormKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keySubmit, keyEsc, keyNextField, keyPrevField}}
+}
+
 // SettingsKeyMap is for the settings tab.
 type SettingsKeyMap struct{}
 
