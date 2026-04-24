@@ -70,11 +70,11 @@ float shells out to hledger for all accounting: parsing journals, computing bala
 
 ### Write Flow
 
-All writes go through `internal/txlock/` — see `internal/txlock/CLAUDE.md`. After a successful `txlock.Do()`, callers are responsible for calling `internal/gitsnap/` to commit.
+All writes go through `internal/txlock/` — see `internal/txlock/CLAUDE.md`. When `lock.SetSnap(snap)` is configured (as in `floatd`), txlock automatically commits to git after each successful write.
 
 ### Query Cache (`internal/cache/`)
 
-Sits between `LedgerService` handlers and the hledger wrapper. Cache key = hash of normalized hledger command + flags. Full cache invalidation on every generation bump (no partial invalidation). `sync.RWMutex` + `singleflight` for concurrency; 128-entry LRU as a safety net.
+Sits between `LedgerService` handlers and the hledger wrapper. Entries are grouped by generation (from `txlock.TxLock.Generation`); any write bumps the generation and effectively invalidates the entire cache — no partial invalidation. `sync.RWMutex` + `singleflight` prevent concurrent duplicate hledger invocations for the same key.
 
 ### Journal File Organization
 
@@ -83,7 +83,8 @@ data/
 ├── main.journal          # include directives only
 ├── accounts.journal      # account declarations
 ├── prices.journal        # P directives for commodity prices (auto-created)
-├── rules/                # hledger CSV rules files per bank
+├── rules/                # hledger CSV rules files per bank (for import parsing)
+├── rules.json            # float categorization rules (auto-categorization after import)
 ├── 2026/01.journal       # transactions grouped by month
 └── config.toml           # bank profiles, users
 ```
