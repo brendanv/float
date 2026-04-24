@@ -12,4 +12,6 @@ export const queryKeys = {
   netWorthTimeseries:   (begin) => ["netWorthTimeseries", begin],
   imports:              () => ["imports"],
   importedTransactions: (batchId) => ["importedTransactions", batchId],
+  payees:               () => ["payees"],
+  noPayeeTransactions:  () => ["noPayeeTransactions"],
 };
