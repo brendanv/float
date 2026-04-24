@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Check, X, Search, ChevronsUpDown } from "lucide-react";
+import { Check, X, Search, CalendarDays } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile.js";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
@@ -50,8 +52,6 @@ function shiftMonth(dateFrom, delta) {
   return { from: fmtDate(y, m, 1), to: fmtDate(ny, nm, 1) };
 }
 
-const PERIOD_BAR_PRESETS = ["This month", "Last month", "This year", "Last year"];
-
 // Format a date range for display in the date picker button.
 function formatDateRange(dateFrom, dateTo) {
   if (!dateFrom) return "All time";
@@ -85,61 +85,153 @@ function formatDateRange(dateFrom, dateTo) {
   return dateFrom;
 }
 
-export function PeriodBar({ dateFrom, dateTo, onChange }) {
-  const presets = DATE_PRESETS.filter(p => PERIOD_BAR_PRESETS.includes(p.label));
+// Convert exclusive-end "YYYY-MM-DD" to the inclusive end date shown in the "To" input.
+function isoExclusiveToInclusive(exclusive) {
+  if (!exclusive) return "";
+  const d = new Date(exclusive + "T00:00:00");
+  d.setDate(d.getDate() - 1);
+  return fmtDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
 
-  function activePresetLabel() {
-    for (const p of presets) {
-      const { from, to } = p.fn();
-      if (from === dateFrom && to === dateTo) return p.label;
-    }
-    return null;
+// Convert inclusive "To" input value back to an exclusive end date for hledger.
+function inclusiveToExclusiveTo(inclusive) {
+  if (!inclusive) return "";
+  const d = new Date(inclusive + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  return fmtDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" }) {
+  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const [month, setMonth] = useState(() => {
+    if (dateFrom) return new Date(dateFrom + "T00:00:00");
+    const now = new Date();
+    now.setDate(1);
+    return now;
+  });
+
+  // Sync calendar month when dateFrom changes (e.g. after preset selection)
+  useEffect(() => {
+    if (dateFrom) setMonth(new Date(dateFrom + "T00:00:00"));
+  }, [dateFrom]);
+
+  const calendarSelected = (() => {
+    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : undefined;
+    const toInclStr = dateTo ? isoExclusiveToInclusive(dateTo) : undefined;
+    const to = toInclStr ? new Date(toInclStr + "T00:00:00") : undefined;
+    if (!from) return undefined;
+    return { from, to };
+  })();
+
+  function handlePreset(from, to) {
+    onChange(from, to);
+    setOpen(false);
   }
 
-  const activeLabel = activePresetLabel();
-
-  function displayLabel() {
-    if (activeLabel) return activeLabel;
-    if (!dateFrom) return "";
-    const d = new Date(dateFrom + "T00:00:00");
-    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  function handleCalendarSelect(range) {
+    if (!range) { onChange("", ""); return; }
+    const fromStr = range.from
+      ? fmtDate(range.from.getFullYear(), range.from.getMonth() + 1, range.from.getDate())
+      : "";
+    let toStr = "";
+    if (range.to) {
+      const toEx = new Date(range.to);
+      toEx.setDate(toEx.getDate() + 1);
+      toStr = fmtDate(toEx.getFullYear(), toEx.getMonth() + 1, toEx.getDate());
+    }
+    onChange(fromStr, toStr);
+    if (range.from && range.to) setOpen(false);
   }
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={() => { const r = shiftMonth(dateFrom, -1); onChange(r.from, r.to); }}
-        aria-label="Previous month"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            className="flex h-8 items-center gap-2 rounded-none border border-border px-3 text-sm font-medium hover:bg-muted"
+          >
+            <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+            <span className="whitespace-nowrap">{formatDateRange(dateFrom, dateTo)}</span>
+            <span className="text-xs opacity-40">▾</span>
+          </button>
+        }
+      />
+      <PopoverContent
+        align={align}
+        className="w-auto flex-row gap-0 p-0"
       >
-        <ChevronLeft />
-      </Button>
-      <span className="min-w-32 text-center text-sm font-medium">{displayLabel()}</span>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={() => { const r = shiftMonth(dateFrom, 1); onChange(r.from, r.to); }}
-        aria-label="Next month"
-      >
-        <ChevronRight />
-      </Button>
-      <div className="ml-2 flex gap-1">
-        {presets.map((p) => {
-          const { from, to } = p.fn();
-          const isActive = from === dateFrom && to === dateTo;
-          return (
-            <Button
-              key={p.label}
-              variant={isActive ? "default" : "ghost"}
-              size="xs"
-              onClick={() => onChange(from, to)}
-            >
-              {p.label}
-            </Button>
-          );
-        })}
-      </div>
+        {/* Presets sidebar */}
+        <div className="flex min-w-[140px] flex-col border-r p-2">
+          <p className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">Presets</p>
+          {DATE_PRESETS.map((p) => {
+            const { from, to } = p.fn();
+            const isActive = from === dateFrom && to === dateTo;
+            return (
+              <button
+                key={p.label}
+                type="button"
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted",
+                  isActive && "font-semibold",
+                )}
+                onClick={() => handlePreset(from, to)}
+              >
+                {isActive
+                  ? <Check className="size-3.5 text-primary shrink-0" />
+                  : <span className="size-3.5 shrink-0" />}
+                {p.label}
+              </button>
+            );
+          })}
+          <Separator className="my-2" />
+          <p className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">Custom range</p>
+          <div className="flex flex-col gap-1 px-2">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">From</span>
+              <Input
+                type="date"
+                className="h-7 text-xs"
+                value={dateFrom || ""}
+                onChange={(e) => onChange(e.target.value, dateTo)}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">To</span>
+              <Input
+                type="date"
+                className="h-7 text-xs"
+                value={dateTo ? isoExclusiveToInclusive(dateTo) : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange(dateFrom, v ? inclusiveToExclusiveTo(v) : "");
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar */}
+        <div className="p-2">
+          <Calendar
+            mode="range"
+            numberOfMonths={isMobile ? 1 : 2}
+            selected={calendarSelected}
+            onSelect={handleCalendarSelect}
+            month={month}
+            onMonthChange={setMonth}
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export function PeriodBar({ dateFrom, dateTo, onChange }) {
+  return (
+    <div className="mb-4 flex items-center gap-2">
+      <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={onChange} />
     </div>
   );
 }
@@ -245,78 +337,16 @@ export function SearchControls({
   const currentFilters = { dateFrom, dateTo, account, tag, status, payee };
   const activeQuickFilter = QUICK_FILTERS.find(qf => qf.isActive(currentFilters));
 
-  function shiftDate(delta) {
-    const now = new Date();
-    const base = dateFrom || fmtDate(now.getFullYear(), now.getMonth() + 1, 1);
-    const r = shiftMonth(base, delta);
-    onDateRangeChange(r.from, r.to);
-  }
-
   const hasActiveFilters = account || tag || payee || search;
 
   return (
     <div className="mb-4 flex flex-col">
       <div className="flex items-center border border-border">
-        <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(-1)} aria-label="Previous month">
-          <ChevronLeft />
-        </Button>
-
-        <Popover>
-          <PopoverTrigger
-            render={
-              <button
-                type="button"
-                className="flex h-7 items-center gap-1 px-2.5 text-xs font-medium hover:bg-muted"
-              >
-                {formatDateRange(dateFrom, dateTo)}
-                <span className="text-xs opacity-40">▾</span>
-              </button>
-            }
-          />
-          <PopoverContent align="start" className="w-56 p-1">
-            {DATE_PRESETS.map(p => {
-              const { from, to } = p.fn();
-              const isActive = from === dateFrom && to === dateTo;
-              return (
-                <button
-                  key={p.label}
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted",
-                    isActive && "font-semibold",
-                  )}
-                  onClick={() => onDateRangeChange(from, to)}
-                >
-                  {p.label}
-                  {isActive && <Check className="size-3.5 text-primary" />}
-                </button>
-              );
-            })}
-            <Separator className="my-1" />
-            <div className="flex flex-col gap-1 px-2 pt-1 pb-1">
-              <div className="mb-1 text-xs text-muted-foreground">Custom range</div>
-              <Input
-                type="date"
-                className="h-7 w-full"
-                value={dateFrom}
-                onChange={(e) => onDateRangeChange(e.target.value, dateTo)}
-              />
-              <Input
-                type="date"
-                className="h-7 w-full"
-                value={dateTo ? isoExclusiveToInclusive(dateTo) : ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  onDateRangeChange(dateFrom, v ? inclusiveToExclusiveTo(v) : "");
-                }}
-              />
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <Button variant="ghost" size="icon-sm" onClick={() => shiftDate(1)} aria-label="Next month">
-          <ChevronRight />
-        </Button>
+        <DateRangePicker
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={onDateRangeChange}
+        />
 
         <Separator orientation="vertical" className="h-5" />
 
@@ -453,23 +483,4 @@ export function SearchControls({
       )}
     </div>
   );
-}
-
-// The date inputs show inclusive end dates to users, but we store exclusive end dates
-// (first day after range) for hledger semantics.
-
-// Convert exclusive-end "YYYY-MM-DD" to the inclusive end date shown in the "To" input.
-function isoExclusiveToInclusive(exclusive) {
-  if (!exclusive) return "";
-  const d = new Date(exclusive + "T00:00:00");
-  d.setDate(d.getDate() - 1);
-  return fmtDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
-}
-
-// Convert inclusive "To" input value back to an exclusive end date for hledger.
-function inclusiveToExclusiveTo(inclusive) {
-  if (!inclusive) return "";
-  const d = new Date(inclusive + "T00:00:00");
-  d.setDate(d.getDate() + 1);
-  return fmtDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
