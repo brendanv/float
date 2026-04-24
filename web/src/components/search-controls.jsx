@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Check, X, Search, CalendarDays } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile.js";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -102,6 +103,7 @@ function inclusiveToExclusiveTo(inclusive) {
 
 export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" }) {
   const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
   const [month, setMonth] = useState(() => {
     if (dateFrom) return new Date(dateFrom + "T00:00:00");
     const now = new Date();
@@ -150,8 +152,8 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" })
             type="button"
             className="flex h-8 items-center gap-2 rounded-none border border-border px-3 text-sm font-medium hover:bg-muted"
           >
-            <CalendarDays className="size-4 text-muted-foreground" />
-            <span>{formatDateRange(dateFrom, dateTo)}</span>
+            <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+            <span className="whitespace-nowrap">{formatDateRange(dateFrom, dateTo)}</span>
             <span className="text-xs opacity-40">▾</span>
           </button>
         }
@@ -214,7 +216,7 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" })
         <div className="p-2">
           <Calendar
             mode="range"
-            numberOfMonths={2}
+            numberOfMonths={isMobile ? 1 : 2}
             selected={calendarSelected}
             onSelect={handleCalendarSelect}
             month={month}
