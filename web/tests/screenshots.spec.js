@@ -318,6 +318,25 @@ test("rules page - mobile form", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules-mobile-form.png", fullPage: true });
 });
 
+test("payees page", async ({ page }) => {
+  await page.goto("/#/payees");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "test-results/payees.png", fullPage: true });
+});
+
+test("payees page - set payee inline form open", async ({ page }) => {
+  await page.goto("/#/payees");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  // Click "Set payee" on the first description row
+  await page.locator("button:has-text('Set payee')").first().click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/payees-set-payee.png", fullPage: true });
+});
+
 test("hamburger icon - closed state", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
