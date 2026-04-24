@@ -12,7 +12,6 @@ func RenderTabBar(activeTab int, width int, st Styles) string {
 		{"Accounts", activeTab == TabAccounts},
 		{"Trends", activeTab == TabTrends},
 		{"Manage", activeTab == TabManage},
-		{"Prices", activeTab == TabPrices},
 		{"Settings", activeTab == TabSettings},
 	}
 

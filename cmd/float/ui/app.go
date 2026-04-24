@@ -13,9 +13,8 @@ const (
 	TabAccounts = 1
 	TabTrends   = 2
 	TabManage   = 3
-	TabPrices   = 4
-	TabSettings = 5
-	numTabs     = 6
+	TabSettings = 4
+	numTabs     = 5
 )
 
 // Model is the root Bubbletea model for the float TUI.
@@ -27,13 +26,12 @@ type Model struct {
 	theme     Theme
 	styles    Styles
 	helpModel help.Model
-	home     HomeTab
-	manager  ManagerTab
-	trends   TrendsTab
-	manage   ManageTab
-	prices   PricesTab
-	settings SettingsTab
-	client   floatv1connect.LedgerServiceClient
+	home      HomeTab
+	manager   ManagerTab
+	trends    TrendsTab
+	manage    ManageTab
+	settings  SettingsTab
+	client    floatv1connect.LedgerServiceClient
 }
 
 // New creates the root model with the given gRPC client.
@@ -52,7 +50,6 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 		manager:   NewManagerTab(client, st),
 		trends:    NewTrendsTab(client, st),
 		manage:    NewManageTab(client, st),
-		prices:    NewPricesTab(client, st),
 		settings:  NewSettingsTab(st, theme),
 	}
 }
@@ -64,7 +61,6 @@ func (m Model) Init() tea.Cmd {
 		m.manager.Init(),
 		m.trends.Init(),
 		m.manage.Init(),
-		m.prices.Init(),
 		m.settings.Init(),
 	)
 }
@@ -78,8 +74,6 @@ func (m Model) activeKeyMap() help.KeyMap {
 		return m.manager.KeyMap()
 	case TabManage:
 		return m.manage.KeyMap()
-	case TabPrices:
-		return m.prices.KeyMap()
 	case TabSettings:
 		return m.settings.KeyMap()
 	default:
@@ -98,7 +92,6 @@ func (m *Model) resizeAll() {
 	m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
 	m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
 	m.manage = m.manage.SetSize(m.width, layout.ContentHeight)
-	m.prices = m.prices.SetSize(m.width, layout.ContentHeight)
 	m.settings = m.settings.SetSize(m.width, layout.ContentHeight)
 }
 
@@ -110,7 +103,6 @@ func (m *Model) applyStyles() {
 	m.manager = m.manager.setStyles(m.styles)
 	m.trends = m.trends.setStyles(m.styles)
 	m.manage = m.manage.setStyles(m.styles)
-	m.prices = m.prices.setStyles(m.styles)
 	m.settings = m.settings.setStyles(m.styles)
 }
 
@@ -160,12 +152,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.manage, cmd = m.manage.Update(msg)
 			return m, cmd
 		}
-		// When the prices tab has a form or confirmation active.
-		if m.activeTab == TabPrices && m.prices.capturesAllKeys() {
-			var cmd tea.Cmd
-			m.prices, cmd = m.prices.Update(msg)
-			return m, cmd
-		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -197,24 +183,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.manage, cmd = m.manage.Update(msg)
 			return m, cmd
-		case TabPrices:
-			var cmd tea.Cmd
-			m.prices, cmd = m.prices.Update(msg)
-			return m, cmd
 		case TabSettings:
 			var cmd tea.Cmd
 			m.settings, cmd = m.settings.Update(msg)
 			return m, cmd
 		}
 	default:
-		var cmd1, cmd2, cmd3, cmd4, cmd5, cmd6 tea.Cmd
+		var cmd1, cmd2, cmd3, cmd4, cmd5 tea.Cmd
 		m.home, cmd1 = m.home.Update(msg)
 		m.manager, cmd2 = m.manager.Update(msg)
 		m.trends, cmd3 = m.trends.Update(msg)
 		m.manage, cmd4 = m.manage.Update(msg)
-		m.prices, cmd5 = m.prices.Update(msg)
-		m.settings, cmd6 = m.settings.Update(msg)
-		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5, cmd6)
+		m.settings, cmd5 = m.settings.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5)
 	}
 	return m, nil
 }
@@ -245,8 +226,6 @@ func (m Model) View() tea.View {
 		content = m.trends.View()
 	case TabManage:
 		content = m.manage.View()
-	case TabPrices:
-		content = m.prices.View()
 	case TabSettings:
 		content = m.settings.View()
 	}
