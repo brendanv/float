@@ -769,11 +769,6 @@ func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[float
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("alpha_vantage.api_key is not configured"))
 	}
 
-	currency := req.Msg.Currency
-	if currency == "" {
-		currency = "USD"
-	}
-
 	av := alphavantage.NewClient(h.cfg.AlphaVantage.APIKey)
 	weeklyPrices, err := av.FetchWeeklyPrices(ctx, commodity, startDate, endDate)
 	if err != nil {
@@ -808,11 +803,11 @@ func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[float
 	var added []journal.Price
 	if err := h.lock.Do(ctx, fmt.Sprintf("backfill prices: %s %s to %s", commodity, startDate, endDate), func() error {
 		for _, wp := range toWrite {
-			pid, e := journal.AppendPrice(h.dataDir, wp.Date, commodity, wp.Close, currency)
+			pid, e := journal.AppendPrice(h.dataDir, wp.Date, commodity, wp.Close, wp.Currency)
 			if e != nil {
 				return e
 			}
-			added = append(added, journal.Price{PID: pid, Date: wp.Date, Commodity: commodity, Quantity: wp.Close, Currency: currency})
+			added = append(added, journal.Price{PID: pid, Date: wp.Date, Commodity: commodity, Quantity: wp.Close, Currency: wp.Currency})
 		}
 		return nil
 	}); err != nil {

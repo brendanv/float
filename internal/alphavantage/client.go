@@ -14,8 +14,9 @@ const baseURL = "https://www.alphavantage.co/query"
 
 // WeeklyPrice holds one week's closing price for a commodity.
 type WeeklyPrice struct {
-	Date  string // "YYYY-MM-DD" — week-ending date
-	Close string // e.g. "188.63"
+	Date     string // "YYYY-MM-DD" — week-ending date
+	Close    string // e.g. "188.63"
+	Currency string // e.g. "USD"
 }
 
 // Client fetches market data from Alpha Vantage.
@@ -78,7 +79,7 @@ func (c *Client) FetchWeeklyPrices(ctx context.Context, symbol, startDate, endDa
 			continue
 		}
 		if (d.Equal(start) || d.After(start)) && (d.Equal(end) || d.Before(end)) {
-			results = append(results, WeeklyPrice{Date: dateStr, Close: entry.Close})
+			results = append(results, WeeklyPrice{Date: dateStr, Close: entry.Close, Currency: "USD"})
 		}
 	}
 
