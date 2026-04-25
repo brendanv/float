@@ -217,7 +217,7 @@ export function TransactionsPage() {
   const [tag, setTag] = useState("");
   const [status, setStatus] = useState("");
   const [payee, setPayee] = useState(routeSearch.payee || "");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(routeSearch.search || "");
   const [selectedFids, setSelectedFids] = useState(new Set());
 
   const isAccountMode = !!account;

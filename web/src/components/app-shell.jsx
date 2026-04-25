@@ -13,6 +13,7 @@ import {
   Moon,
   ClockArrowUp,
   BookOpen,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +45,7 @@ const NAV_MAIN = [
 ];
 
 const NAV_MANAGE = [
+  { href: "/payees", label: "Payees", icon: Users },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/imports", label: "Import History", icon: ClockArrowUp },
   { href: "/rules", label: "Rules", icon: ListFilter },

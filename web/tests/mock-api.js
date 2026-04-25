@@ -515,11 +515,18 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         body = { report: { rows } };
         break;
       }
+      case "ListPayees": {
+        const allPayees = [...new Set(mockTransactions.filter((tx) => tx.payee).map((tx) => tx.payee))].sort();
+        body = { payees: allPayees };
+        break;
+      }
       case "ListTransactions": {
         let txs = mockTransactions;
         const query = reqBody.query || [];
         for (const token of query) {
-          if (token.startsWith("payee:")) {
+          if (token === "not:payee:.+") {
+            txs = txs.filter((tx) => !tx.payee);
+          } else if (token.startsWith("payee:")) {
             const payeeFilter = token.slice("payee:".length).toLowerCase();
             txs = txs.filter((tx) => tx.payee && tx.payee.toLowerCase().includes(payeeFilter));
           }

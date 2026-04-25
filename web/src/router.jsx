@@ -18,6 +18,7 @@ import { ImportPage } from "./pages/import.jsx";
 import { RulesPage } from "./pages/rules.jsx";
 import { ImportsHistoryPage } from "./pages/imports-history.jsx";
 import { AccountsPage } from "./pages/accounts.jsx";
+import { PayeesPage } from "./pages/payees.jsx";
 
 const LazyTrendsPage = lazy(() =>
   import("./pages/trends.jsx").then((m) => ({ default: m.TrendsPage }))
@@ -54,6 +55,7 @@ export const transactionsRoute = createRoute({
     account: search.account ?? "",
     payee: search.payee ?? "",
     importBatchId: search.importBatchId ?? "",
+    search: search.search ?? "",
   }),
   component: TransactionsPage,
 });
@@ -106,6 +108,12 @@ const importsHistoryRoute = createRoute({
   component: ImportsHistoryPage,
 });
 
+const payeesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/payees",
+  component: PayeesPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   transactionsRoute,
@@ -117,6 +125,7 @@ const routeTree = rootRoute.addChildren([
   importRoute,
   rulesRoute,
   importsHistoryRoute,
+  payeesRoute,
 ]);
 
 export const router = createRouter({
