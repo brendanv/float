@@ -469,6 +469,76 @@ func RestoreSnapshotCmd(client floatv1connect.LedgerServiceClient, hash string) 
 	}
 }
 
+// PayeesMsg carries the list of all payee names.
+type PayeesMsg struct {
+	Payees []string
+	Err    error
+}
+
+// NoPayeeTransactionsMsg carries transactions that have no payee assigned.
+type NoPayeeTransactionsMsg struct {
+	Transactions []*floatv1.Transaction
+	Err          error
+}
+
+// PayeeTransactionsMsg carries transactions for a specific payee.
+type PayeeTransactionsMsg struct {
+	Payee        string
+	Transactions []*floatv1.Transaction
+	Err          error
+}
+
+// SetPayeeMsg carries the result of a bulk-edit set-payee operation.
+type SetPayeeMsg struct {
+	Err error
+}
+
+func FetchPayees(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListPayees(context.Background(), connect.NewRequest(&floatv1.ListPayeesRequest{}))
+		if err != nil {
+			return PayeesMsg{Err: err}
+		}
+		return PayeesMsg{Payees: resp.Msg.Payees}
+	}
+}
+
+func FetchNoPayeeTransactions(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+			Query: []string{"not:payee:.+"},
+		}))
+		if err != nil {
+			return NoPayeeTransactionsMsg{Err: err}
+		}
+		return NoPayeeTransactionsMsg{Transactions: resp.Msg.Transactions}
+	}
+}
+
+func FetchPayeeTransactions(client floatv1connect.LedgerServiceClient, payee string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+			Query: []string{"payee:" + payee},
+		}))
+		if err != nil {
+			return PayeeTransactionsMsg{Payee: payee, Err: err}
+		}
+		return PayeeTransactionsMsg{Payee: payee, Transactions: resp.Msg.Transactions}
+	}
+}
+
+func BulkEditSetPayeeCmd(client floatv1connect.LedgerServiceClient, fids []string, payee string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.BulkEditTransactions(context.Background(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: fids,
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_SetPayee{SetPayee: &floatv1.SetPayeeOperation{Payee: payee}}},
+			},
+		}))
+		return SetPayeeMsg{Err: err}
+	}
+}
+
 // PricesMsg carries the list of commodity price directives.
 type PricesMsg struct {
 	Prices []*floatv1.PriceDirective

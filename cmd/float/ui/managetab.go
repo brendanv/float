@@ -14,10 +14,11 @@ const (
 	manageSubTabTags      = 2
 	manageSubTabSnapshots = 3
 	manageSubTabPrices    = 4
-	numManageSubTabs      = 5
+	manageSubTabPayees    = 5
+	numManageSubTabs      = 6
 )
 
-// ManageTab combines the Rules, Imports, Tags, Snapshots, and Prices sub-tabs into a single top-level tab.
+// ManageTab combines the Rules, Imports, Tags, Snapshots, Prices, and Payees sub-tabs into a single top-level tab.
 type ManageTab struct {
 	width        int
 	height       int
@@ -28,6 +29,7 @@ type ManageTab struct {
 	tags         TagsTab
 	snapshots    SnapshotsTab
 	prices       PricesTab
+	payees       PayeesTab
 }
 
 func NewManageTab(client floatv1connect.LedgerServiceClient, st Styles) ManageTab {
@@ -39,6 +41,7 @@ func NewManageTab(client floatv1connect.LedgerServiceClient, st Styles) ManageTa
 		tags:         NewTagsTab(client, st),
 		snapshots:    NewSnapshotsTab(client, st),
 		prices:       NewPricesTab(client, st),
+		payees:       NewPayeesTab(client, st),
 	}
 }
 
@@ -49,6 +52,7 @@ func (m ManageTab) setStyles(st Styles) ManageTab {
 	m.tags = m.tags.setStyles(st)
 	m.snapshots = m.snapshots.setStyles(st)
 	m.prices = m.prices.setStyles(st)
+	m.payees = m.payees.setStyles(st)
 	return m
 }
 
@@ -61,11 +65,12 @@ func (m ManageTab) SetSize(w, h int) ManageTab {
 	m.tags = m.tags.SetSize(w, h-subBarH)
 	m.snapshots = m.snapshots.SetSize(w, h-subBarH)
 	m.prices = m.prices.SetSize(w, h-subBarH)
+	m.payees = m.payees.SetSize(w, h-subBarH)
 	return m
 }
 
 func (m ManageTab) Init() tea.Cmd {
-	return tea.Batch(m.rules.Init(), m.imports.Init(), m.tags.Init(), m.snapshots.Init(), m.prices.Init())
+	return tea.Batch(m.rules.Init(), m.imports.Init(), m.tags.Init(), m.snapshots.Init(), m.prices.Init(), m.payees.Init())
 }
 
 // capturesAllKeys reports whether the active sub-tab is in a mode that should
@@ -80,6 +85,8 @@ func (m ManageTab) capturesAllKeys() bool {
 		return m.snapshots.confirmRestoreHash != ""
 	case manageSubTabPrices:
 		return m.prices.capturesAllKeys()
+	case manageSubTabPayees:
+		return m.payees.capturesAllKeys()
 	}
 	return false
 }
@@ -97,6 +104,8 @@ func (m ManageTab) KeyMap() help.KeyMap {
 		inner = m.snapshots.KeyMap()
 	case manageSubTabPrices:
 		inner = m.prices.KeyMap()
+	case manageSubTabPayees:
+		inner = m.payees.KeyMap()
 	default:
 		inner = m.rules.KeyMap()
 	}
@@ -140,15 +149,20 @@ func (m ManageTab) Update(msg tea.Msg) (ManageTab, tea.Cmd) {
 			var cmd tea.Cmd
 			m.prices, cmd = m.prices.Update(msg)
 			return m, cmd
+		case manageSubTabPayees:
+			var cmd tea.Cmd
+			m.payees, cmd = m.payees.Update(msg)
+			return m, cmd
 		}
 	default:
-		var cmd1, cmd2, cmd3, cmd4, cmd5 tea.Cmd
+		var cmd1, cmd2, cmd3, cmd4, cmd5, cmd6 tea.Cmd
 		m.rules, cmd1 = m.rules.Update(msg)
 		m.imports, cmd2 = m.imports.Update(msg)
 		m.tags, cmd3 = m.tags.Update(msg)
 		m.snapshots, cmd4 = m.snapshots.Update(msg)
 		m.prices, cmd5 = m.prices.Update(msg)
-		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5)
+		m.payees, cmd6 = m.payees.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5, cmd6)
 	}
 	return m, nil
 }
@@ -167,6 +181,8 @@ func (m ManageTab) View() string {
 		content = m.snapshots.View()
 	case manageSubTabPrices:
 		content = m.prices.View()
+	case manageSubTabPayees:
+		content = m.payees.View()
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, subBar, content)
 }
@@ -181,6 +197,7 @@ func (m ManageTab) renderSubBar() string {
 		{"Tags", m.activeSubTab == manageSubTabTags},
 		{"Snapshots", m.activeSubTab == manageSubTabSnapshots},
 		{"Prices", m.activeSubTab == manageSubTabPrices},
+		{"Payees", m.activeSubTab == manageSubTabPayees},
 	}
 
 	var rendered string
