@@ -223,6 +223,97 @@ func parseBalanceSheetTimeseries(data []byte) (*BalanceSheetTimeseries, error) {
 	}, nil
 }
 
+// parseIncomeStatementTimeseries parses the JSON object emitted by
+// `hledger is --monthly --tree -O json`. The format is the same compound
+// report structure as `hledger bs`, but each subreport row is a JSON object
+// with prrName, prrAmounts, prrTotal, and prrAverage fields.
+func parseIncomeStatementTimeseries(data []byte) (*IncomeStatementTimeseries, error) {
+	type dateEntry struct {
+		Contents string `json:"contents"`
+	}
+	type prrRowJSON struct {
+		PrrAmounts [][]Amount `json:"prrAmounts"`
+		PrrAverage []Amount   `json:"prrAverage"` // ignored
+		PrrName    string     `json:"prrName"`
+		PrrTotal   []Amount   `json:"prrTotal"`
+	}
+	type prrTotalsJSON struct {
+		PrrAmounts [][]Amount `json:"prrAmounts"`
+	}
+	type isSubreportData struct {
+		PrRows   []prrRowJSON  `json:"prRows"`
+		PrTotals prrTotalsJSON `json:"prTotals"`
+	}
+	type isJSON struct {
+		CbrDates      [][]dateEntry     `json:"cbrDates"`
+		CbrSubreports []json.RawMessage `json:"cbrSubreports"`
+		CbrTotals     prrTotalsJSON     `json:"cbrTotals"`
+	}
+
+	var raw isJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parseIncomeStatementTimeseries: unmarshal: %w", err)
+	}
+
+	periods := make([]string, len(raw.CbrDates))
+	for i, pair := range raw.CbrDates {
+		if len(pair) < 1 {
+			return nil, fmt.Errorf("parseIncomeStatementTimeseries: period %d missing start date", i)
+		}
+		periods[i] = pair[0].Contents
+	}
+
+	subreports := make([]ISSubreport, 0, len(raw.CbrSubreports))
+	for i, rawSub := range raw.CbrSubreports {
+		var pair [2]json.RawMessage
+		if err := json.Unmarshal(rawSub, &pair); err != nil {
+			return nil, fmt.Errorf("parseIncomeStatementTimeseries: subreport %d unmarshal pair: %w", i, err)
+		}
+		var name string
+		if err := json.Unmarshal(pair[0], &name); err != nil {
+			return nil, fmt.Errorf("parseIncomeStatementTimeseries: subreport %d name: %w", i, err)
+		}
+		var subData isSubreportData
+		if err := json.Unmarshal(pair[1], &subData); err != nil {
+			return nil, fmt.Errorf("parseIncomeStatementTimeseries: subreport %d data: %w", i, err)
+		}
+
+		rows := make([]ISRow, 0, len(subData.PrRows))
+		for _, r := range subData.PrRows {
+			row := ISRow{
+				FullName:         r.PrrName,
+				DisplayName:      isDisplayName(r.PrrName),
+				Indent:           strings.Count(r.PrrName, ":"),
+				Section:          name,
+				PerPeriodAmounts: r.PrrAmounts,
+				TotalAmounts:     r.PrrTotal,
+			}
+			rows = append(rows, row)
+		}
+
+		subreports = append(subreports, ISSubreport{
+			Name:   name,
+			Rows:   rows,
+			Totals: subData.PrTotals.PrrAmounts,
+		})
+	}
+
+	return &IncomeStatementTimeseries{
+		Periods:    periods,
+		Subreports: subreports,
+		NetAmounts: raw.CbrTotals.PrrAmounts,
+	}, nil
+}
+
+// isDisplayName returns the last colon-separated segment of an account name,
+// e.g. "expenses:food" → "food". Returns the full name if no colon is present.
+func isDisplayName(fullName string) string {
+	if idx := strings.LastIndex(fullName, ":"); idx >= 0 {
+		return fullName[idx+1:]
+	}
+	return fullName
+}
+
 // extractAccountType parses the "; type: X" suffix added by hledger --types.
 // Returns the trimmed account name and the type letter (or empty string if absent).
 func extractAccountType(s string) (name string, typ AccountType) {

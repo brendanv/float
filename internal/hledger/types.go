@@ -162,6 +162,31 @@ type BSSubreport struct {
 	Totals [][]Amount
 }
 
+// ISRow is one account row from `hledger is --monthly --tree -O json`.
+type ISRow struct {
+	DisplayName      string
+	FullName         string
+	Indent           int
+	Section          string     // "Revenues" or "Expenses"
+	PerPeriodAmounts [][]Amount // [period][commodity]
+	TotalAmounts     []Amount   // total across all periods (from prrTotal)
+}
+
+// ISSubreport holds per-account rows and section totals for one section of
+// the income statement (Revenue or Expenses).
+type ISSubreport struct {
+	Name   string
+	Rows   []ISRow
+	Totals [][]Amount // section totals per period (from prTotals.prrAmounts)
+}
+
+// IncomeStatementTimeseries is returned by hledger is --monthly -O json.
+type IncomeStatementTimeseries struct {
+	Periods    []string      // "YYYY-MM-DD" start date of each period
+	Subreports []ISSubreport // "Revenue" then "Expenses"
+	NetAmounts [][]Amount    // net income per period (from cbrTotals.prrAmounts)
+}
+
 type CheckError struct {
 	Output string
 }

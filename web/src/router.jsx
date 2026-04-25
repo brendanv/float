@@ -24,6 +24,10 @@ const LazyTrendsPage = lazy(() =>
   import("./pages/trends.jsx").then((m) => ({ default: m.TrendsPage }))
 );
 
+const LazyMonthlyDashboardPage = lazy(() =>
+  import("./pages/monthly-dashboard.jsx").then((m) => ({ default: m.MonthlyDashboardPage }))
+);
+
 const rootRoute = createRootRoute({
   component: function Root() {
     const { location } = useRouterState();
@@ -70,6 +74,12 @@ const trendsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/trends",
   component: LazyTrendsPage,
+});
+
+const monthlyDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/monthly",
+  component: LazyMonthlyDashboardPage,
 });
 
 const pricesRoute = createRoute({
@@ -119,6 +129,7 @@ const routeTree = rootRoute.addChildren([
   transactionsRoute,
   addRoute,
   trendsRoute,
+  monthlyDashboardRoute,
   pricesRoute,
   accountsRoute,
   snapshotsRoute,
