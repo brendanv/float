@@ -857,3 +857,162 @@ func TestPayees(t *testing.T) {
 		}
 	})
 }
+
+func TestIncomeStatementTimeseries(t *testing.T) {
+	// Unit test: parse inline JSON constant without real hledger binary.
+	t.Run("unit_parses_rows", func(t *testing.T) {
+		// Minimal representative JSON from `hledger is --monthly --tree -O json`.
+		// prrName is the full account name; amounts and totals are trimmed to essentials.
+		const isJSON = `{
+"cbrDates":[
+  [{"contents":"2026-01-01","tag":"Exact"},{"contents":"2026-02-01","tag":"Exact"}],
+  [{"contents":"2026-02-01","tag":"Exact"},{"contents":"2026-03-01","tag":"Exact"}]
+],
+"cbrSubreports":[
+  ["Revenues",{
+    "prRows":[{"prrAmounts":[[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":350000,"decimalPlaces":2,"floatingPoint":3500}}],[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":350000,"decimalPlaces":2,"floatingPoint":3500}}]],"prrAverage":[],"prrName":"income:salary","prrTotal":[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":700000,"decimalPlaces":2,"floatingPoint":7000}}]}],
+    "prTotals":{"prrAmounts":[[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":350000,"decimalPlaces":2,"floatingPoint":3500}}],[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":350000,"decimalPlaces":2,"floatingPoint":3500}}]],"prrAverage":[],"prrName":[],"prrTotal":[]}
+  },true],
+  ["Expenses",{
+    "prRows":[
+      {"prrAmounts":[[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":16500,"decimalPlaces":2,"floatingPoint":165}}],[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":1500,"decimalPlaces":2,"floatingPoint":15}}]],"prrAverage":[],"prrName":"expenses","prrTotal":[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":18000,"decimalPlaces":2,"floatingPoint":180}}]},
+      {"prrAmounts":[[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":4500,"decimalPlaces":2,"floatingPoint":45}}],[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":1500,"decimalPlaces":2,"floatingPoint":15}}]],"prrAverage":[],"prrName":"expenses:shopping","prrTotal":[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":6000,"decimalPlaces":2,"floatingPoint":60}}]},
+      {"prrAmounts":[[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":12000,"decimalPlaces":2,"floatingPoint":120}}],[]],"prrAverage":[],"prrName":"expenses:food","prrTotal":[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":12000,"decimalPlaces":2,"floatingPoint":120}}]}
+    ],
+    "prTotals":{"prrAmounts":[[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":16500,"decimalPlaces":2,"floatingPoint":165}}],[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":1500,"decimalPlaces":2,"floatingPoint":15}}]],"prrAverage":[],"prrName":[],"prrTotal":[]}
+  },false]
+],
+"cbrTotals":{"prrAmounts":[[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":333500,"decimalPlaces":2,"floatingPoint":3335}}],[{"acommodity":"$","acost":null,"aquantity":{"decimalMantissa":348500,"decimalPlaces":2,"floatingPoint":3485}}]],"prrAverage":[],"prrName":[],"prrTotal":[]}
+}`
+		runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+			if len(args) > 0 && args[0] == "--version" {
+				return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			}
+			return []byte(isJSON), nil, nil
+		}
+		c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+		if err != nil {
+			t.Fatalf("NewWithRunner: %v", err)
+		}
+		ts, err := c.IncomeStatementTimeseries(t.Context(), "", "")
+		if err != nil {
+			t.Fatalf("IncomeStatementTimeseries: %v", err)
+		}
+
+		if len(ts.Periods) != 2 {
+			t.Fatalf("expected 2 periods, got %d", len(ts.Periods))
+		}
+		if ts.Periods[0] != "2026-01-01" {
+			t.Errorf("periods[0] = %q, want %q", ts.Periods[0], "2026-01-01")
+		}
+		if len(ts.Subreports) != 2 {
+			t.Fatalf("expected 2 subreports, got %d", len(ts.Subreports))
+		}
+
+		revSub := ts.Subreports[0]
+		if revSub.Name != "Revenues" {
+			t.Errorf("subreport[0].Name = %q, want %q", revSub.Name, "Revenues")
+		}
+		if len(revSub.Rows) != 1 {
+			t.Fatalf("expected 1 revenue row, got %d", len(revSub.Rows))
+		}
+		row := revSub.Rows[0]
+		if row.FullName != "income:salary" {
+			t.Errorf("row.FullName = %q, want %q", row.FullName, "income:salary")
+		}
+		if row.DisplayName != "salary" {
+			t.Errorf("row.DisplayName = %q, want %q", row.DisplayName, "salary")
+		}
+		if row.Indent != 1 {
+			t.Errorf("row.Indent = %d, want 1", row.Indent)
+		}
+		if row.Section != "Revenues" {
+			t.Errorf("row.Section = %q, want %q", row.Section, "Revenues")
+		}
+		if len(row.PerPeriodAmounts) != 2 {
+			t.Fatalf("expected 2 per-period amounts, got %d", len(row.PerPeriodAmounts))
+		}
+		if len(row.TotalAmounts) != 1 || row.TotalAmounts[0].Quantity.FloatingPoint != 7000 {
+			t.Errorf("unexpected TotalAmounts: %v", row.TotalAmounts)
+		}
+
+		expSub := ts.Subreports[1]
+		if expSub.Name != "Expenses" {
+			t.Errorf("subreport[1].Name = %q, want %q", expSub.Name, "Expenses")
+		}
+		if len(expSub.Rows) != 3 {
+			t.Fatalf("expected 3 expense rows (parent + 2 children), got %d", len(expSub.Rows))
+		}
+		// Parent row has indent 0
+		if expSub.Rows[0].Indent != 0 || expSub.Rows[0].FullName != "expenses" {
+			t.Errorf("expenses parent row: %+v", expSub.Rows[0])
+		}
+		// Child rows have indent 1
+		if expSub.Rows[1].Indent != 1 {
+			t.Errorf("expenses child indent = %d, want 1", expSub.Rows[1].Indent)
+		}
+
+		// Net amounts: 2 periods
+		if len(ts.NetAmounts) != 2 {
+			t.Fatalf("expected 2 net amount periods, got %d", len(ts.NetAmounts))
+		}
+		if len(ts.NetAmounts[0]) != 1 || ts.NetAmounts[0][0].Quantity.FloatingPoint != 3335 {
+			t.Errorf("unexpected NetAmounts[0]: %v", ts.NetAmounts[0])
+		}
+	})
+
+	// Integration test: runs the real hledger binary against simple.journal.
+	t.Run("integration", func(t *testing.T) {
+		c, err := hledger.New("hledger", "testdata/simple.journal")
+		if err != nil {
+			t.Skip("hledger binary not available:", err)
+		}
+		ts, err := c.IncomeStatementTimeseries(t.Context(), "", "")
+		if err != nil {
+			t.Fatalf("IncomeStatementTimeseries: %v", err)
+		}
+		if len(ts.Periods) != 2 {
+			t.Fatalf("expected 2 periods, got %d: %v", len(ts.Periods), ts.Periods)
+		}
+		if ts.Periods[0] != "2026-01-01" {
+			t.Errorf("periods[0] = %q, want 2026-01-01", ts.Periods[0])
+		}
+		if len(ts.Subreports) < 2 {
+			t.Fatalf("expected at least 2 subreports, got %d", len(ts.Subreports))
+		}
+		// Revenues subreport should have income:salary
+		revSub := ts.Subreports[0]
+		if revSub.Name != "Revenues" {
+			t.Errorf("subreport[0].Name = %q, want Revenues", revSub.Name)
+		}
+		var foundSalary bool
+		for _, r := range revSub.Rows {
+			if r.FullName == "income:salary" {
+				foundSalary = true
+				if len(r.PerPeriodAmounts) == 0 {
+					t.Error("income:salary has no per-period amounts")
+				}
+			}
+		}
+		if !foundSalary {
+			t.Error("income:salary not found in Revenues subreport")
+		}
+		// Expenses subreport should have expenses:shopping and expenses:food
+		expSub := ts.Subreports[1]
+		if expSub.Name != "Expenses" {
+			t.Errorf("subreport[1].Name = %q, want Expenses", expSub.Name)
+		}
+		foundAccounts := make(map[string]bool)
+		for _, r := range expSub.Rows {
+			foundAccounts[r.FullName] = true
+		}
+		for _, want := range []string{"expenses:shopping", "expenses:food"} {
+			if !foundAccounts[want] {
+				t.Errorf("account %q not found in Expenses subreport", want)
+			}
+		}
+		if len(ts.NetAmounts) != 2 {
+			t.Fatalf("expected 2 net amount periods, got %d", len(ts.NetAmounts))
+		}
+	})
+}

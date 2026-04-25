@@ -61,6 +61,34 @@ message GetNetWorthTimeseriesResponse {
   repeated NetWorthSnapshot snapshots = 1;
 }
 
+// AmountList wraps repeated Amount to allow per-period amount arrays
+// (proto3 has no repeated-repeated).
+message AmountList {
+  repeated Amount amounts = 1;
+}
+
+// IncomeStatementRow is one account row in the income statement timeseries.
+message IncomeStatementRow {
+  string display_name = 1;        // short segment, e.g. "salary"
+  string full_name = 2;           // full colon path, e.g. "income:salary"
+  int32 indent = 3;               // nesting depth for indented display
+  string section = 4;             // "Revenues" or "Expenses"
+  repeated AmountList per_period_amounts = 5; // one entry per period
+  repeated Amount total_amounts = 6;          // total across all periods
+  bool is_total = 7;              // true for the section-total synthetic row
+}
+
+message GetIncomeStatementTimeseriesRequest {
+  string begin = 1; // "YYYY-MM-DD"; empty = all time
+  string end = 2;   // "YYYY-MM-DD"; empty = today
+}
+
+message GetIncomeStatementTimeseriesResponse {
+  repeated string periods = 1;
+  repeated IncomeStatementRow rows = 2;
+  repeated AmountList net_amounts = 3; // net income per period
+}
+
 message ListTransactionsRequest {
   repeated string query = 1; // hledger query tokens (optional)
   int32 limit = 2;           // max transactions to return; 0 = no limit
@@ -518,6 +546,7 @@ service LedgerService {
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
+  rpc GetIncomeStatementTimeseries(GetIncomeStatementTimeseriesRequest) returns (GetIncomeStatementTimeseriesResponse);
 
   // Import
   rpc ListBankProfiles(ListBankProfilesRequest) returns (ListBankProfilesResponse);

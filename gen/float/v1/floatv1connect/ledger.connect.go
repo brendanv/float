@@ -100,6 +100,9 @@ const (
 	// LedgerServiceRestoreSnapshotProcedure is the fully-qualified name of the LedgerService's
 	// RestoreSnapshot RPC.
 	LedgerServiceRestoreSnapshotProcedure = "/float.v1.LedgerService/RestoreSnapshot"
+	// LedgerServiceGetIncomeStatementTimeseriesProcedure is the fully-qualified name of the
+	// LedgerService's GetIncomeStatementTimeseries RPC.
+	LedgerServiceGetIncomeStatementTimeseriesProcedure = "/float.v1.LedgerService/GetIncomeStatementTimeseries"
 	// LedgerServiceListBankProfilesProcedure is the fully-qualified name of the LedgerService's
 	// ListBankProfiles RPC.
 	LedgerServiceListBankProfilesProcedure = "/float.v1.LedgerService/ListBankProfiles"
@@ -170,6 +173,7 @@ type LedgerServiceClient interface {
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
 	CreateBankProfile(context.Context, *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error)
@@ -338,6 +342,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
 			connect.WithClientOptions(opts...),
 		),
+		getIncomeStatementTimeseries: connect.NewClient[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse](
+			httpClient,
+			baseURL+LedgerServiceGetIncomeStatementTimeseriesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetIncomeStatementTimeseries")),
+			connect.WithClientOptions(opts...),
+		),
 		listBankProfiles: connect.NewClient[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse](
 			httpClient,
 			baseURL+LedgerServiceListBankProfilesProcedure,
@@ -433,44 +443,45 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // ledgerServiceClient implements LedgerServiceClient.
 type ledgerServiceClient struct {
-	listTransactions         *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
-	getAccountRegister       *connect.Client[v1.GetAccountRegisterRequest, v1.GetAccountRegisterResponse]
-	getBalances              *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
-	listAccounts             *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	listTags                 *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
-	listPayees               *connect.Client[v1.ListPayeesRequest, v1.ListPayeesResponse]
-	deleteTransaction        *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
-	modifyTags               *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
-	updateTransactionDate    *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
-	updateTransaction        *connect.Client[v1.UpdateTransactionRequest, v1.UpdateTransactionResponse]
-	addTransaction           *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
-	updateTransactionStatus  *connect.Client[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse]
-	getNetWorthTimeseries    *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
-	listPrices               *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
-	addPrice                 *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
-	deletePrice              *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
-	backfillPrices           *connect.Client[v1.BackfillPricesRequest, v1.BackfillPricesResponse]
-	listAccountDeclarations  *connect.Client[v1.ListAccountDeclarationsRequest, v1.ListAccountDeclarationsResponse]
-	declareAccount           *connect.Client[v1.DeclareAccountRequest, v1.DeclareAccountResponse]
-	deleteAccountDeclaration *connect.Client[v1.DeleteAccountDeclarationRequest, v1.DeleteAccountDeclarationResponse]
-	bulkEditTransactions     *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
-	listSnapshots            *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
-	restoreSnapshot          *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
-	listBankProfiles         *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
-	createBankProfile        *connect.Client[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse]
-	getBankProfileContent    *connect.Client[v1.GetBankProfileContentRequest, v1.GetBankProfileContentResponse]
-	updateBankProfile        *connect.Client[v1.UpdateBankProfileRequest, v1.UpdateBankProfileResponse]
-	deleteBankProfile        *connect.Client[v1.DeleteBankProfileRequest, v1.DeleteBankProfileResponse]
-	previewImport            *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
-	importTransactions       *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
-	getImportedTransactions  *connect.Client[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse]
-	listImports              *connect.Client[v1.ListImportsRequest, v1.ListImportsResponse]
-	listRules                *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
-	addRule                  *connect.Client[v1.AddRuleRequest, v1.AddRuleResponse]
-	updateRule               *connect.Client[v1.UpdateRuleRequest, v1.UpdateRuleResponse]
-	deleteRule               *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
-	previewApplyRules        *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
-	applyRules               *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
+	listTransactions             *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
+	getAccountRegister           *connect.Client[v1.GetAccountRegisterRequest, v1.GetAccountRegisterResponse]
+	getBalances                  *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
+	listAccounts                 *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	listTags                     *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
+	listPayees                   *connect.Client[v1.ListPayeesRequest, v1.ListPayeesResponse]
+	deleteTransaction            *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
+	modifyTags                   *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
+	updateTransactionDate        *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
+	updateTransaction            *connect.Client[v1.UpdateTransactionRequest, v1.UpdateTransactionResponse]
+	addTransaction               *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
+	updateTransactionStatus      *connect.Client[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse]
+	getNetWorthTimeseries        *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
+	listPrices                   *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
+	addPrice                     *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
+	deletePrice                  *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
+	backfillPrices               *connect.Client[v1.BackfillPricesRequest, v1.BackfillPricesResponse]
+	listAccountDeclarations      *connect.Client[v1.ListAccountDeclarationsRequest, v1.ListAccountDeclarationsResponse]
+	declareAccount               *connect.Client[v1.DeclareAccountRequest, v1.DeclareAccountResponse]
+	deleteAccountDeclaration     *connect.Client[v1.DeleteAccountDeclarationRequest, v1.DeleteAccountDeclarationResponse]
+	bulkEditTransactions         *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
+	listSnapshots                *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
+	restoreSnapshot              *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
+	getIncomeStatementTimeseries *connect.Client[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse]
+	listBankProfiles             *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
+	createBankProfile            *connect.Client[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse]
+	getBankProfileContent        *connect.Client[v1.GetBankProfileContentRequest, v1.GetBankProfileContentResponse]
+	updateBankProfile            *connect.Client[v1.UpdateBankProfileRequest, v1.UpdateBankProfileResponse]
+	deleteBankProfile            *connect.Client[v1.DeleteBankProfileRequest, v1.DeleteBankProfileResponse]
+	previewImport                *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
+	importTransactions           *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
+	getImportedTransactions      *connect.Client[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse]
+	listImports                  *connect.Client[v1.ListImportsRequest, v1.ListImportsResponse]
+	listRules                    *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
+	addRule                      *connect.Client[v1.AddRuleRequest, v1.AddRuleResponse]
+	updateRule                   *connect.Client[v1.UpdateRuleRequest, v1.UpdateRuleResponse]
+	deleteRule                   *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
+	previewApplyRules            *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
+	applyRules                   *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -588,6 +599,11 @@ func (c *ledgerServiceClient) RestoreSnapshot(ctx context.Context, req *connect.
 	return c.restoreSnapshot.CallUnary(ctx, req)
 }
 
+// GetIncomeStatementTimeseries calls float.v1.LedgerService.GetIncomeStatementTimeseries.
+func (c *ledgerServiceClient) GetIncomeStatementTimeseries(ctx context.Context, req *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error) {
+	return c.getIncomeStatementTimeseries.CallUnary(ctx, req)
+}
+
 // ListBankProfiles calls float.v1.LedgerService.ListBankProfiles.
 func (c *ledgerServiceClient) ListBankProfiles(ctx context.Context, req *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error) {
 	return c.listBankProfiles.CallUnary(ctx, req)
@@ -688,6 +704,7 @@ type LedgerServiceHandler interface {
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
 	CreateBankProfile(context.Context, *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error)
@@ -852,6 +869,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetIncomeStatementTimeseriesHandler := connect.NewUnaryHandler(
+		LedgerServiceGetIncomeStatementTimeseriesProcedure,
+		svc.GetIncomeStatementTimeseries,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetIncomeStatementTimeseries")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceListBankProfilesHandler := connect.NewUnaryHandler(
 		LedgerServiceListBankProfilesProcedure,
 		svc.ListBankProfiles,
@@ -990,6 +1013,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceListSnapshotsHandler.ServeHTTP(w, r)
 		case LedgerServiceRestoreSnapshotProcedure:
 			ledgerServiceRestoreSnapshotHandler.ServeHTTP(w, r)
+		case LedgerServiceGetIncomeStatementTimeseriesProcedure:
+			ledgerServiceGetIncomeStatementTimeseriesHandler.ServeHTTP(w, r)
 		case LedgerServiceListBankProfilesProcedure:
 			ledgerServiceListBankProfilesHandler.ServeHTTP(w, r)
 		case LedgerServiceCreateBankProfileProcedure:
@@ -1119,6 +1144,10 @@ func (UnimplementedLedgerServiceHandler) ListSnapshots(context.Context, *connect
 
 func (UnimplementedLedgerServiceHandler) RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RestoreSnapshot is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetIncomeStatementTimeseries is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error) {

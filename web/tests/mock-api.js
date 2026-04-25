@@ -485,6 +485,86 @@ export const mockApplyPreviews = [
     addTags: {},
   },
 ];
+
+function makeAmountList(quantity) {
+  return { amounts: [{ commodity: "$", quantity: String(quantity) }] };
+}
+
+const MOCK_IS_PERIODS = [
+  "2025-04-01","2025-05-01","2025-06-01","2025-07-01",
+  "2025-08-01","2025-09-01","2025-10-01","2025-11-01",
+  "2025-12-01","2026-01-01","2026-02-01","2026-03-01",
+];
+
+export const mockIncomeStatementTimeseries = {
+  periods: MOCK_IS_PERIODS,
+  rows: [
+    // Revenues section
+    {
+      displayName: "salary", fullName: "income:salary", indent: 1,
+      section: "Revenues", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("-5200.00")),
+      totalAmounts: [{ commodity: "$", quantity: "-62400.00" }],
+    },
+    {
+      displayName: "Total Revenues", fullName: "", indent: 0,
+      section: "Revenues", isTotal: true,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("-5200.00")),
+      totalAmounts: [],
+    },
+    // Expenses section
+    {
+      displayName: "expenses", fullName: "expenses", indent: 0,
+      section: "Expenses", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2340.43")),
+      totalAmounts: [{ commodity: "$", quantity: "28085.16" }],
+    },
+    {
+      displayName: "groceries", fullName: "expenses:groceries", indent: 1,
+      section: "Expenses", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("450.00")),
+      totalAmounts: [{ commodity: "$", quantity: "5400.00" }],
+    },
+    {
+      displayName: "dining", fullName: "expenses:dining", indent: 1,
+      section: "Expenses", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("210.00")),
+      totalAmounts: [{ commodity: "$", quantity: "2520.00" }],
+    },
+    {
+      displayName: "utilities", fullName: "expenses:utilities", indent: 1,
+      section: "Expenses", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("95.00")),
+      totalAmounts: [{ commodity: "$", quantity: "1140.00" }],
+    },
+    {
+      displayName: "rent", fullName: "expenses:rent", indent: 1,
+      section: "Expenses", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("1500.00")),
+      totalAmounts: [{ commodity: "$", quantity: "18000.00" }],
+    },
+    {
+      displayName: "subscriptions", fullName: "expenses:subscriptions", indent: 1,
+      section: "Expenses", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("57.43")),
+      totalAmounts: [{ commodity: "$", quantity: "689.16" }],
+    },
+    {
+      displayName: "transport", fullName: "expenses:transport", indent: 1,
+      section: "Expenses", isTotal: false,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("28.00")),
+      totalAmounts: [{ commodity: "$", quantity: "336.00" }],
+    },
+    {
+      displayName: "Total Expenses", fullName: "", indent: 0,
+      section: "Expenses", isTotal: true,
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2340.43")),
+      totalAmounts: [],
+    },
+  ],
+  netAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2859.57")),
+};
+
 export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations } = {}) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
@@ -543,6 +623,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetNetWorthTimeseries":
         body = { snapshots: mockNetWorthSnapshots };
+        break;
+      case "GetIncomeStatementTimeseries":
+        body = mockIncomeStatementTimeseries;
         break;
       case "UpdateTransactionStatus":
         body = {};

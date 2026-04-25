@@ -69,6 +69,10 @@ func netWorthKey(begin, end string) string {
 	return fmt.Sprintf("networth:%s:%s", begin, end)
 }
 
+func incomeStatementKey(begin, end string) string {
+	return fmt.Sprintf("incomestmt:%s:%s", begin, end)
+}
+
 // cachedTransactions fetches transactions from cache or hledger.
 func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
 	if c == nil {
@@ -123,6 +127,20 @@ func cachedNetWorth(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 		return nil, err
 	}
 	return val.(*hledger.BalanceSheetTimeseries), nil
+}
+
+// cachedIncomeStatement fetches an income statement timeseries from cache or hledger.
+func cachedIncomeStatement(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, begin, end string) (*hledger.IncomeStatementTimeseries, error) {
+	if c == nil {
+		return hl.IncomeStatementTimeseries(ctx, begin, end)
+	}
+	val, err := c.Get(ctx, incomeStatementKey(begin, end), func(ctx context.Context) (any, error) {
+		return hl.IncomeStatementTimeseries(ctx, begin, end)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.(*hledger.IncomeStatementTimeseries), nil
 }
 
 // cachedTags fetches tag names from cache or hledger.
@@ -269,6 +287,58 @@ func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Reques
 		snapshots[i] = snap
 	}
 	return connect.NewResponse(&floatv1.GetNetWorthTimeseriesResponse{Snapshots: snapshots}), nil
+}
+
+func (h *Handler) GetIncomeStatementTimeseries(ctx context.Context, req *connect.Request[floatv1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[floatv1.GetIncomeStatementTimeseriesResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	ts, err := cachedIncomeStatement(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger income statement timeseries failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	var rows []*floatv1.IncomeStatementRow
+	for _, sub := range ts.Subreports {
+		for _, r := range sub.Rows {
+			rows = append(rows, toProtoISRow(r, false))
+		}
+		// Append a synthetic section-total row using the section totals.
+		totalRow := hledger.ISRow{
+			DisplayName:      "Total " + sub.Name,
+			FullName:         "",
+			Indent:           0,
+			Section:          sub.Name,
+			PerPeriodAmounts: sub.Totals,
+		}
+		rows = append(rows, toProtoISRow(totalRow, true))
+	}
+
+	netAmounts := make([]*floatv1.AmountList, len(ts.NetAmounts))
+	for i, amounts := range ts.NetAmounts {
+		netAmounts[i] = &floatv1.AmountList{Amounts: toProtoAmounts(amounts)}
+	}
+
+	return connect.NewResponse(&floatv1.GetIncomeStatementTimeseriesResponse{
+		Periods:    ts.Periods,
+		Rows:       rows,
+		NetAmounts: netAmounts,
+	}), nil
+}
+
+func toProtoISRow(r hledger.ISRow, isTotal bool) *floatv1.IncomeStatementRow {
+	perPeriod := make([]*floatv1.AmountList, len(r.PerPeriodAmounts))
+	for i, amounts := range r.PerPeriodAmounts {
+		perPeriod[i] = &floatv1.AmountList{Amounts: toProtoAmounts(amounts)}
+	}
+	return &floatv1.IncomeStatementRow{
+		DisplayName:      r.DisplayName,
+		FullName:         r.FullName,
+		Indent:           int32(r.Indent),
+		Section:          r.Section,
+		PerPeriodAmounts: perPeriod,
+		TotalAmounts:     toProtoAmounts(r.TotalAmounts),
+		IsTotal:          isTotal,
+	}
 }
 
 func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1.ListAccountsRequest]) (*connect.Response[floatv1.ListAccountsResponse], error) {
