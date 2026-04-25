@@ -346,6 +346,44 @@ func (PricesFormKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keySubmit, keyEsc, keyNextField, keyPrevField}}
 }
 
+var keySetPayee = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "set payee"))
+
+// PayeesListKeyMap is for the payees tab when browsing payees or descriptions.
+type PayeesListKeyMap struct{}
+
+func (PayeesListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keySwitch, keyExpand, keyHelp}
+}
+func (PayeesListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keySwitch, keyExpand, keyRetry},
+	}
+}
+
+// PayeesTxKeyMap is for the payees tab when viewing transactions for a payee.
+type PayeesTxKeyMap struct{}
+
+func (PayeesTxKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keySplit, keyBack, keyHelp}
+}
+func (PayeesTxKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyBack, keySplit, keyRetry},
+	}
+}
+
+// PayeesAssignKeyMap is for the payees tab assign-payee form.
+type PayeesAssignKeyMap struct{}
+
+func (PayeesAssignKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keySetPayee, keyEsc}
+}
+func (PayeesAssignKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keySetPayee, keyEsc}}
+}
+
 // SettingsKeyMap is for the settings tab.
 type SettingsKeyMap struct{}
 
