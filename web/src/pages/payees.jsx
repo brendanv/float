@@ -139,6 +139,7 @@ export function PayeesPage() {
 
   // ── Descriptions table ────────────────────────────────────────────────────
 
+  const [descFilter, setDescFilter] = useState("");
   const [descSorting, setDescSorting] = useState([{ id: "count", desc: true }]);
   const [activeDesc, setActiveDesc] = useState(null);
   const [newPayee, setNewPayee] = useState("");
@@ -278,8 +279,13 @@ export function PayeesPage() {
     [navigate, activeDesc, newPayee, settingPayee, setPayeeError]
   );
 
+  const filteredDescRows = useMemo(() => {
+    const q = descFilter.trim().toLowerCase();
+    return q ? descRows.filter((r) => r.description.toLowerCase().includes(q)) : descRows;
+  }, [descRows, descFilter]);
+
   const descTable = useReactTable({
-    data: descRows,
+    data: filteredDescRows,
     columns: descColumns,
     state: { sorting: descSorting },
     onSortingChange: setDescSorting,
@@ -350,12 +356,22 @@ export function PayeesPage() {
         <CardHeader>
           <CardTitle>Common descriptions without a payee</CardTitle>
         </CardHeader>
-        <CardContent>
-          {descTable.getRowModel().rows.length === 0 ? (
+        <CardContent className="flex flex-col gap-4">
+          {descRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               All transactions have a payee assigned.
             </p>
           ) : (
+            <>
+              <Input
+                placeholder="Filter descriptions…"
+                value={descFilter}
+                onChange={(e) => setDescFilter(e.target.value)}
+                className="max-w-sm"
+              />
+              {descTable.getRowModel().rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No descriptions match your filter.</p>
+              ) : (
             <Table>
               <TableHeader>
                 {descTable.getHeaderGroups().map((hg) => (
@@ -385,6 +401,8 @@ export function PayeesPage() {
                 ))}
               </TableBody>
             </Table>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
