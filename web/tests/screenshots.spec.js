@@ -337,6 +337,15 @@ test("payees page - set payee inline form open", async ({ page }) => {
   await page.screenshot({ path: "test-results/payees-set-payee.png", fullPage: true });
 });
 
+test("payees page - mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/payees");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "test-results/payees-mobile.png", fullPage: true });
+});
+
 test("hamburger icon - closed state", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
