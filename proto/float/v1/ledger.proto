@@ -526,10 +526,13 @@ message Holding {
   string account = 1;
   string symbol = 2;
   string quantity = 3;
-  Amount latest_price = 4;  // null if no price data exists for this symbol
-  Amount current_value = 5; // null if no price data exists
-  double portfolio_pct = 6; // percentage of total valued portfolio; 0 if no price
-  string price_date = 7;    // date of the latest price used; empty if none
+  Amount latest_price = 4;      // null if no price data exists for this symbol
+  Amount current_value = 5;     // null if no price data exists
+  double portfolio_pct = 6;     // percentage of total valued portfolio; 0 if no price
+  string price_date = 7;        // date of the latest price used; empty if none
+  Amount book_value = 8;        // total cost basis in base currency; null if unknown
+  Amount unrealized_gain = 9;   // current_value - book_value; null if either is null
+  double unrealized_gain_pct = 10; // unrealized_gain / book_value * 100; 0 if unknown
 }
 
 message GetPortfolioHoldingsRequest {
@@ -540,6 +543,20 @@ message GetPortfolioHoldingsResponse {
   repeated Holding holdings = 1;
   Amount total_value = 2;   // sum of all valued holdings in base currency; null if no prices
   string as_of_date = 3;    // most recent price date used across all holdings
+}
+
+message GetPortfolioTimeseriesRequest {
+  string account_prefix = 1; // e.g. "assets:investments"; empty = "assets"
+  string begin = 2;          // optional YYYY-MM-DD; empty = all history
+}
+
+message PortfolioTimeseriesSnapshot {
+  string date = 1;
+  Amount total_value = 2; // total portfolio value at this period; null if no prices
+}
+
+message GetPortfolioTimeseriesResponse {
+  repeated PortfolioTimeseriesSnapshot snapshots = 1;
 }
 
 service LedgerService {
@@ -557,6 +574,7 @@ service LedgerService {
   rpc UpdateTransactionStatus(UpdateTransactionStatusRequest) returns (UpdateTransactionStatusResponse);
   rpc GetNetWorthTimeseries(GetNetWorthTimeseriesRequest) returns (GetNetWorthTimeseriesResponse);
   rpc GetPortfolioHoldings(GetPortfolioHoldingsRequest) returns (GetPortfolioHoldingsResponse);
+  rpc GetPortfolioTimeseries(GetPortfolioTimeseriesRequest) returns (GetPortfolioTimeseriesResponse);
   rpc ListPrices(ListPricesRequest) returns (ListPricesResponse);
   rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
   rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);

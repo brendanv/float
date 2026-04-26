@@ -420,6 +420,9 @@ export const mockPortfolioHoldings = {
       currentValue: { commodity: "USD", quantity: "1785.00" },
       portfolioPct: 46.4,
       priceDate: "2026-03-01",
+      bookValue: { commodity: "USD", quantity: "1750.00" },
+      unrealizedGain: { commodity: "USD", quantity: "35.00" },
+      unrealizedGainPct: 2.0,
     },
     {
       account: "assets:investments:msft",
@@ -429,6 +432,9 @@ export const mockPortfolioHoldings = {
       currentValue: { commodity: "USD", quantity: "1993.75" },
       portfolioPct: 51.8,
       priceDate: "2026-03-01",
+      bookValue: { commodity: "USD", quantity: "2000.00" },
+      unrealizedGain: { commodity: "USD", quantity: "-6.25" },
+      unrealizedGainPct: -0.31,
     },
     {
       account: "assets:investments:voo",
@@ -438,10 +444,21 @@ export const mockPortfolioHoldings = {
       currentValue: null,
       portfolioPct: 0,
       priceDate: "",
+      bookValue: null,
+      unrealizedGain: null,
+      unrealizedGainPct: 0,
     },
   ],
   totalValue: { commodity: "USD", quantity: "3778.75" },
   asOfDate: "2026-03-01",
+};
+
+export const mockPortfolioTimeseries = {
+  snapshots: [
+    { date: "2026-01-01", totalValue: { commodity: "USD", quantity: "1785.00" } },
+    { date: "2026-02-01", totalValue: { commodity: "USD", quantity: "3650.00" } },
+    { date: "2026-03-01", totalValue: { commodity: "USD", quantity: "3778.75" } },
+  ],
 };
 
 export const mockImports = [
@@ -753,6 +770,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetPortfolioHoldings":
         body = portfolioHoldings ?? mockPortfolioHoldings;
+        break;
+      case "GetPortfolioTimeseries":
+        body = mockPortfolioTimeseries;
         break;
       default:
         body = {};

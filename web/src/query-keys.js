@@ -15,5 +15,6 @@ export const queryKeys = {
   importedTransactions: (batchId) => ["importedTransactions", batchId],
   payees:               () => ["payees"],
   noPayeeTransactions:  () => ["noPayeeTransactions"],
-  portfolioHoldings:    () => ["portfolioHoldings"],
+  portfolioHoldings:    (accountPrefix = "") => ["portfolioHoldings", accountPrefix],
+  portfolioTimeseries:  (accountPrefix = "", begin = "") => ["portfolioTimeseries", accountPrefix, begin],
 };
