@@ -176,6 +176,51 @@ func (c *Client) BalancesValued(ctx context.Context, valueSpec string, depth int
 	return parseBalanceReport(stdout)
 }
 
+// BalancesCost runs `hledger bal -B -O json -f <journal> [query...]`.
+// -B converts commodity amounts to their recorded purchase cost in base currency.
+// Accounts that lack cost annotations are returned in the original commodity.
+// depth 0 = no --depth flag.
+func (c *Client) BalancesCost(ctx context.Context, depth int, query ...string) (*BalanceReport, error) {
+	args := []string{"bal", "-B", "-O", "json", "-f", c.journal}
+	if depth > 0 {
+		args = append(args, "--depth", fmt.Sprintf("%d", depth))
+	}
+	args = append(args, query...)
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bal -B: %w", err))
+	}
+
+	return parseBalanceReport(stdout)
+}
+
+// PortfolioTimeseries runs `hledger bs --monthly --historical --layout=bare
+// --infer-market-prices --value=then,USD -O json -f <journal> [prefix] [date:begin..]`
+// filtered to the given account prefix.
+// The Assets subreport total gives total investment value per period.
+// prefix and begin are optional strings; pass "" to omit.
+func (c *Client) PortfolioTimeseries(ctx context.Context, prefix, begin string) (*BalanceSheetTimeseries, error) {
+	args := []string{
+		"bs", "-O", "json", "-f", c.journal,
+		"--monthly", "--historical", "--layout=bare",
+		"--infer-market-prices", "--value=then,USD",
+	}
+	if prefix != "" {
+		args = append(args, prefix)
+	}
+	if begin != "" {
+		args = append(args, "date:"+begin+"..")
+	}
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bs (portfolio): %w", err))
+	}
+
+	return parseBalanceSheetTimeseries(stdout)
+}
+
 // BalanceSheetTimeseries runs `hledger bs --monthly --historical --layout=bare
 // --infer-market-prices --value=then -O json -f <journal> [date:begin..end]`
 // and returns per-period asset and liability totals.

@@ -8,9 +8,9 @@ account assets:investments:msft
 account assets:checking
 
 2026-01-15 Buy AAPL
-    assets:investments:aapl    10 AAPL
+    assets:investments:aapl    10 AAPL @ 175.00 USD
     assets:checking           -1750.00 USD
 
 2026-02-01 Buy MSFT
-    assets:investments:msft     5 MSFT
+    assets:investments:msft     5 MSFT @ 400.00 USD
     assets:checking           -2000.00 USD

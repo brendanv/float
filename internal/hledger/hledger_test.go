@@ -228,6 +228,85 @@ func TestBalancesValued(t *testing.T) {
 	}
 }
 
+func TestBalancesCost(t *testing.T) {
+	c := mustClient(t, "investments.journal")
+
+	cost, err := c.BalancesCost(t.Context(), 0, "assets:investments")
+	if err != nil {
+		t.Fatalf("BalancesCost: %v", err)
+	}
+	costByAccount := map[string][]hledger.Amount{}
+	for _, row := range cost.Rows {
+		costByAccount[row.FullName] = row.Amounts
+	}
+
+	// AAPL: 10 shares @ $175 = $1750 cost basis
+	if amts := costByAccount["assets:investments:aapl"]; len(amts) == 0 {
+		t.Error("assets:investments:aapl missing from cost balances")
+	} else {
+		amt := amts[0]
+		if amt.Commodity != "USD" {
+			t.Errorf("expected USD cost commodity for AAPL, got %q", amt.Commodity)
+		}
+		got := amt.Quantity.FloatingPoint
+		if got < 1749 || got > 1751 {
+			t.Errorf("expected AAPL cost ≈ 1750.00, got %v", got)
+		}
+	}
+
+	// MSFT: 5 shares @ $400 = $2000 cost basis
+	if amts := costByAccount["assets:investments:msft"]; len(amts) == 0 {
+		t.Error("assets:investments:msft missing from cost balances")
+	} else {
+		amt := amts[0]
+		if amt.Commodity != "USD" {
+			t.Errorf("expected USD cost commodity for MSFT, got %q", amt.Commodity)
+		}
+		got := amt.Quantity.FloatingPoint
+		if got < 1999 || got > 2001 {
+			t.Errorf("expected MSFT cost ≈ 2000.00, got %v", got)
+		}
+	}
+}
+
+func TestPortfolioTimeseries(t *testing.T) {
+	c := mustClient(t, "investments.journal")
+
+	ts, err := c.PortfolioTimeseries(t.Context(), "assets:investments", "")
+	if err != nil {
+		t.Fatalf("PortfolioTimeseries: %v", err)
+	}
+
+	// investments.journal has transactions in 2026-01 and 2026-02.
+	if len(ts.Periods) < 1 {
+		t.Fatalf("expected at least 1 period, got %d", len(ts.Periods))
+	}
+
+	var assetsSub *hledger.BSSubreport
+	for i := range ts.Subreports {
+		if ts.Subreports[i].Name == "Assets" {
+			assetsSub = &ts.Subreports[i]
+			break
+		}
+	}
+	if assetsSub == nil {
+		t.Fatal("Assets subreport not found")
+	}
+
+	// Last period should include both AAPL and MSFT valued at then-prices.
+	// With --value=then,USD and P directives at 2026-04-26, the last period
+	// after both purchases will show total investment value > 0.
+	last := len(ts.Periods) - 1
+	if len(assetsSub.Totals[last]) == 0 {
+		t.Error("expected non-empty Assets totals in last period")
+	} else {
+		v := assetsSub.Totals[last][0].Quantity.FloatingPoint
+		if v <= 0 {
+			t.Errorf("expected positive portfolio value in last period, got %v", v)
+		}
+	}
+}
+
 func TestRegister(t *testing.T) {
 	tests := []struct {
 		name  string

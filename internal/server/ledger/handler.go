@@ -150,6 +150,44 @@ func cachedNetWorth(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 	return val.(*hledger.BalanceSheetTimeseries), nil
 }
 
+func balancesCostKey(query []string) string {
+	sorted := append([]string(nil), query...)
+	sort.Strings(sorted)
+	return fmt.Sprintf("balancescost:%s", strings.Join(sorted, "|"))
+}
+
+func portfolioTimeseriesKey(prefix, begin string) string {
+	return fmt.Sprintf("portfoliotimeseries:%s:%s", prefix, begin)
+}
+
+// cachedBalancesCost fetches cost-basis balances from cache or hledger.
+func cachedBalancesCost(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
+	if c == nil {
+		return hl.BalancesCost(ctx, depth, query...)
+	}
+	val, err := c.Get(ctx, balancesCostKey(query), func(ctx context.Context) (any, error) {
+		return hl.BalancesCost(ctx, depth, query...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.(*hledger.BalanceReport), nil
+}
+
+// cachedPortfolioTimeseries fetches a portfolio value timeseries from cache or hledger.
+func cachedPortfolioTimeseries(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, prefix, begin string) (*hledger.BalanceSheetTimeseries, error) {
+	if c == nil {
+		return hl.PortfolioTimeseries(ctx, prefix, begin)
+	}
+	val, err := c.Get(ctx, portfolioTimeseriesKey(prefix, begin), func(ctx context.Context) (any, error) {
+		return hl.PortfolioTimeseries(ctx, prefix, begin)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.(*hledger.BalanceSheetTimeseries), nil
+}
+
 // cachedIncomeStatement fetches an income statement timeseries from cache or hledger.
 func cachedIncomeStatement(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, begin, end string) (*hledger.IncomeStatementTimeseries, error) {
 	if c == nil {
@@ -320,10 +358,39 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Index valued rows by account name for O(1) lookup.
+	// Cost-basis balances convert commodity amounts using recorded purchase cost (@).
+	cost, err := cachedBalancesCost(ctx, h.cache, h.hl, 0, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger cost balances failed for portfolio", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Build symbol→latestPriceDate from the prices journal for PriceDate population.
+	priceList, err := journal.ListPrices(h.dataDir)
+	if err != nil {
+		logger.WarnContext(ctx, "could not read prices for price dates", "error", err)
+	}
+	latestPriceDate := make(map[string]string)
+	for _, p := range priceList {
+		if existing := latestPriceDate[p.Commodity]; p.Date > existing {
+			latestPriceDate[p.Commodity] = p.Date
+		}
+	}
+
+	// Index valued and cost rows by account name for O(1) lookup.
 	valuedByAccount := make(map[string][]hledger.Amount, len(valued.Rows))
 	for _, row := range valued.Rows {
 		valuedByAccount[row.FullName] = row.Amounts
+	}
+	costByAccount := make(map[string]float64, len(cost.Rows))
+	costCurrencyByAccount := make(map[string]string, len(cost.Rows))
+	for _, row := range cost.Rows {
+		for _, amt := range row.Amounts {
+			if currencySymbols[amt.Commodity] {
+				costByAccount[row.FullName] = amt.Quantity.FloatingPoint
+				costCurrencyByAccount[row.FullName] = amt.Commodity
+			}
+		}
 	}
 
 	// Build holdings from raw rows that contain non-currency commodities.
@@ -338,9 +405,10 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 				continue
 			}
 			holding := &floatv1.Holding{
-				Account:  row.FullName,
-				Symbol:   amt.Commodity,
-				Quantity: fmt.Sprintf("%g", qty),
+				Account:   row.FullName,
+				Symbol:    amt.Commodity,
+				Quantity:  fmt.Sprintf("%g", qty),
+				PriceDate: latestPriceDate[amt.Commodity],
 			}
 
 			// Check whether hledger converted this commodity in the valued report.
@@ -365,18 +433,43 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 					}
 				}
 			}
+
+			// Populate cost basis and unrealized gain when available.
+			if bookVal, ok := costByAccount[row.FullName]; ok {
+				currency := costCurrencyByAccount[row.FullName]
+				holding.BookValue = &floatv1.Amount{
+					Commodity: currency,
+					Quantity:  fmt.Sprintf("%.2f", bookVal),
+				}
+				if holding.CurrentValue != nil {
+					currentVal, _ := strconv.ParseFloat(holding.CurrentValue.Quantity, 64)
+					gain := currentVal - bookVal
+					holding.UnrealizedGain = &floatv1.Amount{
+						Commodity: currency,
+						Quantity:  fmt.Sprintf("%.2f", gain),
+					}
+					if bookVal != 0 {
+						holding.UnrealizedGainPct = gain / bookVal * 100
+					}
+				}
+			}
+
 			holdings = append(holdings, holding)
 		}
 	}
 
-	// Sum total value and compute allocation percentages.
+	// Sum total value, compute allocation percentages, and track as_of_date.
 	var totalValue float64
 	var baseCurrency string
+	var asOfDate string
 	for _, h := range holdings {
 		if h.CurrentValue != nil {
 			v, _ := strconv.ParseFloat(h.CurrentValue.Quantity, 64)
 			totalValue += v
 			baseCurrency = h.CurrentValue.Commodity
+		}
+		if h.PriceDate > asOfDate {
+			asOfDate = h.PriceDate
 		}
 	}
 
@@ -399,11 +492,42 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		})
 	}
 
-	resp := &floatv1.GetPortfolioHoldingsResponse{Holdings: holdings}
+	resp := &floatv1.GetPortfolioHoldingsResponse{Holdings: holdings, AsOfDate: asOfDate}
 	if totalValue > 0 {
 		resp.TotalValue = &floatv1.Amount{Commodity: baseCurrency, Quantity: fmt.Sprintf("%.2f", totalValue)}
 	}
 	return connect.NewResponse(resp), nil
+}
+
+func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Request[floatv1.GetPortfolioTimeseriesRequest]) (*connect.Response[floatv1.GetPortfolioTimeseriesResponse], error) {
+	logger := slogctx.FromContext(ctx)
+
+	prefix := req.Msg.AccountPrefix
+	if prefix == "" {
+		prefix = "assets"
+	}
+
+	ts, err := cachedPortfolioTimeseries(ctx, h.cache, h.hl, prefix, req.Msg.Begin)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger portfolio timeseries failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	snapshots := make([]*floatv1.PortfolioTimeseriesSnapshot, len(ts.Periods))
+	for i, date := range ts.Periods {
+		snap := &floatv1.PortfolioTimeseriesSnapshot{Date: date}
+		for _, sub := range ts.Subreports {
+			if sub.Name == "Assets" && len(sub.Totals[i]) > 0 {
+				a := sub.Totals[i][0]
+				snap.TotalValue = &floatv1.Amount{
+					Commodity: a.Commodity,
+					Quantity:  fmt.Sprintf("%.2f", a.Quantity.FloatingPoint),
+				}
+			}
+		}
+		snapshots[i] = snap
+	}
+	return connect.NewResponse(&floatv1.GetPortfolioTimeseriesResponse{Snapshots: snapshots}), nil
 }
 
 func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {

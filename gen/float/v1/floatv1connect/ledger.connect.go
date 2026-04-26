@@ -74,6 +74,9 @@ const (
 	// LedgerServiceGetPortfolioHoldingsProcedure is the fully-qualified name of the LedgerService's
 	// GetPortfolioHoldings RPC.
 	LedgerServiceGetPortfolioHoldingsProcedure = "/float.v1.LedgerService/GetPortfolioHoldings"
+	// LedgerServiceGetPortfolioTimeseriesProcedure is the fully-qualified name of the LedgerService's
+	// GetPortfolioTimeseries RPC.
+	LedgerServiceGetPortfolioTimeseriesProcedure = "/float.v1.LedgerService/GetPortfolioTimeseries"
 	// LedgerServiceListPricesProcedure is the fully-qualified name of the LedgerService's ListPrices
 	// RPC.
 	LedgerServiceListPricesProcedure = "/float.v1.LedgerService/ListPrices"
@@ -167,6 +170,7 @@ type LedgerServiceClient interface {
 	UpdateTransactionStatus(context.Context, *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error)
 	GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error)
 	GetPortfolioHoldings(context.Context, *connect.Request[v1.GetPortfolioHoldingsRequest]) (*connect.Response[v1.GetPortfolioHoldingsResponse], error)
+	GetPortfolioTimeseries(context.Context, *connect.Request[v1.GetPortfolioTimeseriesRequest]) (*connect.Response[v1.GetPortfolioTimeseriesResponse], error)
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
@@ -290,6 +294,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceGetPortfolioHoldingsProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("GetPortfolioHoldings")),
+			connect.WithClientOptions(opts...),
+		),
+		getPortfolioTimeseries: connect.NewClient[v1.GetPortfolioTimeseriesRequest, v1.GetPortfolioTimeseriesResponse](
+			httpClient,
+			baseURL+LedgerServiceGetPortfolioTimeseriesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetPortfolioTimeseries")),
 			connect.WithClientOptions(opts...),
 		),
 		listPrices: connect.NewClient[v1.ListPricesRequest, v1.ListPricesResponse](
@@ -467,6 +477,7 @@ type ledgerServiceClient struct {
 	updateTransactionStatus      *connect.Client[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse]
 	getNetWorthTimeseries        *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
 	getPortfolioHoldings         *connect.Client[v1.GetPortfolioHoldingsRequest, v1.GetPortfolioHoldingsResponse]
+	getPortfolioTimeseries       *connect.Client[v1.GetPortfolioTimeseriesRequest, v1.GetPortfolioTimeseriesResponse]
 	listPrices                   *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
 	addPrice                     *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
 	deletePrice                  *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
@@ -563,6 +574,11 @@ func (c *ledgerServiceClient) GetNetWorthTimeseries(ctx context.Context, req *co
 // GetPortfolioHoldings calls float.v1.LedgerService.GetPortfolioHoldings.
 func (c *ledgerServiceClient) GetPortfolioHoldings(ctx context.Context, req *connect.Request[v1.GetPortfolioHoldingsRequest]) (*connect.Response[v1.GetPortfolioHoldingsResponse], error) {
 	return c.getPortfolioHoldings.CallUnary(ctx, req)
+}
+
+// GetPortfolioTimeseries calls float.v1.LedgerService.GetPortfolioTimeseries.
+func (c *ledgerServiceClient) GetPortfolioTimeseries(ctx context.Context, req *connect.Request[v1.GetPortfolioTimeseriesRequest]) (*connect.Response[v1.GetPortfolioTimeseriesResponse], error) {
+	return c.getPortfolioTimeseries.CallUnary(ctx, req)
 }
 
 // ListPrices calls float.v1.LedgerService.ListPrices.
@@ -711,6 +727,7 @@ type LedgerServiceHandler interface {
 	UpdateTransactionStatus(context.Context, *connect.Request[v1.UpdateTransactionStatusRequest]) (*connect.Response[v1.UpdateTransactionStatusResponse], error)
 	GetNetWorthTimeseries(context.Context, *connect.Request[v1.GetNetWorthTimeseriesRequest]) (*connect.Response[v1.GetNetWorthTimeseriesResponse], error)
 	GetPortfolioHoldings(context.Context, *connect.Request[v1.GetPortfolioHoldingsRequest]) (*connect.Response[v1.GetPortfolioHoldingsResponse], error)
+	GetPortfolioTimeseries(context.Context, *connect.Request[v1.GetPortfolioTimeseriesRequest]) (*connect.Response[v1.GetPortfolioTimeseriesResponse], error)
 	ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error)
 	AddPrice(context.Context, *connect.Request[v1.AddPriceRequest]) (*connect.Response[v1.AddPriceResponse], error)
 	DeletePrice(context.Context, *connect.Request[v1.DeletePriceRequest]) (*connect.Response[v1.DeletePriceResponse], error)
@@ -830,6 +847,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceGetPortfolioHoldingsProcedure,
 		svc.GetPortfolioHoldings,
 		connect.WithSchema(ledgerServiceMethods.ByName("GetPortfolioHoldings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceGetPortfolioTimeseriesHandler := connect.NewUnaryHandler(
+		LedgerServiceGetPortfolioTimeseriesProcedure,
+		svc.GetPortfolioTimeseries,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetPortfolioTimeseries")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceListPricesHandler := connect.NewUnaryHandler(
@@ -1018,6 +1041,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetNetWorthTimeseriesHandler.ServeHTTP(w, r)
 		case LedgerServiceGetPortfolioHoldingsProcedure:
 			ledgerServiceGetPortfolioHoldingsHandler.ServeHTTP(w, r)
+		case LedgerServiceGetPortfolioTimeseriesProcedure:
+			ledgerServiceGetPortfolioTimeseriesHandler.ServeHTTP(w, r)
 		case LedgerServiceListPricesProcedure:
 			ledgerServiceListPricesHandler.ServeHTTP(w, r)
 		case LedgerServiceAddPriceProcedure:
@@ -1133,6 +1158,10 @@ func (UnimplementedLedgerServiceHandler) GetNetWorthTimeseries(context.Context, 
 
 func (UnimplementedLedgerServiceHandler) GetPortfolioHoldings(context.Context, *connect.Request[v1.GetPortfolioHoldingsRequest]) (*connect.Response[v1.GetPortfolioHoldingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetPortfolioHoldings is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetPortfolioTimeseries(context.Context, *connect.Request[v1.GetPortfolioTimeseriesRequest]) (*connect.Response[v1.GetPortfolioTimeseriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetPortfolioTimeseries is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) ListPrices(context.Context, *connect.Request[v1.ListPricesRequest]) (*connect.Response[v1.ListPricesResponse], error) {
