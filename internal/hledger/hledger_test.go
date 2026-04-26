@@ -170,6 +170,64 @@ func TestBalances(t *testing.T) {
 	}
 }
 
+func TestBalancesValued(t *testing.T) {
+	c := mustClient(t, "investments.journal")
+
+	// Raw balances should show commodity amounts.
+	raw, err := c.Balances(t.Context(), 0, "assets:investments")
+	if err != nil {
+		t.Fatalf("Balances: %v", err)
+	}
+	rawByAccount := map[string][]hledger.Amount{}
+	for _, row := range raw.Rows {
+		rawByAccount[row.FullName] = row.Amounts
+	}
+	if amts := rawByAccount["assets:investments:aapl"]; len(amts) == 0 || amts[0].Commodity != "AAPL" {
+		t.Errorf("expected AAPL commodity in raw balances, got %+v", amts)
+	}
+	if amts := rawByAccount["assets:investments:msft"]; len(amts) == 0 || amts[0].Commodity != "MSFT" {
+		t.Errorf("expected MSFT commodity in raw balances, got %+v", amts)
+	}
+
+	// Valued balances should convert commodities to USD via prices.journal P directives.
+	valued, err := c.BalancesValued(t.Context(), "now,USD", 0, "assets:investments")
+	if err != nil {
+		t.Fatalf("BalancesValued: %v", err)
+	}
+	valuedByAccount := map[string][]hledger.Amount{}
+	for _, row := range valued.Rows {
+		valuedByAccount[row.FullName] = row.Amounts
+	}
+
+	// AAPL: 10 shares × $178.50 = $1785.00
+	if amts := valuedByAccount["assets:investments:aapl"]; len(amts) == 0 {
+		t.Error("assets:investments:aapl missing from valued balances")
+	} else {
+		amt := amts[0]
+		if amt.Commodity != "USD" {
+			t.Errorf("expected USD commodity after valuation, got %q", amt.Commodity)
+		}
+		got := amt.Quantity.FloatingPoint
+		if got < 1784 || got > 1786 {
+			t.Errorf("expected AAPL value ≈ 1785.00, got %v", got)
+		}
+	}
+
+	// MSFT: 5 shares × $398.75 = $1993.75
+	if amts := valuedByAccount["assets:investments:msft"]; len(amts) == 0 {
+		t.Error("assets:investments:msft missing from valued balances")
+	} else {
+		amt := amts[0]
+		if amt.Commodity != "USD" {
+			t.Errorf("expected USD commodity after valuation, got %q", amt.Commodity)
+		}
+		got := amt.Quantity.FloatingPoint
+		if got < 1992 || got > 1995 {
+			t.Errorf("expected MSFT value ≈ 1993.75, got %v", got)
+		}
+	}
+}
+
 func TestRegister(t *testing.T) {
 	tests := []struct {
 		name  string
