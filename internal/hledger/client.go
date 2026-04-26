@@ -156,6 +156,26 @@ func (c *Client) Balances(ctx context.Context, depth int, query ...string) (*Bal
 	return parseBalanceReport(stdout)
 }
 
+// BalancesValued runs `hledger bal -O json --infer-market-prices --value=<valueSpec>
+// -f <journal> [query...]`. valueSpec is the argument to --value, e.g. "now,USD"
+// or "end,USD". hledger converts each commodity to the target currency using P
+// directives from the journal; amounts without a matching price are left unconverted.
+// depth 0 = no --depth flag.
+func (c *Client) BalancesValued(ctx context.Context, valueSpec string, depth int, query ...string) (*BalanceReport, error) {
+	args := []string{"bal", "-O", "json", "-f", c.journal, "--infer-market-prices", "--value=" + valueSpec}
+	if depth > 0 {
+		args = append(args, "--depth", fmt.Sprintf("%d", depth))
+	}
+	args = append(args, query...)
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bal --value: %w", err))
+	}
+
+	return parseBalanceReport(stdout)
+}
+
 // BalanceSheetTimeseries runs `hledger bs --monthly --historical --layout=bare
 // --infer-market-prices --value=then -O json -f <journal> [date:begin..end]`
 // and returns per-period asset and liability totals.

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +74,12 @@ func incomeStatementKey(begin, end string) string {
 	return fmt.Sprintf("incomestmt:%s:%s", begin, end)
 }
 
+func balancesValuedKey(valueSpec string, query []string) string {
+	sorted := append([]string(nil), query...)
+	sort.Strings(sorted)
+	return fmt.Sprintf("balancesvalued:%s:%s", valueSpec, strings.Join(sorted, "|"))
+}
+
 // cachedTransactions fetches transactions from cache or hledger.
 func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
 	if c == nil {
@@ -94,6 +101,20 @@ func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 	}
 	val, err := c.Get(ctx, balancesKey(depth, query), func(ctx context.Context) (any, error) {
 		return hl.Balances(ctx, depth, query...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.(*hledger.BalanceReport), nil
+}
+
+// cachedBalancesValued fetches market-valued balances from cache or hledger.
+func cachedBalancesValued(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, valueSpec string, depth int, query []string) (*hledger.BalanceReport, error) {
+	if c == nil {
+		return hl.BalancesValued(ctx, valueSpec, depth, query...)
+	}
+	val, err := c.Get(ctx, balancesValuedKey(valueSpec, query), func(ctx context.Context) (any, error) {
+		return hl.BalancesValued(ctx, valueSpec, depth, query...)
 	})
 	if err != nil {
 		return nil, err
@@ -263,6 +284,126 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 	return connect.NewResponse(&floatv1.GetBalancesResponse{
 		Report: &floatv1.BalanceReport{Rows: rows, Total: total},
 	}), nil
+}
+
+// currencySymbols is the set of commodity codes treated as plain fiat currency.
+// Accounts whose amounts consist only of these commodities are excluded from the
+// portfolio view — they are cash positions, not equity holdings.
+var currencySymbols = map[string]bool{
+	"$": true, "USD": true, "EUR": true, "GBP": true,
+	"JPY": true, "CAD": true, "AUD": true, "CHF": true,
+	"NZD": true, "HKD": true, "SGD": true, "SEK": true,
+	"NOK": true, "DKK": true, "MXN": true, "INR": true,
+}
+
+func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request[floatv1.GetPortfolioHoldingsRequest]) (*connect.Response[floatv1.GetPortfolioHoldingsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+
+	prefix := req.Msg.AccountPrefix
+	if prefix == "" {
+		prefix = "assets"
+	}
+	query := []string{prefix}
+
+	// Raw balances provide the original commodity quantities.
+	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger balances failed for portfolio", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Valued balances let hledger convert commodities to USD using P directives.
+	// Commodities without a matching price directive are returned unconverted.
+	valued, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", 0, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger valued balances failed for portfolio", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Index valued rows by account name for O(1) lookup.
+	valuedByAccount := make(map[string][]hledger.Amount, len(valued.Rows))
+	for _, row := range valued.Rows {
+		valuedByAccount[row.FullName] = row.Amounts
+	}
+
+	// Build holdings from raw rows that contain non-currency commodities.
+	var holdings []*floatv1.Holding
+	for _, row := range raw.Rows {
+		for _, amt := range row.Amounts {
+			if currencySymbols[amt.Commodity] {
+				continue
+			}
+			qty := amt.Quantity.FloatingPoint
+			if qty == 0 {
+				continue
+			}
+			holding := &floatv1.Holding{
+				Account:  row.FullName,
+				Symbol:   amt.Commodity,
+				Quantity: fmt.Sprintf("%g", qty),
+			}
+
+			// Check whether hledger converted this commodity in the valued report.
+			// If the valued commodity differs from the raw commodity, the conversion
+			// succeeded and CurrentValue contains the hledger-computed market value.
+			if valuedAmts := valuedByAccount[row.FullName]; len(valuedAmts) > 0 {
+				for _, vAmt := range valuedAmts {
+					if vAmt.Commodity != amt.Commodity {
+						value := vAmt.Quantity.FloatingPoint
+						holding.CurrentValue = &floatv1.Amount{
+							Commodity: vAmt.Commodity,
+							Quantity:  fmt.Sprintf("%.2f", value),
+						}
+						// Derive the per-unit price from value ÷ quantity.
+						if qty != 0 {
+							holding.LatestPrice = &floatv1.Amount{
+								Commodity: vAmt.Commodity,
+								Quantity:  fmt.Sprintf("%.2f", value/qty),
+							}
+						}
+						break
+					}
+				}
+			}
+			holdings = append(holdings, holding)
+		}
+	}
+
+	// Sum total value and compute allocation percentages.
+	var totalValue float64
+	var baseCurrency string
+	for _, h := range holdings {
+		if h.CurrentValue != nil {
+			v, _ := strconv.ParseFloat(h.CurrentValue.Quantity, 64)
+			totalValue += v
+			baseCurrency = h.CurrentValue.Commodity
+		}
+	}
+
+	if totalValue > 0 {
+		for _, h := range holdings {
+			if h.CurrentValue != nil {
+				v, _ := strconv.ParseFloat(h.CurrentValue.Quantity, 64)
+				h.PortfolioPct = v / totalValue * 100
+			}
+		}
+		sort.Slice(holdings, func(i, j int) bool {
+			var vi, vj float64
+			if holdings[i].CurrentValue != nil {
+				vi, _ = strconv.ParseFloat(holdings[i].CurrentValue.Quantity, 64)
+			}
+			if holdings[j].CurrentValue != nil {
+				vj, _ = strconv.ParseFloat(holdings[j].CurrentValue.Quantity, 64)
+			}
+			return vi > vj
+		})
+	}
+
+	resp := &floatv1.GetPortfolioHoldingsResponse{Holdings: holdings}
+	if totalValue > 0 {
+		resp.TotalValue = &floatv1.Amount{Commodity: baseCurrency, Quantity: fmt.Sprintf("%.2f", totalValue)}
+	}
+	return connect.NewResponse(resp), nil
 }
 
 func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {

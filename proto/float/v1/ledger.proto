@@ -522,6 +522,26 @@ message ApplyRulesResponse {
   int32 applied_count = 1;
 }
 
+message Holding {
+  string account = 1;
+  string symbol = 2;
+  string quantity = 3;
+  Amount latest_price = 4;  // null if no price data exists for this symbol
+  Amount current_value = 5; // null if no price data exists
+  double portfolio_pct = 6; // percentage of total valued portfolio; 0 if no price
+  string price_date = 7;    // date of the latest price used; empty if none
+}
+
+message GetPortfolioHoldingsRequest {
+  string account_prefix = 1; // e.g. "assets:investments"; empty = "assets"
+}
+
+message GetPortfolioHoldingsResponse {
+  repeated Holding holdings = 1;
+  Amount total_value = 2;   // sum of all valued holdings in base currency; null if no prices
+  string as_of_date = 3;    // most recent price date used across all holdings
+}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetAccountRegister(GetAccountRegisterRequest) returns (GetAccountRegisterResponse);
@@ -536,6 +556,7 @@ service LedgerService {
   rpc AddTransaction(AddTransactionRequest) returns (AddTransactionResponse);
   rpc UpdateTransactionStatus(UpdateTransactionStatusRequest) returns (UpdateTransactionStatusResponse);
   rpc GetNetWorthTimeseries(GetNetWorthTimeseriesRequest) returns (GetNetWorthTimeseriesResponse);
+  rpc GetPortfolioHoldings(GetPortfolioHoldingsRequest) returns (GetPortfolioHoldingsResponse);
   rpc ListPrices(ListPricesRequest) returns (ListPricesResponse);
   rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
   rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);

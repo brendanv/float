@@ -1,0 +1,16 @@
+; Investments journal for testing BalancesValued.
+; Prices dated 2026-04-26 so --value=now,USD is deterministic when run on that date.
+P 2026-04-26 AAPL 178.50 USD
+P 2026-04-26 MSFT 398.75 USD
+
+account assets:investments:aapl
+account assets:investments:msft
+account assets:checking
+
+2026-01-15 Buy AAPL
+    assets:investments:aapl    10 AAPL
+    assets:checking           -1750.00 USD
+
+2026-02-01 Buy MSFT
+    assets:investments:msft     5 MSFT
+    assets:checking           -2000.00 USD
