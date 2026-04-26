@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -263,6 +264,113 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 	return connect.NewResponse(&floatv1.GetBalancesResponse{
 		Report: &floatv1.BalanceReport{Rows: rows, Total: total},
 	}), nil
+}
+
+// currencySymbols is the set of commodity codes treated as plain currency (not equity holdings).
+var currencySymbols = map[string]bool{
+	"$": true, "USD": true, "EUR": true, "GBP": true,
+	"JPY": true, "CAD": true, "AUD": true, "CHF": true,
+	"NZD": true, "HKD": true, "SGD": true, "SEK": true,
+	"NOK": true, "DKK": true, "MXN": true, "INR": true,
+}
+
+func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request[floatv1.GetPortfolioHoldingsRequest]) (*connect.Response[floatv1.GetPortfolioHoldingsResponse], error) {
+	logger := slogctx.FromContext(ctx)
+
+	prefix := req.Msg.AccountPrefix
+	if prefix == "" {
+		prefix = "assets"
+	}
+
+	report, err := cachedBalances(ctx, h.cache, h.hl, 0, []string{prefix})
+	if err != nil {
+		logger.ErrorContext(ctx, "hledger balances failed for portfolio", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	prices, err := journal.ListPrices(h.dataDir)
+	if err != nil {
+		logger.ErrorContext(ctx, "list prices failed for portfolio", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Build map: symbol → most recent Price
+	latestPrice := map[string]journal.Price{}
+	for _, p := range prices {
+		existing, ok := latestPrice[p.Commodity]
+		if !ok || p.Date > existing.Date {
+			latestPrice[p.Commodity] = p
+		}
+	}
+
+	// Collect non-currency commodity amounts from balance rows
+	var holdings []*floatv1.Holding
+	for _, row := range report.Rows {
+		for _, amt := range row.Amounts {
+			if currencySymbols[amt.Commodity] {
+				continue
+			}
+			qty := amt.Quantity.FloatingPoint
+			if qty == 0 {
+				continue
+			}
+			h := &floatv1.Holding{
+				Account:  row.FullName,
+				Symbol:   amt.Commodity,
+				Quantity: fmt.Sprintf("%g", qty),
+			}
+			if p, ok := latestPrice[amt.Commodity]; ok {
+				priceVal, err := strconv.ParseFloat(p.Quantity, 64)
+				if err == nil {
+					value := qty * priceVal
+					h.LatestPrice = &floatv1.Amount{Commodity: p.Currency, Quantity: fmt.Sprintf("%.2f", priceVal)}
+					h.CurrentValue = &floatv1.Amount{Commodity: p.Currency, Quantity: fmt.Sprintf("%.2f", value)}
+					h.PriceDate = p.Date
+				}
+			}
+			holdings = append(holdings, h)
+		}
+	}
+
+	// Compute total value across valued holdings (assumes single base currency)
+	var totalValue float64
+	var baseCurrency string
+	var latestDate string
+	for _, h := range holdings {
+		if h.CurrentValue != nil {
+			v, _ := strconv.ParseFloat(h.CurrentValue.Quantity, 64)
+			totalValue += v
+			baseCurrency = h.CurrentValue.Commodity
+			if h.PriceDate > latestDate {
+				latestDate = h.PriceDate
+			}
+		}
+	}
+
+	// Compute portfolio percentages and sort by value descending
+	if totalValue > 0 {
+		for _, h := range holdings {
+			if h.CurrentValue != nil {
+				v, _ := strconv.ParseFloat(h.CurrentValue.Quantity, 64)
+				h.PortfolioPct = v / totalValue * 100
+			}
+		}
+		sort.Slice(holdings, func(i, j int) bool {
+			vi, _ := strconv.ParseFloat(holdings[i].GetCurrentValue().GetQuantity(), 64)
+			vj, _ := strconv.ParseFloat(holdings[j].GetCurrentValue().GetQuantity(), 64)
+			return vi > vj
+		})
+	}
+
+	resp := &floatv1.GetPortfolioHoldingsResponse{
+		Holdings:  holdings,
+		AsOfDate:  latestDate,
+	}
+	if totalValue > 0 {
+		resp.TotalValue = &floatv1.Amount{Commodity: baseCurrency, Quantity: fmt.Sprintf("%.2f", totalValue)}
+	}
+
+	return connect.NewResponse(resp), nil
 }
 
 func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {

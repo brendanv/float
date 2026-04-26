@@ -410,6 +410,40 @@ export const mockAccountDeclarations = [
   { aid: "k1f2a3b4", name: "liabilities:creditcard", hasPostings: true },
 ];
 
+export const mockPortfolioHoldings = {
+  holdings: [
+    {
+      account: "assets:investments:aapl",
+      symbol: "AAPL",
+      quantity: "10",
+      latestPrice: { commodity: "USD", quantity: "178.50" },
+      currentValue: { commodity: "USD", quantity: "1785.00" },
+      portfolioPct: 46.4,
+      priceDate: "2026-03-01",
+    },
+    {
+      account: "assets:investments:msft",
+      symbol: "MSFT",
+      quantity: "5",
+      latestPrice: { commodity: "USD", quantity: "398.75" },
+      currentValue: { commodity: "USD", quantity: "1993.75" },
+      portfolioPct: 51.8,
+      priceDate: "2026-03-01",
+    },
+    {
+      account: "assets:investments:voo",
+      symbol: "VOO",
+      quantity: "2",
+      latestPrice: null,
+      currentValue: null,
+      portfolioPct: 0,
+      priceDate: "",
+    },
+  ],
+  totalValue: { commodity: "USD", quantity: "3778.75" },
+  asOfDate: "2026-03-01",
+};
+
 export const mockImports = [
   { importBatchId: "2026-03-28-a1b2c3d4", date: "2026-03-28", transactionCount: 3 },
   { importBatchId: "2026-03-15-b2c3d4e5", date: "2026-03-15", transactionCount: 5 },
@@ -565,7 +599,7 @@ export const mockIncomeStatementTimeseries = {
   netAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2859.57")),
 };
 
-export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations } = {}) {
+export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations, portfolioHoldings } = {}) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
     const method = url.split("/").pop();
@@ -716,6 +750,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
           ],
           skippedCount: 1,
         };
+        break;
+      case "GetPortfolioHoldings":
+        body = portfolioHoldings ?? mockPortfolioHoldings;
         break;
       default:
         body = {};

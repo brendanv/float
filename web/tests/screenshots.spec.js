@@ -325,6 +325,13 @@ test("rules page - mobile form", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules-mobile-form.png", fullPage: true });
 });
 
+test("portfolio page", async ({ page }) => {
+  await page.goto("/#/portfolio");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: "test-results/portfolio.png", fullPage: true });
+});
+
 test("payees page", async ({ page }) => {
   await page.goto("/#/payees");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
