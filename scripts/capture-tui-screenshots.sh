@@ -72,8 +72,8 @@ tmux send-keys -t "$SESSION:0.0" \
 echo "Waiting for floatd to start…"
 sleep 4
 
-# Bottom pane for the TUI (80% of height).
-tmux split-window -t "$SESSION:0" -v -p 80
+# Bottom pane for the TUI (~80% of height).
+tmux split-window -t "$SESSION:0" -v -l 40
 
 echo "Capturing TUI screenshots… (output: $OUTPUT_DIR)"
 echo ""
@@ -81,26 +81,30 @@ echo ""
 count=0
 
 start_tui() {
+  # Interrupt any lingering process, then launch fresh.
+  tmux send-keys -t "$TUI_PANE" C-c 2>/dev/null || true
+  sleep 0.2
   tmux send-keys -t "$TUI_PANE" "'$TUI_BIN' --server $FLOAT_ADDR" Enter
-  sleep 2
+  sleep 3
 }
 
 stop_tui() {
   tmux send-keys -t "$TUI_PANE" "q" ""
-  sleep 0.3
+  sleep 1
 }
 
 capture() {
   local name="$1"
   tmux capture-pane -t "$TUI_PANE" -ep | \
-    freeze --language ansi --theme charm --padding 20 -o "$OUTPUT_DIR/${name}.png"
+    freeze --language ansi --theme charm --padding 20 \
+      -o "$OUTPUT_DIR/${name}.png"
   echo "  captured: ${name}.png"
   ((count++)) || true
 }
 
 # ── Home tab ──────────────────────────────────────────────────────────────────
 start_tui
-sleep 1
+sleep 2
 capture "home"
 
 # Split view
