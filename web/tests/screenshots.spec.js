@@ -143,8 +143,8 @@ test("transactions page - bulk edit toolbar", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
-  // Check the first three transaction checkboxes
-  const checkboxes = await page.locator("tbody input[type=checkbox]").all();
+  // Check the first three transaction checkboxes (base-ui renders button[data-slot="checkbox"], not input)
+  const checkboxes = await page.locator("tbody [data-slot='checkbox']").all();
   for (const cb of checkboxes.slice(0, 3)) {
     await cb.click();
   }
@@ -235,10 +235,14 @@ test("import page - create profile modal with CSV wizard", async ({ page }) => {
 
 test("import page - preview loaded", async ({ page }) => {
   await page.goto("/#/import");
-  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  // Select a profile and attach a fake CSV file
-  await page.selectOption("select", { index: 1 });
+  // Select a profile using the shadcn Select combobox
+  await page.locator('[role="combobox"]').first().click();
+  await page.waitForTimeout(200);
+  await page.locator('[role="option"]').first().click();
+  await page.waitForTimeout(200);
+  // Attach a fake CSV file
   await page.evaluate(() => {
     const input = document.querySelector('input[type="file"]');
     if (!input) return;
@@ -279,8 +283,8 @@ test("rules page - account typeahead", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // Focus the account input to trigger the on-focus suggestions
-  await page.focus('input[placeholder="expenses:shopping"]');
+  // AccountInput renders as button[role="combobox"]; clicking it opens the popover
+  await page.locator('button[role="combobox"]').click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/rules-account-typeahead.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
 });
@@ -289,7 +293,10 @@ test("rules page - account typeahead filtered", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  await page.fill('input[placeholder="expenses:shopping"]', "exp");
+  // Open the popover then type into the CommandInput inside it
+  await page.locator('button[role="combobox"]').click();
+  await page.waitForTimeout(200);
+  await page.fill('input[placeholder="Search expenses:shopping..."]', "exp");
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/rules-account-typeahead-filtered.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
 });

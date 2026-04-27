@@ -36,13 +36,15 @@ cd "$SCRIPT_DIR"
 mkdir -p test-results
 find test-results -maxdepth 1 -name "*.png" -delete
 
-echo "Capturing screenshots…"
+echo "Capturing screenshots… (output: $OUTPUT_DIR)"
+echo ""
+playwright_exit=0
 bun run playwright test \
   tests/screenshots.spec.js \
   tests/screenshots-mobile.spec.js \
   tests/datepicker-screenshots.spec.js \
   tests/portfolio-mobile.spec.js \
-  --reporter=line
+  --reporter=list || playwright_exit=$?
 
 count=0
 for f in test-results/*.png; do
@@ -54,3 +56,8 @@ done
 
 echo ""
 echo "Captured $count screenshots → $OUTPUT_DIR"
+
+if [[ $playwright_exit -ne 0 ]]; then
+  echo "Warning: some tests failed — screenshots from passing tests were still saved."
+  exit $playwright_exit
+fi
