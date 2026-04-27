@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
-    "screenshots": "playwright test tests/screenshots.spec.js"
+    "screenshots": "playwright test tests/screenshots.spec.js",
+    "screenshots:all": "bash capture-screenshots.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
