@@ -11,17 +11,47 @@ Use this skill to generate preview images of the float TUI. It starts `floatd` a
 
 - **tmux** — must be installed via the system package manager (`apt install tmux` or `brew install tmux`). Verify with `tmux -V`.
 - **freeze** — managed by mise. Run `mise install` from the repo root to install.
-- **floatd** — requires a `config.toml` and `main.journal` in `$VAULT_DATA_DIR`.
+- **floatd data** — `FLOAT_DATA_DIR` (or `VAULT_DATA_DIR`) must point to a directory containing `config.toml` and `main.journal`.
 
-## Step 1 — Start a tmux session
+## Capturing all screenshots at once
 
-Use a wide, tall terminal so the TUI renders at full fidelity:
+Use the dedicated script to capture every TUI view in one pass:
+
+```bash
+cd /home/user/float && bash scripts/capture-tui-screenshots.sh /tmp/tui-screenshots
+```
+
+The script accepts an optional output directory (defaults to a `mktemp -d` temp dir). It builds the binaries once, starts floatd, then cycles through all views — restarting the TUI between groups for reliability. All PNGs land in the output directory.
+
+## All defined screenshots
+
+| File | Description |
+|------|-------------|
+| `home.png` | Home tab — default view |
+| `home-split.png` | Home tab — split view showing all postings |
+| `home-filter.png` | Home tab — filtered to expenses |
+| `accounts.png` | Accounts tab — account tree |
+| `accounts-register.png` | Accounts tab — single-account register |
+| `trends.png` | Trends tab — net worth chart |
+| `manage-rules.png` | Manage tab → Rules sub-tab |
+| `manage-imports.png` | Manage tab → Imports sub-tab |
+| `manage-tags.png` | Manage tab → Tags sub-tab |
+| `manage-snapshots.png` | Manage tab → Snapshots sub-tab |
+| `manage-prices.png` | Manage tab → Prices sub-tab |
+| `manage-payees.png` | Manage tab → Payees sub-tab |
+| `settings.png` | Settings tab — theme selector |
+
+## Capturing a single view manually
+
+For one-off previews use these steps directly.
+
+### Step 1 — Start a tmux session
 
 ```bash
 tmux new-session -d -s float-preview -x 220 -y 50
 ```
 
-## Step 2 — Start floatd in the first pane
+### Step 2 — Start floatd in the first pane
 
 ```bash
 tmux send-keys -t float-preview:0.0 \
@@ -30,7 +60,7 @@ tmux send-keys -t float-preview:0.0 \
 
 Wait ~3 seconds for floatd to fully start and print its listening address.
 
-## Step 3 — Open a second pane and start the TUI
+### Step 3 — Open a second pane and start the TUI
 
 ```bash
 tmux split-window -t float-preview:0 -v
@@ -40,61 +70,60 @@ tmux send-keys -t float-preview:0.1 \
 
 Wait ~2 seconds for the TUI to connect and render initial data.
 
-## Step 4 — Navigate to the target view
+### Step 4 — Navigate to the target view
 
-Send keystrokes to the TUI pane with `tmux send-keys -t float-preview:0.1`. The available views and their key bindings are:
+Send keystrokes with `tmux send-keys -t float-preview:0.1`. Main tabs cycle with `Tab`/`Shift+Tab`:
 
-| View | Keys |
-|------|------|
-| Home tab (default) | — already on Home at startup |
-| Manager tab | `Tab` |
-| Previous month | `[` |
-| Next month | `]` |
-| Activate transaction filter | `/` then type query (e.g. `expenses`), then `Enter` |
-| Toggle split view (show all postings) | `s` |
-| Move focus left / right | `h` / `l` |
-| Scroll accounts or transactions | `j` (down) / `k` (up) |
+| Tab (index) | View |
+|-------------|------|
+| 0 | Home (default) |
+| 1 | Accounts |
+| 2 | Trends |
+| 3 | Manage |
+| 4 | Settings |
 
-### Examples
+Manage sub-tabs cycle with `[` / `]`:
+
+| Sub-tab | View |
+|---------|------|
+| 0 | Rules |
+| 1 | Imports |
+| 2 | Tags |
+| 3 | Snapshots |
+| 4 | Prices |
+| 5 | Payees |
+
+Other useful keys:
+
+| Key | Action |
+|-----|--------|
+| `s` | Toggle split view (show all postings) |
+| `/` → query → `Enter` | Apply transaction filter |
+| `v` | Cycle preset filters on Home |
+| `h` / `l` | Move focus left / right |
+| `j` / `k` | Scroll accounts or transactions |
+| `[` / `]` | Previous / next period (chart & accounts) |
+| `Enter` | Drill into account register |
+| `Esc` | Go back |
 
 ```bash
-# Navigate to expenses in January 2026
-tmux send-keys -t float-preview:0.1 "[[[[[[[[[[" ""   # press [ multiple times to reach Jan
-tmux send-keys -t float-preview:0.1 "/" ""
-tmux send-keys -t float-preview:0.1 "expenses" ""
-tmux send-keys -t float-preview:0.1 "" Enter
-
-# Enable split view for the transactions panel
-tmux send-keys -t float-preview:0.1 "s" ""
-
-# Switch to Manager tab
-tmux send-keys -t float-preview:0.1 "" Tab
+# Example: navigate to Manage → Imports
+tmux send-keys -t float-preview:0.1 "" Tab   # → Accounts
+tmux send-keys -t float-preview:0.1 "" Tab   # → Trends
+tmux send-keys -t float-preview:0.1 "" Tab   # → Manage
+tmux send-keys -t float-preview:0.1 "]" ""   # → Imports
 ```
 
 After each navigation action, wait ~1 second for the TUI to re-render before capturing.
 
-## Step 5 — Capture the pane with freeze
+### Step 5 — Capture the pane with freeze
 
 ```bash
 tmux capture-pane -t float-preview:0.1 -ep | \
-  freeze --language ansi -o /tmp/tui-preview.png
+  freeze --language ansi --theme charm --padding 20 -o /tmp/tui-preview.png
 ```
 
-Optionally add freeze style flags for a cleaner output:
-
-```bash
-tmux capture-pane -t float-preview:0.1 -ep | \
-  freeze --language ansi \
-    --theme dracula \
-    --padding 20 \
-    -o /tmp/tui-preview.png
-```
-
-## Step 6 — Upload the image with the paste skill
-
-Use the [paste skill](https://raw.githubusercontent.com/brendanv/paste/refs/heads/main/.claude/skills/paste.md) to upload `/tmp/tui-preview.png` with:
-- `visibility`: `logged_in`
-- `expiration`: `1day`
+### Step 6 — Upload the image with the paste skill
 
 ```bash
 RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
@@ -106,57 +135,12 @@ RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
   -F "expiration=1day")
 
 SLUG=$(echo "$RESPONSE" | jq -r '.slug')
-FULL_URL="${PASTE_URL}/p/${SLUG}"
-echo "Preview uploaded: $FULL_URL"
+echo "Preview uploaded: ${PASTE_URL}/p/${SLUG}"
 ```
 
-Output the full URL so it can be navigated to directly.
-
-## Step 7 — Cleanup
+### Step 7 — Cleanup
 
 ```bash
-tmux kill-session -t float-preview
-rm -f /tmp/tui-preview.png
-```
-
-## Complete example
-
-```bash
-# 1. Start session
-tmux new-session -d -s float-preview -x 220 -y 50
-
-# 2. Start floatd
-tmux send-keys -t float-preview:0.0 \
-  "FLOAT_DATA_DIR=$VAULT_DATA_DIR mise run floatd" Enter
-sleep 3
-
-# 3. Start TUI
-tmux split-window -t float-preview:0 -v
-tmux send-keys -t float-preview:0.1 "mise run float" Enter
-sleep 2
-
-# 4. (optional) navigate to a view — e.g. filter to expenses
-tmux send-keys -t float-preview:0.1 "/" ""
-tmux send-keys -t float-preview:0.1 "expenses" ""
-tmux send-keys -t float-preview:0.1 "" Enter
-sleep 1
-
-# 5. Capture
-tmux capture-pane -t float-preview:0.1 -ep | \
-  freeze --language ansi -o /tmp/tui-preview.png
-
-# 6. Upload
-RESPONSE=$(curl -s -X POST "$PASTE_URL/api/upload" \
-  -H "X-PASTE-USERID: $PASTE_USER_ID" \
-  -H "X-PASTE-API-KEY: $PASTE_API_KEY" \
-  -H "Origin: $PASTE_URL" \
-  -F "file=@/tmp/tui-preview.png" \
-  -F "visibility=logged_in" \
-  -F "expiration=1day")
-SLUG=$(echo "$RESPONSE" | jq -r '.slug')
-echo "Preview: ${PASTE_URL}/p/${SLUG}"
-
-# 7. Cleanup
 tmux kill-session -t float-preview
 rm -f /tmp/tui-preview.png
 ```
