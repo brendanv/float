@@ -101,6 +101,13 @@ func main() {
 		slog.Info("fid backfill: assigned codes to transactions", "count", backfillCount)
 	}
 
+	if err := lock.Do(context.Background(), "ensure commodity directive", func() error {
+		return journal.EnsureCommodityDirective(*dataDir, "USD")
+	}); err != nil {
+		slog.Error("commodity directive", "error", err)
+		os.Exit(1)
+	}
+
 	if err := lock.Do(context.Background(), "declare undeclared accounts", func() error {
 		if err := journal.EnsureAccountsFile(*dataDir); err != nil {
 			return err
