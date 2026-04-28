@@ -43,13 +43,13 @@ function sumPeriods(perPeriodAmounts, negate) {
   return negate ? -total : total;
 }
 
-function AmountCell({ value, className }) {
+function AmountCell({ value, redWhenPositive = false, className }) {
   if (value === null || value === undefined) {
     return <td className={cn("px-3 py-1.5 text-right font-mono text-sm text-muted-foreground", className)}>—</td>;
   }
-  const isNeg = value < 0;
+  const isRed = redWhenPositive ? value > 0 : value < 0;
   return (
-    <td className={cn("px-3 py-1.5 text-right font-mono text-sm", isNeg ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400", className)}>
+    <td className={cn("px-3 py-1.5 text-right font-mono text-sm", isRed ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400", className)}>
       {formatAmount(value)}
     </td>
   );
@@ -70,6 +70,7 @@ function SectionHeaderRow({ label, colCount }) {
 
 function AccountRow({ row, periods, isRevenue }) {
   const negate = isRevenue;
+  const redWhenPositive = !isRevenue;
   const indent = (row.indent ?? 0) * 1.25;
 
   return (
@@ -86,13 +87,14 @@ function AccountRow({ row, periods, isRevenue }) {
         const al = row.perPeriodAmounts?.[i];
         const v = parseFirstAmount(al);
         const display = v !== null ? (negate ? -v : v) : null;
-        return <AmountCell key={i} value={display} />;
+        return <AmountCell key={i} value={display} redWhenPositive={redWhenPositive} />;
       })}
       <AmountCell
         value={row.isTotal
           ? sumPeriods(row.perPeriodAmounts, negate)
           : (() => { const v = parseFirstAmount({ amounts: row.totalAmounts }); return v !== null ? (negate ? -v : v) : null; })()
         }
+        redWhenPositive={redWhenPositive}
         className="border-l border-border/40"
       />
     </tr>
