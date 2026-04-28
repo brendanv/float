@@ -265,6 +265,16 @@ test("import history page", async ({ page }) => {
   await page.screenshot({ path: "test-results/import-history.png", fullPage: true });
 });
 
+test("import history page - file viewer dialog", async ({ page }) => {
+  await page.goto("/#/imports");
+  await page.waitForSelector("table", { timeout: 5000 });
+  await page.waitForTimeout(400);
+  await page.locator("button", { hasText: "View file" }).first().click();
+  await page.waitForSelector("pre", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import-history-file-viewer.png", fullPage: true });
+});
+
 test("import detail page", async ({ page }) => {
   await page.goto("/#/imports/2026-03-28-a1b2c3d4");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});

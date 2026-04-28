@@ -723,6 +723,12 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "GetImportedTransactions":
         body = { transactions: mockImportedTransactions, total: mockImportedTransactions.length, hasNext: false };
         break;
+      case "GetImportFile":
+        body = {
+          csvContent: btoa("Date,Description,Amount\n2026-03-28,AMAZON.COM PURCHASE,-42.99\n2026-03-28,STARBUCKS #4821,-6.75\n2026-03-27,MONTHLY GAS BILL,-84.00\n"),
+          filename: (reqBody.importBatchId || "2026-03-28-a1b2c3d4") + ".csv",
+        };
+        break;
       case "ListRules":
         body = { rules: mockRules };
         break;

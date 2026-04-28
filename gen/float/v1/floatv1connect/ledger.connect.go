@@ -136,6 +136,9 @@ const (
 	// LedgerServiceListImportsProcedure is the fully-qualified name of the LedgerService's ListImports
 	// RPC.
 	LedgerServiceListImportsProcedure = "/float.v1.LedgerService/ListImports"
+	// LedgerServiceGetImportFileProcedure is the fully-qualified name of the LedgerService's
+	// GetImportFile RPC.
+	LedgerServiceGetImportFileProcedure = "/float.v1.LedgerService/GetImportFile"
 	// LedgerServiceListRulesProcedure is the fully-qualified name of the LedgerService's ListRules RPC.
 	LedgerServiceListRulesProcedure = "/float.v1.LedgerService/ListRules"
 	// LedgerServiceAddRuleProcedure is the fully-qualified name of the LedgerService's AddRule RPC.
@@ -192,6 +195,7 @@ type LedgerServiceClient interface {
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	ListImports(context.Context, *connect.Request[v1.ListImportsRequest]) (*connect.Response[v1.ListImportsResponse], error)
+	GetImportFile(context.Context, *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error)
 	// Rules
 	ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error)
 	AddRule(context.Context, *connect.Request[v1.AddRuleRequest]) (*connect.Response[v1.AddRuleResponse], error)
@@ -422,6 +426,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ListImports")),
 			connect.WithClientOptions(opts...),
 		),
+		getImportFile: connect.NewClient[v1.GetImportFileRequest, v1.GetImportFileResponse](
+			httpClient,
+			baseURL+LedgerServiceGetImportFileProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetImportFile")),
+			connect.WithClientOptions(opts...),
+		),
 		listRules: connect.NewClient[v1.ListRulesRequest, v1.ListRulesResponse](
 			httpClient,
 			baseURL+LedgerServiceListRulesProcedure,
@@ -498,6 +508,7 @@ type ledgerServiceClient struct {
 	importTransactions           *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
 	getImportedTransactions      *connect.Client[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse]
 	listImports                  *connect.Client[v1.ListImportsRequest, v1.ListImportsResponse]
+	getImportFile                *connect.Client[v1.GetImportFileRequest, v1.GetImportFileResponse]
 	listRules                    *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
 	addRule                      *connect.Client[v1.AddRuleRequest, v1.AddRuleResponse]
 	updateRule                   *connect.Client[v1.UpdateRuleRequest, v1.UpdateRuleResponse]
@@ -681,6 +692,11 @@ func (c *ledgerServiceClient) ListImports(ctx context.Context, req *connect.Requ
 	return c.listImports.CallUnary(ctx, req)
 }
 
+// GetImportFile calls float.v1.LedgerService.GetImportFile.
+func (c *ledgerServiceClient) GetImportFile(ctx context.Context, req *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error) {
+	return c.getImportFile.CallUnary(ctx, req)
+}
+
 // ListRules calls float.v1.LedgerService.ListRules.
 func (c *ledgerServiceClient) ListRules(ctx context.Context, req *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error) {
 	return c.listRules.CallUnary(ctx, req)
@@ -749,6 +765,7 @@ type LedgerServiceHandler interface {
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	ListImports(context.Context, *connect.Request[v1.ListImportsRequest]) (*connect.Response[v1.ListImportsResponse], error)
+	GetImportFile(context.Context, *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error)
 	// Rules
 	ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error)
 	AddRule(context.Context, *connect.Request[v1.AddRuleRequest]) (*connect.Response[v1.AddRuleResponse], error)
@@ -975,6 +992,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ListImports")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetImportFileHandler := connect.NewUnaryHandler(
+		LedgerServiceGetImportFileProcedure,
+		svc.GetImportFile,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetImportFile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceListRulesHandler := connect.NewUnaryHandler(
 		LedgerServiceListRulesProcedure,
 		svc.ListRules,
@@ -1083,6 +1106,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetImportedTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceListImportsProcedure:
 			ledgerServiceListImportsHandler.ServeHTTP(w, r)
+		case LedgerServiceGetImportFileProcedure:
+			ledgerServiceGetImportFileHandler.ServeHTTP(w, r)
 		case LedgerServiceListRulesProcedure:
 			ledgerServiceListRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceAddRuleProcedure:
@@ -1242,6 +1267,10 @@ func (UnimplementedLedgerServiceHandler) GetImportedTransactions(context.Context
 
 func (UnimplementedLedgerServiceHandler) ListImports(context.Context, *connect.Request[v1.ListImportsRequest]) (*connect.Response[v1.ListImportsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListImports is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetImportFile(context.Context, *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetImportFile is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error) {
