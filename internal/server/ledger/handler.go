@@ -2201,3 +2201,46 @@ func toProtoRule(r rules.Rule) *floatv1.TransactionRule {
 		AutoReviewed: r.AutoReviewed,
 	}
 }
+
+func (h *Handler) GetAlphaVantageConfig(ctx context.Context, req *connect.Request[floatv1.GetAlphaVantageConfigRequest]) (*connect.Response[floatv1.GetAlphaVantageConfigResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	key := h.cfg.AlphaVantage.APIKey
+	resp := &floatv1.GetAlphaVantageConfigResponse{}
+	if key != "" {
+		resp.ApiKeyConfigured = true
+		if len(key) > 4 {
+			resp.ApiKeyPreview = key[:4] + "..."
+		} else {
+			resp.ApiKeyPreview = "..."
+		}
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Request[floatv1.SetAlphaVantageApiKeyRequest]) (*connect.Response[floatv1.SetAlphaVantageApiKeyResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	oldKey := h.cfg.AlphaVantage.APIKey
+	err := h.lock.Do(ctx, "set alphavantage api key", func() error {
+		h.cfg.AlphaVantage.APIKey = req.Msg.ApiKey
+		if err := config.Save(h.configPath, h.cfg); err != nil {
+			h.cfg.AlphaVantage.APIKey = oldKey
+			return fmt.Errorf("save config: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "set alphavantage api key failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "updated alphavantage api key")
+	return connect.NewResponse(&floatv1.SetAlphaVantageApiKeyResponse{}), nil
+}

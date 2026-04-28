@@ -5929,6 +5929,174 @@ func (x *GetPortfolioTimeseriesResponse) GetSnapshots() []*PortfolioTimeseriesSn
 	return nil
 }
 
+type GetAlphaVantageConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAlphaVantageConfigRequest) Reset() {
+	*x = GetAlphaVantageConfigRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAlphaVantageConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAlphaVantageConfigRequest) ProtoMessage() {}
+
+func (x *GetAlphaVantageConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAlphaVantageConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetAlphaVantageConfigRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{110}
+}
+
+type GetAlphaVantageConfigResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ApiKeyConfigured bool                   `protobuf:"varint,1,opt,name=api_key_configured,json=apiKeyConfigured,proto3" json:"api_key_configured,omitempty"` // true if an API key is set
+	ApiKeyPreview    string                 `protobuf:"bytes,2,opt,name=api_key_preview,json=apiKeyPreview,proto3" json:"api_key_preview,omitempty"`           // first 4 chars of key + "..." if configured, else ""
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetAlphaVantageConfigResponse) Reset() {
+	*x = GetAlphaVantageConfigResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAlphaVantageConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAlphaVantageConfigResponse) ProtoMessage() {}
+
+func (x *GetAlphaVantageConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAlphaVantageConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetAlphaVantageConfigResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *GetAlphaVantageConfigResponse) GetApiKeyConfigured() bool {
+	if x != nil {
+		return x.ApiKeyConfigured
+	}
+	return false
+}
+
+func (x *GetAlphaVantageConfigResponse) GetApiKeyPreview() string {
+	if x != nil {
+		return x.ApiKeyPreview
+	}
+	return ""
+}
+
+type SetAlphaVantageApiKeyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApiKey        string                 `protobuf:"bytes,1,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"` // new key; empty string clears the key
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetAlphaVantageApiKeyRequest) Reset() {
+	*x = SetAlphaVantageApiKeyRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[112]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetAlphaVantageApiKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetAlphaVantageApiKeyRequest) ProtoMessage() {}
+
+func (x *SetAlphaVantageApiKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[112]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetAlphaVantageApiKeyRequest.ProtoReflect.Descriptor instead.
+func (*SetAlphaVantageApiKeyRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{112}
+}
+
+func (x *SetAlphaVantageApiKeyRequest) GetApiKey() string {
+	if x != nil {
+		return x.ApiKey
+	}
+	return ""
+}
+
+type SetAlphaVantageApiKeyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetAlphaVantageApiKeyResponse) Reset() {
+	*x = SetAlphaVantageApiKeyResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetAlphaVantageApiKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetAlphaVantageApiKeyResponse) ProtoMessage() {}
+
+func (x *SetAlphaVantageApiKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetAlphaVantageApiKeyResponse.ProtoReflect.Descriptor instead.
+func (*SetAlphaVantageApiKeyResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{113}
+}
+
 var File_float_v1_ledger_proto protoreflect.FileDescriptor
 
 const file_float_v1_ledger_proto_rawDesc = "" +
@@ -6329,7 +6497,14 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\vtotal_value\x18\x02 \x01(\v2\x10.float.v1.AmountR\n" +
 	"totalValue\"e\n" +
 	"\x1eGetPortfolioTimeseriesResponse\x12C\n" +
-	"\tsnapshots\x18\x01 \x03(\v2%.float.v1.PortfolioTimeseriesSnapshotR\tsnapshots2\xb1\x1d\n" +
+	"\tsnapshots\x18\x01 \x03(\v2%.float.v1.PortfolioTimeseriesSnapshotR\tsnapshots\"\x1e\n" +
+	"\x1cGetAlphaVantageConfigRequest\"u\n" +
+	"\x1dGetAlphaVantageConfigResponse\x12,\n" +
+	"\x12api_key_configured\x18\x01 \x01(\bR\x10apiKeyConfigured\x12&\n" +
+	"\x0fapi_key_preview\x18\x02 \x01(\tR\rapiKeyPreview\"7\n" +
+	"\x1cSetAlphaVantageApiKeyRequest\x12\x17\n" +
+	"\aapi_key\x18\x01 \x01(\tR\x06apiKey\"\x1f\n" +
+	"\x1dSetAlphaVantageApiKeyResponse2\x85\x1f\n" +
 	"\rLedgerService\x12Y\n" +
 	"\x10ListTransactions\x12!.float.v1.ListTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12_\n" +
 	"\x12GetAccountRegister\x12#.float.v1.GetAccountRegisterRequest\x1a$.float.v1.GetAccountRegisterResponse\x12J\n" +
@@ -6378,7 +6553,9 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"DeleteRule\x12\x1b.float.v1.DeleteRuleRequest\x1a\x1c.float.v1.DeleteRuleResponse\x12\\\n" +
 	"\x11PreviewApplyRules\x12\".float.v1.PreviewApplyRulesRequest\x1a#.float.v1.PreviewApplyRulesResponse\x12G\n" +
 	"\n" +
-	"ApplyRules\x12\x1b.float.v1.ApplyRulesRequest\x1a\x1c.float.v1.ApplyRulesResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
+	"ApplyRules\x12\x1b.float.v1.ApplyRulesRequest\x1a\x1c.float.v1.ApplyRulesResponse\x12h\n" +
+	"\x15GetAlphaVantageConfig\x12&.float.v1.GetAlphaVantageConfigRequest\x1a'.float.v1.GetAlphaVantageConfigResponse\x12h\n" +
+	"\x15SetAlphaVantageApiKey\x12&.float.v1.SetAlphaVantageApiKeyRequest\x1a'.float.v1.SetAlphaVantageApiKeyResponseB0Z.github.com/brendanv/float/gen/float/v1;floatv1b\x06proto3"
 
 var (
 	file_float_v1_ledger_proto_rawDescOnce sync.Once
@@ -6392,7 +6569,7 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 122)
 var file_float_v1_ledger_proto_goTypes = []any{
 	(*Amount)(nil),                               // 0: float.v1.Amount
 	(*Posting)(nil),                              // 1: float.v1.Posting
@@ -6504,19 +6681,23 @@ var file_float_v1_ledger_proto_goTypes = []any{
 	(*GetPortfolioTimeseriesRequest)(nil),        // 107: float.v1.GetPortfolioTimeseriesRequest
 	(*PortfolioTimeseriesSnapshot)(nil),          // 108: float.v1.PortfolioTimeseriesSnapshot
 	(*GetPortfolioTimeseriesResponse)(nil),       // 109: float.v1.GetPortfolioTimeseriesResponse
-	nil,                                          // 110: float.v1.Transaction.TagsEntry
-	nil,                                          // 111: float.v1.ModifyTagsRequest.TagsEntry
-	nil,                                          // 112: float.v1.AddTransactionRequest.TagsEntry
-	nil,                                          // 113: float.v1.UpdateTransactionRequest.TagsEntry
-	nil,                                          // 114: float.v1.TransactionRule.TagsEntry
-	nil,                                          // 115: float.v1.AddRuleRequest.TagsEntry
-	nil,                                          // 116: float.v1.UpdateRuleRequest.TagsEntry
-	nil,                                          // 117: float.v1.RuleApplicationPreview.AddTagsEntry
+	(*GetAlphaVantageConfigRequest)(nil),         // 110: float.v1.GetAlphaVantageConfigRequest
+	(*GetAlphaVantageConfigResponse)(nil),        // 111: float.v1.GetAlphaVantageConfigResponse
+	(*SetAlphaVantageApiKeyRequest)(nil),         // 112: float.v1.SetAlphaVantageApiKeyRequest
+	(*SetAlphaVantageApiKeyResponse)(nil),        // 113: float.v1.SetAlphaVantageApiKeyResponse
+	nil,                                          // 114: float.v1.Transaction.TagsEntry
+	nil,                                          // 115: float.v1.ModifyTagsRequest.TagsEntry
+	nil,                                          // 116: float.v1.AddTransactionRequest.TagsEntry
+	nil,                                          // 117: float.v1.UpdateTransactionRequest.TagsEntry
+	nil,                                          // 118: float.v1.TransactionRule.TagsEntry
+	nil,                                          // 119: float.v1.AddRuleRequest.TagsEntry
+	nil,                                          // 120: float.v1.UpdateRuleRequest.TagsEntry
+	nil,                                          // 121: float.v1.RuleApplicationPreview.AddTagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,   // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
 	1,   // 1: float.v1.Transaction.postings:type_name -> float.v1.Posting
-	110, // 2: float.v1.Transaction.tags:type_name -> float.v1.Transaction.TagsEntry
+	114, // 2: float.v1.Transaction.tags:type_name -> float.v1.Transaction.TagsEntry
 	0,   // 3: float.v1.BalanceRow.amounts:type_name -> float.v1.Amount
 	3,   // 4: float.v1.BalanceReport.rows:type_name -> float.v1.BalanceRow
 	0,   // 5: float.v1.BalanceReport.total:type_name -> float.v1.Amount
@@ -6535,13 +6716,13 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,   // 18: float.v1.AccountRegisterRow.running_total:type_name -> float.v1.Amount
 	17,  // 19: float.v1.GetAccountRegisterResponse.rows:type_name -> float.v1.AccountRegisterRow
 	5,   // 20: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	111, // 21: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	115, // 21: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
 	2,   // 22: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
 	32,  // 23: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
-	112, // 24: float.v1.AddTransactionRequest.tags:type_name -> float.v1.AddTransactionRequest.TagsEntry
+	116, // 24: float.v1.AddTransactionRequest.tags:type_name -> float.v1.AddTransactionRequest.TagsEntry
 	2,   // 25: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
 	32,  // 26: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
-	113, // 27: float.v1.UpdateTransactionRequest.tags:type_name -> float.v1.UpdateTransactionRequest.TagsEntry
+	117, // 27: float.v1.UpdateTransactionRequest.tags:type_name -> float.v1.UpdateTransactionRequest.TagsEntry
 	2,   // 28: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
 	2,   // 29: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
 	0,   // 30: float.v1.PriceDirective.price:type_name -> float.v1.Amount
@@ -6565,13 +6746,13 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	80,  // 48: float.v1.PreviewImportResponse.candidates:type_name -> float.v1.ImportCandidate
 	2,   // 49: float.v1.ImportTransactionsResponse.transactions:type_name -> float.v1.Transaction
 	85,  // 50: float.v1.ListImportsResponse.imports:type_name -> float.v1.ImportSummary
-	114, // 51: float.v1.TransactionRule.tags:type_name -> float.v1.TransactionRule.TagsEntry
+	118, // 51: float.v1.TransactionRule.tags:type_name -> float.v1.TransactionRule.TagsEntry
 	90,  // 52: float.v1.ListRulesResponse.rules:type_name -> float.v1.TransactionRule
-	115, // 53: float.v1.AddRuleRequest.tags:type_name -> float.v1.AddRuleRequest.TagsEntry
+	119, // 53: float.v1.AddRuleRequest.tags:type_name -> float.v1.AddRuleRequest.TagsEntry
 	90,  // 54: float.v1.AddRuleResponse.rule:type_name -> float.v1.TransactionRule
-	116, // 55: float.v1.UpdateRuleRequest.tags:type_name -> float.v1.UpdateRuleRequest.TagsEntry
+	120, // 55: float.v1.UpdateRuleRequest.tags:type_name -> float.v1.UpdateRuleRequest.TagsEntry
 	90,  // 56: float.v1.UpdateRuleResponse.rule:type_name -> float.v1.TransactionRule
-	117, // 57: float.v1.RuleApplicationPreview.add_tags:type_name -> float.v1.RuleApplicationPreview.AddTagsEntry
+	121, // 57: float.v1.RuleApplicationPreview.add_tags:type_name -> float.v1.RuleApplicationPreview.AddTagsEntry
 	100, // 58: float.v1.PreviewApplyRulesResponse.previews:type_name -> float.v1.RuleApplicationPreview
 	0,   // 59: float.v1.Holding.latest_price:type_name -> float.v1.Amount
 	0,   // 60: float.v1.Holding.current_value:type_name -> float.v1.Amount
@@ -6623,50 +6804,54 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	97,  // 106: float.v1.LedgerService.DeleteRule:input_type -> float.v1.DeleteRuleRequest
 	99,  // 107: float.v1.LedgerService.PreviewApplyRules:input_type -> float.v1.PreviewApplyRulesRequest
 	102, // 108: float.v1.LedgerService.ApplyRules:input_type -> float.v1.ApplyRulesRequest
-	14,  // 109: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	19,  // 110: float.v1.LedgerService.GetAccountRegister:output_type -> float.v1.GetAccountRegisterResponse
-	16,  // 111: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	21,  // 112: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	23,  // 113: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
-	25,  // 114: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
-	27,  // 115: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	29,  // 116: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	31,  // 117: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	36,  // 118: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
-	34,  // 119: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	38,  // 120: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
-	8,   // 121: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	106, // 122: float.v1.LedgerService.GetPortfolioHoldings:output_type -> float.v1.GetPortfolioHoldingsResponse
-	109, // 123: float.v1.LedgerService.GetPortfolioTimeseries:output_type -> float.v1.GetPortfolioTimeseriesResponse
-	41,  // 124: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
-	43,  // 125: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
-	45,  // 126: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
-	47,  // 127: float.v1.LedgerService.BackfillPrices:output_type -> float.v1.BackfillPricesResponse
-	50,  // 128: float.v1.LedgerService.ListAccountDeclarations:output_type -> float.v1.ListAccountDeclarationsResponse
-	52,  // 129: float.v1.LedgerService.DeclareAccount:output_type -> float.v1.DeclareAccountResponse
-	54,  // 130: float.v1.LedgerService.DeleteAccountDeclaration:output_type -> float.v1.DeleteAccountDeclarationResponse
-	62,  // 131: float.v1.LedgerService.BulkEditTransactions:output_type -> float.v1.BulkEditTransactionsResponse
-	65,  // 132: float.v1.LedgerService.ListSnapshots:output_type -> float.v1.ListSnapshotsResponse
-	67,  // 133: float.v1.LedgerService.RestoreSnapshot:output_type -> float.v1.RestoreSnapshotResponse
-	12,  // 134: float.v1.LedgerService.GetIncomeStatementTimeseries:output_type -> float.v1.GetIncomeStatementTimeseriesResponse
-	70,  // 135: float.v1.LedgerService.ListBankProfiles:output_type -> float.v1.ListBankProfilesResponse
-	72,  // 136: float.v1.LedgerService.CreateBankProfile:output_type -> float.v1.CreateBankProfileResponse
-	74,  // 137: float.v1.LedgerService.GetBankProfileContent:output_type -> float.v1.GetBankProfileContentResponse
-	76,  // 138: float.v1.LedgerService.UpdateBankProfile:output_type -> float.v1.UpdateBankProfileResponse
-	78,  // 139: float.v1.LedgerService.DeleteBankProfile:output_type -> float.v1.DeleteBankProfileResponse
-	81,  // 140: float.v1.LedgerService.PreviewImport:output_type -> float.v1.PreviewImportResponse
-	83,  // 141: float.v1.LedgerService.ImportTransactions:output_type -> float.v1.ImportTransactionsResponse
-	14,  // 142: float.v1.LedgerService.GetImportedTransactions:output_type -> float.v1.ListTransactionsResponse
-	87,  // 143: float.v1.LedgerService.ListImports:output_type -> float.v1.ListImportsResponse
-	89,  // 144: float.v1.LedgerService.GetImportFile:output_type -> float.v1.GetImportFileResponse
-	92,  // 145: float.v1.LedgerService.ListRules:output_type -> float.v1.ListRulesResponse
-	94,  // 146: float.v1.LedgerService.AddRule:output_type -> float.v1.AddRuleResponse
-	96,  // 147: float.v1.LedgerService.UpdateRule:output_type -> float.v1.UpdateRuleResponse
-	98,  // 148: float.v1.LedgerService.DeleteRule:output_type -> float.v1.DeleteRuleResponse
-	101, // 149: float.v1.LedgerService.PreviewApplyRules:output_type -> float.v1.PreviewApplyRulesResponse
-	103, // 150: float.v1.LedgerService.ApplyRules:output_type -> float.v1.ApplyRulesResponse
-	109, // [109:151] is the sub-list for method output_type
-	67,  // [67:109] is the sub-list for method input_type
+	110, // 109: float.v1.LedgerService.GetAlphaVantageConfig:input_type -> float.v1.GetAlphaVantageConfigRequest
+	112, // 110: float.v1.LedgerService.SetAlphaVantageApiKey:input_type -> float.v1.SetAlphaVantageApiKeyRequest
+	14,  // 111: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	19,  // 112: float.v1.LedgerService.GetAccountRegister:output_type -> float.v1.GetAccountRegisterResponse
+	16,  // 113: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	21,  // 114: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	23,  // 115: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
+	25,  // 116: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
+	27,  // 117: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	29,  // 118: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	31,  // 119: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	36,  // 120: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	34,  // 121: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	38,  // 122: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
+	8,   // 123: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	106, // 124: float.v1.LedgerService.GetPortfolioHoldings:output_type -> float.v1.GetPortfolioHoldingsResponse
+	109, // 125: float.v1.LedgerService.GetPortfolioTimeseries:output_type -> float.v1.GetPortfolioTimeseriesResponse
+	41,  // 126: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
+	43,  // 127: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
+	45,  // 128: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
+	47,  // 129: float.v1.LedgerService.BackfillPrices:output_type -> float.v1.BackfillPricesResponse
+	50,  // 130: float.v1.LedgerService.ListAccountDeclarations:output_type -> float.v1.ListAccountDeclarationsResponse
+	52,  // 131: float.v1.LedgerService.DeclareAccount:output_type -> float.v1.DeclareAccountResponse
+	54,  // 132: float.v1.LedgerService.DeleteAccountDeclaration:output_type -> float.v1.DeleteAccountDeclarationResponse
+	62,  // 133: float.v1.LedgerService.BulkEditTransactions:output_type -> float.v1.BulkEditTransactionsResponse
+	65,  // 134: float.v1.LedgerService.ListSnapshots:output_type -> float.v1.ListSnapshotsResponse
+	67,  // 135: float.v1.LedgerService.RestoreSnapshot:output_type -> float.v1.RestoreSnapshotResponse
+	12,  // 136: float.v1.LedgerService.GetIncomeStatementTimeseries:output_type -> float.v1.GetIncomeStatementTimeseriesResponse
+	70,  // 137: float.v1.LedgerService.ListBankProfiles:output_type -> float.v1.ListBankProfilesResponse
+	72,  // 138: float.v1.LedgerService.CreateBankProfile:output_type -> float.v1.CreateBankProfileResponse
+	74,  // 139: float.v1.LedgerService.GetBankProfileContent:output_type -> float.v1.GetBankProfileContentResponse
+	76,  // 140: float.v1.LedgerService.UpdateBankProfile:output_type -> float.v1.UpdateBankProfileResponse
+	78,  // 141: float.v1.LedgerService.DeleteBankProfile:output_type -> float.v1.DeleteBankProfileResponse
+	81,  // 142: float.v1.LedgerService.PreviewImport:output_type -> float.v1.PreviewImportResponse
+	83,  // 143: float.v1.LedgerService.ImportTransactions:output_type -> float.v1.ImportTransactionsResponse
+	14,  // 144: float.v1.LedgerService.GetImportedTransactions:output_type -> float.v1.ListTransactionsResponse
+	87,  // 145: float.v1.LedgerService.ListImports:output_type -> float.v1.ListImportsResponse
+	89,  // 146: float.v1.LedgerService.GetImportFile:output_type -> float.v1.GetImportFileResponse
+	92,  // 147: float.v1.LedgerService.ListRules:output_type -> float.v1.ListRulesResponse
+	94,  // 148: float.v1.LedgerService.AddRule:output_type -> float.v1.AddRuleResponse
+	96,  // 149: float.v1.LedgerService.UpdateRule:output_type -> float.v1.UpdateRuleResponse
+	98,  // 150: float.v1.LedgerService.DeleteRule:output_type -> float.v1.DeleteRuleResponse
+	101, // 151: float.v1.LedgerService.PreviewApplyRules:output_type -> float.v1.PreviewApplyRulesResponse
+	103, // 152: float.v1.LedgerService.ApplyRules:output_type -> float.v1.ApplyRulesResponse
+	111, // 153: float.v1.LedgerService.GetAlphaVantageConfig:output_type -> float.v1.GetAlphaVantageConfigResponse
+	113, // 154: float.v1.LedgerService.SetAlphaVantageApiKey:output_type -> float.v1.SetAlphaVantageApiKeyResponse
+	111, // [111:155] is the sub-list for method output_type
+	67,  // [67:111] is the sub-list for method input_type
 	67,  // [67:67] is the sub-list for extension type_name
 	67,  // [67:67] is the sub-list for extension extendee
 	0,   // [0:67] is the sub-list for field type_name
@@ -6692,7 +6877,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   118,
+			NumMessages:   122,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -20,6 +20,7 @@ import { ImportsHistoryPage } from "./pages/imports-history.jsx";
 import { AccountsPage } from "./pages/accounts.jsx";
 import { PayeesPage } from "./pages/payees.jsx";
 import { PortfolioPage } from "./pages/portfolio.jsx";
+import { SettingsPage } from "./pages/settings.jsx";
 
 const LazyTrendsPage = lazy(() =>
   import("./pages/trends.jsx").then((m) => ({ default: m.TrendsPage }))
@@ -131,6 +132,12 @@ const portfolioRoute = createRoute({
   component: PortfolioPage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   transactionsRoute,
@@ -145,6 +152,7 @@ const routeTree = rootRoute.addChildren([
   importsHistoryRoute,
   payeesRoute,
   portfolioRoute,
+  settingsRoute,
 ]);
 
 export const router = createRouter({
