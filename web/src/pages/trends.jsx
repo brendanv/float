@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend } from "chart.js";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,13 +29,6 @@ function toBeginDate(months) {
 function parseAmount(amounts) {
   if (!amounts || amounts.length === 0) return 0;
   return parseFloat(amounts[0].quantity) || 0;
-}
-
-function formatCurrency(value) {
-  if (value === null || value === undefined) return "";
-  const abs = Math.abs(value);
-  const formatted = abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (value < 0 ? "-$" : "$") + formatted;
 }
 
 function formatLabel(dateStr) {
@@ -117,7 +111,7 @@ function NetWorthChart({ snapshots }) {
           legend: { position: "top" },
           tooltip: {
             callbacks: {
-              label: (ctx) => ` ${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}`,
+              label: (ctx) => ` ${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y, "USD")}`,
             },
           },
         },
@@ -125,7 +119,7 @@ function NetWorthChart({ snapshots }) {
           x: { grid: { display: false } },
           y: {
             ticks: {
-              callback: (v) => formatCurrency(v),
+              callback: (v) => formatCurrency(v, "USD"),
             },
           },
         },
@@ -199,18 +193,18 @@ export function TrendsPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <StatCard
               title="Current Net Worth"
-              value={currentNetWorth !== null ? formatCurrency(currentNetWorth) : "—"}
+              value={currentNetWorth !== null ? formatCurrency(currentNetWorth, "USD") : "—"}
               valueClass={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-destructive"}
             />
             <StatCard
               title="Change This Month"
-              value={monthChange !== null ? formatCurrency(monthChange) : "—"}
+              value={monthChange !== null ? formatCurrency(monthChange, "USD") : "—"}
               valueClass={monthChange !== null && monthChange >= 0 ? "text-success" : "text-destructive"}
               desc={monthChange !== null && monthChange >= 0 ? "▲ vs last month" : "▼ vs last month"}
             />
             <StatCard
               title="YTD Change"
-              value={ytdChange !== null ? formatCurrency(ytdChange) : "—"}
+              value={ytdChange !== null ? formatCurrency(ytdChange, "USD") : "—"}
               valueClass={ytdChange !== null && ytdChange >= 0 ? "text-success" : "text-destructive"}
               desc={ytdChange !== null && ytdChange >= 0 ? "▲ since Jan 1" : "▼ since Jan 1"}
             />
