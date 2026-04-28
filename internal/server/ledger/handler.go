@@ -1745,6 +1745,9 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 					}
 				}
 				if len(r.Tags) > 0 {
+					if txInput.Tags == nil {
+						txInput.Tags = make(map[string]string)
+					}
 					for k, v := range r.Tags {
 						txInput.Tags[k] = v
 					}

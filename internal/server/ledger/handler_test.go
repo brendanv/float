@@ -3,6 +3,8 @@ package ledger_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,6 +15,7 @@ import (
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 
 	"github.com/brendanv/float/internal/cache"
+	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/testgen"
@@ -1976,6 +1979,53 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		}
 		if got.Payee == nil || *got.Payee != "Acme" {
 			t.Errorf("Payee = %v, want %q", got.Payee, "Acme")
+		}
+	})
+}
+
+func TestImportTransactionsHandler(t *testing.T) {
+	t.Run("rule_with_tags_applied_without_panic", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 300, NumTxns: 1, WithFIDs: true})
+
+		hledgerRules := "skip 1\nfields date, description, amount\naccount1 assets:checking\n\nif AMAZON\n  account2 expenses:shopping\n"
+		if err := os.WriteFile(filepath.Join(dir, "bank.rules"), []byte(hledgerRules), 0o644); err != nil {
+			t.Fatalf("write bank.rules: %v", err)
+		}
+
+		floatRulesJSON := `[{"id":"abcd1234","pattern":"AMAZON","payee":"","account":"","tags":{"source":"amazon"},"priority":0,"auto_reviewed":false}]`
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(floatRulesJSON), 0o644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		lock := txlock.New(dir, c)
+		cfg := &config.Config{
+			BankProfiles: []config.BankProfile{
+				{Name: "test-bank", RulesFile: "bank.rules"},
+			},
+		}
+		h := serverledger.NewHandler(c, lock, dir, "", nil, nil, cfg)
+
+		csvData := []byte("date,description,amount\n2026-01-15,AMAZON MARKETPLACE,-45.00\n")
+		resp, err := h.ImportTransactions(t.Context(), connect.NewRequest(&floatv1.ImportTransactionsRequest{
+			CsvData:          csvData,
+			ProfileName:      "test-bank",
+			CandidateIndices: []int32{0},
+		}))
+		if err != nil {
+			t.Fatalf("ImportTransactions: %v", err)
+		}
+		if resp.Msg.ImportedCount != 1 {
+			t.Errorf("ImportedCount = %d, want 1", resp.Msg.ImportedCount)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		if resp.Msg.Transactions[0].Tags["source"] != "amazon" {
+			t.Errorf("Tags[source] = %q, want %q", resp.Msg.Transactions[0].Tags["source"], "amazon")
 		}
 	})
 }
