@@ -155,6 +155,12 @@ const (
 	// LedgerServiceApplyRulesProcedure is the fully-qualified name of the LedgerService's ApplyRules
 	// RPC.
 	LedgerServiceApplyRulesProcedure = "/float.v1.LedgerService/ApplyRules"
+	// LedgerServiceGetAlphaVantageConfigProcedure is the fully-qualified name of the LedgerService's
+	// GetAlphaVantageConfig RPC.
+	LedgerServiceGetAlphaVantageConfigProcedure = "/float.v1.LedgerService/GetAlphaVantageConfig"
+	// LedgerServiceSetAlphaVantageApiKeyProcedure is the fully-qualified name of the LedgerService's
+	// SetAlphaVantageApiKey RPC.
+	LedgerServiceSetAlphaVantageApiKeyProcedure = "/float.v1.LedgerService/SetAlphaVantageApiKey"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -203,6 +209,9 @@ type LedgerServiceClient interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	// Settings
+	GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error)
+	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -468,6 +477,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 			connect.WithClientOptions(opts...),
 		),
+		getAlphaVantageConfig: connect.NewClient[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse](
+			httpClient,
+			baseURL+LedgerServiceGetAlphaVantageConfigProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetAlphaVantageConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		setAlphaVantageApiKey: connect.NewClient[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse](
+			httpClient,
+			baseURL+LedgerServiceSetAlphaVantageApiKeyProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetAlphaVantageApiKey")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -515,6 +536,8 @@ type ledgerServiceClient struct {
 	deleteRule                   *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
 	previewApplyRules            *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
 	applyRules                   *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
+	getAlphaVantageConfig        *connect.Client[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse]
+	setAlphaVantageApiKey        *connect.Client[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -727,6 +750,16 @@ func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Reque
 	return c.applyRules.CallUnary(ctx, req)
 }
 
+// GetAlphaVantageConfig calls float.v1.LedgerService.GetAlphaVantageConfig.
+func (c *ledgerServiceClient) GetAlphaVantageConfig(ctx context.Context, req *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error) {
+	return c.getAlphaVantageConfig.CallUnary(ctx, req)
+}
+
+// SetAlphaVantageApiKey calls float.v1.LedgerService.SetAlphaVantageApiKey.
+func (c *ledgerServiceClient) SetAlphaVantageApiKey(ctx context.Context, req *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error) {
+	return c.setAlphaVantageApiKey.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -773,6 +806,9 @@ type LedgerServiceHandler interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	// Settings
+	GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error)
+	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1034,6 +1070,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetAlphaVantageConfigHandler := connect.NewUnaryHandler(
+		LedgerServiceGetAlphaVantageConfigProcedure,
+		svc.GetAlphaVantageConfig,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetAlphaVantageConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceSetAlphaVantageApiKeyHandler := connect.NewUnaryHandler(
+		LedgerServiceSetAlphaVantageApiKeyProcedure,
+		svc.SetAlphaVantageApiKey,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetAlphaVantageApiKey")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -1120,6 +1168,10 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServicePreviewApplyRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceApplyRulesProcedure:
 			ledgerServiceApplyRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceGetAlphaVantageConfigProcedure:
+			ledgerServiceGetAlphaVantageConfigHandler.ServeHTTP(w, r)
+		case LedgerServiceSetAlphaVantageApiKeyProcedure:
+			ledgerServiceSetAlphaVantageApiKeyHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1295,4 +1347,12 @@ func (UnimplementedLedgerServiceHandler) PreviewApplyRules(context.Context, *con
 
 func (UnimplementedLedgerServiceHandler) ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ApplyRules is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetAlphaVantageConfig is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAlphaVantageApiKey is not implemented"))
 }

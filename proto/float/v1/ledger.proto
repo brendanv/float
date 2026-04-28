@@ -568,6 +568,21 @@ message GetPortfolioTimeseriesResponse {
   repeated PortfolioTimeseriesSnapshot snapshots = 1;
 }
 
+// ---- Settings ----
+
+message GetAlphaVantageConfigRequest {}
+
+message GetAlphaVantageConfigResponse {
+  bool api_key_configured = 1; // true if an API key is set
+  string api_key_preview = 2;  // first 4 chars of key + "..." if configured, else ""
+}
+
+message SetAlphaVantageApiKeyRequest {
+  string api_key = 1; // new key; empty string clears the key
+}
+
+message SetAlphaVantageApiKeyResponse {}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetAccountRegister(GetAccountRegisterRequest) returns (GetAccountRegisterResponse);
@@ -615,4 +630,8 @@ service LedgerService {
   rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
   rpc PreviewApplyRules(PreviewApplyRulesRequest) returns (PreviewApplyRulesResponse);
   rpc ApplyRules(ApplyRulesRequest) returns (ApplyRulesResponse);
+
+  // Settings
+  rpc GetAlphaVantageConfig(GetAlphaVantageConfigRequest) returns (GetAlphaVantageConfigResponse);
+  rpc SetAlphaVantageApiKey(SetAlphaVantageApiKeyRequest) returns (SetAlphaVantageApiKeyResponse);
 }

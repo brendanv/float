@@ -780,6 +780,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "GetPortfolioTimeseries":
         body = mockPortfolioTimeseries;
         break;
+      case "GetAlphaVantageConfig":
+        body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
+        break;
       default:
         body = {};
     }

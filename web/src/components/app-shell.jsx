@@ -16,6 +16,7 @@ import {
   ClockArrowUp,
   BookOpen,
   Users,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -53,6 +54,7 @@ const NAV_MANAGE = [
   { href: "/import", label: "Import", icon: Upload },
   { href: "/imports", label: "Import History", icon: ClockArrowUp },
   { href: "/rules", label: "Rules", icon: ListFilter },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 function ThemeSwitcher() {
