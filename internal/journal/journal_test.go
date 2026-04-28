@@ -303,6 +303,31 @@ func TestUpdateMainIncludes(t *testing.T) {
 				}
 			},
 		},
+		{
+			// Regression: prependPricesInclude rewrites main.journal via strings.Join
+			// without a trailing newline. UpdateMainIncludes must not concatenate the
+			// new directive onto the last line.
+			name:      "no concatenation when last line lacks trailing newline",
+			initial:   "include accounts.journal\ninclude prices.journal",
+			directive: "2024/08.journal",
+			check: func(t *testing.T, data string) {
+				if strings.Contains(data, "prices.journalinclude") {
+					t.Errorf("directives were concatenated: %q", data)
+				}
+				for _, want := range []string{"include accounts.journal", "include prices.journal", "include 2024/08.journal"} {
+					found := false
+					for _, line := range strings.Split(data, "\n") {
+						if strings.TrimSpace(line) == want {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("directive %q not found as own line in:\n%s", want, data)
+					}
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -164,5 +164,9 @@ func prependPricesInclude(dataDir string) error {
 	newLines = append(newLines, directive)
 	newLines = append(newLines, lines[insertAt:]...)
 
-	return os.WriteFile(mainPath, []byte(strings.Join(newLines, "\n")), 0644)
+	content := strings.Join(newLines, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	return os.WriteFile(mainPath, []byte(content), 0644)
 }
