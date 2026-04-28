@@ -51,10 +51,17 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 		})
 	}
 
+	// Normalize hledger's "Unmarked" to "" to match TransactionInput convention.
+	status := t.Status
+	if status == "Unmarked" {
+		status = ""
+	}
+
 	return TransactionInput{
 		Date:        date,
 		Description: t.Description,
 		Comment:     strings.TrimSpace(t.Comment),
+		Status:      status,
 		Postings:    postings,
 	}, nil
 }
