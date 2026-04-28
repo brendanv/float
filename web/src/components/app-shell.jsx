@@ -161,7 +161,7 @@ export function AppShell({ children, currentPath }) {
   return (
     <SidebarProvider>
       <AppSidebar currentPath={currentPath} onAddTransaction={() => setAddTxnOpen(true)} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="flex h-12 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator
