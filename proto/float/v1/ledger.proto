@@ -5,7 +5,7 @@ package float.v1;
 option go_package = "github.com/brendanv/float/gen/float/v1;floatv1";
 
 message Amount {
-  string commodity = 1; // e.g. "$"
+  string commodity = 1; // e.g. "USD"
   string quantity = 2; // e.g. "25.00" (formatted decimal)
 }
 

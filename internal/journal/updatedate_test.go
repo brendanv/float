@@ -30,7 +30,7 @@ func TestUpdateTransactionDate(t *testing.T) {
 			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 			Description: "INVALID DATE TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -56,7 +56,7 @@ func TestUpdateTransactionDate(t *testing.T) {
 			Date:        time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
 			Description: "SAME MONTH TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$20.00"},
+				{Account: "expenses:food", Amount: "20.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -90,7 +90,7 @@ func TestUpdateTransactionDate(t *testing.T) {
 			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 			Description: "CROSS MONTH TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:shopping", Amount: "$50.00"},
+				{Account: "expenses:shopping", Amount: "50.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -138,7 +138,7 @@ func TestUpdateTransactionDate(t *testing.T) {
 			Date:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 			Description: "PRESERVE POSTINGS TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:transport", Amount: "$15.00", Comment: "bus pass"},
+				{Account: "expenses:transport", Amount: "15.00 USD", Comment: "bus pass"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -175,7 +175,7 @@ func TestUpdateTransactionDate(t *testing.T) {
 			Description: "PRESERVE COMMENT TEST",
 			Comment:     "my note",
 			Postings: []PostingInput{
-				{Account: "expenses:misc", Amount: "$5.00"},
+				{Account: "expenses:misc", Amount: "5.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}

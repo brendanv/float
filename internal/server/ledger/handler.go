@@ -328,10 +328,10 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 // Accounts whose amounts consist only of these commodities are excluded from the
 // portfolio view — they are cash positions, not equity holdings.
 var currencySymbols = map[string]bool{
-	"$": true, "USD": true, "EUR": true, "GBP": true,
-	"JPY": true, "CAD": true, "AUD": true, "CHF": true,
-	"NZD": true, "HKD": true, "SGD": true, "SEK": true,
-	"NOK": true, "DKK": true, "MXN": true, "INR": true,
+	"$": true, "USD": true, "EUR": true, "GBP": true, "JPY": true,
+	"CAD": true, "AUD": true, "CHF": true, "NZD": true,
+	"HKD": true, "SGD": true, "SEK": true, "NOK": true,
+	"DKK": true, "MXN": true, "INR": true, "CNY": true,
 }
 
 func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request[floatv1.GetPortfolioHoldingsRequest]) (*connect.Response[floatv1.GetPortfolioHoldingsResponse], error) {

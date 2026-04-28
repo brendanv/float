@@ -4,6 +4,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { DateRangePicker } from "../components/search-controls.jsx";
 import { DATE_PRESETS } from "../components/search-presets.js";
+import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,14 +22,6 @@ function parseFirstAmount(amountList) {
   if (!amountList?.amounts?.length) return null;
   const q = amountList.amounts[0]?.quantity;
   return q ? parseFloat(q) : null;
-}
-
-function formatAmount(value, negate = false) {
-  if (value === null || value === undefined) return "—";
-  const v = negate ? -value : value;
-  const abs = Math.abs(v);
-  const str = abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (v < 0 ? "-$" : "$") + str;
 }
 
 function sumPeriods(perPeriodAmounts, negate) {
@@ -50,7 +43,7 @@ function AmountCell({ value, className }) {
   const isNeg = value < 0;
   return (
     <td className={cn("px-3 py-1.5 text-right font-mono text-sm", isNeg ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400", className)}>
-      {formatAmount(value)}
+      {formatCurrency(value, "USD")}
     </td>
   );
 }

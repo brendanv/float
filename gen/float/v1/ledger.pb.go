@@ -23,7 +23,7 @@ const (
 
 type Amount struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Commodity     string                 `protobuf:"bytes,1,opt,name=commodity,proto3" json:"commodity,omitempty"` // e.g. "$"
+	Commodity     string                 `protobuf:"bytes,1,opt,name=commodity,proto3" json:"commodity,omitempty"` // e.g. "USD"
 	Quantity      string                 `protobuf:"bytes,2,opt,name=quantity,proto3" json:"quantity,omitempty"`   // e.g. "25.00" (formatted decimal)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

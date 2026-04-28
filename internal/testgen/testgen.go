@@ -133,7 +133,7 @@ func Generate(opts Options) string {
 
 		// Random amount: $1.00–$500.00
 		cents := 100 + rng.Intn(49900)
-		amount := fmt.Sprintf("$%d.%02d", cents/100, cents%100)
+		amount := fmt.Sprintf("%d.%02d USD", cents/100, cents%100)
 
 		if o.WithFIDs {
 			fid := randomFID(rng)
@@ -219,7 +219,7 @@ func GenerateDataDir(t testing.TB, opts Options) string {
 		acct2 := o.Accounts[acct2Idx]
 
 		cents := 100 + rng.Intn(49900)
-		amount := fmt.Sprintf("$%d.%02d", cents/100, cents%100)
+		amount := fmt.Sprintf("%d.%02d USD", cents/100, cents%100)
 
 		var sb strings.Builder
 		if o.WithFIDs {

@@ -48,8 +48,8 @@ export const mockTransactions = [
     note: "weekly groceries",
     status: "Pending",
     postings: [
-      { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "87.43" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-87.43" }] },
+      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "87.43" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-87.43" }] },
     ],
     tags: { reimbursable: "" },
   },
@@ -61,8 +61,8 @@ export const mockTransactions = [
     note: "desk lamp",
     status: "Pending",
     postings: [
-      { account: "expenses:shopping", amounts: [{ commodity: "$", quantity: "34.99" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-34.99" }] },
+      { account: "expenses:shopping", amounts: [{ commodity: "USD", quantity: "34.99" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-34.99" }] },
     ],
     tags: { project: "home-office", reimbursable: "" },
   },
@@ -74,8 +74,8 @@ export const mockTransactions = [
     note: "March salary",
     status: "Cleared",
     postings: [
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "5200.00" }] },
-      { account: "income:salary", amounts: [{ commodity: "$", quantity: "-5200.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "5200.00" }] },
+      { account: "income:salary", amounts: [{ commodity: "USD", quantity: "-5200.00" }] },
     ],
     tags: {},
   },
@@ -87,8 +87,8 @@ export const mockTransactions = [
     note: "lunch",
     status: "Pending",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "14.75" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-14.75" }] },
+      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "14.75" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-14.75" }] },
     ],
     tags: {},
   },
@@ -100,8 +100,8 @@ export const mockTransactions = [
     note: "morning coffee",
     status: "Cleared",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "6.50" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-6.50" }] },
+      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "6.50" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-6.50" }] },
     ],
     tags: {},
   },
@@ -111,8 +111,8 @@ export const mockTransactions = [
     description: "Metro Transit",
     status: "Cleared",
     postings: [
-      { account: "expenses:transport", amounts: [{ commodity: "$", quantity: "3.25" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-3.25" }] },
+      { account: "expenses:transport", amounts: [{ commodity: "USD", quantity: "3.25" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-3.25" }] },
     ],
     tags: {},
   },
@@ -122,8 +122,8 @@ export const mockTransactions = [
     description: "Electric Bill",
     status: "Cleared",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "95.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-95.00" }] },
+      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "95.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-95.00" }] },
     ],
     tags: {},
   },
@@ -135,8 +135,8 @@ export const mockTransactions = [
     note: "produce run",
     status: "Pending",
     postings: [
-      { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "62.18" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-62.18" }] },
+      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "62.18" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-62.18" }] },
     ],
     tags: {},
   },
@@ -146,8 +146,8 @@ export const mockTransactions = [
     description: "Rent Payment",
     status: "Cleared",
     postings: [
-      { account: "expenses:rent", amounts: [{ commodity: "$", quantity: "1500.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-1500.00" }] },
+      { account: "expenses:rent", amounts: [{ commodity: "USD", quantity: "1500.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-1500.00" }] },
     ],
     tags: {},
   },
@@ -157,8 +157,8 @@ export const mockTransactions = [
     description: "Netflix",
     status: "Cleared",
     postings: [
-      { account: "expenses:subscriptions", amounts: [{ commodity: "$", quantity: "17.99" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-17.99" }] },
+      { account: "expenses:subscriptions", amounts: [{ commodity: "USD", quantity: "17.99" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-17.99" }] },
     ],
     tags: { auto: "yes" },
   },
@@ -168,8 +168,8 @@ export const mockTransactions = [
     description: "Gas Station",
     status: "Cleared",
     postings: [
-      { account: "expenses:transport", amounts: [{ commodity: "$", quantity: "54.20" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-54.20" }] },
+      { account: "expenses:transport", amounts: [{ commodity: "USD", quantity: "54.20" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-54.20" }] },
     ],
     tags: {},
   },
@@ -181,8 +181,8 @@ export const mockTransactions = [
     note: "household supplies",
     status: "Cleared",
     postings: [
-      { account: "expenses:household", amounts: [{ commodity: "$", quantity: "43.57" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-43.57" }] },
+      { account: "expenses:household", amounts: [{ commodity: "USD", quantity: "43.57" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-43.57" }] },
     ],
     tags: { reimbursable: "" },
   },
@@ -192,8 +192,8 @@ export const mockTransactions = [
     description: "Spotify",
     status: "Cleared",
     postings: [
-      { account: "expenses:subscriptions", amounts: [{ commodity: "$", quantity: "10.99" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-10.99" }] },
+      { account: "expenses:subscriptions", amounts: [{ commodity: "USD", quantity: "10.99" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-10.99" }] },
     ],
     tags: { auto: "yes" },
   },
@@ -205,8 +205,8 @@ export const mockTransactions = [
     note: "team lunch",
     status: "Cleared",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "38.50" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-38.50" }] },
+      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "38.50" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-38.50" }] },
     ],
     tags: { reimbursable: "" },
   },
@@ -216,8 +216,8 @@ export const mockTransactions = [
     description: "Internet Bill",
     status: "Cleared",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "79.99" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-79.99" }] },
+      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "79.99" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-79.99" }] },
     ],
     tags: {},
   },
@@ -229,8 +229,8 @@ export const mockTransactions = [
     note: "weekly shop",
     status: "Pending",
     postings: [
-      { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "91.33" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "$", quantity: "-91.33" }] },
+      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "91.33" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-91.33" }] },
     ],
     tags: {},
   },
@@ -240,8 +240,8 @@ export const mockTransactions = [
     description: "Phone Bill",
     status: "Cleared",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "45.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-45.00" }] },
+      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "45.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-45.00" }] },
     ],
     tags: {},
   },
@@ -285,8 +285,8 @@ export const mockAccountRegisterRows = [
     note: "March salary",
     status: "Cleared",
     otherAccounts: ["income:salary"],
-    change: [{ commodity: "$", quantity: "5200.00" }],
-    runningTotal: [{ commodity: "$", quantity: "5200.00" }],
+    change: [{ commodity: "USD", quantity: "5200.00" }],
+    runningTotal: [{ commodity: "USD", quantity: "5200.00" }],
   },
   {
     fid: "c3d4e5f8",
@@ -294,8 +294,8 @@ export const mockAccountRegisterRows = [
     description: "Metro Transit",
     status: "Cleared",
     otherAccounts: ["expenses:transport"],
-    change: [{ commodity: "$", quantity: "-3.25" }],
-    runningTotal: [{ commodity: "$", quantity: "5196.75" }],
+    change: [{ commodity: "USD", quantity: "-3.25" }],
+    runningTotal: [{ commodity: "USD", quantity: "5196.75" }],
   },
   {
     fid: "d4e5f6g7",
@@ -303,8 +303,8 @@ export const mockAccountRegisterRows = [
     description: "Electric Bill",
     status: "Cleared",
     otherAccounts: ["expenses:utilities"],
-    change: [{ commodity: "$", quantity: "-95.00" }],
-    runningTotal: [{ commodity: "$", quantity: "5101.75" }],
+    change: [{ commodity: "USD", quantity: "-95.00" }],
+    runningTotal: [{ commodity: "USD", quantity: "5101.75" }],
   },
   {
     fid: "e5f6g7h9",
@@ -312,8 +312,8 @@ export const mockAccountRegisterRows = [
     description: "Grocery Store",
     status: "Cleared",
     otherAccounts: ["expenses:groceries"],
-    change: [{ commodity: "$", quantity: "-62.18" }],
-    runningTotal: [{ commodity: "$", quantity: "5039.57" }],
+    change: [{ commodity: "USD", quantity: "-62.18" }],
+    runningTotal: [{ commodity: "USD", quantity: "5039.57" }],
   },
   {
     fid: "f6g7h8i9",
@@ -321,8 +321,8 @@ export const mockAccountRegisterRows = [
     description: "Rent Payment",
     status: "Cleared",
     otherAccounts: ["expenses:rent"],
-    change: [{ commodity: "$", quantity: "-1500.00" }],
-    runningTotal: [{ commodity: "$", quantity: "3539.57" }],
+    change: [{ commodity: "USD", quantity: "-1500.00" }],
+    runningTotal: [{ commodity: "USD", quantity: "3539.57" }],
   },
 ];
 
@@ -340,8 +340,8 @@ export const mockImportCandidates = [
       date: "2026-03-28",
       description: "AMAZON.COM PURCHASE",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-42.99" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "$", quantity: "42.99" }] },
+        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-42.99" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "42.99" }] },
       ],
       tags: {},
     },
@@ -354,8 +354,8 @@ export const mockImportCandidates = [
       date: "2026-03-27",
       description: "STARBUCKS #4821",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-6.75" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "$", quantity: "6.75" }] },
+        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-6.75" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "6.75" }] },
       ],
       tags: {},
     },
@@ -368,8 +368,8 @@ export const mockImportCandidates = [
       date: "2026-03-26",
       description: "Whole Foods Market",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-87.43" }] },
-        { account: "expenses:groceries", amounts: [{ commodity: "$", quantity: "87.43" }] },
+        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-87.43" }] },
+        { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "87.43" }] },
       ],
       tags: {},
     },
@@ -382,8 +382,8 @@ export const mockImportCandidates = [
       date: "2026-03-25",
       description: "MONTHLY GAS BILL",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-84.00" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "$", quantity: "84.00" }] },
+        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-84.00" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "84.00" }] },
       ],
       tags: {},
     },
@@ -474,8 +474,8 @@ export const mockImportedTransactions = [
     date: "2026-03-28",
     description: "AMAZON.COM PURCHASE",
     postings: [
-      { account: "expenses:shopping", amounts: [{ commodity: "$", quantity: "42.99" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-42.99" }] },
+      { account: "expenses:shopping", amounts: [{ commodity: "USD", quantity: "42.99" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-42.99" }] },
     ],
     tags: {},
     status: "Pending",
@@ -485,8 +485,8 @@ export const mockImportedTransactions = [
     date: "2026-03-28",
     description: "STARBUCKS #4821",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "$", quantity: "6.75" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-6.75" }] },
+      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "6.75" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-6.75" }] },
     ],
     tags: {},
     status: "Pending",
@@ -496,8 +496,8 @@ export const mockImportedTransactions = [
     date: "2026-03-27",
     description: "MONTHLY GAS BILL",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "$", quantity: "84.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "$", quantity: "-84.00" }] },
+      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "84.00" }] },
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-84.00" }] },
     ],
     tags: {},
     status: "Pending",
@@ -538,7 +538,7 @@ export const mockApplyPreviews = [
 ];
 
 function makeAmountList(quantity) {
-  return { amounts: [{ commodity: "$", quantity: String(quantity) }] };
+  return { amounts: [{ commodity: "USD", quantity: String(quantity) }] };
 }
 
 const MOCK_IS_PERIODS = [
@@ -555,7 +555,7 @@ export const mockIncomeStatementTimeseries = {
       displayName: "salary", fullName: "income:salary", indent: 1,
       section: "Revenues", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("-5200.00")),
-      totalAmounts: [{ commodity: "$", quantity: "-62400.00" }],
+      totalAmounts: [{ commodity: "USD", quantity: "-62400.00" }],
     },
     {
       displayName: "Total Revenues", fullName: "", indent: 0,
@@ -568,43 +568,43 @@ export const mockIncomeStatementTimeseries = {
       displayName: "expenses", fullName: "expenses", indent: 0,
       section: "Expenses", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2340.43")),
-      totalAmounts: [{ commodity: "$", quantity: "28085.16" }],
+      totalAmounts: [{ commodity: "USD", quantity: "28085.16" }],
     },
     {
       displayName: "groceries", fullName: "expenses:groceries", indent: 1,
       section: "Expenses", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("450.00")),
-      totalAmounts: [{ commodity: "$", quantity: "5400.00" }],
+      totalAmounts: [{ commodity: "USD", quantity: "5400.00" }],
     },
     {
       displayName: "dining", fullName: "expenses:dining", indent: 1,
       section: "Expenses", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("210.00")),
-      totalAmounts: [{ commodity: "$", quantity: "2520.00" }],
+      totalAmounts: [{ commodity: "USD", quantity: "2520.00" }],
     },
     {
       displayName: "utilities", fullName: "expenses:utilities", indent: 1,
       section: "Expenses", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("95.00")),
-      totalAmounts: [{ commodity: "$", quantity: "1140.00" }],
+      totalAmounts: [{ commodity: "USD", quantity: "1140.00" }],
     },
     {
       displayName: "rent", fullName: "expenses:rent", indent: 1,
       section: "Expenses", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("1500.00")),
-      totalAmounts: [{ commodity: "$", quantity: "18000.00" }],
+      totalAmounts: [{ commodity: "USD", quantity: "18000.00" }],
     },
     {
       displayName: "subscriptions", fullName: "expenses:subscriptions", indent: 1,
       section: "Expenses", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("57.43")),
-      totalAmounts: [{ commodity: "$", quantity: "689.16" }],
+      totalAmounts: [{ commodity: "USD", quantity: "689.16" }],
     },
     {
       displayName: "transport", fullName: "expenses:transport", indent: 1,
       section: "Expenses", isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("28.00")),
-      totalAmounts: [{ commodity: "$", quantity: "336.00" }],
+      totalAmounts: [{ commodity: "USD", quantity: "336.00" }],
     },
     {
       displayName: "Total Expenses", fullName: "", indent: 0,

@@ -375,7 +375,7 @@ func TestDeleteTransactionHandler(t *testing.T) {
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 			Description: "HANDLER DELETE TEST",
 			Postings: []journal.PostingInput{
-				{Account: "expenses:food", Amount: "$12.00"},
+				{Account: "expenses:food", Amount: "12.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -458,7 +458,7 @@ func TestUpdateTransactionDateHandler(t *testing.T) {
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 			Description: "HANDLER UPDATE DATE TEST",
 			Postings: []journal.PostingInput{
-				{Account: "expenses:food", Amount: "$18.00"},
+				{Account: "expenses:food", Amount: "18.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -492,7 +492,7 @@ func TestAddTransactionHandler(t *testing.T) {
 		_, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
 			Description: "",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -510,7 +510,7 @@ func TestAddTransactionHandler(t *testing.T) {
 		_, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
 			Description: "Test",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 			},
 		}))
 		if err == nil {
@@ -528,7 +528,7 @@ func TestAddTransactionHandler(t *testing.T) {
 			Description: "Test",
 			Date:        "not-a-date",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -546,7 +546,7 @@ func TestAddTransactionHandler(t *testing.T) {
 		_, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
 			Description: "Test",
 			Postings: []*floatv1.PostingInput{
-				{Account: "", Amount: "$10.00"},
+				{Account: "", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -570,7 +570,7 @@ func TestAddTransactionHandler(t *testing.T) {
 			Description: "GROCERY STORE",
 			Date:        "2026-02-10",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$55.00"},
+				{Account: "expenses:food", Amount: "55.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -609,7 +609,7 @@ func TestAddTransactionHandler(t *testing.T) {
 		resp, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
 			Description: "AUTO DATE TEST",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$20.00"},
+				{Account: "expenses:food", Amount: "20.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -958,7 +958,7 @@ func TestModifyTagsHandler(t *testing.T) {
 			Date:        time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 			Description: "HANDLER MODIFY TAGS TEST",
 			Postings: []journal.PostingInput{
-				{Account: "expenses:shopping", Amount: "$30.00"},
+				{Account: "expenses:shopping", Amount: "30.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -1001,7 +1001,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Fid:         "",
 			Description: "Test",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -1020,7 +1020,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Fid:         "aa001100",
 			Description: "",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -1039,7 +1039,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Fid:         "aa001100",
 			Description: "Test",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 			},
 		}))
 		if err == nil {
@@ -1057,7 +1057,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Fid:         "aa001100",
 			Description: "Test",
 			Postings: []*floatv1.PostingInput{
-				{Account: "", Amount: "$10.00"},
+				{Account: "", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -1076,7 +1076,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Fid:         "00000000",
 			Description: "Test",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -1100,7 +1100,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
 			Description: "ORIGINAL",
 			Postings: []journal.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -1113,7 +1113,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Description: "UPDATED",
 			Date:        "not-a-date",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -1138,7 +1138,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Description: "ORIGINAL",
 			Comment:     "old note",
 			Postings: []journal.PostingInput{
-				{Account: "expenses:food", Amount: "$20.00"},
+				{Account: "expenses:food", Amount: "20.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -1152,7 +1152,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Date:        "2026-02-15",
 			Comment:     "new note",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:shopping", Amount: "$55.00"},
+				{Account: "expenses:shopping", Amount: "55.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -1202,7 +1202,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Date:        time.Date(2026, 3, 12, 0, 0, 0, 0, time.UTC),
 			Description: "KEEP DATE TEST",
 			Postings: []journal.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -1215,7 +1215,7 @@ func TestUpdateTransactionHandler(t *testing.T) {
 			Description: "KEEP DATE TEST UPDATED",
 			Date:        "",
 			Postings: []*floatv1.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}))
@@ -1607,7 +1607,7 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 			Description: desc,
 			Postings: []journal.PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}

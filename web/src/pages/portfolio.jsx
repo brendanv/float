@@ -24,6 +24,7 @@ import {
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,18 +50,6 @@ const CHART_COLORS = [
   "#6366f1", "#22d3ee", "#f59e0b", "#34d399", "#f43f5e",
   "#a78bfa", "#38bdf8", "#fb923c", "#4ade80", "#e879f9",
 ];
-
-function formatCurrency(quantity, commodity) {
-  if (quantity === undefined || quantity === null) return "—";
-  const val = parseFloat(quantity);
-  if (isNaN(val)) return "—";
-  const sym = commodity === "USD" ? "$" : (commodity ?? "");
-  const abs = Math.abs(val).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return (val < 0 ? "-" : "") + sym + abs;
-}
 
 function formatLabel(dateStr) {
   if (!dateStr) return "";

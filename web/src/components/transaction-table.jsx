@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { formatAmounts, formatDate } from "../format.js";
+import { formatAmounts, formatCurrency, formatDate } from "../format.js";
 import { PostingFields } from "./posting-fields.jsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
@@ -86,7 +86,7 @@ function accountRegisterDisplay(tx, focusedAccount) {
         sumByCommodity[a.commodity] = (sumByCommodity[a.commodity] || 0) + (parseFloat(a.quantity) || 0);
       }
     }
-    amount = Object.entries(sumByCommodity).map(([c, q]) => `${c}${q}`).join(", ");
+    amount = Object.entries(sumByCommodity).map(([c, q]) => formatCurrency(q, c)).join(", ");
   }
   return { otherAccounts, amount };
 }
