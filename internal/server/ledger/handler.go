@@ -306,7 +306,13 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	report, err := cachedBalances(ctx, h.cache, h.hl, int(req.Msg.Depth), req.Msg.Query)
+	var report *hledger.BalanceReport
+	var err error
+	if req.Msg.ValueInUsd {
+		report, err = cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", int(req.Msg.Depth), req.Msg.Query)
+	} else {
+		report, err = cachedBalances(ctx, h.cache, h.hl, int(req.Msg.Depth), req.Msg.Query)
+	}
 	if err != nil {
 		logger.ErrorContext(ctx, "hledger balances failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)

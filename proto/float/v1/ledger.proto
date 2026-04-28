@@ -104,6 +104,7 @@ message ListTransactionsResponse {
 message GetBalancesRequest {
   int32 depth = 1; // 0 = no --depth flag
   repeated string query = 2;
+  bool value_in_usd = 3; // if true, convert all commodities to USD using latest prices
 }
 
 message GetBalancesResponse {

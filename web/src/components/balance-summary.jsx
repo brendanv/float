@@ -1,6 +1,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { formatAmounts } from "../format.js";
+
+function sumUsd(amounts) {
+  if (!amounts || amounts.length === 0) return null;
+  let total = 0;
+  let hasUsd = false;
+  for (const a of amounts) {
+    if (a.commodity === "USD" || a.commodity === "$") {
+      total += parseFloat(a.quantity || 0);
+      hasUsd = true;
+    }
+  }
+  return hasUsd ? total : parseFloat(amounts[0]?.quantity || 0);
+}
+
+function formatUsd(value) {
+  if (value === null || value === undefined) return "";
+  const abs = Math.abs(value);
+  const str = abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (value < 0 ? "-$" : "$") + str;
+}
 
 function StatItem({ title, value, valueClass }) {
   return (
@@ -25,9 +44,9 @@ export function BalanceSummary({ balanceRows }) {
   const assets = balanceRows.find((r) => r.fullName === "assets");
   const liabilities = balanceRows.find((r) => r.fullName === "liabilities");
 
-  const assetVal = parseFloat(assets?.amounts?.[0]?.quantity || 0);
-  const liabVal = parseFloat(liabilities?.amounts?.[0]?.quantity || 0);
-  const netWorth = assetVal + liabVal;
+  const assetVal = sumUsd(assets?.amounts);
+  const liabVal = sumUsd(liabilities?.amounts);
+  const netWorth = (assetVal ?? 0) + (liabVal ?? 0);
   const netPositive = netWorth >= 0;
 
   return (
@@ -35,23 +54,21 @@ export function BalanceSummary({ balanceRows }) {
       {assets && (
         <StatItem
           title="Assets"
-          value={formatAmounts(assets.amounts)}
+          value={formatUsd(assetVal)}
           valueClass="text-success"
         />
       )}
       {liabilities && (
         <StatItem
           title="Liabilities"
-          value={formatAmounts(liabilities.amounts)}
+          value={formatUsd(liabVal)}
           valueClass="text-destructive"
         />
       )}
       {assets && liabilities && (
         <StatItem
           title="Net Worth"
-          value={formatAmounts([
-            { commodity: assets.amounts[0].commodity, quantity: String(netWorth) },
-          ])}
+          value={formatUsd(netWorth)}
           valueClass={netPositive ? "text-success" : "text-destructive"}
         />
       )}
