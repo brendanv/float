@@ -31,7 +31,7 @@ func TestModifyTags(t *testing.T) {
 			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 			Description: "TEST MODIFY TAGS",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$20.00"},
+				{Account: "expenses:food", Amount: "20.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -80,7 +80,7 @@ func TestModifyTags(t *testing.T) {
 			Date:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 			Description: "REPLACE TAGS TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:shopping", Amount: "$50.00"},
+				{Account: "expenses:shopping", Amount: "50.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -135,7 +135,7 @@ func TestModifyTags(t *testing.T) {
 			Date:        time.Date(2026, 1, 22, 0, 0, 0, 0, time.UTC),
 			Description: "EMPTY TAG TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:misc", Amount: "$7.00"},
+				{Account: "expenses:misc", Amount: "7.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -183,7 +183,7 @@ func TestModifyTags(t *testing.T) {
 			Date:        time.Date(2026, 1, 25, 0, 0, 0, 0, time.UTC),
 			Description: "SINGLE ROW TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$9.00"},
+				{Account: "expenses:food", Amount: "9.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -230,7 +230,7 @@ func TestModifyTags(t *testing.T) {
 			Date:        time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
 			Description: "CLEAR TAGS TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:misc", Amount: "$5.00"},
+				{Account: "expenses:misc", Amount: "5.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -278,7 +278,7 @@ func TestModifyTags(t *testing.T) {
 			Date:        time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC),
 			Description: "FID PRESERVED TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$15.00"},
+				{Account: "expenses:food", Amount: "15.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -318,7 +318,7 @@ func TestModifyTagsPreservesFloatMeta(t *testing.T) {
 		Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 		Description: "HIDDEN META PRESERVE TEST",
 		Postings: []PostingInput{
-			{Account: "expenses:food", Amount: "$10.00"},
+			{Account: "expenses:food", Amount: "10.00 USD"},
 			{Account: "assets:checking"},
 		},
 		FloatMeta: map[string]string{
@@ -366,7 +366,7 @@ func TestModifyFloatMeta(t *testing.T) {
 			Date:        time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 			Description: "SET HIDDEN META TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$12.00"},
+				{Account: "expenses:food", Amount: "12.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -408,7 +408,7 @@ func TestModifyFloatMeta(t *testing.T) {
 			Date:        time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
 			Description: "PRESERVE USER TAGS TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$8.00"},
+				{Account: "expenses:food", Amount: "8.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -457,7 +457,7 @@ func TestModifyFloatMeta(t *testing.T) {
 			Date:        time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC),
 			Description: "REPLACE HIDDEN META TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$6.00"},
+				{Account: "expenses:food", Amount: "6.00 USD"},
 				{Account: "assets:checking"},
 			},
 			FloatMeta: map[string]string{"float-import-id": "old-batch"},
@@ -494,7 +494,7 @@ func TestModifyFloatMeta(t *testing.T) {
 			Date:        time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
 			Description: "CLEAR HIDDEN META TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$5.00"},
+				{Account: "expenses:food", Amount: "5.00 USD"},
 				{Account: "assets:checking"},
 			},
 			FloatMeta: map[string]string{"float-import-id": "will-be-removed"},
@@ -593,7 +593,7 @@ func TestModifyTagsOrdering(t *testing.T) {
 		Description: "ORDERING TEST",
 		Comment:     "my note",
 		Postings: []PostingInput{
-			{Account: "expenses:food", Amount: "$10.00"},
+			{Account: "expenses:food", Amount: "10.00 USD"},
 			{Account: "assets:checking"},
 		},
 		FloatMeta: map[string]string{

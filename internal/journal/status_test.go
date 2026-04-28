@@ -57,7 +57,7 @@ func TestUpdateTransactionStatus(t *testing.T) {
 				Description: "STATUS TEST",
 				Status:      tc.initial,
 				Postings: []PostingInput{
-					{Account: "expenses:food", Amount: "$10.00"},
+					{Account: "expenses:food", Amount: "10.00 USD"},
 					{Account: "assets:checking"},
 				},
 			}
@@ -101,7 +101,7 @@ func TestUpdateTransactionStatus(t *testing.T) {
 			Comment:     "important note",
 			Status:      "Pending",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$5.00"},
+				{Account: "expenses:food", Amount: "5.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}

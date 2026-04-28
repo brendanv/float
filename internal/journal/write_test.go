@@ -28,7 +28,7 @@ func TestWriteTransaction_New(t *testing.T) {
 			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 			Description: "MINT FID TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -49,7 +49,7 @@ func TestWriteTransaction_New(t *testing.T) {
 			Description: "PRESET FID TEST",
 			FID:         "aabbccdd",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -69,7 +69,7 @@ func TestWriteTransaction_New(t *testing.T) {
 			Date:        time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC),
 			Description: "MARCH TXN",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$20.00"},
+				{Account: "expenses:food", Amount: "20.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -98,7 +98,7 @@ func TestWriteTransaction_New(t *testing.T) {
 			Date:        time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 			Description: "MAY TXN",
 			Postings: []PostingInput{
-				{Account: "expenses:misc", Amount: "$1.00"},
+				{Account: "expenses:misc", Amount: "1.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -121,7 +121,7 @@ func TestWriteTransaction_New(t *testing.T) {
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 			Description: "TIMESTAMP TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$5.00"},
+				{Account: "expenses:food", Amount: "5.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -149,7 +149,7 @@ func TestWriteTransaction_New(t *testing.T) {
 			Description: "TAGS TEST",
 			Tags:        map[string]string{"category": "food", "source": "manual"},
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$15.00"},
+				{Account: "expenses:food", Amount: "15.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -187,7 +187,7 @@ func TestWriteTransaction_Replace(t *testing.T) {
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 			Description: "ORIGINAL",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -215,7 +215,7 @@ func TestWriteTransaction_Replace(t *testing.T) {
 			Description: "UPDATED SAME MONTH",
 			FID:         fid,
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$99.00"},
+				{Account: "expenses:food", Amount: "99.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -253,7 +253,7 @@ func TestWriteTransaction_Replace(t *testing.T) {
 			Date:        time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
 			Description: "JANUARY TXN",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -278,7 +278,7 @@ func TestWriteTransaction_Replace(t *testing.T) {
 			Description: "MOVED TO FEBRUARY",
 			FID:         fid,
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -326,7 +326,7 @@ func TestWriteTransaction_Replace(t *testing.T) {
 			Tags:        map[string]string{"category": "food"},
 			FloatMeta:   map[string]string{"float-import-id": "batch1"},
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$25.00"},
+				{Account: "expenses:food", Amount: "25.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -352,7 +352,7 @@ func TestWriteTransaction_Replace(t *testing.T) {
 			Tags:        map[string]string{"category": "groceries"},
 			FloatMeta:   map[string]string{"float-import-id": "batch1"},
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$25.00"},
+				{Account: "expenses:food", Amount: "25.00 USD"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -393,7 +393,7 @@ func TestInputFromTransaction(t *testing.T) {
 		Status:      "Pending",
 		FloatMeta:   map[string]string{"float-import-id": "batchX"},
 		Postings: []PostingInput{
-			{Account: "expenses:misc", Amount: "$7.50"},
+			{Account: "expenses:misc", Amount: "7.50 USD"},
 			{Account: "assets:checking"},
 		},
 	}

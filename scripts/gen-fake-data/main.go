@@ -200,7 +200,7 @@ func mintFID(rng *rand.Rand) string {
 }
 
 func fmtAmount(dollars float64) string {
-	return fmt.Sprintf("$%.2f", math.Round(dollars*100)/100)
+	return fmt.Sprintf("%.2f USD", math.Round(dollars*100)/100)
 }
 
 func randFloat(rng *rand.Rand, min, max float64) float64 {
@@ -251,8 +251,8 @@ func generateMonth(rng *rand.Rand, year, month int, isFirst bool) []transaction 
 	// Opening balances — first month only
 	if isFirst {
 		txns = append(txns, newTxn(rng, dateIn(year, month, 1), "Opening balances", "Cleared", []posting{
-			{"assets:checking", "$10000.00"},
-			{"assets:savings", "$25000.00"},
+			{"assets:checking", "10000.00 USD"},
+			{"assets:savings", "25000.00 USD"},
 			{"equity:opening-balances", ""},
 		}))
 	}
@@ -273,13 +273,13 @@ func generateMonth(rng *rand.Rand, year, month int, isFirst bool) []transaction 
 
 	// Internet on the 5th
 	txns = append(txns, newTxn(rng, dateIn(year, month, 5), "COMCAST INTERNET", "Cleared", []posting{
-		{"expenses:utilities:internet", "$65.00"},
+		{"expenses:utilities:internet", "65.00 USD"},
 		{"assets:checking", ""},
 	}))
 
 	// Transfer to savings on the 10th
 	txns = append(txns, newTxn(rng, dateIn(year, month, 10), "TRANSFER TO SAVINGS", "Cleared", []posting{
-		{"assets:savings", "$500.00"},
+		{"assets:savings", "500.00 USD"},
 		{"assets:checking", ""},
 	}))
 
@@ -313,11 +313,11 @@ func generateMonth(rng *rand.Rand, year, month int, isFirst bool) []transaction 
 
 	// Streaming subscriptions on credit card (fixed dates)
 	txns = append(txns, newTxn(rng, dateIn(year, month, 15), "NETFLIX.COM", "Cleared", []posting{
-		{"expenses:entertainment:streaming", "$15.99"},
+		{"expenses:entertainment:streaming", "15.99 USD"},
 		{"liabilities:credit-card", ""},
 	}))
 	txns = append(txns, newTxn(rng, dateIn(year, month, 20), "SPOTIFY PREMIUM", "Cleared", []posting{
-		{"expenses:entertainment:streaming", "$9.99"},
+		{"expenses:entertainment:streaming", "9.99 USD"},
 		{"liabilities:credit-card", ""},
 	}))
 

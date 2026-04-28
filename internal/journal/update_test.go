@@ -29,7 +29,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 			Description: "ORIGINAL",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$10.00"},
+				{Account: "expenses:food", Amount: "10.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -54,7 +54,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Date:        time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 			Description: "ORIGINAL DESCRIPTION",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$25.00"},
+				{Account: "expenses:food", Amount: "25.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -63,7 +63,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "UPDATED DESCRIPTION", "", "", nil, []PostingInput{
-			{Account: "expenses:food", Amount: "$25.00"},
+			{Account: "expenses:food", Amount: "25.00 USD"},
 			{Account: "assets:checking"},
 		})
 		if err != nil {
@@ -89,7 +89,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Date:        time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC),
 			Description: "DATE UPDATE TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:shopping", Amount: "$40.00"},
+				{Account: "expenses:shopping", Amount: "40.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -98,7 +98,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "DATE UPDATE TEST", "2026-03-20", "", nil, []PostingInput{
-			{Account: "expenses:shopping", Amount: "$40.00"},
+			{Account: "expenses:shopping", Amount: "40.00 USD"},
 			{Account: "assets:checking"},
 		})
 		if err != nil {
@@ -124,7 +124,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 			Description: "CROSS MONTH TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$15.00"},
+				{Account: "expenses:food", Amount: "15.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -133,7 +133,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "CROSS MONTH TEST", "2026-04-01", "", nil, []PostingInput{
-			{Account: "expenses:food", Amount: "$15.00"},
+			{Account: "expenses:food", Amount: "15.00 USD"},
 			{Account: "assets:checking"},
 		})
 		if err != nil {
@@ -159,7 +159,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Date:        time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
 			Description: "REPLACE POSTINGS TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$30.00"},
+				{Account: "expenses:food", Amount: "30.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -168,7 +168,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "REPLACE POSTINGS TEST", "", "", nil, []PostingInput{
-			{Account: "expenses:shopping", Amount: "$99.00"},
+			{Account: "expenses:shopping", Amount: "99.00 USD"},
 			{Account: "liabilities:credit-card"},
 		})
 		if err != nil {
@@ -201,7 +201,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Description: "COMMENT UPDATE TEST",
 			Comment:     "old note",
 			Postings: []PostingInput{
-				{Account: "expenses:misc", Amount: "$5.00"},
+				{Account: "expenses:misc", Amount: "5.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -210,7 +210,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "COMMENT UPDATE TEST", "", "new note", nil, []PostingInput{
-			{Account: "expenses:misc", Amount: "$5.00"},
+			{Account: "expenses:misc", Amount: "5.00 USD"},
 			{Account: "assets:checking"},
 		})
 		if err != nil {
@@ -236,7 +236,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Date:        time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
 			Description: "FID PRESERVATION TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$8.00"},
+				{Account: "expenses:food", Amount: "8.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -245,7 +245,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "FID PRESERVATION TEST UPDATED", "", "", nil, []PostingInput{
-			{Account: "expenses:food", Amount: "$8.00"},
+			{Account: "expenses:food", Amount: "8.00 USD"},
 			{Account: "assets:checking"},
 		})
 		if err != nil {
@@ -274,7 +274,7 @@ func TestUpdateTransaction(t *testing.T) {
 			Date:        time.Date(2026, 2, 20, 0, 0, 0, 0, time.UTC),
 			Description: "KEEP DATE TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "$12.00"},
+				{Account: "expenses:food", Amount: "12.00 USD"},
 				{Account: "assets:checking"},
 			},
 		})
@@ -283,7 +283,7 @@ func TestUpdateTransaction(t *testing.T) {
 		}
 
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "KEEP DATE TEST UPDATED", "", "", nil, []PostingInput{
-			{Account: "expenses:food", Amount: "$12.00"},
+			{Account: "expenses:food", Amount: "12.00 USD"},
 			{Account: "assets:checking"},
 		})
 		if err != nil {
