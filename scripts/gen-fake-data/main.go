@@ -357,7 +357,7 @@ func generateMonth(rng *rand.Rand, year, month int, isFirst bool) []transaction 
 		for _, p := range t.postings {
 			if strings.HasPrefix(p.account, "expenses:") && p.amount != "" {
 				var v float64
-				_, _ = fmt.Sscanf(p.amount, "$%f", &v)
+				_, _ = fmt.Sscanf(p.amount, "%f USD", &v)
 				ccCharged += v
 			}
 		}
@@ -433,7 +433,7 @@ const chaseCheckingRules = `skip 1
 fields date, description, amount
 date-format %Y-%m-%d
 account1 assets:checking
-currency $
+currency USD
 
 if PAYROLL DIRECT DEPOSIT
   account2 income:salary
@@ -494,7 +494,7 @@ const chaseSavingsRules = `skip 1
 fields date, description, amount
 date-format %Y-%m-%d
 account1 assets:savings
-currency $
+currency USD
 
 if TRANSFER FROM CHECKING
   account2 assets:checking
@@ -507,7 +507,7 @@ const amexCreditRules = `skip 1
 fields date, description, amount
 date-format %Y-%m-%d
 account1 liabilities:credit-card
-currency $
+currency USD
 
 if NETFLIX
   account2 expenses:entertainment:streaming

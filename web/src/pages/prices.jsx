@@ -45,7 +45,7 @@ export function PricesPage() {
   const [backfillCommodity, setBackfillCommodity] = useState("");
   const [backfillStartDate, setBackfillStartDate] = useState(oneYearAgo);
   const [backfillEndDate, setBackfillEndDate] = useState(today);
-  const [backfillCurrency, setBackfillCurrency] = useState("$");
+  const [backfillCurrency, setBackfillCurrency] = useState("USD");
   const [backfillResult, setBackfillResult] = useState(null);
   const [backfillError, setBackfillError] = useState(null);
 

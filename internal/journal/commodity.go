@@ -19,11 +19,9 @@ func EnsureCommodityDirective(dataDir, code string) error {
 		return fmt.Errorf("journal: read main.journal: %w", err)
 	}
 
-	needle := "commodity " // any commodity directive line
 	lines := strings.Split(string(existing), "\n")
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, needle) && strings.HasSuffix(trimmed, code) {
+		if hasCommodityDirective(line, code) {
 			return nil // already present
 		}
 	}
@@ -50,4 +48,18 @@ func EnsureCommodityDirective(dataDir, code string) error {
 		content += "\n"
 	}
 	return os.WriteFile(mainPath, []byte(content), 0644)
+}
+
+// hasCommodityDirective checks whether line is a commodity directive for code.
+// It strips trailing comments and matches the last token exactly, so
+// "commodity 1,000.00 USD ; added by float" matches "USD" but
+// "commodity 1,000.00 TUSD" does not.
+func hasCommodityDirective(line, code string) bool {
+	line = strings.TrimSpace(line)
+	// Strip inline comment.
+	if idx := strings.Index(line, ";"); idx >= 0 {
+		line = strings.TrimSpace(line[:idx])
+	}
+	fields := strings.Fields(line)
+	return len(fields) >= 2 && fields[0] == "commodity" && fields[len(fields)-1] == code
 }

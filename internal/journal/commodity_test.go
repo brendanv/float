@@ -51,6 +51,40 @@ func TestEnsureCommodityDirective(t *testing.T) {
 		}
 	})
 
+	t.Run("does not false-match similar code", func(t *testing.T) {
+		dir := t.TempDir()
+		main := "commodity 1,000.00 TUSD\ninclude accounts.journal\n"
+		if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
+			t.Fatal(err)
+		}
+
+		data, _ := os.ReadFile(filepath.Join(dir, "main.journal"))
+		if !strings.Contains(string(data), "commodity 1,000.00 USD") {
+			t.Errorf("USD directive not inserted when only TUSD present:\n%s", data)
+		}
+	})
+
+	t.Run("matches directive with trailing comment", func(t *testing.T) {
+		dir := t.TempDir()
+		main := "commodity 1,000.00 USD ; added by float\ninclude accounts.journal\n"
+		if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
+			t.Fatal(err)
+		}
+
+		data, _ := os.ReadFile(filepath.Join(dir, "main.journal"))
+		if strings.Count(string(data), "commodity") != 1 {
+			t.Errorf("directive duplicated despite trailing comment:\n%s", data)
+		}
+	})
+
 	t.Run("creates in empty file", func(t *testing.T) {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "main.journal"), nil, 0644); err != nil {
