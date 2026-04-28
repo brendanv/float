@@ -54,6 +54,11 @@ func UpdateMainIncludes(mainJournalPath string, relPath string) error {
 		return fmt.Errorf("journal: open %s: %w", mainJournalPath, err)
 	}
 	defer func() { _ = f.Close() }()
+	if len(existing) > 0 && existing[len(existing)-1] != '\n' {
+		if _, err := f.WriteString("\n"); err != nil {
+			return fmt.Errorf("journal: write %s: %w", mainJournalPath, err)
+		}
+	}
 	_, err = fmt.Fprintln(f, directive)
 	return err
 }
