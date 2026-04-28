@@ -4649,6 +4649,102 @@ func (x *ListImportsResponse) GetImports() []*ImportSummary {
 	return nil
 }
 
+type GetImportFileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ImportBatchId string                 `protobuf:"bytes,1,opt,name=import_batch_id,json=importBatchId,proto3" json:"import_batch_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetImportFileRequest) Reset() {
+	*x = GetImportFileRequest{}
+	mi := &file_float_v1_ledger_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetImportFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetImportFileRequest) ProtoMessage() {}
+
+func (x *GetImportFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetImportFileRequest.ProtoReflect.Descriptor instead.
+func (*GetImportFileRequest) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *GetImportFileRequest) GetImportBatchId() string {
+	if x != nil {
+		return x.ImportBatchId
+	}
+	return ""
+}
+
+type GetImportFileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CsvContent    []byte                 `protobuf:"bytes,1,opt,name=csv_content,json=csvContent,proto3" json:"csv_content,omitempty"`
+	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetImportFileResponse) Reset() {
+	*x = GetImportFileResponse{}
+	mi := &file_float_v1_ledger_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetImportFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetImportFileResponse) ProtoMessage() {}
+
+func (x *GetImportFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_float_v1_ledger_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetImportFileResponse.ProtoReflect.Descriptor instead.
+func (*GetImportFileResponse) Descriptor() ([]byte, []int) {
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *GetImportFileResponse) GetCsvContent() []byte {
+	if x != nil {
+		return x.CsvContent
+	}
+	return nil
+}
+
+func (x *GetImportFileResponse) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
 type TransactionRule struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -4664,7 +4760,7 @@ type TransactionRule struct {
 
 func (x *TransactionRule) Reset() {
 	*x = TransactionRule{}
-	mi := &file_float_v1_ledger_proto_msgTypes[88]
+	mi := &file_float_v1_ledger_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4676,7 +4772,7 @@ func (x *TransactionRule) String() string {
 func (*TransactionRule) ProtoMessage() {}
 
 func (x *TransactionRule) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[88]
+	mi := &file_float_v1_ledger_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4689,7 +4785,7 @@ func (x *TransactionRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransactionRule.ProtoReflect.Descriptor instead.
 func (*TransactionRule) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{88}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *TransactionRule) GetId() string {
@@ -4749,7 +4845,7 @@ type ListRulesRequest struct {
 
 func (x *ListRulesRequest) Reset() {
 	*x = ListRulesRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[89]
+	mi := &file_float_v1_ledger_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4761,7 +4857,7 @@ func (x *ListRulesRequest) String() string {
 func (*ListRulesRequest) ProtoMessage() {}
 
 func (x *ListRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[89]
+	mi := &file_float_v1_ledger_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4774,7 +4870,7 @@ func (x *ListRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRulesRequest.ProtoReflect.Descriptor instead.
 func (*ListRulesRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{89}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{91}
 }
 
 type ListRulesResponse struct {
@@ -4786,7 +4882,7 @@ type ListRulesResponse struct {
 
 func (x *ListRulesResponse) Reset() {
 	*x = ListRulesResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[90]
+	mi := &file_float_v1_ledger_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4798,7 +4894,7 @@ func (x *ListRulesResponse) String() string {
 func (*ListRulesResponse) ProtoMessage() {}
 
 func (x *ListRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[90]
+	mi := &file_float_v1_ledger_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4811,7 +4907,7 @@ func (x *ListRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRulesResponse.ProtoReflect.Descriptor instead.
 func (*ListRulesResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{90}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *ListRulesResponse) GetRules() []*TransactionRule {
@@ -4835,7 +4931,7 @@ type AddRuleRequest struct {
 
 func (x *AddRuleRequest) Reset() {
 	*x = AddRuleRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[91]
+	mi := &file_float_v1_ledger_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4847,7 +4943,7 @@ func (x *AddRuleRequest) String() string {
 func (*AddRuleRequest) ProtoMessage() {}
 
 func (x *AddRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[91]
+	mi := &file_float_v1_ledger_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4860,7 +4956,7 @@ func (x *AddRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddRuleRequest.ProtoReflect.Descriptor instead.
 func (*AddRuleRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{91}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *AddRuleRequest) GetPattern() string {
@@ -4914,7 +5010,7 @@ type AddRuleResponse struct {
 
 func (x *AddRuleResponse) Reset() {
 	*x = AddRuleResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[92]
+	mi := &file_float_v1_ledger_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4926,7 +5022,7 @@ func (x *AddRuleResponse) String() string {
 func (*AddRuleResponse) ProtoMessage() {}
 
 func (x *AddRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[92]
+	mi := &file_float_v1_ledger_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4939,7 +5035,7 @@ func (x *AddRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddRuleResponse.ProtoReflect.Descriptor instead.
 func (*AddRuleResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{92}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *AddRuleResponse) GetRule() *TransactionRule {
@@ -4964,7 +5060,7 @@ type UpdateRuleRequest struct {
 
 func (x *UpdateRuleRequest) Reset() {
 	*x = UpdateRuleRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[93]
+	mi := &file_float_v1_ledger_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4976,7 +5072,7 @@ func (x *UpdateRuleRequest) String() string {
 func (*UpdateRuleRequest) ProtoMessage() {}
 
 func (x *UpdateRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[93]
+	mi := &file_float_v1_ledger_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4989,7 +5085,7 @@ func (x *UpdateRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRuleRequest.ProtoReflect.Descriptor instead.
 func (*UpdateRuleRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{93}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *UpdateRuleRequest) GetId() string {
@@ -5050,7 +5146,7 @@ type UpdateRuleResponse struct {
 
 func (x *UpdateRuleResponse) Reset() {
 	*x = UpdateRuleResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[94]
+	mi := &file_float_v1_ledger_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5062,7 +5158,7 @@ func (x *UpdateRuleResponse) String() string {
 func (*UpdateRuleResponse) ProtoMessage() {}
 
 func (x *UpdateRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[94]
+	mi := &file_float_v1_ledger_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5075,7 +5171,7 @@ func (x *UpdateRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRuleResponse.ProtoReflect.Descriptor instead.
 func (*UpdateRuleResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{94}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *UpdateRuleResponse) GetRule() *TransactionRule {
@@ -5094,7 +5190,7 @@ type DeleteRuleRequest struct {
 
 func (x *DeleteRuleRequest) Reset() {
 	*x = DeleteRuleRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[95]
+	mi := &file_float_v1_ledger_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5106,7 +5202,7 @@ func (x *DeleteRuleRequest) String() string {
 func (*DeleteRuleRequest) ProtoMessage() {}
 
 func (x *DeleteRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[95]
+	mi := &file_float_v1_ledger_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5119,7 +5215,7 @@ func (x *DeleteRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRuleRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRuleRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{95}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *DeleteRuleRequest) GetId() string {
@@ -5137,7 +5233,7 @@ type DeleteRuleResponse struct {
 
 func (x *DeleteRuleResponse) Reset() {
 	*x = DeleteRuleResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[96]
+	mi := &file_float_v1_ledger_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5149,7 +5245,7 @@ func (x *DeleteRuleResponse) String() string {
 func (*DeleteRuleResponse) ProtoMessage() {}
 
 func (x *DeleteRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[96]
+	mi := &file_float_v1_ledger_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5162,7 +5258,7 @@ func (x *DeleteRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRuleResponse.ProtoReflect.Descriptor instead.
 func (*DeleteRuleResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{96}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{98}
 }
 
 type PreviewApplyRulesRequest struct {
@@ -5175,7 +5271,7 @@ type PreviewApplyRulesRequest struct {
 
 func (x *PreviewApplyRulesRequest) Reset() {
 	*x = PreviewApplyRulesRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[97]
+	mi := &file_float_v1_ledger_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5187,7 +5283,7 @@ func (x *PreviewApplyRulesRequest) String() string {
 func (*PreviewApplyRulesRequest) ProtoMessage() {}
 
 func (x *PreviewApplyRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[97]
+	mi := &file_float_v1_ledger_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5200,7 +5296,7 @@ func (x *PreviewApplyRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewApplyRulesRequest.ProtoReflect.Descriptor instead.
 func (*PreviewApplyRulesRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{97}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *PreviewApplyRulesRequest) GetRuleIds() []string {
@@ -5233,7 +5329,7 @@ type RuleApplicationPreview struct {
 
 func (x *RuleApplicationPreview) Reset() {
 	*x = RuleApplicationPreview{}
-	mi := &file_float_v1_ledger_proto_msgTypes[98]
+	mi := &file_float_v1_ledger_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5245,7 +5341,7 @@ func (x *RuleApplicationPreview) String() string {
 func (*RuleApplicationPreview) ProtoMessage() {}
 
 func (x *RuleApplicationPreview) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[98]
+	mi := &file_float_v1_ledger_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5258,7 +5354,7 @@ func (x *RuleApplicationPreview) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuleApplicationPreview.ProtoReflect.Descriptor instead.
 func (*RuleApplicationPreview) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{98}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *RuleApplicationPreview) GetFid() string {
@@ -5326,7 +5422,7 @@ type PreviewApplyRulesResponse struct {
 
 func (x *PreviewApplyRulesResponse) Reset() {
 	*x = PreviewApplyRulesResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[99]
+	mi := &file_float_v1_ledger_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5338,7 +5434,7 @@ func (x *PreviewApplyRulesResponse) String() string {
 func (*PreviewApplyRulesResponse) ProtoMessage() {}
 
 func (x *PreviewApplyRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[99]
+	mi := &file_float_v1_ledger_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5351,7 +5447,7 @@ func (x *PreviewApplyRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewApplyRulesResponse.ProtoReflect.Descriptor instead.
 func (*PreviewApplyRulesResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{99}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *PreviewApplyRulesResponse) GetPreviews() []*RuleApplicationPreview {
@@ -5372,7 +5468,7 @@ type ApplyRulesRequest struct {
 
 func (x *ApplyRulesRequest) Reset() {
 	*x = ApplyRulesRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[100]
+	mi := &file_float_v1_ledger_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5384,7 +5480,7 @@ func (x *ApplyRulesRequest) String() string {
 func (*ApplyRulesRequest) ProtoMessage() {}
 
 func (x *ApplyRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[100]
+	mi := &file_float_v1_ledger_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5397,7 +5493,7 @@ func (x *ApplyRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyRulesRequest.ProtoReflect.Descriptor instead.
 func (*ApplyRulesRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{100}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *ApplyRulesRequest) GetFids() []string {
@@ -5430,7 +5526,7 @@ type ApplyRulesResponse struct {
 
 func (x *ApplyRulesResponse) Reset() {
 	*x = ApplyRulesResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[101]
+	mi := &file_float_v1_ledger_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5442,7 +5538,7 @@ func (x *ApplyRulesResponse) String() string {
 func (*ApplyRulesResponse) ProtoMessage() {}
 
 func (x *ApplyRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[101]
+	mi := &file_float_v1_ledger_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5455,7 +5551,7 @@ func (x *ApplyRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyRulesResponse.ProtoReflect.Descriptor instead.
 func (*ApplyRulesResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{101}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *ApplyRulesResponse) GetAppliedCount() int32 {
@@ -5483,7 +5579,7 @@ type Holding struct {
 
 func (x *Holding) Reset() {
 	*x = Holding{}
-	mi := &file_float_v1_ledger_proto_msgTypes[102]
+	mi := &file_float_v1_ledger_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5495,7 +5591,7 @@ func (x *Holding) String() string {
 func (*Holding) ProtoMessage() {}
 
 func (x *Holding) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[102]
+	mi := &file_float_v1_ledger_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5508,7 +5604,7 @@ func (x *Holding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Holding.ProtoReflect.Descriptor instead.
 func (*Holding) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{102}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *Holding) GetAccount() string {
@@ -5590,7 +5686,7 @@ type GetPortfolioHoldingsRequest struct {
 
 func (x *GetPortfolioHoldingsRequest) Reset() {
 	*x = GetPortfolioHoldingsRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[103]
+	mi := &file_float_v1_ledger_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5602,7 +5698,7 @@ func (x *GetPortfolioHoldingsRequest) String() string {
 func (*GetPortfolioHoldingsRequest) ProtoMessage() {}
 
 func (x *GetPortfolioHoldingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[103]
+	mi := &file_float_v1_ledger_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5615,7 +5711,7 @@ func (x *GetPortfolioHoldingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPortfolioHoldingsRequest.ProtoReflect.Descriptor instead.
 func (*GetPortfolioHoldingsRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{103}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *GetPortfolioHoldingsRequest) GetAccountPrefix() string {
@@ -5636,7 +5732,7 @@ type GetPortfolioHoldingsResponse struct {
 
 func (x *GetPortfolioHoldingsResponse) Reset() {
 	*x = GetPortfolioHoldingsResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[104]
+	mi := &file_float_v1_ledger_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5648,7 +5744,7 @@ func (x *GetPortfolioHoldingsResponse) String() string {
 func (*GetPortfolioHoldingsResponse) ProtoMessage() {}
 
 func (x *GetPortfolioHoldingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[104]
+	mi := &file_float_v1_ledger_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5661,7 +5757,7 @@ func (x *GetPortfolioHoldingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPortfolioHoldingsResponse.ProtoReflect.Descriptor instead.
 func (*GetPortfolioHoldingsResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{104}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *GetPortfolioHoldingsResponse) GetHoldings() []*Holding {
@@ -5695,7 +5791,7 @@ type GetPortfolioTimeseriesRequest struct {
 
 func (x *GetPortfolioTimeseriesRequest) Reset() {
 	*x = GetPortfolioTimeseriesRequest{}
-	mi := &file_float_v1_ledger_proto_msgTypes[105]
+	mi := &file_float_v1_ledger_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5707,7 +5803,7 @@ func (x *GetPortfolioTimeseriesRequest) String() string {
 func (*GetPortfolioTimeseriesRequest) ProtoMessage() {}
 
 func (x *GetPortfolioTimeseriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[105]
+	mi := &file_float_v1_ledger_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5720,7 +5816,7 @@ func (x *GetPortfolioTimeseriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPortfolioTimeseriesRequest.ProtoReflect.Descriptor instead.
 func (*GetPortfolioTimeseriesRequest) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{105}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *GetPortfolioTimeseriesRequest) GetAccountPrefix() string {
@@ -5747,7 +5843,7 @@ type PortfolioTimeseriesSnapshot struct {
 
 func (x *PortfolioTimeseriesSnapshot) Reset() {
 	*x = PortfolioTimeseriesSnapshot{}
-	mi := &file_float_v1_ledger_proto_msgTypes[106]
+	mi := &file_float_v1_ledger_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5759,7 +5855,7 @@ func (x *PortfolioTimeseriesSnapshot) String() string {
 func (*PortfolioTimeseriesSnapshot) ProtoMessage() {}
 
 func (x *PortfolioTimeseriesSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[106]
+	mi := &file_float_v1_ledger_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5772,7 +5868,7 @@ func (x *PortfolioTimeseriesSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PortfolioTimeseriesSnapshot.ProtoReflect.Descriptor instead.
 func (*PortfolioTimeseriesSnapshot) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{106}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *PortfolioTimeseriesSnapshot) GetDate() string {
@@ -5798,7 +5894,7 @@ type GetPortfolioTimeseriesResponse struct {
 
 func (x *GetPortfolioTimeseriesResponse) Reset() {
 	*x = GetPortfolioTimeseriesResponse{}
-	mi := &file_float_v1_ledger_proto_msgTypes[107]
+	mi := &file_float_v1_ledger_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5810,7 +5906,7 @@ func (x *GetPortfolioTimeseriesResponse) String() string {
 func (*GetPortfolioTimeseriesResponse) ProtoMessage() {}
 
 func (x *GetPortfolioTimeseriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_float_v1_ledger_proto_msgTypes[107]
+	mi := &file_float_v1_ledger_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5823,7 +5919,7 @@ func (x *GetPortfolioTimeseriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPortfolioTimeseriesResponse.ProtoReflect.Descriptor instead.
 func (*GetPortfolioTimeseriesResponse) Descriptor() ([]byte, []int) {
-	return file_float_v1_ledger_proto_rawDescGZIP(), []int{107}
+	return file_float_v1_ledger_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *GetPortfolioTimeseriesResponse) GetSnapshots() []*PortfolioTimeseriesSnapshot {
@@ -6130,7 +6226,13 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x11transaction_count\x18\x03 \x01(\x05R\x10transactionCount\"\x14\n" +
 	"\x12ListImportsRequest\"H\n" +
 	"\x13ListImportsResponse\x121\n" +
-	"\aimports\x18\x01 \x03(\v2\x17.float.v1.ImportSummaryR\aimports\"\x9e\x02\n" +
+	"\aimports\x18\x01 \x03(\v2\x17.float.v1.ImportSummaryR\aimports\">\n" +
+	"\x14GetImportFileRequest\x12&\n" +
+	"\x0fimport_batch_id\x18\x01 \x01(\tR\rimportBatchId\"T\n" +
+	"\x15GetImportFileResponse\x12\x1f\n" +
+	"\vcsv_content\x18\x01 \x01(\fR\n" +
+	"csvContent\x12\x1a\n" +
+	"\bfilename\x18\x02 \x01(\tR\bfilename\"\x9e\x02\n" +
 	"\x0fTransactionRule\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\apattern\x18\x02 \x01(\tR\apattern\x12\x14\n" +
@@ -6227,7 +6329,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\vtotal_value\x18\x02 \x01(\v2\x10.float.v1.AmountR\n" +
 	"totalValue\"e\n" +
 	"\x1eGetPortfolioTimeseriesResponse\x12C\n" +
-	"\tsnapshots\x18\x01 \x03(\v2%.float.v1.PortfolioTimeseriesSnapshotR\tsnapshots2\xdf\x1c\n" +
+	"\tsnapshots\x18\x01 \x03(\v2%.float.v1.PortfolioTimeseriesSnapshotR\tsnapshots2\xb1\x1d\n" +
 	"\rLedgerService\x12Y\n" +
 	"\x10ListTransactions\x12!.float.v1.ListTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12_\n" +
 	"\x12GetAccountRegister\x12#.float.v1.GetAccountRegisterRequest\x1a$.float.v1.GetAccountRegisterResponse\x12J\n" +
@@ -6266,7 +6368,8 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\rPreviewImport\x12\x1e.float.v1.PreviewImportRequest\x1a\x1f.float.v1.PreviewImportResponse\x12_\n" +
 	"\x12ImportTransactions\x12#.float.v1.ImportTransactionsRequest\x1a$.float.v1.ImportTransactionsResponse\x12g\n" +
 	"\x17GetImportedTransactions\x12(.float.v1.GetImportedTransactionsRequest\x1a\".float.v1.ListTransactionsResponse\x12J\n" +
-	"\vListImports\x12\x1c.float.v1.ListImportsRequest\x1a\x1d.float.v1.ListImportsResponse\x12D\n" +
+	"\vListImports\x12\x1c.float.v1.ListImportsRequest\x1a\x1d.float.v1.ListImportsResponse\x12P\n" +
+	"\rGetImportFile\x12\x1e.float.v1.GetImportFileRequest\x1a\x1f.float.v1.GetImportFileResponse\x12D\n" +
 	"\tListRules\x12\x1a.float.v1.ListRulesRequest\x1a\x1b.float.v1.ListRulesResponse\x12>\n" +
 	"\aAddRule\x12\x18.float.v1.AddRuleRequest\x1a\x19.float.v1.AddRuleResponse\x12G\n" +
 	"\n" +
@@ -6289,7 +6392,7 @@ func file_float_v1_ledger_proto_rawDescGZIP() []byte {
 	return file_float_v1_ledger_proto_rawDescData
 }
 
-var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 116)
+var file_float_v1_ledger_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
 var file_float_v1_ledger_proto_goTypes = []any{
 	(*Amount)(nil),                               // 0: float.v1.Amount
 	(*Posting)(nil),                              // 1: float.v1.Posting
@@ -6379,39 +6482,41 @@ var file_float_v1_ledger_proto_goTypes = []any{
 	(*ImportSummary)(nil),                        // 85: float.v1.ImportSummary
 	(*ListImportsRequest)(nil),                   // 86: float.v1.ListImportsRequest
 	(*ListImportsResponse)(nil),                  // 87: float.v1.ListImportsResponse
-	(*TransactionRule)(nil),                      // 88: float.v1.TransactionRule
-	(*ListRulesRequest)(nil),                     // 89: float.v1.ListRulesRequest
-	(*ListRulesResponse)(nil),                    // 90: float.v1.ListRulesResponse
-	(*AddRuleRequest)(nil),                       // 91: float.v1.AddRuleRequest
-	(*AddRuleResponse)(nil),                      // 92: float.v1.AddRuleResponse
-	(*UpdateRuleRequest)(nil),                    // 93: float.v1.UpdateRuleRequest
-	(*UpdateRuleResponse)(nil),                   // 94: float.v1.UpdateRuleResponse
-	(*DeleteRuleRequest)(nil),                    // 95: float.v1.DeleteRuleRequest
-	(*DeleteRuleResponse)(nil),                   // 96: float.v1.DeleteRuleResponse
-	(*PreviewApplyRulesRequest)(nil),             // 97: float.v1.PreviewApplyRulesRequest
-	(*RuleApplicationPreview)(nil),               // 98: float.v1.RuleApplicationPreview
-	(*PreviewApplyRulesResponse)(nil),            // 99: float.v1.PreviewApplyRulesResponse
-	(*ApplyRulesRequest)(nil),                    // 100: float.v1.ApplyRulesRequest
-	(*ApplyRulesResponse)(nil),                   // 101: float.v1.ApplyRulesResponse
-	(*Holding)(nil),                              // 102: float.v1.Holding
-	(*GetPortfolioHoldingsRequest)(nil),          // 103: float.v1.GetPortfolioHoldingsRequest
-	(*GetPortfolioHoldingsResponse)(nil),         // 104: float.v1.GetPortfolioHoldingsResponse
-	(*GetPortfolioTimeseriesRequest)(nil),        // 105: float.v1.GetPortfolioTimeseriesRequest
-	(*PortfolioTimeseriesSnapshot)(nil),          // 106: float.v1.PortfolioTimeseriesSnapshot
-	(*GetPortfolioTimeseriesResponse)(nil),       // 107: float.v1.GetPortfolioTimeseriesResponse
-	nil,                                          // 108: float.v1.Transaction.TagsEntry
-	nil,                                          // 109: float.v1.ModifyTagsRequest.TagsEntry
-	nil,                                          // 110: float.v1.AddTransactionRequest.TagsEntry
-	nil,                                          // 111: float.v1.UpdateTransactionRequest.TagsEntry
-	nil,                                          // 112: float.v1.TransactionRule.TagsEntry
-	nil,                                          // 113: float.v1.AddRuleRequest.TagsEntry
-	nil,                                          // 114: float.v1.UpdateRuleRequest.TagsEntry
-	nil,                                          // 115: float.v1.RuleApplicationPreview.AddTagsEntry
+	(*GetImportFileRequest)(nil),                 // 88: float.v1.GetImportFileRequest
+	(*GetImportFileResponse)(nil),                // 89: float.v1.GetImportFileResponse
+	(*TransactionRule)(nil),                      // 90: float.v1.TransactionRule
+	(*ListRulesRequest)(nil),                     // 91: float.v1.ListRulesRequest
+	(*ListRulesResponse)(nil),                    // 92: float.v1.ListRulesResponse
+	(*AddRuleRequest)(nil),                       // 93: float.v1.AddRuleRequest
+	(*AddRuleResponse)(nil),                      // 94: float.v1.AddRuleResponse
+	(*UpdateRuleRequest)(nil),                    // 95: float.v1.UpdateRuleRequest
+	(*UpdateRuleResponse)(nil),                   // 96: float.v1.UpdateRuleResponse
+	(*DeleteRuleRequest)(nil),                    // 97: float.v1.DeleteRuleRequest
+	(*DeleteRuleResponse)(nil),                   // 98: float.v1.DeleteRuleResponse
+	(*PreviewApplyRulesRequest)(nil),             // 99: float.v1.PreviewApplyRulesRequest
+	(*RuleApplicationPreview)(nil),               // 100: float.v1.RuleApplicationPreview
+	(*PreviewApplyRulesResponse)(nil),            // 101: float.v1.PreviewApplyRulesResponse
+	(*ApplyRulesRequest)(nil),                    // 102: float.v1.ApplyRulesRequest
+	(*ApplyRulesResponse)(nil),                   // 103: float.v1.ApplyRulesResponse
+	(*Holding)(nil),                              // 104: float.v1.Holding
+	(*GetPortfolioHoldingsRequest)(nil),          // 105: float.v1.GetPortfolioHoldingsRequest
+	(*GetPortfolioHoldingsResponse)(nil),         // 106: float.v1.GetPortfolioHoldingsResponse
+	(*GetPortfolioTimeseriesRequest)(nil),        // 107: float.v1.GetPortfolioTimeseriesRequest
+	(*PortfolioTimeseriesSnapshot)(nil),          // 108: float.v1.PortfolioTimeseriesSnapshot
+	(*GetPortfolioTimeseriesResponse)(nil),       // 109: float.v1.GetPortfolioTimeseriesResponse
+	nil,                                          // 110: float.v1.Transaction.TagsEntry
+	nil,                                          // 111: float.v1.ModifyTagsRequest.TagsEntry
+	nil,                                          // 112: float.v1.AddTransactionRequest.TagsEntry
+	nil,                                          // 113: float.v1.UpdateTransactionRequest.TagsEntry
+	nil,                                          // 114: float.v1.TransactionRule.TagsEntry
+	nil,                                          // 115: float.v1.AddRuleRequest.TagsEntry
+	nil,                                          // 116: float.v1.UpdateRuleRequest.TagsEntry
+	nil,                                          // 117: float.v1.RuleApplicationPreview.AddTagsEntry
 }
 var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,   // 0: float.v1.Posting.amounts:type_name -> float.v1.Amount
 	1,   // 1: float.v1.Transaction.postings:type_name -> float.v1.Posting
-	108, // 2: float.v1.Transaction.tags:type_name -> float.v1.Transaction.TagsEntry
+	110, // 2: float.v1.Transaction.tags:type_name -> float.v1.Transaction.TagsEntry
 	0,   // 3: float.v1.BalanceRow.amounts:type_name -> float.v1.Amount
 	3,   // 4: float.v1.BalanceReport.rows:type_name -> float.v1.BalanceRow
 	0,   // 5: float.v1.BalanceReport.total:type_name -> float.v1.Amount
@@ -6430,13 +6535,13 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	0,   // 18: float.v1.AccountRegisterRow.running_total:type_name -> float.v1.Amount
 	17,  // 19: float.v1.GetAccountRegisterResponse.rows:type_name -> float.v1.AccountRegisterRow
 	5,   // 20: float.v1.ListAccountsResponse.accounts:type_name -> float.v1.Account
-	109, // 21: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
+	111, // 21: float.v1.ModifyTagsRequest.tags:type_name -> float.v1.ModifyTagsRequest.TagsEntry
 	2,   // 22: float.v1.UpdateTransactionDateResponse.transaction:type_name -> float.v1.Transaction
 	32,  // 23: float.v1.AddTransactionRequest.postings:type_name -> float.v1.PostingInput
-	110, // 24: float.v1.AddTransactionRequest.tags:type_name -> float.v1.AddTransactionRequest.TagsEntry
+	112, // 24: float.v1.AddTransactionRequest.tags:type_name -> float.v1.AddTransactionRequest.TagsEntry
 	2,   // 25: float.v1.AddTransactionResponse.transaction:type_name -> float.v1.Transaction
 	32,  // 26: float.v1.UpdateTransactionRequest.postings:type_name -> float.v1.PostingInput
-	111, // 27: float.v1.UpdateTransactionRequest.tags:type_name -> float.v1.UpdateTransactionRequest.TagsEntry
+	113, // 27: float.v1.UpdateTransactionRequest.tags:type_name -> float.v1.UpdateTransactionRequest.TagsEntry
 	2,   // 28: float.v1.UpdateTransactionResponse.transaction:type_name -> float.v1.Transaction
 	2,   // 29: float.v1.UpdateTransactionStatusResponse.transaction:type_name -> float.v1.Transaction
 	0,   // 30: float.v1.PriceDirective.price:type_name -> float.v1.Amount
@@ -6460,22 +6565,22 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	80,  // 48: float.v1.PreviewImportResponse.candidates:type_name -> float.v1.ImportCandidate
 	2,   // 49: float.v1.ImportTransactionsResponse.transactions:type_name -> float.v1.Transaction
 	85,  // 50: float.v1.ListImportsResponse.imports:type_name -> float.v1.ImportSummary
-	112, // 51: float.v1.TransactionRule.tags:type_name -> float.v1.TransactionRule.TagsEntry
-	88,  // 52: float.v1.ListRulesResponse.rules:type_name -> float.v1.TransactionRule
-	113, // 53: float.v1.AddRuleRequest.tags:type_name -> float.v1.AddRuleRequest.TagsEntry
-	88,  // 54: float.v1.AddRuleResponse.rule:type_name -> float.v1.TransactionRule
-	114, // 55: float.v1.UpdateRuleRequest.tags:type_name -> float.v1.UpdateRuleRequest.TagsEntry
-	88,  // 56: float.v1.UpdateRuleResponse.rule:type_name -> float.v1.TransactionRule
-	115, // 57: float.v1.RuleApplicationPreview.add_tags:type_name -> float.v1.RuleApplicationPreview.AddTagsEntry
-	98,  // 58: float.v1.PreviewApplyRulesResponse.previews:type_name -> float.v1.RuleApplicationPreview
+	114, // 51: float.v1.TransactionRule.tags:type_name -> float.v1.TransactionRule.TagsEntry
+	90,  // 52: float.v1.ListRulesResponse.rules:type_name -> float.v1.TransactionRule
+	115, // 53: float.v1.AddRuleRequest.tags:type_name -> float.v1.AddRuleRequest.TagsEntry
+	90,  // 54: float.v1.AddRuleResponse.rule:type_name -> float.v1.TransactionRule
+	116, // 55: float.v1.UpdateRuleRequest.tags:type_name -> float.v1.UpdateRuleRequest.TagsEntry
+	90,  // 56: float.v1.UpdateRuleResponse.rule:type_name -> float.v1.TransactionRule
+	117, // 57: float.v1.RuleApplicationPreview.add_tags:type_name -> float.v1.RuleApplicationPreview.AddTagsEntry
+	100, // 58: float.v1.PreviewApplyRulesResponse.previews:type_name -> float.v1.RuleApplicationPreview
 	0,   // 59: float.v1.Holding.latest_price:type_name -> float.v1.Amount
 	0,   // 60: float.v1.Holding.current_value:type_name -> float.v1.Amount
 	0,   // 61: float.v1.Holding.book_value:type_name -> float.v1.Amount
 	0,   // 62: float.v1.Holding.unrealized_gain:type_name -> float.v1.Amount
-	102, // 63: float.v1.GetPortfolioHoldingsResponse.holdings:type_name -> float.v1.Holding
+	104, // 63: float.v1.GetPortfolioHoldingsResponse.holdings:type_name -> float.v1.Holding
 	0,   // 64: float.v1.GetPortfolioHoldingsResponse.total_value:type_name -> float.v1.Amount
 	0,   // 65: float.v1.PortfolioTimeseriesSnapshot.total_value:type_name -> float.v1.Amount
-	106, // 66: float.v1.GetPortfolioTimeseriesResponse.snapshots:type_name -> float.v1.PortfolioTimeseriesSnapshot
+	108, // 66: float.v1.GetPortfolioTimeseriesResponse.snapshots:type_name -> float.v1.PortfolioTimeseriesSnapshot
 	13,  // 67: float.v1.LedgerService.ListTransactions:input_type -> float.v1.ListTransactionsRequest
 	18,  // 68: float.v1.LedgerService.GetAccountRegister:input_type -> float.v1.GetAccountRegisterRequest
 	15,  // 69: float.v1.LedgerService.GetBalances:input_type -> float.v1.GetBalancesRequest
@@ -6489,8 +6594,8 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	33,  // 77: float.v1.LedgerService.AddTransaction:input_type -> float.v1.AddTransactionRequest
 	37,  // 78: float.v1.LedgerService.UpdateTransactionStatus:input_type -> float.v1.UpdateTransactionStatusRequest
 	7,   // 79: float.v1.LedgerService.GetNetWorthTimeseries:input_type -> float.v1.GetNetWorthTimeseriesRequest
-	103, // 80: float.v1.LedgerService.GetPortfolioHoldings:input_type -> float.v1.GetPortfolioHoldingsRequest
-	105, // 81: float.v1.LedgerService.GetPortfolioTimeseries:input_type -> float.v1.GetPortfolioTimeseriesRequest
+	105, // 80: float.v1.LedgerService.GetPortfolioHoldings:input_type -> float.v1.GetPortfolioHoldingsRequest
+	107, // 81: float.v1.LedgerService.GetPortfolioTimeseries:input_type -> float.v1.GetPortfolioTimeseriesRequest
 	40,  // 82: float.v1.LedgerService.ListPrices:input_type -> float.v1.ListPricesRequest
 	42,  // 83: float.v1.LedgerService.AddPrice:input_type -> float.v1.AddPriceRequest
 	44,  // 84: float.v1.LedgerService.DeletePrice:input_type -> float.v1.DeletePriceRequest
@@ -6511,55 +6616,57 @@ var file_float_v1_ledger_proto_depIdxs = []int32{
 	82,  // 99: float.v1.LedgerService.ImportTransactions:input_type -> float.v1.ImportTransactionsRequest
 	84,  // 100: float.v1.LedgerService.GetImportedTransactions:input_type -> float.v1.GetImportedTransactionsRequest
 	86,  // 101: float.v1.LedgerService.ListImports:input_type -> float.v1.ListImportsRequest
-	89,  // 102: float.v1.LedgerService.ListRules:input_type -> float.v1.ListRulesRequest
-	91,  // 103: float.v1.LedgerService.AddRule:input_type -> float.v1.AddRuleRequest
-	93,  // 104: float.v1.LedgerService.UpdateRule:input_type -> float.v1.UpdateRuleRequest
-	95,  // 105: float.v1.LedgerService.DeleteRule:input_type -> float.v1.DeleteRuleRequest
-	97,  // 106: float.v1.LedgerService.PreviewApplyRules:input_type -> float.v1.PreviewApplyRulesRequest
-	100, // 107: float.v1.LedgerService.ApplyRules:input_type -> float.v1.ApplyRulesRequest
-	14,  // 108: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
-	19,  // 109: float.v1.LedgerService.GetAccountRegister:output_type -> float.v1.GetAccountRegisterResponse
-	16,  // 110: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
-	21,  // 111: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
-	23,  // 112: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
-	25,  // 113: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
-	27,  // 114: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
-	29,  // 115: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
-	31,  // 116: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
-	36,  // 117: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
-	34,  // 118: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
-	38,  // 119: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
-	8,   // 120: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
-	104, // 121: float.v1.LedgerService.GetPortfolioHoldings:output_type -> float.v1.GetPortfolioHoldingsResponse
-	107, // 122: float.v1.LedgerService.GetPortfolioTimeseries:output_type -> float.v1.GetPortfolioTimeseriesResponse
-	41,  // 123: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
-	43,  // 124: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
-	45,  // 125: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
-	47,  // 126: float.v1.LedgerService.BackfillPrices:output_type -> float.v1.BackfillPricesResponse
-	50,  // 127: float.v1.LedgerService.ListAccountDeclarations:output_type -> float.v1.ListAccountDeclarationsResponse
-	52,  // 128: float.v1.LedgerService.DeclareAccount:output_type -> float.v1.DeclareAccountResponse
-	54,  // 129: float.v1.LedgerService.DeleteAccountDeclaration:output_type -> float.v1.DeleteAccountDeclarationResponse
-	62,  // 130: float.v1.LedgerService.BulkEditTransactions:output_type -> float.v1.BulkEditTransactionsResponse
-	65,  // 131: float.v1.LedgerService.ListSnapshots:output_type -> float.v1.ListSnapshotsResponse
-	67,  // 132: float.v1.LedgerService.RestoreSnapshot:output_type -> float.v1.RestoreSnapshotResponse
-	12,  // 133: float.v1.LedgerService.GetIncomeStatementTimeseries:output_type -> float.v1.GetIncomeStatementTimeseriesResponse
-	70,  // 134: float.v1.LedgerService.ListBankProfiles:output_type -> float.v1.ListBankProfilesResponse
-	72,  // 135: float.v1.LedgerService.CreateBankProfile:output_type -> float.v1.CreateBankProfileResponse
-	74,  // 136: float.v1.LedgerService.GetBankProfileContent:output_type -> float.v1.GetBankProfileContentResponse
-	76,  // 137: float.v1.LedgerService.UpdateBankProfile:output_type -> float.v1.UpdateBankProfileResponse
-	78,  // 138: float.v1.LedgerService.DeleteBankProfile:output_type -> float.v1.DeleteBankProfileResponse
-	81,  // 139: float.v1.LedgerService.PreviewImport:output_type -> float.v1.PreviewImportResponse
-	83,  // 140: float.v1.LedgerService.ImportTransactions:output_type -> float.v1.ImportTransactionsResponse
-	14,  // 141: float.v1.LedgerService.GetImportedTransactions:output_type -> float.v1.ListTransactionsResponse
-	87,  // 142: float.v1.LedgerService.ListImports:output_type -> float.v1.ListImportsResponse
-	90,  // 143: float.v1.LedgerService.ListRules:output_type -> float.v1.ListRulesResponse
-	92,  // 144: float.v1.LedgerService.AddRule:output_type -> float.v1.AddRuleResponse
-	94,  // 145: float.v1.LedgerService.UpdateRule:output_type -> float.v1.UpdateRuleResponse
-	96,  // 146: float.v1.LedgerService.DeleteRule:output_type -> float.v1.DeleteRuleResponse
-	99,  // 147: float.v1.LedgerService.PreviewApplyRules:output_type -> float.v1.PreviewApplyRulesResponse
-	101, // 148: float.v1.LedgerService.ApplyRules:output_type -> float.v1.ApplyRulesResponse
-	108, // [108:149] is the sub-list for method output_type
-	67,  // [67:108] is the sub-list for method input_type
+	88,  // 102: float.v1.LedgerService.GetImportFile:input_type -> float.v1.GetImportFileRequest
+	91,  // 103: float.v1.LedgerService.ListRules:input_type -> float.v1.ListRulesRequest
+	93,  // 104: float.v1.LedgerService.AddRule:input_type -> float.v1.AddRuleRequest
+	95,  // 105: float.v1.LedgerService.UpdateRule:input_type -> float.v1.UpdateRuleRequest
+	97,  // 106: float.v1.LedgerService.DeleteRule:input_type -> float.v1.DeleteRuleRequest
+	99,  // 107: float.v1.LedgerService.PreviewApplyRules:input_type -> float.v1.PreviewApplyRulesRequest
+	102, // 108: float.v1.LedgerService.ApplyRules:input_type -> float.v1.ApplyRulesRequest
+	14,  // 109: float.v1.LedgerService.ListTransactions:output_type -> float.v1.ListTransactionsResponse
+	19,  // 110: float.v1.LedgerService.GetAccountRegister:output_type -> float.v1.GetAccountRegisterResponse
+	16,  // 111: float.v1.LedgerService.GetBalances:output_type -> float.v1.GetBalancesResponse
+	21,  // 112: float.v1.LedgerService.ListAccounts:output_type -> float.v1.ListAccountsResponse
+	23,  // 113: float.v1.LedgerService.ListTags:output_type -> float.v1.ListTagsResponse
+	25,  // 114: float.v1.LedgerService.ListPayees:output_type -> float.v1.ListPayeesResponse
+	27,  // 115: float.v1.LedgerService.DeleteTransaction:output_type -> float.v1.DeleteTransactionResponse
+	29,  // 116: float.v1.LedgerService.ModifyTags:output_type -> float.v1.ModifyTagsResponse
+	31,  // 117: float.v1.LedgerService.UpdateTransactionDate:output_type -> float.v1.UpdateTransactionDateResponse
+	36,  // 118: float.v1.LedgerService.UpdateTransaction:output_type -> float.v1.UpdateTransactionResponse
+	34,  // 119: float.v1.LedgerService.AddTransaction:output_type -> float.v1.AddTransactionResponse
+	38,  // 120: float.v1.LedgerService.UpdateTransactionStatus:output_type -> float.v1.UpdateTransactionStatusResponse
+	8,   // 121: float.v1.LedgerService.GetNetWorthTimeseries:output_type -> float.v1.GetNetWorthTimeseriesResponse
+	106, // 122: float.v1.LedgerService.GetPortfolioHoldings:output_type -> float.v1.GetPortfolioHoldingsResponse
+	109, // 123: float.v1.LedgerService.GetPortfolioTimeseries:output_type -> float.v1.GetPortfolioTimeseriesResponse
+	41,  // 124: float.v1.LedgerService.ListPrices:output_type -> float.v1.ListPricesResponse
+	43,  // 125: float.v1.LedgerService.AddPrice:output_type -> float.v1.AddPriceResponse
+	45,  // 126: float.v1.LedgerService.DeletePrice:output_type -> float.v1.DeletePriceResponse
+	47,  // 127: float.v1.LedgerService.BackfillPrices:output_type -> float.v1.BackfillPricesResponse
+	50,  // 128: float.v1.LedgerService.ListAccountDeclarations:output_type -> float.v1.ListAccountDeclarationsResponse
+	52,  // 129: float.v1.LedgerService.DeclareAccount:output_type -> float.v1.DeclareAccountResponse
+	54,  // 130: float.v1.LedgerService.DeleteAccountDeclaration:output_type -> float.v1.DeleteAccountDeclarationResponse
+	62,  // 131: float.v1.LedgerService.BulkEditTransactions:output_type -> float.v1.BulkEditTransactionsResponse
+	65,  // 132: float.v1.LedgerService.ListSnapshots:output_type -> float.v1.ListSnapshotsResponse
+	67,  // 133: float.v1.LedgerService.RestoreSnapshot:output_type -> float.v1.RestoreSnapshotResponse
+	12,  // 134: float.v1.LedgerService.GetIncomeStatementTimeseries:output_type -> float.v1.GetIncomeStatementTimeseriesResponse
+	70,  // 135: float.v1.LedgerService.ListBankProfiles:output_type -> float.v1.ListBankProfilesResponse
+	72,  // 136: float.v1.LedgerService.CreateBankProfile:output_type -> float.v1.CreateBankProfileResponse
+	74,  // 137: float.v1.LedgerService.GetBankProfileContent:output_type -> float.v1.GetBankProfileContentResponse
+	76,  // 138: float.v1.LedgerService.UpdateBankProfile:output_type -> float.v1.UpdateBankProfileResponse
+	78,  // 139: float.v1.LedgerService.DeleteBankProfile:output_type -> float.v1.DeleteBankProfileResponse
+	81,  // 140: float.v1.LedgerService.PreviewImport:output_type -> float.v1.PreviewImportResponse
+	83,  // 141: float.v1.LedgerService.ImportTransactions:output_type -> float.v1.ImportTransactionsResponse
+	14,  // 142: float.v1.LedgerService.GetImportedTransactions:output_type -> float.v1.ListTransactionsResponse
+	87,  // 143: float.v1.LedgerService.ListImports:output_type -> float.v1.ListImportsResponse
+	89,  // 144: float.v1.LedgerService.GetImportFile:output_type -> float.v1.GetImportFileResponse
+	92,  // 145: float.v1.LedgerService.ListRules:output_type -> float.v1.ListRulesResponse
+	94,  // 146: float.v1.LedgerService.AddRule:output_type -> float.v1.AddRuleResponse
+	96,  // 147: float.v1.LedgerService.UpdateRule:output_type -> float.v1.UpdateRuleResponse
+	98,  // 148: float.v1.LedgerService.DeleteRule:output_type -> float.v1.DeleteRuleResponse
+	101, // 149: float.v1.LedgerService.PreviewApplyRules:output_type -> float.v1.PreviewApplyRulesResponse
+	103, // 150: float.v1.LedgerService.ApplyRules:output_type -> float.v1.ApplyRulesResponse
+	109, // [109:151] is the sub-list for method output_type
+	67,  // [67:109] is the sub-list for method input_type
 	67,  // [67:67] is the sub-list for extension type_name
 	67,  // [67:67] is the sub-list for extension extendee
 	0,   // [0:67] is the sub-list for field type_name
@@ -6585,7 +6692,7 @@ func file_float_v1_ledger_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_float_v1_ledger_proto_rawDesc), len(file_float_v1_ledger_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   116,
+			NumMessages:   118,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -441,6 +441,15 @@ message ListImportsResponse {
   repeated ImportSummary imports = 1;
 }
 
+message GetImportFileRequest {
+  string import_batch_id = 1;
+}
+
+message GetImportFileResponse {
+  bytes csv_content = 1;
+  string filename = 2;
+}
+
 // ---- Categorization Rules ----
 
 message TransactionRule {
@@ -597,6 +606,7 @@ service LedgerService {
   rpc ImportTransactions(ImportTransactionsRequest) returns (ImportTransactionsResponse);
   rpc GetImportedTransactions(GetImportedTransactionsRequest) returns (ListTransactionsResponse);
   rpc ListImports(ListImportsRequest) returns (ListImportsResponse);
+  rpc GetImportFile(GetImportFileRequest) returns (GetImportFileResponse);
 
   // Rules
   rpc ListRules(ListRulesRequest) returns (ListRulesResponse);

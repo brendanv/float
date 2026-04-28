@@ -1875,6 +1875,27 @@ func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.Li
 	return connect.NewResponse(&floatv1.ListImportsResponse{Imports: out}), nil
 }
 
+func (h *Handler) GetImportFile(ctx context.Context, req *connect.Request[floatv1.GetImportFileRequest]) (*connect.Response[floatv1.GetImportFileResponse], error) {
+	if req.Msg.ImportBatchId == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("import_batch_id is required"))
+	}
+	if strings.ContainsAny(req.Msg.ImportBatchId, "/\\") {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid import_batch_id"))
+	}
+	filePath := filepath.Join(h.dataDir, "uploads", req.Msg.ImportBatchId+".csv")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("import file not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("read import file: %w", err))
+	}
+	return connect.NewResponse(&floatv1.GetImportFileResponse{
+		CsvContent: data,
+		Filename:   req.Msg.ImportBatchId + ".csv",
+	}), nil
+}
+
 // isAssetOrLiabilityAccount returns true if the account name looks like an
 // asset or liability account based on common prefixes.
 func isAssetOrLiabilityAccount(account string) bool {
