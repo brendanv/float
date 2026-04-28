@@ -36,7 +36,7 @@ function ImportFileDialog({ importBatchId, open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl" showCloseButton>
+      <DialogContent className="w-[90vw] max-w-5xl" showCloseButton>
         <DialogHeader>
           <DialogTitle className="font-mono text-sm">
             {data?.filename ?? importBatchId + ".csv"}
@@ -46,7 +46,7 @@ function ImportFileDialog({ importBatchId, open, onOpenChange }) {
           {isLoading && <Loading />}
           {error && <ErrorBanner error={error} />}
           {csvText && (
-            <pre className="max-h-[60vh] overflow-auto rounded-md bg-muted p-4 text-xs font-mono whitespace-pre leading-relaxed">
+            <pre className="max-h-[60vh] overflow-x-auto overflow-y-auto rounded-md bg-muted p-4 text-xs font-mono whitespace-pre leading-relaxed">
               {csvText}
             </pre>
           )}
