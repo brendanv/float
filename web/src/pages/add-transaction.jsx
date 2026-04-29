@@ -26,8 +26,8 @@ export function AddTransactionPage() {
   const [date, setDate] = useState(todayStr);
   const [description, setDescription] = useState("");
   const [postings, setPostings] = useState([
-    { account: "", amount: "" },
-    { account: "", amount: "" },
+    { account: "", commodity: "", quantity: "" },
+    { account: "", commodity: "", quantity: "" },
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -48,7 +48,8 @@ export function AddTransactionPage() {
         .filter((p) => p.account.trim())
         .map((p) => ({
           account: p.account.trim(),
-          amount: p.amount.trim(),
+          commodity: p.commodity.trim(),
+          quantity: p.quantity.trim(),
         }));
 
       if (postingInputs.length < 2) {
