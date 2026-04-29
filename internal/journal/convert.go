@@ -2,7 +2,6 @@ package journal
 
 import (
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"time"
@@ -38,17 +37,24 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 
 	var postings []PostingInput
 	for _, p := range t.Postings {
-		var amtStr string
+		pi := PostingInput{
+			Account: p.Account,
+			Comment: strings.TrimSpace(p.Comment),
+		}
 		if len(p.Amounts) > 0 {
 			a := p.Amounts[0]
-			val := float64(a.Quantity.DecimalMantissa) / math.Pow10(a.Quantity.DecimalPlaces)
-			amtStr = fmt.Sprintf("%s%.2f", a.Commodity, val)
+			pi.Commodity = a.Commodity
+			pi.Quantity = fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
+			cost, _ := a.ParseCost()
+			if cost != nil {
+				pi.Cost = &CostInput{
+					Commodity: cost.Contents.Commodity,
+					Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
+					IsTotal:   cost.Tag == "TotalCost",
+				}
+			}
 		}
-		postings = append(postings, PostingInput{
-			Account: p.Account,
-			Amount:  amtStr,
-			Comment: strings.TrimSpace(p.Comment),
-		})
+		postings = append(postings, pi)
 	}
 
 	// Normalize hledger's "Unmarked" to "" to match TransactionInput convention.

@@ -11,11 +11,20 @@ import (
 	"github.com/brendanv/float/internal/hledger"
 )
 
+// CostInput represents a cost annotation on a posting (@ or @@).
+type CostInput struct {
+	Commodity string
+	Quantity  string
+	IsTotal   bool // false = per-unit (@), true = total (@@)
+}
+
 // PostingInput represents one leg of a transaction.
 type PostingInput struct {
-	Account string // e.g. "expenses:shopping"
-	Amount  string // e.g. "$45.00"; empty string means auto-balance posting
-	Comment string // optional inline comment text (without "; " prefix)
+	Account   string     // e.g. "expenses:shopping"
+	Commodity string     // e.g. "USD", "AAPL"; empty = auto-balance posting
+	Quantity  string     // e.g. "45.00"; empty = auto-balance posting
+	Comment   string     // optional inline comment text (without "; " prefix)
+	Cost      *CostInput // optional cost annotation
 }
 
 // TransactionInput represents a transaction to be written.
@@ -28,6 +37,25 @@ type TransactionInput struct {
 	FID         string            // optional; if empty, WriteTransaction mints a new fid
 	Status      string            // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
 	FloatMeta   map[string]string // optional internal metadata; keys must have hledger.HiddenMetaPrefix
+}
+
+// postingAmountString builds the hledger amount string for a posting.
+// Uses "QUANTITY COMMODITY" format which hledger accepts universally and
+// FormatViaHledger will canonicalize to the commodity directive's placement.
+// Returns "" for auto-balance postings (empty commodity and quantity).
+func postingAmountString(p PostingInput) string {
+	if p.Commodity == "" && p.Quantity == "" {
+		return ""
+	}
+	s := p.Quantity + " " + p.Commodity
+	if p.Cost != nil {
+		op := "@"
+		if p.Cost.IsTotal {
+			op = "@@"
+		}
+		s += " " + op + " " + p.Cost.Quantity + " " + p.Cost.Commodity
+	}
+	return s
 }
 
 // draftFormat renders a TransactionInput + fid as minimal hledger journal text.
@@ -70,12 +98,13 @@ func draftFormat(tx TransactionInput, fid string) string {
 		}
 	}
 	for _, p := range tx.Postings {
-		if p.Amount == "" {
+		amtStr := postingAmountString(p)
+		if amtStr == "" {
 			fmt.Fprintf(&b, "    %s\n", p.Account)
 		} else if p.Comment != "" {
-			fmt.Fprintf(&b, "    %s  %s  ; %s\n", p.Account, p.Amount, p.Comment)
+			fmt.Fprintf(&b, "    %s  %s  ; %s\n", p.Account, amtStr, p.Comment)
 		} else {
-			fmt.Fprintf(&b, "    %s  %s\n", p.Account, p.Amount)
+			fmt.Fprintf(&b, "    %s  %s\n", p.Account, amtStr)
 		}
 	}
 	return b.String()

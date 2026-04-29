@@ -104,16 +104,24 @@ func InputFromTransaction(t hledger.Transaction) (TransactionInput, error) {
 func postingsFromTransaction(t hledger.Transaction) []PostingInput {
 	postings := make([]PostingInput, len(t.Postings))
 	for i, p := range t.Postings {
-		var amtStr string
-		if len(p.Amounts) > 0 {
-			a := p.Amounts[0]
-			amtStr = fmt.Sprintf("%s%.2f", a.Commodity, a.Quantity.FloatingPoint)
-		}
-		postings[i] = PostingInput{
+		pi := PostingInput{
 			Account: p.Account,
-			Amount:  amtStr,
 			Comment: strings.TrimSpace(p.Comment),
 		}
+		if len(p.Amounts) > 0 {
+			a := p.Amounts[0]
+			pi.Commodity = a.Commodity
+			pi.Quantity = fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
+			cost, _ := a.ParseCost()
+			if cost != nil {
+				pi.Cost = &CostInput{
+					Commodity: cost.Contents.Commodity,
+					Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
+					IsTotal:   cost.Tag == "TotalCost",
+				}
+			}
+		}
+		postings[i] = pi
 	}
 	return postings
 }

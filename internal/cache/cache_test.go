@@ -212,7 +212,7 @@ func TestCache_InvalidationAfterWrite(t *testing.T) {
 		Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
 		Description: "INITIAL DEPOSIT",
 		Postings: []journal.PostingInput{
-			{Account: "assets:checking", Amount: "$1000.00"},
+			{Account: "assets:checking", Commodity: "USD", Quantity: "1000.00"},
 			{Account: "income:salary"},
 		},
 	}
@@ -253,7 +253,7 @@ func TestCache_InvalidationAfterWrite(t *testing.T) {
 		Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 		Description: "GROCERY STORE",
 		Postings: []journal.PostingInput{
-			{Account: "assets:checking", Amount: "$-50.00"},
+			{Account: "assets:checking", Commodity: "USD", Quantity: "-50.00"},
 			{Account: "income:salary"},
 		},
 	}

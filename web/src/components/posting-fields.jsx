@@ -109,13 +109,15 @@ export function PostingFields({ postings, onChange, accounts }) {
   }
 
   function addRow() {
-    onChange([...postings, { account: "", amount: "" }]);
+    onChange([...postings, { account: "", commodity: "", quantity: "" }]);
   }
 
   function removeRow(index) {
     if (postings.length <= 2) return;
     onChange(postings.filter((_, i) => i !== index));
   }
+
+  const isLast = (i) => i === postings.length - 1;
 
   return (
     <div className="flex flex-col gap-2">
@@ -128,10 +130,17 @@ export function PostingFields({ postings, onChange, accounts }) {
           />
           <Input
             type="text"
-            placeholder={i === postings.length - 1 ? "Auto-balance" : "Amount"}
-            value={p.amount}
-            onInput={(e) => update(i, "amount", e.target.value)}
-            className="w-24 shrink-0 sm:w-32"
+            placeholder="USD"
+            value={p.commodity}
+            onInput={(e) => update(i, "commodity", e.target.value)}
+            className="w-16 shrink-0"
+          />
+          <Input
+            type="text"
+            placeholder={isLast(i) ? "Auto" : "0.00"}
+            value={p.quantity}
+            onInput={(e) => update(i, "quantity", e.target.value)}
+            className="w-20 shrink-0 sm:w-24"
           />
           <Button
             variant="ghost"

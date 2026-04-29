@@ -163,7 +163,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
         fid,
         description: draft.trim(),
         date,
-        postings: postings.map((p) => ({ account: p.account, amount: formatAmounts(p.amounts) })),
+        postings: postings.map((p) => ({ account: p.account, commodity: p.commodity, quantity: p.quantity })),
       });
       setEditing(false);
       if (onSaved) onSaved();
@@ -223,7 +223,10 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
 
 function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   function toFields(ps) {
-    return (ps || []).map((p) => ({ account: p.account, amount: formatAmounts(p.amounts) }));
+    return (ps || []).map((p) => {
+      const a = p.amounts && p.amounts[0];
+      return { account: p.account, commodity: a ? a.commodity : "", quantity: a ? a.quantity : "" };
+    });
   }
 
   const initialPostings = toFields(tx.postings);
@@ -244,7 +247,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
-        postings: postings.map((p) => ({ account: p.account.trim(), amount: p.amount.trim() })),
+        postings: postings.map((p) => ({ account: p.account.trim(), commodity: p.commodity.trim(), quantity: p.quantity.trim() })),
       });
       if (onSaved) onSaved();
     } catch (err) {

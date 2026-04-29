@@ -742,9 +742,11 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 	postings := make([]journal.PostingInput, len(req.Msg.Postings))
 	for i, p := range req.Msg.Postings {
 		postings[i] = journal.PostingInput{
-			Account: p.Account,
-			Amount:  p.Amount,
-			Comment: p.Comment,
+			Account:   p.Account,
+			Commodity: p.Commodity,
+			Quantity:  p.Quantity,
+			Comment:   p.Comment,
+			Cost:      protoToJournalCost(p.Cost),
 		}
 	}
 	desc := req.Msg.Description
@@ -805,9 +807,11 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	postings := make([]journal.PostingInput, len(req.Msg.Postings))
 	for i, p := range req.Msg.Postings {
 		postings[i] = journal.PostingInput{
-			Account: p.Account,
-			Amount:  p.Amount,
-			Comment: p.Comment,
+			Account:   p.Account,
+			Commodity: p.Commodity,
+			Quantity:  p.Quantity,
+			Comment:   p.Comment,
+			Cost:      protoToJournalCost(p.Cost),
 		}
 	}
 
@@ -2188,6 +2192,17 @@ func categoryPostingIndex(txn hledger.Transaction) int {
 		}
 	}
 	return -1
+}
+
+func protoToJournalCost(c *floatv1.CostInput) *journal.CostInput {
+	if c == nil {
+		return nil
+	}
+	return &journal.CostInput{
+		Commodity: c.Commodity,
+		Quantity:  c.Quantity,
+		IsTotal:   c.IsTotal,
+	}
 }
 
 func toProtoRule(r rules.Rule) *floatv1.TransactionRule {

@@ -226,7 +226,7 @@ func (f *AddTxForm) ActivateEdit(tx *floatv1.Transaction) {
 		pf.account.SetValue(p.Account)
 		if len(p.Amounts) > 0 {
 			a := p.Amounts[0]
-			pf.amount.SetValue(fmt.Sprintf("%s%s", a.Commodity, a.Quantity))
+			pf.amount.SetValue(fmt.Sprintf("%s %s", a.Quantity, a.Commodity))
 		}
 		f.postings = append(f.postings, pf)
 	}
@@ -454,15 +454,37 @@ func (f *AddTxForm) buildPostings() ([]*floatv1.PostingInput, string) {
 		if acc == "" && amt == "" {
 			continue
 		}
+		commodity, quantity := splitTUICommodityQuantity(amt)
 		postings = append(postings, &floatv1.PostingInput{
-			Account: acc,
-			Amount:  amt,
+			Account:   acc,
+			Commodity: commodity,
+			Quantity:  quantity,
 		})
 	}
 	if len(postings) == 0 {
 		return nil, "at least one posting is required"
 	}
 	return postings, ""
+}
+
+// splitTUICommodityQuantity splits an amount string typed in the TUI into
+// commodity and quantity. Accepts "QUANTITY COMMODITY" (e.g. "45.00 USD") or
+// prefix-symbol format (e.g. "$45.00").
+func splitTUICommodityQuantity(amount string) (commodity, quantity string) {
+	if amount == "" {
+		return "", ""
+	}
+	if idx := strings.LastIndex(amount, " "); idx >= 0 {
+		return strings.TrimSpace(amount[idx+1:]), strings.TrimSpace(amount[:idx])
+	}
+	i := 0
+	for i < len(amount) && (amount[i] < '0' || amount[i] > '9') && amount[i] != '-' && amount[i] != '+' {
+		i++
+	}
+	if i > 0 {
+		return amount[:i], amount[i:]
+	}
+	return "", amount
 }
 
 func (f *AddTxForm) buildAddRequest() (*floatv1.AddTransactionRequest, string) {
