@@ -358,9 +358,12 @@ func (c *Client) Tags(ctx context.Context) ([]string, error) {
 	return parseTags(stdout), nil
 }
 
-// Payees runs `hledger payees -f <journal>` and returns the list of unique payees.
+// Payees runs `hledger payees -f <journal> payee:.+` and returns the list of
+// unique payees. The payee:.+ filter restricts output to transactions that have
+// an explicit payee set (description contains a "|" separator), so descriptions
+// without a payee don't appear in the payees list.
 func (c *Client) Payees(ctx context.Context) ([]string, error) {
-	args := []string{"payees", "-f", c.journal}
+	args := []string{"payees", "-f", c.journal, "payee:.+"}
 
 	stdout, stderr, err := c.run(ctx, args...)
 	if err != nil {
