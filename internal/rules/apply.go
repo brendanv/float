@@ -99,20 +99,24 @@ func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m R
 			if changes.NewAccount != nil && isCategoryPosting(txn, i) {
 				acc = *changes.NewAccount
 			}
-			var amtStr string
-			if len(p.Amounts) > 0 {
-				a := p.Amounts[0]
-				val := float64(a.Quantity.DecimalMantissa)
-				for k := 0; k < a.Quantity.DecimalPlaces; k++ {
-					val /= 10
-				}
-				amtStr = fmt.Sprintf("%s%.2f", a.Commodity, val)
-			}
-			postings[i] = journal.PostingInput{
+			pi := journal.PostingInput{
 				Account: acc,
-				Amount:  amtStr,
 				Comment: strings.TrimSpace(p.Comment),
 			}
+			if len(p.Amounts) > 0 {
+				a := p.Amounts[0]
+				pi.Commodity = a.Commodity
+				pi.Quantity = fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
+				cost, _ := a.ParseCost()
+				if cost != nil {
+					pi.Cost = &journal.CostInput{
+						Commodity: cost.Contents.Commodity,
+						Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
+						IsTotal:   cost.Tag == "TotalCost",
+					}
+				}
+			}
+			postings[i] = pi
 		}
 
 		_, err := journal.UpdateTransaction(ctx, client, dataDir, txn.FID, desc, "", txn.Comment, nil, postings)

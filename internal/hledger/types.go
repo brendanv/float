@@ -1,6 +1,9 @@
 package hledger
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // FIDLen is the length in characters of a float transaction ID (fid tag).
 const FIDLen = 8
@@ -185,6 +188,30 @@ type IncomeStatementTimeseries struct {
 	Periods    []string      // "YYYY-MM-DD" start date of each period
 	Subreports []ISSubreport // "Revenue" then "Expenses"
 	NetAmounts [][]Amount    // net income per period (from cbrTotals.prrAmounts)
+}
+
+// CostJSON is the parsed form of an hledger acost field.
+// The hledger JSON encodes cost as {"tag": "UnitCost"|"TotalCost", "contents": <Amount>}.
+type CostJSON struct {
+	Tag      string `json:"tag"`
+	Contents Amount `json:"contents"`
+}
+
+// ParseCost unmarshals the raw acost JSON field on an Amount, returning nil if no cost is set.
+func (a Amount) ParseCost() (*CostJSON, error) {
+	if a.Cost == nil {
+		return nil, nil
+	}
+	raw := *a.Cost
+	// hledger encodes "no cost" as the JSON null literal.
+	if string(raw) == "null" {
+		return nil, nil
+	}
+	var c CostJSON
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return nil, fmt.Errorf("hledger: parse cost: %w", err)
+	}
+	return &c, nil
 }
 
 type CheckError struct {
