@@ -40,7 +40,7 @@ func TestDeleteTransaction(t *testing.T) {
 			Date:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 			Description: "TEST DELETE",
 			Postings: []PostingInput{
-				{Account: "expenses:food", Amount: "10.00 USD"},
+				{Account: "expenses:food", Commodity: "USD", Quantity: "10.00"},
 				{Account: "assets:checking"},
 			},
 		}
@@ -86,7 +86,7 @@ func TestDeleteTransaction(t *testing.T) {
 			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 			Description: "IDEMPOTENT TEST",
 			Postings: []PostingInput{
-				{Account: "expenses:shopping", Amount: "5.00 USD"},
+				{Account: "expenses:shopping", Commodity: "USD", Quantity: "5.00"},
 				{Account: "assets:checking"},
 			},
 		}

@@ -419,15 +419,42 @@ func (s *stringSliceFlag) Set(v string) error {
 var postingSplitRe = regexp.MustCompile(`\s{2,}`)
 
 // parsePostingArg parses "account  amount" or just "account" into PostingInput.
+// Amount portion is split into commodity + quantity: leading non-digit/sign chars are
+// treated as a commodity prefix (e.g. "$"), otherwise the last space-delimited token
+// after a digit is the commodity suffix (e.g. "45.00 USD").
 func parsePostingArg(s string) journal.PostingInput {
 	parts := postingSplitRe.Split(strings.TrimSpace(s), 2)
 	if len(parts) == 2 {
+		commodity, quantity := splitCommodityQuantity(strings.TrimSpace(parts[1]))
 		return journal.PostingInput{
-			Account: strings.TrimSpace(parts[0]),
-			Amount:  strings.TrimSpace(parts[1]),
+			Account:   strings.TrimSpace(parts[0]),
+			Commodity: commodity,
+			Quantity:  quantity,
 		}
 	}
 	return journal.PostingInput{Account: strings.TrimSpace(s)}
+}
+
+// splitCommodityQuantity splits an amount string like "45.00 USD" or "$45.00" into
+// (commodity, quantity). For "QUANTITY COMMODITY" format the last token is the commodity.
+// For "COMMODITY QUANTITY" (prefix symbol) the leading non-numeric chars are the commodity.
+func splitCommodityQuantity(amount string) (commodity, quantity string) {
+	if amount == "" {
+		return "", ""
+	}
+	// Try "QUANTITY COMMODITY" (space-separated, last token is commodity).
+	if idx := strings.LastIndex(amount, " "); idx >= 0 {
+		return strings.TrimSpace(amount[idx+1:]), strings.TrimSpace(amount[:idx])
+	}
+	// Try prefix commodity symbol (e.g. "$45.00").
+	i := 0
+	for i < len(amount) && (amount[i] < '0' || amount[i] > '9') && amount[i] != '-' && amount[i] != '+' {
+		i++
+	}
+	if i > 0 {
+		return amount[:i], amount[i:]
+	}
+	return "", amount
 }
 
 func runJournalDelete(args []string) error {

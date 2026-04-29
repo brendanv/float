@@ -102,8 +102,8 @@ func TestFormatViaHledger(t *testing.T) {
 				Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 				Description: "AMAZON",
 				Postings: []journal.PostingInput{
-					{Account: "expenses:shopping", Amount: "45.00 USD"},
-					{Account: "assets:checking", Amount: "-45.00 USD"},
+					{Account: "expenses:shopping", Commodity: "USD", Quantity: "45.00"},
+					{Account: "assets:checking", Commodity: "USD", Quantity: "-45.00"},
 				},
 			},
 			contains: []string{"2026-01-15", "(bb002200)", "AMAZON", "expenses:shopping", "45.00"},
@@ -115,7 +115,7 @@ func TestFormatViaHledger(t *testing.T) {
 				Date:        time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
 				Description: "TEST",
 				Postings: []journal.PostingInput{
-					{Account: "expenses:food", Amount: "10.00 USD"},
+					{Account: "expenses:food", Commodity: "USD", Quantity: "10.00"},
 					{Account: "assets:checking"},
 				},
 			},
@@ -128,7 +128,7 @@ func TestFormatViaHledger(t *testing.T) {
 				Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
 				Description: "PAYROLL",
 				Postings: []journal.PostingInput{
-					{Account: "assets:checking", Amount: "3500.00 USD"},
+					{Account: "assets:checking", Commodity: "USD", Quantity: "3500.00"},
 					{Account: "income:salary"},
 				},
 			},
@@ -141,7 +141,7 @@ func TestFormatViaHledger(t *testing.T) {
 				Date:        time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
 				Description: "TEST",
 				Postings: []journal.PostingInput{
-					{Account: "assets:checking", Amount: "1.00 USD"},
+					{Account: "assets:checking", Commodity: "USD", Quantity: "1.00"},
 					{Account: "income:other"},
 				},
 			},
@@ -154,7 +154,7 @@ func TestFormatViaHledger(t *testing.T) {
 				Description: "GROCERIES",
 				Comment:     "category:food",
 				Postings: []journal.PostingInput{
-					{Account: "expenses:food", Amount: "30.00 USD"},
+					{Account: "expenses:food", Commodity: "USD", Quantity: "30.00"},
 					{Account: "assets:checking"},
 				},
 			},
@@ -364,7 +364,7 @@ func TestAppendTransaction(t *testing.T) {
 					Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 					Description: "AMAZON MARKETPLACE",
 					Postings: []journal.PostingInput{
-						{Account: "expenses:shopping", Amount: "45.00 USD"},
+						{Account: "expenses:shopping", Commodity: "USD", Quantity: "45.00"},
 						{Account: "assets:checking"},
 					},
 				},
@@ -395,7 +395,7 @@ func TestAppendTransaction(t *testing.T) {
 				{
 					Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 					Description: "TEST",
-					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "1.00 USD"}, {Account: "assets:checking"}},
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Commodity: "USD", Quantity: "1.00"}, {Account: "assets:checking"}},
 				},
 			},
 			check: func(t *testing.T, dir string, _ []string) {
@@ -414,12 +414,12 @@ func TestAppendTransaction(t *testing.T) {
 				{
 					Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
 					Description: "JANUARY",
-					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "1.00 USD"}, {Account: "assets:checking"}},
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Commodity: "USD", Quantity: "1.00"}, {Account: "assets:checking"}},
 				},
 				{
 					Date:        time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 					Description: "FEBRUARY",
-					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "2.00 USD"}, {Account: "assets:checking"}},
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Commodity: "USD", Quantity: "2.00"}, {Account: "assets:checking"}},
 				},
 			},
 			check: func(t *testing.T, dir string, _ []string) {
@@ -445,12 +445,12 @@ func TestAppendTransaction(t *testing.T) {
 				{
 					Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 					Description: "FIRST",
-					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "1.00 USD"}, {Account: "assets:checking"}},
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Commodity: "USD", Quantity: "1.00"}, {Account: "assets:checking"}},
 				},
 				{
 					Date:        time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
 					Description: "SECOND",
-					Postings:    []journal.PostingInput{{Account: "expenses:misc", Amount: "2.00 USD"}, {Account: "assets:checking"}},
+					Postings:    []journal.PostingInput{{Account: "expenses:misc", Commodity: "USD", Quantity: "2.00"}, {Account: "assets:checking"}},
 				},
 			},
 			check: func(t *testing.T, dir string, _ []string) {
