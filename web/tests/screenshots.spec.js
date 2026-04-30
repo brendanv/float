@@ -233,29 +233,42 @@ test("import page - create profile modal with CSV wizard", async ({ page }) => {
   await page.screenshot({ path: "test-results/import-create-profile-modal-wizard.png", fullPage: true });
 });
 
-test("import page - preview loaded", async ({ page }) => {
+async function loadImportPreview(page) {
   await page.goto("/#/import");
   await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  // Select a profile using the shadcn Select combobox
   await page.locator('[role="combobox"]').first().click();
   await page.waitForTimeout(200);
   await page.locator('[role="option"]').first().click();
   await page.waitForTimeout(200);
-  // Attach a fake CSV file
-  await page.evaluate(() => {
-    const input = document.querySelector('input[type="file"]');
-    if (!input) return;
-    const dt = new DataTransfer();
-    dt.items.add(new File(["date,amount,description\n2026-03-28,-42.99,AMAZON"], "bank.csv", { type: "text/csv" }));
-    Object.defineProperty(input, "files", { value: dt.files });
-    input.dispatchEvent(new Event("change", { bubbles: true }));
+  await page.locator('#csv-file').setInputFiles({
+    name: "bank.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("date,amount,description\n2026-03-28,-42.99,AMAZON"),
   });
   await page.waitForTimeout(200);
-  await page.click('button[type="submit"]');
-  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.locator('button[type="submit"]').click();
+  await page.waitForSelector("table", { timeout: 5000 });
   await page.waitForTimeout(400);
+}
+
+test("import page - preview loaded", async ({ page }) => {
+  await loadImportPreview(page);
   await page.screenshot({ path: "test-results/import-preview.png", fullPage: true });
+});
+
+test("import page - preview sorted by description", async ({ page }) => {
+  await loadImportPreview(page);
+  await page.locator("th button").filter({ hasText: "Description" }).click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/import-preview-sorted.png", fullPage: true });
+});
+
+test("import page - preview filtered by rule match", async ({ page }) => {
+  await loadImportPreview(page);
+  await page.locator("button", { hasText: "Rule matched" }).click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/import-preview-filtered-matched.png", fullPage: true });
 });
 
 test("import history page", async ({ page }) => {
