@@ -26,6 +26,7 @@ message Transaction {
   map<string, string> tags = 7; // non-fid tags on the transaction
   optional string payee = 8; // part before "|" in description; nil if no "|"
   optional string note = 9;  // part after "|" in description; nil if no "|"
+  optional string import_batch_id = 10; // import batch ID this transaction was imported in; nil if not imported
 }
 
 message BalanceRow {

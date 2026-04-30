@@ -152,6 +152,7 @@ type Transaction struct {
 	Tags          map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // non-fid tags on the transaction
 	Payee         *string                `protobuf:"bytes,8,opt,name=payee,proto3,oneof" json:"payee,omitempty"`                                                                   // part before "|" in description; nil if no "|"
 	Note          *string                `protobuf:"bytes,9,opt,name=note,proto3,oneof" json:"note,omitempty"`                                                                     // part after "|" in description; nil if no "|"
+	ImportBatchId *string                `protobuf:"bytes,10,opt,name=import_batch_id,json=importBatchId,proto3,oneof" json:"import_batch_id,omitempty"`                           // import batch ID this transaction was imported in; nil if not imported
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -245,6 +246,13 @@ func (x *Transaction) GetPayee() string {
 func (x *Transaction) GetNote() string {
 	if x != nil && x.Note != nil {
 		return *x.Note
+	}
+	return ""
+}
+
+func (x *Transaction) GetImportBatchId() string {
+	if x != nil && x.ImportBatchId != nil {
+		return *x.ImportBatchId
 	}
 	return ""
 }
@@ -6297,7 +6305,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\aPosting\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12*\n" +
 	"\aamounts\x18\x02 \x03(\v2\x10.float.v1.AmountR\aamounts\x12\x18\n" +
-	"\acomment\x18\x03 \x01(\tR\acomment\"\xeb\x02\n" +
+	"\acomment\x18\x03 \x01(\tR\acomment\"\xac\x03\n" +
 	"\vTransaction\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12 \n" +
@@ -6307,12 +6315,15 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x06status\x18\x06 \x01(\tR\x06status\x123\n" +
 	"\x04tags\x18\a \x03(\v2\x1f.float.v1.Transaction.TagsEntryR\x04tags\x12\x19\n" +
 	"\x05payee\x18\b \x01(\tH\x00R\x05payee\x88\x01\x01\x12\x17\n" +
-	"\x04note\x18\t \x01(\tH\x01R\x04note\x88\x01\x01\x1a7\n" +
+	"\x04note\x18\t \x01(\tH\x01R\x04note\x88\x01\x01\x12+\n" +
+	"\x0fimport_batch_id\x18\n" +
+	" \x01(\tH\x02R\rimportBatchId\x88\x01\x01\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\b\n" +
 	"\x06_payeeB\a\n" +
-	"\x05_note\"\x90\x01\n" +
+	"\x05_noteB\x12\n" +
+	"\x10_import_batch_id\"\x90\x01\n" +
 	"\n" +
 	"BalanceRow\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12\x1b\n" +

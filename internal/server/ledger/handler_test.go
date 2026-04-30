@@ -2028,6 +2028,79 @@ func TestImportTransactionsHandler(t *testing.T) {
 			t.Errorf("Tags[source] = %q, want %q", resp.Msg.Transactions[0].Tags["source"], "amazon")
 		}
 	})
+
+	t.Run("import_batch_id_populated_on_imported_transactions", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 301, NumTxns: 1, WithFIDs: true})
+
+		hledgerRules := "skip 1\nfields date, description, amount\naccount1 assets:checking\naccount2 expenses:misc\n"
+		if err := os.WriteFile(filepath.Join(dir, "bank.rules"), []byte(hledgerRules), 0o644); err != nil {
+			t.Fatalf("write bank.rules: %v", err)
+		}
+
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		lock := txlock.New(dir, c)
+		cfg := &config.Config{
+			BankProfiles: []config.BankProfile{
+				{Name: "test-bank", RulesFile: "bank.rules"},
+			},
+		}
+		h := serverledger.NewHandler(c, lock, dir, "", nil, nil, cfg)
+
+		csvData := []byte("date,description,amount\n2026-01-15,COFFEE SHOP,-4.50\n2026-01-16,GROCERY STORE,-30.00\n")
+		importResp, err := h.ImportTransactions(t.Context(), connect.NewRequest(&floatv1.ImportTransactionsRequest{
+			CsvData:          csvData,
+			ProfileName:      "test-bank",
+			CandidateIndices: []int32{0, 1},
+		}))
+		if err != nil {
+			t.Fatalf("ImportTransactions: %v", err)
+		}
+		batchID := importResp.Msg.ImportBatchId
+		if batchID == "" {
+			t.Fatal("response ImportBatchId is empty")
+		}
+		if len(importResp.Msg.Transactions) != 2 {
+			t.Fatalf("expected 2 imported transactions, got %d", len(importResp.Msg.Transactions))
+		}
+		for i, tx := range importResp.Msg.Transactions {
+			if tx.ImportBatchId == nil {
+				t.Errorf("imported[%d].ImportBatchId = nil, want %q", i, batchID)
+				continue
+			}
+			if *tx.ImportBatchId != batchID {
+				t.Errorf("imported[%d].ImportBatchId = %q, want %q", i, *tx.ImportBatchId, batchID)
+			}
+		}
+
+		// Round-trip verification: re-fetch via ListTransactions to ensure the
+		// field survives parsing from hledger output.
+		listResp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+		if err != nil {
+			t.Fatalf("ListTransactions: %v", err)
+		}
+
+		var withBatch, withoutBatch int
+		for _, tx := range listResp.Msg.Transactions {
+			if tx.ImportBatchId == nil {
+				withoutBatch++
+				continue
+			}
+			if *tx.ImportBatchId != batchID {
+				t.Errorf("unexpected ImportBatchId %q on txn %s", *tx.ImportBatchId, tx.Fid)
+				continue
+			}
+			withBatch++
+		}
+		if withBatch != 2 {
+			t.Errorf("transactions with batch id = %d, want 2", withBatch)
+		}
+		if withoutBatch != 1 {
+			t.Errorf("transactions without batch id = %d, want 1 (the seeded txn)", withoutBatch)
+		}
+	})
 }
 
 // printJSONWithCost has two postings: one with a UnitCost (@) and one with a

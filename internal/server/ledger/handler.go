@@ -907,17 +907,21 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 			tags[kv[0]] = kv[1]
 		}
 	}
+	var importBatchID *string
+	if v, ok := t.FloatMeta["float-import"]; ok {
+		importBatchID = &v
+	}
 	return &floatv1.Transaction{
-		Fid:         t.FID,
-		Date:        t.Date,
-		Description: t.Description,
-		Comment:     t.Comment,
-		Postings:    postings,
-		Status:      status,
-		Tags:        tags,
-		Payee:       t.Payee,
-		Note:        t.Note,
-
+		Fid:           t.FID,
+		Date:          t.Date,
+		Description:   t.Description,
+		Comment:       t.Comment,
+		Postings:      postings,
+		Status:        status,
+		Tags:          tags,
+		Payee:         t.Payee,
+		Note:          t.Note,
+		ImportBatchId: importBatchID,
 	}
 }
 
