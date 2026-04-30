@@ -74,10 +74,10 @@ func incomeStatementKey(begin, end string) string {
 	return fmt.Sprintf("incomestmt:%s:%s", begin, end)
 }
 
-func balancesValuedKey(valueSpec string, query []string) string {
+func balancesValuedKey(valueSpec string, depth int, query []string) string {
 	sorted := append([]string(nil), query...)
 	sort.Strings(sorted)
-	return fmt.Sprintf("balancesvalued:%s:%s", valueSpec, strings.Join(sorted, "|"))
+	return fmt.Sprintf("balancesvalued:%s:%d:%s", valueSpec, depth, strings.Join(sorted, "|"))
 }
 
 // cachedTransactions fetches transactions from cache or hledger.
@@ -113,7 +113,7 @@ func cachedBalancesValued(ctx context.Context, c *cache.Cache[any], hl *hledger.
 	if c == nil {
 		return hl.BalancesValued(ctx, valueSpec, depth, query...)
 	}
-	val, err := c.Get(ctx, balancesValuedKey(valueSpec, query), func(ctx context.Context) (any, error) {
+	val, err := c.Get(ctx, balancesValuedKey(valueSpec, depth, query), func(ctx context.Context) (any, error) {
 		return hl.BalancesValued(ctx, valueSpec, depth, query...)
 	})
 	if err != nil {
@@ -306,7 +306,13 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	report, err := cachedBalances(ctx, h.cache, h.hl, int(req.Msg.Depth), req.Msg.Query)
+	var report *hledger.BalanceReport
+	var err error
+	if req.Msg.Value != "" {
+		report, err = cachedBalancesValued(ctx, h.cache, h.hl, req.Msg.Value, int(req.Msg.Depth), req.Msg.Query)
+	} else {
+		report, err = cachedBalances(ctx, h.cache, h.hl, int(req.Msg.Depth), req.Msg.Query)
+	}
 	if err != nil {
 		logger.ErrorContext(ctx, "hledger balances failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)

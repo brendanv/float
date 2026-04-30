@@ -24,8 +24,8 @@ export function HomePage() {
   });
 
   const { data: balancesData } = useQuery({
-    queryKey: queryKeys.balances({ depth: 1 }),
-    queryFn: () => ledgerClient.getBalances({ depth: 1 }),
+    queryKey: queryKeys.balances({ depth: 1, value: "now,USD" }),
+    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD" }),
   });
 
   const { data: accountBalancesData } = useQuery({

@@ -105,6 +105,7 @@ message ListTransactionsResponse {
 message GetBalancesRequest {
   int32 depth = 1; // 0 = no --depth flag
   repeated string query = 2;
+  string value = 3; // Optional --value spec, e.g. "now,USD"; empty = raw balances
 }
 
 message GetBalancesResponse {

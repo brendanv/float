@@ -968,6 +968,7 @@ type GetBalancesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Depth         int32                  `protobuf:"varint,1,opt,name=depth,proto3" json:"depth,omitempty"` // 0 = no --depth flag
 	Query         []string               `protobuf:"bytes,2,rep,name=query,proto3" json:"query,omitempty"`
+	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"` // Optional --value spec, e.g. "now,USD"; empty = raw balances
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1014,6 +1015,13 @@ func (x *GetBalancesRequest) GetQuery() []string {
 		return x.Query
 	}
 	return nil
+}
+
+func (x *GetBalancesRequest) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
 }
 
 type GetBalancesResponse struct {
@@ -6258,10 +6266,11 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x18ListTransactionsResponse\x129\n" +
 	"\ftransactions\x18\x01 \x03(\v2\x15.float.v1.TransactionR\ftransactions\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x19\n" +
-	"\bhas_next\x18\x03 \x01(\bR\ahasNext\"@\n" +
+	"\bhas_next\x18\x03 \x01(\bR\ahasNext\"V\n" +
 	"\x12GetBalancesRequest\x12\x14\n" +
 	"\x05depth\x18\x01 \x01(\x05R\x05depth\x12\x14\n" +
-	"\x05query\x18\x02 \x03(\tR\x05query\"F\n" +
+	"\x05query\x18\x02 \x03(\tR\x05query\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\"F\n" +
 	"\x13GetBalancesResponse\x12/\n" +
 	"\x06report\x18\x01 \x01(\v2\x17.float.v1.BalanceReportR\x06report\"\xc3\x02\n" +
 	"\x12AccountRegisterRow\x12\x10\n" +
