@@ -7,6 +7,7 @@ option go_package = "github.com/brendanv/float/gen/float/v1;floatv1";
 message Amount {
   string commodity = 1; // e.g. "USD"
   string quantity = 2; // e.g. "25.00" (formatted decimal)
+  Cost cost = 3;       // optional cost annotation, e.g. 10 AAPL @ 175.00 USD
 }
 
 message Posting {
@@ -178,7 +179,7 @@ message UpdateTransactionDateResponse {
   Transaction transaction = 1;
 }
 
-message CostInput {
+message Cost {
   string commodity = 1;  // e.g. "USD"
   string quantity = 2;   // e.g. "175.00"
   bool is_total = 3;     // false = per-unit (@), true = total (@@)
@@ -189,7 +190,7 @@ message PostingInput {
   string commodity = 2;  // e.g. "USD", "AAPL"; empty = auto-balance
   string quantity = 3;   // e.g. "45.00"; empty = auto-balance
   string comment = 4;
-  CostInput cost = 5;    // optional; e.g. 10 AAPL @ 175.00 USD
+  Cost cost = 5;         // optional; e.g. 10 AAPL @ 175.00 USD
 }
 
 message AddTransactionRequest {

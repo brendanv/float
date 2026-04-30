@@ -2030,3 +2030,297 @@ func TestImportTransactionsHandler(t *testing.T) {
 	})
 }
 
+// printJSONWithCost has two postings: one with a UnitCost (@) and one with a
+// TotalCost (@@). Used to verify toProtoAmount surfaces cost annotations.
+const printJSONWithCost = `[
+  {
+    "tcode": "bb002200",
+    "tcomment": "",
+    "tdate": "2026-01-15",
+    "tdate2": null,
+    "tdescription": "Buy AAPL",
+    "tindex": 1,
+    "tpostings": [
+      {
+        "paccount": "assets:investments:aapl",
+        "pamount": [{
+          "acommodity": "AAPL",
+          "acost": {"tag":"UnitCost","contents":{"acommodity":"USD","aquantity":{"decimalMantissa":17500,"decimalPlaces":2,"floatingPoint":175.00},"acost":null}},
+          "aquantity": {"decimalMantissa": 10, "decimalPlaces": 0, "floatingPoint": 10}
+        }],
+        "pcomment": "",
+        "pdate": null,
+        "pdate2": null,
+        "pstatus": "Unmarked",
+        "ptags": [],
+        "ptransaction_": "1",
+        "ptype": "RegularPosting"
+      },
+      {
+        "paccount": "assets:investments:msft",
+        "pamount": [{
+          "acommodity": "MSFT",
+          "acost": {"tag":"TotalCost","contents":{"acommodity":"USD","aquantity":{"decimalMantissa":200000,"decimalPlaces":2,"floatingPoint":2000.00},"acost":null}},
+          "aquantity": {"decimalMantissa": 5, "decimalPlaces": 0, "floatingPoint": 5}
+        }],
+        "pcomment": "",
+        "pdate": null,
+        "pdate2": null,
+        "pstatus": "Unmarked",
+        "ptags": [],
+        "ptransaction_": "1",
+        "ptype": "RegularPosting"
+      },
+      {
+        "paccount": "assets:checking",
+        "pamount": [{"acommodity":"USD","acost":null,"aquantity":{"decimalMantissa":-375000,"decimalPlaces":2,"floatingPoint":-3750.00}}],
+        "pcomment": "",
+        "pdate": null,
+        "pdate2": null,
+        "pstatus": "Unmarked",
+        "ptags": [],
+        "ptransaction_": "1",
+        "ptype": "RegularPosting"
+      }
+    ],
+    "tprecedingcomment": "",
+    "tstatus": "Unmarked",
+    "ttags": [],
+    "tsourcepos": [{"sourceName": "simple.journal", "sourceLine": 1, "sourceColumn": 1}, {"sourceName": "simple.journal", "sourceLine": 5, "sourceColumn": 1}]
+  }
+]`
+
+func TestListTransactions_PopulatesCost(t *testing.T) {
+	h := mustHandler(t, map[string][]byte{
+		"print": []byte(printJSONWithCost),
+	})
+
+	resp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+
+	txns := resp.Msg.Transactions
+	if len(txns) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txns))
+	}
+	postings := txns[0].Postings
+	if len(postings) != 3 {
+		t.Fatalf("expected 3 postings, got %d", len(postings))
+	}
+
+	// Posting 0: AAPL with per-unit cost.
+	aapl := postings[0].Amounts[0]
+	if aapl.Cost == nil {
+		t.Fatalf("AAPL amount: Cost is nil, want UnitCost")
+	}
+	if aapl.Cost.Commodity != "USD" {
+		t.Errorf("AAPL Cost.Commodity = %q, want %q", aapl.Cost.Commodity, "USD")
+	}
+	if aapl.Cost.Quantity != "175.00" {
+		t.Errorf("AAPL Cost.Quantity = %q, want %q", aapl.Cost.Quantity, "175.00")
+	}
+	if aapl.Cost.IsTotal {
+		t.Error("AAPL Cost.IsTotal = true, want false (UnitCost)")
+	}
+
+	// Posting 1: MSFT with total cost.
+	msft := postings[1].Amounts[0]
+	if msft.Cost == nil {
+		t.Fatalf("MSFT amount: Cost is nil, want TotalCost")
+	}
+	if msft.Cost.Commodity != "USD" {
+		t.Errorf("MSFT Cost.Commodity = %q, want %q", msft.Cost.Commodity, "USD")
+	}
+	if msft.Cost.Quantity != "2000.00" {
+		t.Errorf("MSFT Cost.Quantity = %q, want %q", msft.Cost.Quantity, "2000.00")
+	}
+	if !msft.Cost.IsTotal {
+		t.Error("MSFT Cost.IsTotal = false, want true (TotalCost)")
+	}
+
+	// Posting 2: plain USD posting with no cost.
+	checking := postings[2].Amounts[0]
+	if checking.Cost != nil {
+		t.Errorf("checking amount: Cost = %+v, want nil", checking.Cost)
+	}
+}
+
+func TestGetBalances_AmountsHaveNoCost(t *testing.T) {
+	h := mustHandler(t, map[string][]byte{
+		"bal": []byte(balJSON),
+	})
+
+	resp, err := h.GetBalances(t.Context(), connect.NewRequest(&floatv1.GetBalancesRequest{}))
+	if err != nil {
+		t.Fatalf("GetBalances: %v", err)
+	}
+	for _, row := range resp.Msg.Report.Rows {
+		for _, amt := range row.Amounts {
+			if amt.Cost != nil {
+				t.Errorf("balance row %q: amount %+v unexpectedly has Cost = %+v", row.FullName, amt, amt.Cost)
+			}
+		}
+	}
+}
+
+func TestRoundTripCost(t *testing.T) {
+	investAccounts := []string{
+		"assets:checking",
+		"assets:investments:aapl",
+		"assets:investments:msft",
+		"income:salary",
+	}
+
+	t.Run("add_with_unit_cost_round_trips", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 200, NumTxns: 1, WithFIDs: true, Accounts: investAccounts})
+		h := mustRealHandler(t, dir)
+
+		resp, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Buy AAPL",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{
+					Account: "assets:investments:aapl", Commodity: "AAPL", Quantity: "10",
+					Cost: &floatv1.Cost{Commodity: "USD", Quantity: "175.00", IsTotal: false},
+				},
+				{Account: "assets:checking", Commodity: "USD", Quantity: "-1750.00"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+
+		got := resp.Msg.Transaction
+		if len(got.Postings) < 1 || len(got.Postings[0].Amounts) < 1 {
+			t.Fatalf("unexpected response shape: %+v", got)
+		}
+		amt := got.Postings[0].Amounts[0]
+		if amt.Commodity != "AAPL" {
+			t.Errorf("Commodity = %q, want %q", amt.Commodity, "AAPL")
+		}
+		if amt.Cost == nil {
+			t.Fatalf("Cost is nil; expected per-unit cost on AAPL posting")
+		}
+		if amt.Cost.Commodity != "USD" || amt.Cost.Quantity != "175.00" || amt.Cost.IsTotal {
+			t.Errorf("Cost = %+v, want {USD 175.00 false}", amt.Cost)
+		}
+
+		// Verify the on-disk journal contains the @ cost syntax.
+		data, err := os.ReadFile(filepath.Join(dir, "2026/04.journal"))
+		if err != nil {
+			t.Fatalf("read journal: %v", err)
+		}
+		if !strings.Contains(string(data), "@ 175.00 USD") {
+			t.Errorf("journal missing per-unit cost annotation; got:\n%s", data)
+		}
+	})
+
+	t.Run("add_with_total_cost_round_trips", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 201, NumTxns: 1, WithFIDs: true, Accounts: investAccounts})
+		h := mustRealHandler(t, dir)
+
+		resp, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Buy MSFT",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{
+					Account: "assets:investments:msft", Commodity: "MSFT", Quantity: "5",
+					Cost: &floatv1.Cost{Commodity: "USD", Quantity: "2000.00", IsTotal: true},
+				},
+				{Account: "assets:checking", Commodity: "USD", Quantity: "-2000.00"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+
+		amt := resp.Msg.Transaction.Postings[0].Amounts[0]
+		if amt.Cost == nil {
+			t.Fatalf("Cost is nil; expected total cost on MSFT posting")
+		}
+		if !amt.Cost.IsTotal {
+			t.Errorf("IsTotal = false, want true")
+		}
+		if amt.Cost.Commodity != "USD" {
+			t.Errorf("Cost.Commodity = %q, want %q", amt.Cost.Commodity, "USD")
+		}
+		// hledger's JSON strips trailing zeros from total-cost decimalMantissa,
+		// so the returned quantity may be "2000" or "2000.00" depending on input
+		// precision. Either is correct.
+		if amt.Cost.Quantity != "2000" && amt.Cost.Quantity != "2000.00" {
+			t.Errorf("Cost.Quantity = %q, want %q or %q", amt.Cost.Quantity, "2000", "2000.00")
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, "2026/04.journal"))
+		if err != nil {
+			t.Fatalf("read journal: %v", err)
+		}
+		s := string(data)
+		if !strings.Contains(s, "@@ 2000.00 USD") && !strings.Contains(s, "@@ 2000 USD") {
+			t.Errorf("journal missing total-cost annotation; got:\n%s", s)
+		}
+	})
+
+	t.Run("update_overwrites_cost", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 202, NumTxns: 1, WithFIDs: true, Accounts: investAccounts})
+		h := mustRealHandler(t, dir)
+
+		// Seed a transaction with @ unit cost.
+		add, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Buy AAPL",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{
+					Account: "assets:investments:aapl", Commodity: "AAPL", Quantity: "10",
+					Cost: &floatv1.Cost{Commodity: "USD", Quantity: "175.00", IsTotal: false},
+				},
+				{Account: "assets:checking", Commodity: "USD", Quantity: "-1750.00"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+		fid := add.Msg.Transaction.Fid
+
+		// Update: switch to @@ total cost at a different price.
+		upd, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         fid,
+			Description: "Buy AAPL",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{
+					Account: "assets:investments:aapl", Commodity: "AAPL", Quantity: "10",
+					Cost: &floatv1.Cost{Commodity: "USD", Quantity: "1800.00", IsTotal: true},
+				},
+				{Account: "assets:checking", Commodity: "USD", Quantity: "-1800.00"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransaction: %v", err)
+		}
+		amt := upd.Msg.Transaction.Postings[0].Amounts[0]
+		if amt.Cost == nil {
+			t.Fatalf("Cost is nil after update")
+		}
+		if !amt.Cost.IsTotal {
+			t.Errorf("IsTotal = false, want true")
+		}
+		// hledger may strip trailing zeros from total-cost amounts; accept either form.
+		if amt.Cost.Quantity != "1800" && amt.Cost.Quantity != "1800.00" {
+			t.Errorf("Cost.Quantity = %q, want %q or %q", amt.Cost.Quantity, "1800", "1800.00")
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, "2026/04.journal"))
+		if err != nil {
+			t.Fatalf("read journal: %v", err)
+		}
+		s := string(data)
+		if !strings.Contains(s, "@@ 1800.00 USD") && !strings.Contains(s, "@@ 1800 USD") {
+			t.Errorf("journal missing updated total-cost annotation; got:\n%s", s)
+		}
+		if strings.Contains(s, "@ 175.00 USD") {
+			t.Errorf("journal still contains old per-unit cost annotation; got:\n%s", s)
+		}
+	})
+}

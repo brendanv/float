@@ -929,10 +929,18 @@ func toProtoPosting(p hledger.Posting) *floatv1.Posting {
 
 func toProtoAmount(a hledger.Amount) *floatv1.Amount {
 	quantity := fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
-	return &floatv1.Amount{
+	out := &floatv1.Amount{
 		Commodity: a.Commodity,
 		Quantity:  quantity,
 	}
+	if cost, err := a.ParseCost(); err == nil && cost != nil {
+		out.Cost = &floatv1.Cost{
+			Commodity: cost.Contents.Commodity,
+			Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
+			IsTotal:   cost.Tag == "TotalCost",
+		}
+	}
+	return out
 }
 
 func toProtoAccountRegisterRow(r hledger.AregisterRow) *floatv1.AccountRegisterRow {
@@ -2194,7 +2202,7 @@ func categoryPostingIndex(txn hledger.Transaction) int {
 	return -1
 }
 
-func protoToJournalCost(c *floatv1.CostInput) *journal.CostInput {
+func protoToJournalCost(c *floatv1.Cost) *journal.CostInput {
 	if c == nil {
 		return nil
 	}
