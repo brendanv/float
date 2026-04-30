@@ -163,7 +163,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
         fid,
         description: draft.trim(),
         date,
-        postings: postings.map((p) => ({ account: p.account, commodity: p.amounts?.[0]?.commodity ?? "", quantity: p.amounts?.[0]?.quantity ?? "" })),
+        postings: postings.map((p) => ({ account: p.account, commodity: p.amounts?.[0]?.commodity ?? "", quantity: p.amounts?.[0]?.quantity ?? "", cost: p.amounts?.[0]?.cost })),
       });
       setEditing(false);
       if (onSaved) onSaved();
