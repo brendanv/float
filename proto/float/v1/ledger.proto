@@ -299,6 +299,15 @@ message DeleteAccountDeclarationRequest {
 
 message DeleteAccountDeclarationResponse {}
 
+message RenameAccountRequest {
+  string old_name = 1; // current full account name, e.g. "assets:checking"
+  string new_name = 2; // new full account name, e.g. "assets:bank:checking"
+}
+
+message RenameAccountResponse {
+  int32 postings_renamed = 1; // number of posting lines updated across all journal files
+}
+
 message MarkReviewedOperation {
   bool reviewed = 1; // true → "Cleared", false → "" (Unmarked)
 }
@@ -616,6 +625,7 @@ service LedgerService {
   rpc ListAccountDeclarations(ListAccountDeclarationsRequest) returns (ListAccountDeclarationsResponse);
   rpc DeclareAccount(DeclareAccountRequest) returns (DeclareAccountResponse);
   rpc DeleteAccountDeclaration(DeleteAccountDeclarationRequest) returns (DeleteAccountDeclarationResponse);
+  rpc RenameAccount(RenameAccountRequest) returns (RenameAccountResponse);
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);

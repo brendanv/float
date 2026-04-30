@@ -1238,6 +1238,43 @@ func (h *Handler) DeleteAccountDeclaration(ctx context.Context, req *connect.Req
 	return connect.NewResponse(&floatv1.DeleteAccountDeclarationResponse{}), nil
 }
 
+func (h *Handler) RenameAccount(ctx context.Context, req *connect.Request[floatv1.RenameAccountRequest]) (*connect.Response[floatv1.RenameAccountResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	oldName := strings.TrimSpace(req.Msg.OldName)
+	newName := strings.TrimSpace(req.Msg.NewName)
+	if oldName == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("old_name is required"))
+	}
+	if newName == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("new_name is required"))
+	}
+	if oldName == newName {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("old_name and new_name must differ"))
+	}
+
+	var renamed int
+	err := h.lock.Do(ctx, fmt.Sprintf("rename account: %s → %s", oldName, newName), func() error {
+		// Rename in accounts.journal if the declaration exists there.
+		if declErr := journal.RenameAccountDeclaration(h.dataDir, oldName, newName); declErr != nil {
+			if !strings.Contains(declErr.Error(), "not found") {
+				return declErr
+			}
+		}
+		// Rename in all transaction (YYYY/MM) journal files.
+		n, err := journal.RenameAccountInJournalFiles(h.dataDir, oldName, newName)
+		if err != nil {
+			return err
+		}
+		renamed = n
+		return nil
+	})
+	if err != nil {
+		logger.ErrorContext(ctx, "rename account failed", "old", oldName, "new", newName, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&floatv1.RenameAccountResponse{PostingsRenamed: int32(renamed)}), nil
+}
+
 func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request[floatv1.BulkEditTransactionsRequest]) (*connect.Response[floatv1.BulkEditTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
 
