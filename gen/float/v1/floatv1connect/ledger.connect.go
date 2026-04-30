@@ -97,6 +97,9 @@ const (
 	// LedgerServiceDeleteAccountDeclarationProcedure is the fully-qualified name of the LedgerService's
 	// DeleteAccountDeclaration RPC.
 	LedgerServiceDeleteAccountDeclarationProcedure = "/float.v1.LedgerService/DeleteAccountDeclaration"
+	// LedgerServiceRenameAccountProcedure is the fully-qualified name of the LedgerService's
+	// RenameAccount RPC.
+	LedgerServiceRenameAccountProcedure = "/float.v1.LedgerService/RenameAccount"
 	// LedgerServiceBulkEditTransactionsProcedure is the fully-qualified name of the LedgerService's
 	// BulkEditTransactions RPC.
 	LedgerServiceBulkEditTransactionsProcedure = "/float.v1.LedgerService/BulkEditTransactions"
@@ -187,6 +190,7 @@ type LedgerServiceClient interface {
 	ListAccountDeclarations(context.Context, *connect.Request[v1.ListAccountDeclarationsRequest]) (*connect.Response[v1.ListAccountDeclarationsResponse], error)
 	DeclareAccount(context.Context, *connect.Request[v1.DeclareAccountRequest]) (*connect.Response[v1.DeclareAccountResponse], error)
 	DeleteAccountDeclaration(context.Context, *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error)
+	RenameAccount(context.Context, *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error)
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
@@ -357,6 +361,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("DeleteAccountDeclaration")),
 			connect.WithClientOptions(opts...),
 		),
+		renameAccount: connect.NewClient[v1.RenameAccountRequest, v1.RenameAccountResponse](
+			httpClient,
+			baseURL+LedgerServiceRenameAccountProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("RenameAccount")),
+			connect.WithClientOptions(opts...),
+		),
 		bulkEditTransactions: connect.NewClient[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse](
 			httpClient,
 			baseURL+LedgerServiceBulkEditTransactionsProcedure,
@@ -516,6 +526,7 @@ type ledgerServiceClient struct {
 	listAccountDeclarations      *connect.Client[v1.ListAccountDeclarationsRequest, v1.ListAccountDeclarationsResponse]
 	declareAccount               *connect.Client[v1.DeclareAccountRequest, v1.DeclareAccountResponse]
 	deleteAccountDeclaration     *connect.Client[v1.DeleteAccountDeclarationRequest, v1.DeleteAccountDeclarationResponse]
+	renameAccount                *connect.Client[v1.RenameAccountRequest, v1.RenameAccountResponse]
 	bulkEditTransactions         *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
 	listSnapshots                *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
 	restoreSnapshot              *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
@@ -648,6 +659,11 @@ func (c *ledgerServiceClient) DeclareAccount(ctx context.Context, req *connect.R
 // DeleteAccountDeclaration calls float.v1.LedgerService.DeleteAccountDeclaration.
 func (c *ledgerServiceClient) DeleteAccountDeclaration(ctx context.Context, req *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error) {
 	return c.deleteAccountDeclaration.CallUnary(ctx, req)
+}
+
+// RenameAccount calls float.v1.LedgerService.RenameAccount.
+func (c *ledgerServiceClient) RenameAccount(ctx context.Context, req *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error) {
+	return c.renameAccount.CallUnary(ctx, req)
 }
 
 // BulkEditTransactions calls float.v1.LedgerService.BulkEditTransactions.
@@ -784,6 +800,7 @@ type LedgerServiceHandler interface {
 	ListAccountDeclarations(context.Context, *connect.Request[v1.ListAccountDeclarationsRequest]) (*connect.Response[v1.ListAccountDeclarationsResponse], error)
 	DeclareAccount(context.Context, *connect.Request[v1.DeclareAccountRequest]) (*connect.Response[v1.DeclareAccountResponse], error)
 	DeleteAccountDeclaration(context.Context, *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error)
+	RenameAccount(context.Context, *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error)
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
@@ -948,6 +965,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceDeleteAccountDeclarationProcedure,
 		svc.DeleteAccountDeclaration,
 		connect.WithSchema(ledgerServiceMethods.ByName("DeleteAccountDeclaration")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceRenameAccountHandler := connect.NewUnaryHandler(
+		LedgerServiceRenameAccountProcedure,
+		svc.RenameAccount,
+		connect.WithSchema(ledgerServiceMethods.ByName("RenameAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceBulkEditTransactionsHandler := connect.NewUnaryHandler(
@@ -1128,6 +1151,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceDeclareAccountHandler.ServeHTTP(w, r)
 		case LedgerServiceDeleteAccountDeclarationProcedure:
 			ledgerServiceDeleteAccountDeclarationHandler.ServeHTTP(w, r)
+		case LedgerServiceRenameAccountProcedure:
+			ledgerServiceRenameAccountHandler.ServeHTTP(w, r)
 		case LedgerServiceBulkEditTransactionsProcedure:
 			ledgerServiceBulkEditTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceListSnapshotsProcedure:
@@ -1267,6 +1292,10 @@ func (UnimplementedLedgerServiceHandler) DeclareAccount(context.Context, *connec
 
 func (UnimplementedLedgerServiceHandler) DeleteAccountDeclaration(context.Context, *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeleteAccountDeclaration is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) RenameAccount(context.Context, *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RenameAccount is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error) {

@@ -67,6 +67,42 @@ func AppendAccountDeclaration(dataDir, name string) error {
 	return nil
 }
 
+// RenameAccountDeclaration renames account directives in accounts.journal. It renames any
+// declaration that is exactly oldName or starts with oldName+":" (sub-accounts).
+// Returns an error if accounts.journal does not exist or no matching declaration is found.
+// Does NOT acquire txlock — callers must wrap in txlock.Do().
+func RenameAccountDeclaration(dataDir, oldName, newName string) error {
+	path := filepath.Join(dataDir, accountsRelPath)
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("journal: accounts.journal not found")
+	}
+	if err != nil {
+		return fmt.Errorf("journal: read %s: %w", accountsRelPath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	found := false
+	for i, line := range lines {
+		m := accountDeclRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		if m[1] == oldName {
+			lines[i] = fmt.Sprintf("account %s", newName)
+			found = true
+		} else if strings.HasPrefix(m[1], oldName+":") {
+			lines[i] = fmt.Sprintf("account %s%s", newName, m[1][len(oldName):])
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("journal: account declaration %q not found", oldName)
+	}
+
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
+}
+
 // DeleteAccountDeclaration removes the account directive with the given name from accounts.journal.
 // Returns an error if accounts.journal does not exist or the name is not found.
 // Does NOT acquire txlock — callers must wrap in txlock.Do().
