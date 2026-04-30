@@ -1302,7 +1302,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 				case *floatv1.BulkEditOperation_RemoveTag:
 					delete(input.Tags, v.RemoveTag.Key)
 				case *floatv1.BulkEditOperation_SetPayee:
-					note := ""
+					note := t.Description // no "|": preserve full description as note
 					if t.Note != nil {
 						note = *t.Note
 					}

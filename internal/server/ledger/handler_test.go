@@ -1860,7 +1860,7 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		if err != nil {
 			t.Skipf("hledger unavailable: %v", err)
 		}
-		// Transaction with an existing note — payee should be set while note is preserved.
+		// Transaction with description only (no "|") — payee should be set and description preserved as note.
 		tx := baseTx("Groceries")
 		fid := appendTx(t, c, dir, tx)
 
@@ -1880,9 +1880,9 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		if got.Payee == nil || *got.Payee != "Costco" {
 			t.Errorf("Payee = %v, want %q", got.Payee, "Costco")
 		}
-		// The original description had no "|", so note should be empty.
-		if got.Note == nil || *got.Note != "" {
-			t.Errorf("Note = %v, want empty string (no note in original)", got.Note)
+		// Original description "Groceries" had no "|", so it becomes the note.
+		if got.Note == nil || *got.Note != "Groceries" {
+			t.Errorf("Note = %v, want %q", got.Note, "Groceries")
 		}
 	})
 
