@@ -1,6 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, CircleCheck, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  flexRender,
+} from "@tanstack/react-table";
+import { Plus, CircleCheck, Pencil, Trash2, Tag, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -499,6 +506,8 @@ export function ImportPage() {
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState(null);
   const [selectedIndices, setSelectedIndices] = useState(new Set());
+  const [sorting, setSorting] = useState([]);
+  const [ruleFilter, setRuleFilter] = useState("all");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState(null);
   const [importResult, setImportResult] = useState(null);
@@ -536,6 +545,8 @@ export function ImportPage() {
         profileName: selectedProfile,
       });
       setCandidates(res.candidates);
+      setSorting([]);
+      setRuleFilter("all");
       // Pre-select all non-duplicate candidates.
       const autoSelected = new Set();
       res.candidates.forEach((c, i) => {
@@ -602,6 +613,89 @@ export function ImportPage() {
   }
 
   const newCount = candidates ? candidates.filter((c) => !c.isDuplicate).length : 0;
+
+  const columns = useMemo(() => [
+    {
+      id: "select",
+      header: () => null,
+      cell: ({ row }) => (
+        <Checkbox
+          checked={selectedIndices.has(row.original._originalIndex)}
+          disabled={row.original.isDuplicate}
+          onCheckedChange={() => toggleCandidate(row.original._originalIndex)}
+        />
+      ),
+      enableSorting: false,
+    },
+    {
+      id: "status",
+      header: "Status",
+      accessorFn: (row) => row.isDuplicate,
+      cell: ({ getValue }) => (
+        <Badge variant={getValue() ? "secondary" : "default"}>
+          {getValue() ? "DUP" : "NEW"}
+        </Badge>
+      ),
+      enableSorting: false,
+    },
+    {
+      id: "date",
+      header: "Date",
+      accessorFn: (row) => row.transaction?.date ?? "",
+      cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
+    },
+    {
+      id: "description",
+      header: "Description",
+      accessorFn: (row) => row.transaction?.description ?? "",
+    },
+    {
+      id: "postings",
+      header: "Postings",
+      cell: ({ row }) => (
+        <div className="text-xs">
+          {(row.original.transaction?.postings ?? []).map((p, j) => (
+            <div key={j}>
+              {p.account}
+              {p.amounts?.[0] && (
+                <span className="ml-1 text-muted-foreground">
+                  {p.amounts[0].commodity}{p.amounts[0].quantity}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      ),
+      enableSorting: false,
+    },
+    {
+      id: "matched",
+      header: "Matched",
+      accessorFn: (row) => row.matchedRuleId ?? "",
+      cell: ({ getValue }) => getValue()
+        ? <Tag className="size-3.5 text-primary" title="Matched a rule" />
+        : <span className="text-muted-foreground">—</span>,
+      enableSorting: false,
+    },
+  ], [selectedIndices, toggleCandidate]);
+
+  const tableData = useMemo(() => {
+    if (!candidates) return [];
+    const withIndex = candidates.map((c, i) => ({ ...c, _originalIndex: i }));
+    if (ruleFilter === "matched") return withIndex.filter((c) => !!c.matchedRuleId);
+    if (ruleFilter === "unmatched") return withIndex.filter((c) => !c.matchedRuleId);
+    return withIndex;
+  }, [candidates, ruleFilter]);
+
+  const table = useReactTable({
+    data: tableData,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -737,7 +831,28 @@ export function ImportPage() {
               <CardTitle>
                 Preview — {candidates.length} transaction(s), {newCount} new
               </CardTitle>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex rounded-md border text-sm">
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "matched", label: "Rule matched" },
+                    { value: "unmatched", label: "No rule" },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRuleFilter(value)}
+                      className={cn(
+                        "px-3 py-1 first:rounded-l-md last:rounded-r-md transition-colors",
+                        ruleFilter === value
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-muted",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <Button variant="ghost" size="sm" onClick={toggleAll}>
                   {selectedIndices.size === newCount ? "Deselect All" : "Select All New"}
                 </Button>
@@ -755,50 +870,45 @@ export function ImportPage() {
           <CardContent>
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead></TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Postings</TableHead>
-                  <TableHead>Matched</TableHead>
-                </TableRow>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => {
+                      const canSort = header.column.getCanSort();
+                      const sorted = header.column.getIsSorted();
+                      return (
+                        <TableHead key={header.id}>
+                          {canSort ? (
+                            <button
+                              type="button"
+                              className="flex items-center gap-1 hover:text-foreground"
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {sorted === "asc" ? (
+                                <ArrowUp className="size-3" />
+                              ) : sorted === "desc" ? (
+                                <ArrowDown className="size-3" />
+                              ) : (
+                                <ArrowUpDown className="size-3 opacity-40" />
+                              )}
+                            </button>
+                          ) : (
+                            flexRender(header.column.columnDef.header, header.getContext())
+                          )}
+                        </TableHead>
+                      );
+                    })}
+                  </TableRow>
+                ))}
               </TableHeader>
               <TableBody>
-                {candidates.map((c, i) => (
-                  <TableRow key={i} className={cn(c.isDuplicate && "opacity-50")}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIndices.has(i)}
-                        disabled={c.isDuplicate}
-                        onCheckedChange={() => toggleCandidate(i)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={c.isDuplicate ? "secondary" : "default"}>
-                        {c.isDuplicate ? "DUP" : "NEW"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">{c.transaction?.date}</TableCell>
-                    <TableCell>{c.transaction?.description}</TableCell>
-                    <TableCell className="text-xs">
-                      {(c.transaction?.postings ?? []).map((p, j) => (
-                        <div key={j}>
-                          {p.account}
-                          {p.amounts?.[0] && (
-                            <span className="ml-1 text-muted-foreground">
-                              {p.amounts[0].commodity}{p.amounts[0].quantity}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </TableCell>
-                    <TableCell>
-                      {c.matchedRuleId
-                        ? <Tag className="size-3.5 text-primary" title="Matched a rule" />
-                        : <span className="text-muted-foreground">—</span>
-                      }
-                    </TableCell>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} className={cn(row.original.isDuplicate && "opacity-50")}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))}
               </TableBody>
