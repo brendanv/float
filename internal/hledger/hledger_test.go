@@ -291,6 +291,7 @@ func TestPortfolioTimeseries(t *testing.T) {
 	}
 	if assetsSub == nil {
 		t.Fatal("Assets subreport not found")
+		return
 	}
 
 	// Last period should include both AAPL and MSFT valued at then-prices.
