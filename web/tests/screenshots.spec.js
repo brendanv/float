@@ -311,27 +311,28 @@ test("rules page - account typeahead filtered", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules-account-typeahead-filtered.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
 });
 
-test("rules page - apply preview", async ({ page }) => {
+test("rules page - apply preview drawer", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // Click "Preview Changes" button
+  // Click "Preview Changes" button — opens a bottom drawer
   await page.click('button:has-text("Preview Changes")');
-  await page.waitForSelector("tbody tr", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: "test-results/rules-apply-preview.png", fullPage: true });
+  // Wait for drawer content to appear
+  await page.waitForSelector('[data-slot="drawer-content"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "test-results/rules-apply-preview.png", fullPage: false });
 });
 
-test("rules page - apply preview section zoomed", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 1800 });
+test("rules page - apply preview drawer mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/rules");
-  // Wait for rule list table to load
   await page.waitForSelector("table tbody tr", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(500);
-  // Click Preview Changes
+  await page.waitForTimeout(400);
+  // Click Preview Changes — opens drawer
   await page.click('button:has-text("Preview Changes")');
-  await page.waitForTimeout(800);
-  await page.screenshot({ path: "test-results/rules-apply-preview-zoomed.png", fullPage: true });
+  await page.waitForSelector('[data-slot="drawer-content"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "test-results/rules-apply-preview-zoomed.png", fullPage: false });
 });
 
 test("rules page - mobile form", async ({ page }) => {

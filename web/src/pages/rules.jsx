@@ -31,6 +31,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 function emptyForm() {
@@ -188,6 +197,7 @@ export function RulesPage() {
   const [selectedFids, setSelectedFids] = useState(new Set());
   const [applying, setApplying] = useState(false);
   const [applyResult, setApplyResult] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const saveRuleMutation = useMutation({
     mutationFn: (payload) =>
@@ -252,6 +262,7 @@ export function RulesPage() {
       const res = await ledgerClient.previewApplyRules({ ruleIds: [], query: [] });
       setApplyPreviews(res.previews);
       setSelectedFids(new Set(res.previews.map((p) => p.fid)));
+      setDrawerOpen(true);
     } catch (err) {
       setApplyError(err);
     } finally {
@@ -280,6 +291,7 @@ export function RulesPage() {
       });
       setApplyResult(res.appliedCount);
       setApplyPreviews(null);
+      setDrawerOpen(false);
     } catch (err) {
       setApplyError(err);
     } finally {
@@ -527,7 +539,6 @@ export function RulesPage() {
               )
             )}
           </div>
-          {applyError && <div className="mt-3"><ErrorBanner error={applyError} /></div>}
           {applyResult !== null && (
             <Alert className="mt-3">
               <CircleCheck className="size-4 text-success" />
@@ -536,11 +547,23 @@ export function RulesPage() {
               </AlertDescription>
             </Alert>
           )}
-          {applyPreviews && applyPreviews.length === 0 && (
-            <p className="mt-3 text-muted-foreground">No transactions match any rules.</p>
-          )}
+        </CardContent>
+      </Card>
+
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="bottom">
+        <DrawerContent className="max-h-[80vh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Preview Changes</DrawerTitle>
+            {applyPreviews && (
+              <DrawerDescription>
+                {applyPreviews.length === 0
+                  ? "No transactions match any rules."
+                  : `${applyPreviews.length} transaction(s) will be updated by the current rules.`}
+              </DrawerDescription>
+            )}
+          </DrawerHeader>
           {applyPreviews && applyPreviews.length > 0 && (
-            <div className="mt-3 flex flex-col gap-3">
+            <div className="overflow-y-auto px-4">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -597,6 +620,11 @@ export function RulesPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          <DrawerFooter>
+            {applyError && <ErrorBanner error={applyError} />}
+            {applyPreviews && applyPreviews.length > 0 && (
               <Button
                 size="sm"
                 onClick={handleApply}
@@ -605,10 +633,13 @@ export function RulesPage() {
                 {applying && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                 {applying ? "Applying…" : `Apply to ${selectedFids.size} Transaction(s)`}
               </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+            <DrawerClose asChild>
+              <Button variant="outline" size="sm">Cancel</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
