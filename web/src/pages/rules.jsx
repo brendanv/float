@@ -6,10 +6,11 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { CircleCheck, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { CircleCheck, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -40,6 +41,18 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 function emptyForm() {
@@ -171,18 +184,24 @@ export function RulesPage() {
   // Table state
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 });
 
   const rules = useMemo(() => rulesData?.rules ?? [], [rulesData]);
 
   const table = useReactTable({
     data: rules,
     columns: rulesColumns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, pagination },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: (filter) => {
+      setGlobalFilter(filter);
+      setPagination((p) => ({ ...p, pageIndex: 0 }));
+    },
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
     globalFilterFn: "includesString",
   });
@@ -474,6 +493,7 @@ export function RulesPage() {
             <p className="text-muted-foreground">No rules yet. Add one above.</p>
           )}
           {rulesData && rules.length > 0 && (
+            <>
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -518,6 +538,70 @@ export function RulesPage() {
                   ))}
                 </TableBody>
               </Table>
+              {table.getFilteredRowModel().rows.length > 0 && (
+                <div className="mt-3 flex w-full items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
+                    <Select
+                      value={String(table.getState().pagination.pageSize)}
+                      onValueChange={(val) => {
+                        table.setPageSize(Number(val));
+                        setPagination((p) => ({ ...p, pageIndex: 0 }));
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-16">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="whitespace-nowrap text-sm text-muted-foreground">
+                      {(() => {
+                        const { pageIndex, pageSize } = table.getState().pagination;
+                        const total = table.getFilteredRowModel().rows.length;
+                        const from = pageIndex * pageSize + 1;
+                        const to = Math.min((pageIndex + 1) * pageSize, total);
+                        return `${from}–${to} of ${total}`;
+                      })()}
+                    </span>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <Button
+                            aria-label="Go to previous page"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8"
+                            onClick={() => table.previousPage()}
+                            disabled={!table.getCanPreviousPage()}
+                          >
+                            <ChevronLeftIcon className="size-4" />
+                          </Button>
+                        </PaginationItem>
+                        <PaginationItem>
+                          <Button
+                            aria-label="Go to next page"
+                            size="icon"
+                            variant="ghost"
+                            className="size-8"
+                            onClick={() => table.nextPage()}
+                            disabled={!table.getCanNextPage()}
+                          >
+                            <ChevronRightIcon className="size-4" />
+                          </Button>
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                </div>
+              )}
+            </>
           )}
           <Separator className="my-4" />
           <div className="flex items-center gap-3">
