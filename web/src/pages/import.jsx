@@ -127,7 +127,7 @@ function buildRulesContent({ account, columnMappings, dateFormat }) {
     fieldsLine,
     `date-format ${dateFormat || "%Y-%m-%d"}`,
     `account1 ${account || "assets:checking"}`,
-    "currency $",
+    "currency USD",
     "",
     "# Add conditional rules to categorize transactions:",
     "# if AMAZON",
