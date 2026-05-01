@@ -6,6 +6,7 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
@@ -171,18 +172,24 @@ export function RulesPage() {
   // Table state
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 });
 
   const rules = useMemo(() => rulesData?.rules ?? [], [rulesData]);
 
   const table = useReactTable({
     data: rules,
     columns: rulesColumns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, pagination },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: (filter) => {
+      setGlobalFilter(filter);
+      setPagination((p) => ({ ...p, pageIndex: 0 }));
+    },
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
     globalFilterFn: "includesString",
   });
@@ -474,6 +481,7 @@ export function RulesPage() {
             <p className="text-muted-foreground">No rules yet. Add one above.</p>
           )}
           {rulesData && rules.length > 0 && (
+            <>
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -518,6 +526,33 @@ export function RulesPage() {
                   ))}
                 </TableBody>
               </Table>
+              {table.getPageCount() > 1 && (
+                <div className="mt-3 flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                  <span>
+                    {table.getFilteredRowModel().rows.length} rule(s) &mdash; page{" "}
+                    {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
           <Separator className="my-4" />
           <div className="flex items-center gap-3">
