@@ -2254,6 +2254,9 @@ func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[fl
 		if m.Changes.NewPayee != nil {
 			p.NewPayee = *m.Changes.NewPayee
 		}
+		if m.Changes.MarkReviewed != nil && *m.Changes.MarkReviewed {
+			p.WillMarkReviewed = true
+		}
 		previews[i] = p
 	}
 	return connect.NewResponse(&floatv1.PreviewApplyRulesResponse{Previews: previews}), nil

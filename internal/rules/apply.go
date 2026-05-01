@@ -11,9 +11,10 @@ import (
 
 // ChangeSet describes the changes a rule would apply to a transaction.
 type ChangeSet struct {
-	NewPayee   *string           // nil = no change
-	NewAccount *string           // nil = no change (the category posting account)
-	AddTags    map[string]string // tags to add (nil or empty = no change)
+	NewPayee     *string           // nil = no change
+	NewAccount   *string           // nil = no change (the category posting account)
+	AddTags      map[string]string // tags to add (nil or empty = no change)
+	MarkReviewed *bool             // nil = no change; true = mark Cleared
 }
 
 // RuleMatch pairs a transaction with the rule that matched it and the proposed changes.
@@ -142,6 +143,13 @@ func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m R
 		}
 	}
 
+	// Apply reviewed status.
+	if changes.MarkReviewed != nil && *changes.MarkReviewed {
+		if err := journal.UpdateTransactionStatus(ctx, client, dataDir, txn.FID, "Cleared"); err != nil {
+			return fmt.Errorf("mark reviewed: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -189,12 +197,17 @@ func buildChangeSet(rule Rule, txn hledger.Transaction) ChangeSet {
 		}
 	}
 
+	if rule.AutoReviewed && txn.Status != "Cleared" {
+		t := true
+		cs.MarkReviewed = &t
+	}
+
 	return cs
 }
 
 // hasChanges returns true if cs would change anything.
 func hasChanges(cs ChangeSet) bool {
-	return cs.NewPayee != nil || cs.NewAccount != nil || len(cs.AddTags) > 0
+	return cs.NewPayee != nil || cs.NewAccount != nil || len(cs.AddTags) > 0 || cs.MarkReviewed != nil
 }
 
 // categoryPostingIndex returns the index of the "category" posting (the
