@@ -83,9 +83,12 @@ test("accounts page - rename dialog input", async ({ page }) => {
   await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(600);
-  await page.locator("button", { hasText: "Rename" }).first().click();
+  await page.locator("button", { hasText: "Rename Account" }).first().click();
   await page.waitForSelector('[data-slot="dialog-content"]');
   await page.waitForTimeout(200);
+  await page.locator('[data-slot="dialog-content"] [role="combobox"]').click();
+  await page.waitForSelector('[role="option"]');
+  await page.locator('[role="option"]', { hasText: "assets:checking" }).first().click();
   const newNameInput = page.locator('#rename-new');
   await newNameInput.click();
   await newNameInput.fill("assets:bank:checking");
@@ -93,13 +96,30 @@ test("accounts page - rename dialog input", async ({ page }) => {
   await page.screenshot({ path: "test-results/accounts-rename-input.png", fullPage: false });
 });
 
+test("accounts page - rename dialog typeahead open", async ({ page }) => {
+  await page.goto("/#/accounts");
+  await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(600);
+  await page.locator("button", { hasText: "Rename Account" }).first().click();
+  await page.waitForSelector('[data-slot="dialog-content"]');
+  await page.waitForTimeout(200);
+  await page.locator('[data-slot="dialog-content"] [role="combobox"]').click();
+  await page.waitForSelector('[role="option"]');
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/accounts-rename-typeahead.png", fullPage: false });
+});
+
 test("accounts page - rename dialog confirm", async ({ page }) => {
   await page.goto("/#/accounts");
   await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(600);
-  await page.locator("button", { hasText: "Rename" }).first().click();
+  await page.locator("button", { hasText: "Rename Account" }).first().click();
   await page.waitForSelector('[data-slot="dialog-content"]');
+  await page.locator('[data-slot="dialog-content"] [role="combobox"]').click();
+  await page.waitForSelector('[role="option"]');
+  await page.locator('[role="option"]', { hasText: "assets:checking" }).first().click();
   const newNameInput = page.locator('#rename-new');
   await newNameInput.click();
   await newNameInput.fill("assets:bank:checking");

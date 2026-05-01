@@ -4,9 +4,10 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { AccountInput } from "../components/posting-fields.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronRight } from "lucide-react";
+import { Loader2, ChevronRight, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -46,7 +47,7 @@ function buildTree(declarations) {
   return { byName, children, roots };
 }
 
-function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, deletingName, declaredNames }) {
+function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName, declaredNames }) {
   const [expanded, setExpanded] = useState(true);
   const kids = children.get(name) ?? [];
   const decl = byName.get(name);
@@ -72,14 +73,6 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, de
           )}
         </button>
         <span className="font-mono text-sm flex-1">{label}</span>
-        <Button
-          variant="ghost"
-          size="xs"
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => onRename(name)}
-        >
-          Rename
-        </Button>
         {declaredNames.has(name) && !decl?.hasPostings && (
           <Button
             variant="ghost"
@@ -106,7 +99,6 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, de
               children={children}
               depth={depth + 1}
               onDelete={onDelete}
-              onRename={onRename}
               deletingName={deletingName}
               declaredNames={declaredNames}
             />
@@ -128,7 +120,7 @@ export function AccountsPage() {
   const [name, setName] = useState("");
   const [formError, setFormError] = useState(null);
   const [deletingName, setDeletingName] = useState(null);
-  const [renamingName, setRenamingName] = useState(null);
+  const [renameOpen, setRenameOpen] = useState(false);
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.declareAccount(vars),
@@ -164,18 +156,19 @@ export function AccountsPage() {
     deleteMutation.mutate({ name });
   }
 
-  function handleRename(name) {
-    setFormError(null);
-    setRenamingName(name);
-  }
-
   const declarations = data?.declarations ?? [];
   const declaredNames = new Set(declarations.map((d) => d.name));
   const { byName, children, roots } = buildTree(declarations);
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Account Declarations</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">Account Declarations</h2>
+        <Button variant="outline" onClick={() => { setFormError(null); setRenameOpen(true); }}>
+          <Pencil data-icon="inline-start" className="size-3.5" />
+          Rename Account
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>
@@ -222,31 +215,21 @@ export function AccountsPage() {
                     <div key={root} className="rounded-md border overflow-hidden">
                       <div className="px-3 py-2 bg-muted/40 border-b flex items-center justify-between gap-2">
                         <span className="font-semibold text-sm capitalize">{root}</span>
-                        <div className="flex items-center gap-1">
+                        {declaredNames.has(root) && !rootDecl?.hasPostings && (
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="text-xs h-6"
-                            onClick={() => handleRename(root)}
+                            className="text-destructive text-xs h-6"
+                            disabled={deletingName === root}
+                            onClick={() => handleDelete(root)}
                           >
-                            Rename
+                            {deletingName === root ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              "Delete"
+                            )}
                           </Button>
-                          {declaredNames.has(root) && !rootDecl?.hasPostings && (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              className="text-destructive text-xs h-6"
-                              disabled={deletingName === root}
-                              onClick={() => handleDelete(root)}
-                            >
-                              {deletingName === root ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                "Delete"
-                              )}
-                            </Button>
-                          )}
-                        </div>
+                        )}
                       </div>
                       {kids.length > 0 && (
                         <div>
@@ -258,7 +241,6 @@ export function AccountsPage() {
                               children={children}
                               depth={0}
                               onDelete={handleDelete}
-                              onRename={handleRename}
                               deletingName={deletingName}
                               declaredNames={declaredNames}
                             />
@@ -277,27 +259,34 @@ export function AccountsPage() {
       </Card>
 
       <RenameAccountDialog
-        oldName={renamingName}
-        open={renamingName !== null}
-        onOpenChange={(open) => { if (!open) setRenamingName(null); }}
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
       />
     </div>
   );
 }
 
-function RenameAccountDialog({ oldName, open, onOpenChange }) {
+function RenameAccountDialog({ open, onOpenChange }) {
   const queryClient = useQueryClient();
+  const [oldName, setOldName] = useState("");
   const [newName, setNewName] = useState("");
   const [step, setStep] = useState("input");
   const [error, setError] = useState(null);
 
+  const { data: accountsData } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+    enabled: open,
+  });
+
   useEffect(() => {
     if (open) {
-      setNewName(oldName ?? "");
+      setOldName("");
+      setNewName("");
       setStep("input");
       setError(null);
     }
-  }, [open, oldName]);
+  }, [open]);
 
   const renameMutation = useMutation({
     mutationFn: (vars) => ledgerClient.renameAccount(vars),
@@ -316,12 +305,17 @@ function RenameAccountDialog({ oldName, open, onOpenChange }) {
   function handleContinue(e) {
     e.preventDefault();
     setError(null);
-    const trimmed = newName.trim();
-    if (!trimmed) {
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    if (!trimmedOld) {
+      setError(new Error("Pick the account to rename."));
+      return;
+    }
+    if (!trimmedNew) {
       setError(new Error("New account name is required."));
       return;
     }
-    if (trimmed === oldName) {
+    if (trimmedNew === trimmedOld) {
       setError(new Error("New account name must differ from the current name."));
       return;
     }
@@ -330,7 +324,7 @@ function RenameAccountDialog({ oldName, open, onOpenChange }) {
 
   function handleConfirm() {
     setError(null);
-    renameMutation.mutate({ oldName, newName: newName.trim() });
+    renameMutation.mutate({ oldName: oldName.trim(), newName: newName.trim() });
   }
 
   return (
@@ -339,7 +333,7 @@ function RenameAccountDialog({ oldName, open, onOpenChange }) {
         <DialogHeader>
           <DialogTitle>Rename Account</DialogTitle>
           <DialogDescription>
-            Renames this account in the declaration file and across every posting in your
+            Renames an account in the declaration file and across every posting in your
             journal history.
           </DialogDescription>
         </DialogHeader>
@@ -347,8 +341,13 @@ function RenameAccountDialog({ oldName, open, onOpenChange }) {
         {step === "input" ? (
           <form onSubmit={handleContinue} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label>Current name</Label>
-              <Input value={oldName ?? ""} readOnly className="font-mono" />
+              <Label>Account to rename</Label>
+              <AccountInput
+                value={oldName}
+                onChange={setOldName}
+                accounts={accountsData?.accounts || []}
+                placeholder="Select account"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rename-new">New name</Label>
@@ -358,7 +357,6 @@ function RenameAccountDialog({ oldName, open, onOpenChange }) {
                 placeholder="assets:bank:checking"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                autoFocus
                 required
                 className="font-mono"
               />
@@ -374,14 +372,14 @@ function RenameAccountDialog({ oldName, open, onOpenChange }) {
           <div className="flex flex-col gap-4">
             <div className="rounded-md border bg-muted/40 p-3 text-xs">
               <div className="text-muted-foreground">Rename</div>
-              <div className="font-mono">{oldName}</div>
+              <div className="font-mono">{oldName.trim()}</div>
               <div className="text-muted-foreground mt-2">to</div>
               <div className="font-mono">{newName.trim()}</div>
             </div>
             <p className="text-xs text-muted-foreground">
               This updates the account declaration and rewrites every posting that references{" "}
-              <span className="font-mono">{oldName}</span> or any sub-account beneath it. The
-              change is committed to the snapshot history and cannot be undone except by
+              <span className="font-mono">{oldName.trim()}</span> or any sub-account beneath it.
+              The change is committed to the snapshot history and cannot be undone except by
               restoring a snapshot.
             </p>
             <DialogFooter>
