@@ -7,7 +7,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -221,7 +221,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
   );
 }
 
-function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
+function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) {
   function toFields(ps) {
     return (ps || []).map((p) => {
       const a = p.amounts && p.amounts[0];
@@ -286,6 +286,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
       ) : (
         <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
       )}
+      <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onTagsChanged} />
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       <div className="mt-3 flex justify-between gap-2">
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -318,6 +319,118 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function TagEditor({ fid, tags, onChanged }) {
+  const [adding, setAdding] = useState(false);
+  const [tagKey, setTagKey] = useState("");
+  const [tagValue, setTagValue] = useState("");
+  const [working, setWorking] = useState(false);
+  const [removingKey, setRemovingKey] = useState(null);
+  const [error, setError] = useState(null);
+
+  const isBusy = working || removingKey !== null;
+
+  async function removeTag(key) {
+    setRemovingKey(key);
+    setError(null);
+    try {
+      await ledgerClient.bulkEditTransactions({
+        fids: [fid],
+        operations: [{ operation: { case: "removeTag", value: { key } } }],
+      });
+      if (onChanged) onChanged();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setRemovingKey(null);
+    }
+  }
+
+  async function addTag() {
+    if (!tagKey.trim()) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await ledgerClient.bulkEditTransactions({
+        fids: [fid],
+        operations: [{ operation: { case: "addTag", value: { key: tagKey.trim(), value: tagValue.trim() } } }],
+      });
+      setTagKey("");
+      setTagValue("");
+      setAdding(false);
+      if (onChanged) onChanged();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  function cancelAdd() {
+    setAdding(false);
+    setTagKey("");
+    setTagValue("");
+    setError(null);
+  }
+
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-center gap-1">
+        {Object.entries(tags || {}).map(([k, v]) => (
+          <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
+            {v ? `${k}:${v}` : k}
+            {removingKey === k ? (
+              <Loader2 className="size-2.5 animate-spin" />
+            ) : (
+              <button
+                className="rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
+                onClick={() => removeTag(k)}
+                disabled={isBusy}
+                title={`Remove tag "${k}"`}
+              >
+                <X className="size-2.5" />
+              </button>
+            )}
+          </Badge>
+        ))}
+        {adding ? (
+          <>
+            <Input
+              className="h-6 w-24"
+              placeholder="key"
+              value={tagKey}
+              onChange={(e) => setTagKey(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") cancelAdd(); }}
+              autoFocus
+            />
+            <Input
+              className="h-6 w-28"
+              placeholder="value (optional)"
+              value={tagValue}
+              onChange={(e) => setTagValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") cancelAdd(); }}
+            />
+            <Button size="xs" disabled={working || !tagKey.trim()} onClick={addTag}>
+              {working ? <Loader2 className="size-3 animate-spin" /> : "Add"}
+            </Button>
+            <Button variant="ghost" size="xs" disabled={working} onClick={cancelAdd}>Cancel</Button>
+          </>
+        ) : (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground"
+            onClick={() => setAdding(true)}
+            disabled={isBusy}
+          >
+            + Tag
+          </Button>
+        )}
+      </div>
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -670,6 +783,7 @@ export function TransactionTable({
                 selectedFids={selectedFids}
                 accounts={accounts}
                 onStatusChange={onStatusChange}
+                onTagsChanged={onStatusChange}
                 onDeleted={onDeleted}
                 visibleColumnCount={visibleColumnCount}
               />
@@ -734,7 +848,7 @@ export function TransactionTable({
 
 // ── desktop row (with optional expansion) ─────────────────────────────────
 
-function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onDeleted, visibleColumnCount }) {
+function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onTagsChanged, onDeleted, visibleColumnCount }) {
   const tx = row.original;
   const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
 
@@ -764,6 +878,7 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
               accounts={accounts}
               onSaved={() => { row.toggleExpanded(); if (onStatusChange) onStatusChange(); }}
               onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+              onTagsChanged={onTagsChanged}
             />
           </TableCell>
         </TableRow>
@@ -874,6 +989,7 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             accounts={accounts}
             onSaved={onStatusChange}
             onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+            onTagsChanged={onStatusChange}
           />
         )}
       </CardContent>
