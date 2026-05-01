@@ -78,6 +78,37 @@ test("accounts page", async ({ page }) => {
   await page.screenshot({ path: "test-results/accounts.png", fullPage: true });
 });
 
+test("accounts page - rename dialog input", async ({ page }) => {
+  await page.goto("/#/accounts");
+  await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(600);
+  await page.locator("button", { hasText: "Rename" }).first().click();
+  await page.waitForSelector('[data-slot="dialog-content"]');
+  await page.waitForTimeout(200);
+  const newNameInput = page.locator('#rename-new');
+  await newNameInput.click();
+  await newNameInput.fill("assets:bank:checking");
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/accounts-rename-input.png", fullPage: false });
+});
+
+test("accounts page - rename dialog confirm", async ({ page }) => {
+  await page.goto("/#/accounts");
+  await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(600);
+  await page.locator("button", { hasText: "Rename" }).first().click();
+  await page.waitForSelector('[data-slot="dialog-content"]');
+  const newNameInput = page.locator('#rename-new');
+  await newNameInput.click();
+  await newNameInput.fill("assets:bank:checking");
+  await page.locator('[data-slot="dialog-content"]').locator("button", { hasText: "Continue" }).click();
+  await page.waitForSelector('button:has-text("Confirm Rename")');
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/accounts-rename-confirm.png", fullPage: false });
+});
+
 test("transactions page - filter dropdown open", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
