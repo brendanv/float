@@ -356,46 +356,23 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Valued balances let hledger convert commodities to USD using P directives.
-	// Commodities without a matching price directive are returned unconverted.
-	valued, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", 0, query)
-	if err != nil {
-		logger.ErrorContext(ctx, "hledger valued balances failed for portfolio", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	// Cost-basis balances convert commodity amounts using recorded purchase cost (@).
-	cost, err := cachedBalancesCost(ctx, h.cache, h.hl, 0, query)
-	if err != nil {
-		logger.ErrorContext(ctx, "hledger cost balances failed for portfolio", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	// Build symbol→latestPriceDate from the prices journal for PriceDate population.
+	// Build symbol→latestPriceInfo from the prices journal.
+	// priceInfo holds the most recent price amount and currency for each commodity,
+	// used to compute CurrentValue and LatestPrice per holding.
 	priceList, err := journal.ListPrices(h.dataDir)
 	if err != nil {
 		logger.WarnContext(ctx, "could not read prices for price dates", "error", err)
 	}
-	latestPriceDate := make(map[string]string)
+	type priceInfo struct {
+		date     string
+		quantity float64
+		currency string
+	}
+	latestPriceInfo := make(map[string]priceInfo)
 	for _, p := range priceList {
-		if existing := latestPriceDate[p.Commodity]; p.Date > existing {
-			latestPriceDate[p.Commodity] = p.Date
-		}
-	}
-
-	// Index valued and cost rows by account name for O(1) lookup.
-	valuedByAccount := make(map[string][]hledger.Amount, len(valued.Rows))
-	for _, row := range valued.Rows {
-		valuedByAccount[row.FullName] = row.Amounts
-	}
-	costByAccount := make(map[string]float64, len(cost.Rows))
-	costCurrencyByAccount := make(map[string]string, len(cost.Rows))
-	for _, row := range cost.Rows {
-		for _, amt := range row.Amounts {
-			if currencySymbols[amt.Commodity] {
-				costByAccount[row.FullName] = amt.Quantity.FloatingPoint
-				costCurrencyByAccount[row.FullName] = amt.Commodity
-			}
+		qty, _ := strconv.ParseFloat(p.Quantity, 64)
+		if existing := latestPriceInfo[p.Commodity]; p.Date > existing.date {
+			latestPriceInfo[p.Commodity] = priceInfo{date: p.Date, quantity: qty, currency: p.Currency}
 		}
 	}
 
@@ -412,7 +389,12 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		mantissa int64
 		scale    int
 	}
+	type costBasis struct {
+		total    float64
+		currency string
+	}
 	aggregated := make(map[holdingKey]exactQty)
+	costByHolding := make(map[holdingKey]costBasis)
 	var holdingOrder []holdingKey
 	for _, row := range raw.Rows {
 		for _, amt := range row.Amounts {
@@ -442,6 +424,20 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			}
 			cur.mantissa += m
 			aggregated[k] = cur
+
+			if c, err := amt.ParseCost(); err == nil && c != nil {
+				var lotCost float64
+				switch c.Tag {
+				case "TotalCost":
+					lotCost = c.Contents.Quantity.FloatingPoint
+				case "UnitCost":
+					lotCost = c.Contents.Quantity.FloatingPoint * amt.Quantity.FloatingPoint
+				}
+				cb := costByHolding[k]
+				cb.total += lotCost
+				cb.currency = c.Contents.Commodity
+				costByHolding[k] = cb
+			}
 		}
 	}
 
@@ -464,48 +460,42 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			Account:   k.account,
 			Symbol:    k.symbol,
 			Quantity:  fmt.Sprintf("%g", qty),
-			PriceDate: latestPriceDate[k.symbol],
+			PriceDate: latestPriceInfo[k.symbol].date,
 		}
 
-		// Check whether hledger converted this commodity in the valued report.
-		// If the valued commodity differs from the raw commodity, the conversion
-		// succeeded and CurrentValue contains the hledger-computed market value.
-		if valuedAmts := valuedByAccount[k.account]; len(valuedAmts) > 0 {
-			for _, vAmt := range valuedAmts {
-				if vAmt.Commodity != k.symbol {
-					value := vAmt.Quantity.FloatingPoint
-					holding.CurrentValue = &floatv1.Amount{
-						Commodity: vAmt.Commodity,
-						Quantity:  fmt.Sprintf("%.2f", value),
-					}
-					// Derive the per-unit price from value ÷ quantity.
-					if qty != 0 {
-						holding.LatestPrice = &floatv1.Amount{
-							Commodity: vAmt.Commodity,
-							Quantity:  fmt.Sprintf("%.2f", value/qty),
-						}
-					}
-					break
+		// Compute CurrentValue and LatestPrice from the price list.
+		// Using the price list directly (rather than a hledger --value balance) gives
+		// per-commodity values even when multiple commodities share the same account.
+		if info, ok := latestPriceInfo[k.symbol]; ok {
+			value := qty * info.quantity
+			holding.CurrentValue = &floatv1.Amount{
+				Commodity: info.currency,
+				Quantity:  fmt.Sprintf("%.2f", value),
+			}
+			if qty != 0 {
+				holding.LatestPrice = &floatv1.Amount{
+					Commodity: info.currency,
+					Quantity:  fmt.Sprintf("%.2f", info.quantity),
 				}
 			}
 		}
 
-		// Populate cost basis and unrealized gain when available.
-		if bookVal, ok := costByAccount[k.account]; ok {
-			currency := costCurrencyByAccount[k.account]
+		// Populate cost basis and unrealized gain from per-lot acost annotations
+		// aggregated during the raw balance pass above.
+		if cb, ok := costByHolding[k]; ok && cb.currency != "" {
 			holding.BookValue = &floatv1.Amount{
-				Commodity: currency,
-				Quantity:  fmt.Sprintf("%.2f", bookVal),
+				Commodity: cb.currency,
+				Quantity:  fmt.Sprintf("%.2f", cb.total),
 			}
 			if holding.CurrentValue != nil {
 				currentVal, _ := strconv.ParseFloat(holding.CurrentValue.Quantity, 64)
-				gain := currentVal - bookVal
+				gain := currentVal - cb.total
 				holding.UnrealizedGain = &floatv1.Amount{
-					Commodity: currency,
+					Commodity: cb.currency,
 					Quantity:  fmt.Sprintf("%.2f", gain),
 				}
-				if bookVal != 0 {
-					holding.UnrealizedGainPct = gain / bookVal * 100
+				if cb.total != 0 {
+					holding.UnrealizedGainPct = gain / cb.total * 100
 				}
 			}
 		}

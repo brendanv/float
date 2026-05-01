@@ -2469,3 +2469,160 @@ include 2026/01.journal
 		t.Errorf("MSFT quantity = %q, want %q", msft.Quantity, "4")
 	}
 }
+
+func TestGetPortfolioHoldings_PerCommodityValues(t *testing.T) {
+	dir := t.TempDir()
+
+	main := `; float main journal
+account assets:investments:aapl
+account assets:checking
+
+include prices.journal
+include 2026/01.journal
+`
+	prices := `P 2026-01-25 AAPL 200.00 USD
+`
+	txns := `2026-01-05 Buy AAPL lot 1
+    assets:investments:aapl    10 AAPL @ 150.00 USD
+    assets:checking           -1500.00 USD
+
+2026-01-10 Buy AAPL lot 2
+    assets:investments:aapl     8 AAPL @ 125.00 USD
+    assets:checking           -1000.00 USD
+`
+
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "prices.journal"), []byte(prices), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(txns), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetPortfolioHoldings(t.Context(), connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioHoldings: %v", err)
+	}
+
+	var aapl *floatv1.Holding
+	for _, holding := range resp.Msg.Holdings {
+		if holding.Symbol == "AAPL" {
+			aapl = holding
+		}
+	}
+	if aapl == nil {
+		t.Fatalf("AAPL not found in holdings")
+	}
+
+	// 18 shares total (10 + 8)
+	if aapl.Quantity != "18" {
+		t.Errorf("Quantity = %q, want %q", aapl.Quantity, "18")
+	}
+	// CurrentValue = 18 × $200 = $3600
+	if aapl.CurrentValue == nil || aapl.CurrentValue.Quantity != "3600.00" {
+		t.Errorf("CurrentValue = %v, want 3600.00 USD", aapl.CurrentValue)
+	}
+	// BookValue = (10 × $150) + (8 × $125) = $1500 + $1000 = $2500
+	if aapl.BookValue == nil || aapl.BookValue.Quantity != "2500.00" {
+		t.Errorf("BookValue = %v, want 2500.00 USD", aapl.BookValue)
+	}
+	// UnrealizedGain = $3600 - $2500 = $1100
+	if aapl.UnrealizedGain == nil || aapl.UnrealizedGain.Quantity != "1100.00" {
+		t.Errorf("UnrealizedGain = %v, want 1100.00 USD", aapl.UnrealizedGain)
+	}
+}
+
+func TestGetPortfolioHoldings_MultiCommoditySameAccount(t *testing.T) {
+	dir := t.TempDir()
+
+	// Both AAPL and GOOG are held in the same account. The old code keyed
+	// cost and valued-balance data by account name only, so both holdings
+	// would receive the combined account total instead of per-commodity values.
+	main := `; float main journal
+account assets:investments
+account assets:checking
+
+include prices.journal
+include 2026/01.journal
+`
+	prices := `P 2026-01-25 AAPL 200.00 USD
+P 2026-01-25 GOOG 120.00 USD
+`
+	txns := `2026-01-05 Buy AAPL
+    assets:investments    10 AAPL @ 150.00 USD
+    assets:checking      -1500.00 USD
+
+2026-01-06 Buy GOOG
+    assets:investments     5 GOOG @ 100.00 USD
+    assets:checking       -500.00 USD
+`
+
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "prices.journal"), []byte(prices), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(txns), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetPortfolioHoldings(t.Context(), connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioHoldings: %v", err)
+	}
+
+	bySymbol := make(map[string]*floatv1.Holding)
+	for _, holding := range resp.Msg.Holdings {
+		bySymbol[holding.Symbol] = holding
+	}
+
+	aapl, ok := bySymbol["AAPL"]
+	if !ok {
+		t.Fatalf("AAPL not found in holdings")
+	}
+	goog, ok := bySymbol["GOOG"]
+	if !ok {
+		t.Fatalf("GOOG not found in holdings")
+	}
+
+	// AAPL: 10 shares @ $150 cost, current $200
+	// CurrentValue = 10 × $200 = $2000
+	if aapl.CurrentValue == nil || aapl.CurrentValue.Quantity != "2000.00" {
+		t.Errorf("AAPL CurrentValue = %v, want 2000.00 USD", aapl.CurrentValue)
+	}
+	// BookValue = 10 × $150 = $1500
+	if aapl.BookValue == nil || aapl.BookValue.Quantity != "1500.00" {
+		t.Errorf("AAPL BookValue = %v, want 1500.00 USD", aapl.BookValue)
+	}
+	// UnrealizedGain = $2000 - $1500 = $500
+	if aapl.UnrealizedGain == nil || aapl.UnrealizedGain.Quantity != "500.00" {
+		t.Errorf("AAPL UnrealizedGain = %v, want 500.00 USD", aapl.UnrealizedGain)
+	}
+
+	// GOOG: 5 shares @ $100 cost, current $120
+	// CurrentValue = 5 × $120 = $600
+	if goog.CurrentValue == nil || goog.CurrentValue.Quantity != "600.00" {
+		t.Errorf("GOOG CurrentValue = %v, want 600.00 USD", goog.CurrentValue)
+	}
+	// BookValue = 5 × $100 = $500
+	if goog.BookValue == nil || goog.BookValue.Quantity != "500.00" {
+		t.Errorf("GOOG BookValue = %v, want 500.00 USD", goog.BookValue)
+	}
+	// UnrealizedGain = $600 - $500 = $100
+	if goog.UnrealizedGain == nil || goog.UnrealizedGain.Quantity != "100.00" {
+		t.Errorf("GOOG UnrealizedGain = %v, want 100.00 USD", goog.UnrealizedGain)
+	}
+}
