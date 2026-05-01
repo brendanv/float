@@ -21,9 +21,14 @@ export function formatCurrency(quantity, commodity) {
   return (val < 0 ? "-" : "") + Math.abs(val) + " " + commodity;
 }
 
+export function formatCost(cost) {
+  if (!cost || !cost.quantity) return "";
+  return (cost.isTotal ? " @@ " : " @ ") + formatCurrency(cost.quantity, cost.commodity);
+}
+
 export function formatAmounts(amounts) {
   if (!amounts || amounts.length === 0) return "";
-  return amounts.map((a) => formatCurrency(a.quantity, a.commodity)).join(", ");
+  return amounts.map((a) => formatCurrency(a.quantity, a.commodity) + formatCost(a.cost)).join(", ");
 }
 
 export function formatDate(dateStr) {
