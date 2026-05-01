@@ -225,7 +225,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   function toFields(ps) {
     return (ps || []).map((p) => {
       const a = p.amounts && p.amounts[0];
-      return { account: p.account, commodity: a ? a.commodity : "", quantity: a ? a.quantity : "" };
+      return { account: p.account, commodity: a ? a.commodity : "", quantity: a ? a.quantity : "", cost: a ? a.cost : undefined };
     });
   }
 
@@ -247,7 +247,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
-        postings: postings.map((p) => ({ account: p.account.trim(), commodity: p.commodity.trim(), quantity: p.quantity.trim() })),
+        postings: postings.map((p) => ({ account: p.account.trim(), commodity: p.commodity.trim(), quantity: p.quantity.trim(), cost: p.cost })),
       });
       if (onSaved) onSaved();
     } catch (err) {

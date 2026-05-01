@@ -21,6 +21,7 @@ const maxSuggestions = 6
 type postingField struct {
 	account textinput.Model
 	amount  textinput.Model
+	cost    *floatv1.Cost // preserved from original posting when editing; not user-editable
 }
 
 func newPostingField() postingField {
@@ -227,6 +228,7 @@ func (f *AddTxForm) ActivateEdit(tx *floatv1.Transaction) {
 		if len(p.Amounts) > 0 {
 			a := p.Amounts[0]
 			pf.amount.SetValue(fmt.Sprintf("%s %s", a.Quantity, a.Commodity))
+			pf.cost = a.Cost
 		}
 		f.postings = append(f.postings, pf)
 	}
@@ -459,6 +461,7 @@ func (f *AddTxForm) buildPostings() ([]*floatv1.PostingInput, string) {
 			Account:   acc,
 			Commodity: commodity,
 			Quantity:  quantity,
+			Cost:      p.cost,
 		})
 	}
 	if len(postings) == 0 {
