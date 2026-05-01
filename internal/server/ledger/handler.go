@@ -1771,7 +1771,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		selectedSet[idx] = true
 	}
 
-	importBatchID := time.Now().Format("2006-01-02") + "-" + journal.MintFID()
+	importBatchID := profileToSlug(req.Msg.ProfileName) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 
 	var importedFIDs []string
 	err = h.lock.Do(ctx, fmt.Sprintf("import %d transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), func() error {
@@ -1830,10 +1830,12 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	}
 
 	// Save a copy of the uploaded CSV to uploads/<importBatchID>.csv.
+	// importBatchID may contain a "/" (profile-slug/date-fid), so we create the subdirectory.
 	uploadsDir := filepath.Join(h.dataDir, "uploads")
-	if mkErr := os.MkdirAll(uploadsDir, 0o755); mkErr != nil {
+	uploadFilePath := filepath.Join(uploadsDir, filepath.FromSlash(importBatchID+".csv"))
+	if mkErr := os.MkdirAll(filepath.Dir(uploadFilePath), 0o755); mkErr != nil {
 		logger.ErrorContext(ctx, "create uploads dir failed", "error", mkErr)
-	} else if wErr := os.WriteFile(filepath.Join(uploadsDir, importBatchID+".csv"), req.Msg.CsvData, 0o644); wErr != nil {
+	} else if wErr := os.WriteFile(uploadFilePath, req.Msg.CsvData, 0o644); wErr != nil {
 		logger.ErrorContext(ctx, "save uploaded CSV failed", "error", wErr)
 	}
 
@@ -1909,17 +1911,27 @@ func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.Li
 		if idx, ok := seen[batchID]; ok {
 			batches[idx].count++
 		} else {
+			// Extract date from the batch ID. New format is "profile-slug/YYYY-MM-DD-fid";
+			// legacy format is "YYYY-MM-DD-fid". In both cases the date is the first 10
+			// characters of the last path segment.
+			datePart := batchID
+			if slashIdx := strings.LastIndex(batchID, "/"); slashIdx >= 0 {
+				datePart = batchID[slashIdx+1:]
+			}
 			date := ""
-			if len(batchID) >= 10 {
-				date = batchID[:10]
+			if len(datePart) >= 10 {
+				date = datePart[:10]
 			}
 			seen[batchID] = len(batches)
 			batches = append(batches, batchEntry{batchID: batchID, date: date, count: 1})
 		}
 	}
 
-	// Sort descending by batch ID (which starts with YYYY-MM-DD).
+	// Sort descending by date, then by batch ID for stable ordering within the same date.
 	sort.Slice(batches, func(i, j int) bool {
+		if batches[i].date != batches[j].date {
+			return batches[i].date > batches[j].date
+		}
 		return batches[i].batchID > batches[j].batchID
 	})
 
@@ -1938,10 +1950,11 @@ func (h *Handler) GetImportFile(ctx context.Context, req *connect.Request[floatv
 	if req.Msg.ImportBatchId == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("import_batch_id is required"))
 	}
-	if strings.ContainsAny(req.Msg.ImportBatchId, "/\\") {
+	uploadsDir := filepath.Clean(filepath.Join(h.dataDir, "uploads"))
+	filePath := filepath.Join(uploadsDir, filepath.FromSlash(req.Msg.ImportBatchId+".csv"))
+	if !strings.HasPrefix(filepath.Clean(filePath), uploadsDir+string(filepath.Separator)) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid import_batch_id"))
 	}
-	filePath := filepath.Join(h.dataDir, "uploads", req.Msg.ImportBatchId+".csv")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -1963,6 +1976,24 @@ func isAssetOrLiabilityAccount(account string) bool {
 		strings.HasPrefix(lower, "liabilities") ||
 		strings.HasPrefix(lower, "asset:") ||
 		strings.HasPrefix(lower, "liability:")
+}
+
+// profileToSlug converts a bank profile name to a URL/path-safe slug.
+// e.g. "Chase Checking" → "chase-checking", "My Bank (US)" → "my-bank-us"
+func profileToSlug(name string) string {
+	var b strings.Builder
+	prevHyphen := true // skip leading hyphens
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prevHyphen = false
+		} else if !prevHyphen {
+			b.WriteByte('-')
+			prevHyphen = true
+		}
+	}
+	s := b.String()
+	return strings.TrimRight(s, "-")
 }
 
 // bankProfile finds a BankProfile by name in the config.
