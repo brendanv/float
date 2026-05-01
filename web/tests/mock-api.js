@@ -14,6 +14,8 @@ export const mockAccounts = [
   { name: "utilities", fullName: "expenses:utilities", type: "C", depth: 2 },
   { name: "income", fullName: "income", type: "C", depth: 1 },
   { name: "salary", fullName: "income:salary", type: "C", depth: 2 },
+  { name: "investments", fullName: "assets:investments", type: "A", depth: 2 },
+  { name: "aapl", fullName: "assets:investments:aapl", type: "A", depth: 3 },
 ];
 
 export const mockBalanceRows = [
@@ -124,6 +126,25 @@ export const mockTransactions = [
     postings: [
       { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "95.00" }] },
       { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-95.00" }] },
+    ],
+    tags: {},
+  },
+  {
+    fid: "o5p6q7r8",
+    date: "2026-03-19",
+    description: "Fidelity | buy AAPL",
+    payee: "Fidelity",
+    note: "buy AAPL",
+    status: "Cleared",
+    postings: [
+      {
+        account: "assets:investments:aapl",
+        amounts: [{ commodity: "AAPL", quantity: "10", cost: { commodity: "USD", quantity: "175.00", isTotal: false } }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-1750.00" }],
+      },
     ],
     tags: {},
   },
