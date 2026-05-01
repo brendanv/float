@@ -1,14 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { AccountInput } from "../components/posting-fields.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronRight } from "lucide-react";
+import { Loader2, ChevronRight, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function buildTree(declarations) {
   const byName = new Map(declarations.map((d) => [d.name, d]));
@@ -111,6 +120,7 @@ export function AccountsPage() {
   const [name, setName] = useState("");
   const [formError, setFormError] = useState(null);
   const [deletingName, setDeletingName] = useState(null);
+  const [renameOpen, setRenameOpen] = useState(false);
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.declareAccount(vars),
@@ -152,7 +162,13 @@ export function AccountsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Account Declarations</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-2xl font-bold">Account Declarations</h2>
+        <Button variant="outline" onClick={() => { setFormError(null); setRenameOpen(true); }}>
+          <Pencil data-icon="inline-start" className="size-3.5" />
+          Rename Account
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>
@@ -197,7 +213,7 @@ export function AccountsPage() {
                   const kids = children.get(root) ?? [];
                   return (
                     <div key={root} className="rounded-md border overflow-hidden">
-                      <div className="px-3 py-2 bg-muted/40 border-b flex items-center justify-between">
+                      <div className="px-3 py-2 bg-muted/40 border-b flex items-center justify-between gap-2">
                         <span className="font-semibold text-sm capitalize">{root}</span>
                         {declaredNames.has(root) && !rootDecl?.hasPostings && (
                           <Button
@@ -241,6 +257,154 @@ export function AccountsPage() {
           )}
         </CardContent>
       </Card>
+
+      <RenameAccountDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+      />
     </div>
+  );
+}
+
+function RenameAccountDialog({ open, onOpenChange }) {
+  const queryClient = useQueryClient();
+  const [oldName, setOldName] = useState("");
+  const [newName, setNewName] = useState("");
+  const [step, setStep] = useState("input");
+  const [error, setError] = useState(null);
+
+  const { data: accountsData } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setOldName("");
+      setNewName("");
+      setStep("input");
+      setError(null);
+    }
+  }, [open]);
+
+  const renameMutation = useMutation({
+    mutationFn: (vars) => ledgerClient.renameAccount(vars),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
+      queryClient.invalidateQueries({ queryKey: ["balances"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
+      queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
+      onOpenChange(false);
+    },
+    onError: (err) => setError(err),
+  });
+
+  function handleContinue(e) {
+    e.preventDefault();
+    setError(null);
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    if (!trimmedOld) {
+      setError(new Error("Pick the account to rename."));
+      return;
+    }
+    if (!trimmedNew) {
+      setError(new Error("New account name is required."));
+      return;
+    }
+    if (trimmedNew === trimmedOld) {
+      setError(new Error("New account name must differ from the current name."));
+      return;
+    }
+    setStep("confirm");
+  }
+
+  function handleConfirm() {
+    setError(null);
+    renameMutation.mutate({ oldName: oldName.trim(), newName: newName.trim() });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" showCloseButton>
+        <DialogHeader>
+          <DialogTitle>Rename Account</DialogTitle>
+          <DialogDescription>
+            Renames an account in the declaration file and across every posting in your
+            journal history.
+          </DialogDescription>
+        </DialogHeader>
+        {error && <ErrorBanner error={error} />}
+        {step === "input" ? (
+          <form onSubmit={handleContinue} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label>Account to rename</Label>
+              <AccountInput
+                value={oldName}
+                onChange={setOldName}
+                accounts={accountsData?.accounts || []}
+                placeholder="Select account"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="rename-new">New name</Label>
+              <Input
+                id="rename-new"
+                type="text"
+                placeholder="assets:bank:checking"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                required
+                className="font-mono"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Continue</Button>
+            </DialogFooter>
+          </form>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-md border bg-muted/40 p-3 text-xs">
+              <div className="text-muted-foreground">Rename</div>
+              <div className="font-mono">{oldName.trim()}</div>
+              <div className="text-muted-foreground mt-2">to</div>
+              <div className="font-mono">{newName.trim()}</div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This updates the account declaration and rewrites every posting that references{" "}
+              <span className="font-mono">{oldName.trim()}</span> or any sub-account beneath it.
+              The change is committed to the snapshot history and cannot be undone except by
+              restoring a snapshot.
+            </p>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={renameMutation.isPending}
+                onClick={() => setStep("input")}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                disabled={renameMutation.isPending}
+                onClick={handleConfirm}
+              >
+                {renameMutation.isPending && (
+                  <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
+                )}
+                {renameMutation.isPending ? "Renaming…" : "Confirm Rename"}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
