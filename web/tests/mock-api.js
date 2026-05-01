@@ -130,6 +130,25 @@ export const mockTransactions = [
     tags: {},
   },
   {
+    fid: "o5p6q7r8",
+    date: "2026-03-19",
+    description: "Fidelity | buy AAPL",
+    payee: "Fidelity",
+    note: "buy AAPL",
+    status: "Cleared",
+    postings: [
+      {
+        account: "assets:investments:aapl",
+        amounts: [{ commodity: "AAPL", quantity: "10", cost: { commodity: "USD", quantity: "175.00", isTotal: false } }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-1750.00" }],
+      },
+    ],
+    tags: {},
+  },
+  {
     fid: "e5f6g7h8",
     date: "2026-03-18",
     description: "Whole Foods Market | produce run",
@@ -244,25 +263,6 @@ export const mockTransactions = [
     postings: [
       { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "45.00" }] },
       { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-45.00" }] },
-    ],
-    tags: {},
-  },
-  {
-    fid: "o5p6q7r8",
-    date: "2026-03-19",
-    description: "Fidelity | buy AAPL",
-    payee: "Fidelity",
-    note: "buy AAPL",
-    status: "Cleared",
-    postings: [
-      {
-        account: "assets:investments:aapl",
-        amounts: [{ commodity: "AAPL", quantity: "10", cost: { commodity: "USD", quantity: "175.00", isTotal: false } }],
-      },
-      {
-        account: "assets:checking",
-        amounts: [{ commodity: "USD", quantity: "-1750.00" }],
-      },
     ],
     tags: {},
   },
