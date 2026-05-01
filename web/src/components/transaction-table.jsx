@@ -35,6 +35,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
@@ -678,7 +691,7 @@ export function TransactionTable({
   accounts = [],
   selectedFids,
   onSelectionChange,
-  pageSize = 10,
+  pageSize = 25,
   hiddenColumns = [],
 }) {
   const [expanded, setExpanded] = useState({});
@@ -750,7 +763,7 @@ export function TransactionTable({
   const total = rows.length;
   const rangeStart = total === 0 ? 0 : pageIndex * pagination.pageSize + 1;
   const rangeEnd = Math.min((pageIndex + 1) * pagination.pageSize, total);
-  const showPagination = pageCount > 1;
+  const showPagination = total > 0;
 
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
@@ -812,35 +825,61 @@ export function TransactionTable({
 
       {/* Pagination */}
       {showPagination && (
-        <>
-          <Separator className="mt-4" />
-          <div className="flex items-center justify-between px-2 py-3">
-            <span className="text-sm text-muted-foreground">
+        <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
+            <Select
+              value={String(table.getState().pagination.pageSize)}
+              onValueChange={(val) => {
+                table.setPageSize(Number(val));
+                setPagination((p) => ({ ...p, pageIndex: 0 }));
+              }}
+            >
+              <SelectTrigger className="h-8 w-16">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-sm text-muted-foreground">
               {rangeStart}–{rangeEnd} of {total}
             </span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-              >
-                <ChevronLeft />
-              </Button>
-              <span className="px-2 text-sm tabular-nums text-muted-foreground">
-                {pageIndex + 1} / {pageCount}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-              >
-                <ChevronRight />
-              </Button>
-            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <Button
+                    aria-label="Go to previous page"
+                    size="icon"
+                    variant="ghost"
+                    className="size-8"
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                </PaginationItem>
+                <PaginationItem>
+                  <Button
+                    aria-label="Go to next page"
+                    size="icon"
+                    variant="ghost"
+                    className="size-8"
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

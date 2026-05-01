@@ -539,7 +539,7 @@ export function RulesPage() {
                 </TableBody>
               </Table>
               {table.getFilteredRowModel().rows.length > 0 && (
-                <div className="mt-3 flex w-full items-center justify-between gap-2">
+                <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
                     <Select
