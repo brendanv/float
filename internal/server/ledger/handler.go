@@ -399,69 +399,84 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		}
 	}
 
-	// Build holdings from raw rows that contain non-currency commodities.
-	var holdings []*floatv1.Holding
+	// Aggregate raw amounts by (account, commodity), summing quantities across
+	// lots. hledger returns a separate Amount per purchase lot when positions
+	// are built up at different prices (each lot has a distinct acost), so
+	// without aggregation every lot would appear as its own holding row.
+	type holdingKey struct{ account, symbol string }
+	aggregated := make(map[holdingKey]float64)
+	var holdingOrder []holdingKey
 	for _, row := range raw.Rows {
 		for _, amt := range row.Amounts {
 			if currencySymbols[amt.Commodity] {
 				continue
 			}
-			qty := amt.Quantity.FloatingPoint
-			if qty == 0 {
-				continue
+			k := holdingKey{row.FullName, amt.Commodity}
+			if _, seen := aggregated[k]; !seen {
+				holdingOrder = append(holdingOrder, k)
 			}
-			holding := &floatv1.Holding{
-				Account:   row.FullName,
-				Symbol:    amt.Commodity,
-				Quantity:  fmt.Sprintf("%g", qty),
-				PriceDate: latestPriceDate[amt.Commodity],
-			}
-
-			// Check whether hledger converted this commodity in the valued report.
-			// If the valued commodity differs from the raw commodity, the conversion
-			// succeeded and CurrentValue contains the hledger-computed market value.
-			if valuedAmts := valuedByAccount[row.FullName]; len(valuedAmts) > 0 {
-				for _, vAmt := range valuedAmts {
-					if vAmt.Commodity != amt.Commodity {
-						value := vAmt.Quantity.FloatingPoint
-						holding.CurrentValue = &floatv1.Amount{
-							Commodity: vAmt.Commodity,
-							Quantity:  fmt.Sprintf("%.2f", value),
-						}
-						// Derive the per-unit price from value ÷ quantity.
-						if qty != 0 {
-							holding.LatestPrice = &floatv1.Amount{
-								Commodity: vAmt.Commodity,
-								Quantity:  fmt.Sprintf("%.2f", value/qty),
-							}
-						}
-						break
-					}
-				}
-			}
-
-			// Populate cost basis and unrealized gain when available.
-			if bookVal, ok := costByAccount[row.FullName]; ok {
-				currency := costCurrencyByAccount[row.FullName]
-				holding.BookValue = &floatv1.Amount{
-					Commodity: currency,
-					Quantity:  fmt.Sprintf("%.2f", bookVal),
-				}
-				if holding.CurrentValue != nil {
-					currentVal, _ := strconv.ParseFloat(holding.CurrentValue.Quantity, 64)
-					gain := currentVal - bookVal
-					holding.UnrealizedGain = &floatv1.Amount{
-						Commodity: currency,
-						Quantity:  fmt.Sprintf("%.2f", gain),
-					}
-					if bookVal != 0 {
-						holding.UnrealizedGainPct = gain / bookVal * 100
-					}
-				}
-			}
-
-			holdings = append(holdings, holding)
+			aggregated[k] += amt.Quantity.FloatingPoint
 		}
+	}
+
+	// Build holdings from aggregated (account, symbol) pairs.
+	var holdings []*floatv1.Holding
+	for _, k := range holdingOrder {
+		qty := aggregated[k]
+		if qty == 0 {
+			continue
+		}
+		holding := &floatv1.Holding{
+			Account:   k.account,
+			Symbol:    k.symbol,
+			Quantity:  fmt.Sprintf("%g", qty),
+			PriceDate: latestPriceDate[k.symbol],
+		}
+
+		// Check whether hledger converted this commodity in the valued report.
+		// If the valued commodity differs from the raw commodity, the conversion
+		// succeeded and CurrentValue contains the hledger-computed market value.
+		if valuedAmts := valuedByAccount[k.account]; len(valuedAmts) > 0 {
+			for _, vAmt := range valuedAmts {
+				if vAmt.Commodity != k.symbol {
+					value := vAmt.Quantity.FloatingPoint
+					holding.CurrentValue = &floatv1.Amount{
+						Commodity: vAmt.Commodity,
+						Quantity:  fmt.Sprintf("%.2f", value),
+					}
+					// Derive the per-unit price from value ÷ quantity.
+					if qty != 0 {
+						holding.LatestPrice = &floatv1.Amount{
+							Commodity: vAmt.Commodity,
+							Quantity:  fmt.Sprintf("%.2f", value/qty),
+						}
+					}
+					break
+				}
+			}
+		}
+
+		// Populate cost basis and unrealized gain when available.
+		if bookVal, ok := costByAccount[k.account]; ok {
+			currency := costCurrencyByAccount[k.account]
+			holding.BookValue = &floatv1.Amount{
+				Commodity: currency,
+				Quantity:  fmt.Sprintf("%.2f", bookVal),
+			}
+			if holding.CurrentValue != nil {
+				currentVal, _ := strconv.ParseFloat(holding.CurrentValue.Quantity, 64)
+				gain := currentVal - bookVal
+				holding.UnrealizedGain = &floatv1.Amount{
+					Commodity: currency,
+					Quantity:  fmt.Sprintf("%.2f", gain),
+				}
+				if bookVal != 0 {
+					holding.UnrealizedGainPct = gain / bookVal * 100
+				}
+			}
+		}
+
+		holdings = append(holdings, holding)
 	}
 
 	// Sum total value, compute allocation percentages, and track as_of_date.

@@ -2397,3 +2397,75 @@ func TestRoundTripCost(t *testing.T) {
 		}
 	})
 }
+
+func TestGetPortfolioHoldings_AggregatesLots(t *testing.T) {
+	dir := t.TempDir()
+
+	main := `; float main journal
+account assets:investments:aapl
+account assets:investments:msft
+account assets:checking
+
+include 2026/01.journal
+`
+	journal := `2026-01-05 Buy AAPL lot 1
+    assets:investments:aapl    10 AAPL @ 150.00 USD
+    assets:checking           -1500.00 USD
+
+2026-01-10 Buy AAPL lot 2
+    assets:investments:aapl     5 AAPL @ 160.00 USD
+    assets:checking            -800.00 USD
+
+2026-01-15 Buy AAPL lot 3
+    assets:investments:aapl     3 AAPL @ 170.00 USD
+    assets:checking            -510.00 USD
+
+2026-01-20 Buy MSFT
+    assets:investments:msft     4 MSFT @ 400.00 USD
+    assets:checking           -1600.00 USD
+`
+
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(journal), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetPortfolioHoldings(t.Context(), connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioHoldings: %v", err)
+	}
+
+	holdings := resp.Msg.Holdings
+
+	bySymbol := make(map[string]*floatv1.Holding)
+	for _, h := range holdings {
+		if prev, dup := bySymbol[h.Symbol]; dup {
+			t.Errorf("symbol %q appears more than once (accounts %q and %q); lots were not aggregated",
+				h.Symbol, prev.Account, h.Account)
+		}
+		bySymbol[h.Symbol] = h
+	}
+
+	aapl, ok := bySymbol["AAPL"]
+	if !ok {
+		t.Fatalf("AAPL not found in holdings; got %v", holdings)
+	}
+	if aapl.Quantity != "18" {
+		t.Errorf("AAPL quantity = %q, want %q (10+5+3 lots aggregated)", aapl.Quantity, "18")
+	}
+
+	msft, ok := bySymbol["MSFT"]
+	if !ok {
+		t.Fatalf("MSFT not found in holdings; got %v", holdings)
+	}
+	if msft.Quantity != "4" {
+		t.Errorf("MSFT quantity = %q, want %q", msft.Quantity, "4")
+	}
+}
