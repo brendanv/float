@@ -403,8 +403,16 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	// lots. hledger returns a separate Amount per purchase lot when positions
 	// are built up at different prices (each lot has a distinct acost), so
 	// without aggregation every lot would appear as its own holding row.
+	//
+	// Use exact integer arithmetic (DecimalMantissa / 10^DecimalPlaces) to
+	// avoid float64 rounding errors that produce near-zero residuals like
+	// 6e-14 for fully-liquidated positions.
 	type holdingKey struct{ account, symbol string }
-	aggregated := make(map[holdingKey]float64)
+	type exactQty struct {
+		mantissa int64
+		scale    int
+	}
+	aggregated := make(map[holdingKey]exactQty)
 	var holdingOrder []holdingKey
 	for _, row := range raw.Rows {
 		for _, amt := range row.Amounts {
@@ -415,16 +423,42 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			if _, seen := aggregated[k]; !seen {
 				holdingOrder = append(holdingOrder, k)
 			}
-			aggregated[k] += amt.Quantity.FloatingPoint
+			cur := aggregated[k]
+			m := amt.Quantity.DecimalMantissa
+			p := amt.Quantity.DecimalPlaces
+			if p > cur.scale {
+				factor := int64(1)
+				for i := 0; i < p-cur.scale; i++ {
+					factor *= 10
+				}
+				cur.mantissa *= factor
+				cur.scale = p
+			} else if p < cur.scale {
+				factor := int64(1)
+				for i := 0; i < cur.scale-p; i++ {
+					factor *= 10
+				}
+				m *= factor
+			}
+			cur.mantissa += m
+			aggregated[k] = cur
 		}
 	}
 
 	// Build holdings from aggregated (account, symbol) pairs.
 	var holdings []*floatv1.Holding
 	for _, k := range holdingOrder {
-		qty := aggregated[k]
-		if qty == 0 {
+		eq := aggregated[k]
+		if eq.mantissa == 0 {
 			continue
+		}
+		qty := float64(eq.mantissa)
+		if eq.scale > 0 {
+			divisor := float64(1)
+			for i := 0; i < eq.scale; i++ {
+				divisor *= 10
+			}
+			qty /= divisor
 		}
 		holding := &floatv1.Holding{
 			Account:   k.account,
