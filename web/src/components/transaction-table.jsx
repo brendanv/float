@@ -4,10 +4,11 @@ import {
   getCoreRowModel,
   getPaginationRowModel,
   getExpandedRowModel,
+  getSortedRowModel,
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -448,6 +449,31 @@ function TagEditor({ fid, tags, onChanged }) {
   );
 }
 
+// ── sort header ────────────────────────────────────────────────────────────
+
+function SortableHeader({ column, children, align = "left" }) {
+  const sorted = column.getIsSorted();
+  return (
+    <button
+      className={cn(
+        "inline-flex cursor-pointer select-none items-center gap-1 rounded px-1 -mx-1 py-0.5 transition-colors hover:text-foreground",
+        align === "right" && "ml-auto flex-row-reverse",
+        sorted ? "text-foreground" : "text-muted-foreground",
+      )}
+      onClick={() => column.toggleSorting(sorted === "asc")}
+    >
+      {children}
+      {sorted === "asc" ? (
+        <ArrowUp className="size-3 shrink-0" />
+      ) : sorted === "desc" ? (
+        <ArrowDown className="size-3 shrink-0" />
+      ) : (
+        <ArrowUpDown className="size-3 shrink-0 opacity-40" />
+      )}
+    </button>
+  );
+}
+
 // ── column definitions ─────────────────────────────────────────────────────
 // Cell renderers read mutable state from table.options.meta to avoid stale
 // closures when useMemo deps are unchanged between renders.
@@ -492,7 +518,7 @@ const transactionColumns = [
   }),
   txHelper.accessor("date", {
     id: "date",
-    header: "Date",
+    header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
     cell: ({ getValue }) => (
       <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
         {formatDate(getValue())}
@@ -509,9 +535,9 @@ const transactionColumns = [
     },
     meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
   }),
-  txHelper.display({
+  txHelper.accessor((tx) => tx.description, {
     id: "description",
-    header: "Description",
+    header: ({ column }) => <SortableHeader column={column}>Description</SortableHeader>,
     cell: ({ row, table }) => {
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
@@ -563,31 +589,39 @@ const transactionColumns = [
       return <span className="text-sm text-muted-foreground">{accountText}</span>;
     },
   }),
-  txHelper.display({
-    id: "amount",
-    header: () => <span className="block text-right">Amount</span>,
-    cell: ({ row, table }) => {
-      const { focusedAccount } = table.options.meta;
-      const tx = row.original;
-      let amount = "";
-      if (focusedAccount) {
-        const display = accountRegisterDisplay(tx, focusedAccount);
-        amount = display?.amount || "";
-      } else {
-        const display = generalDisplay(tx);
-        amount = display?.amount || "";
-      }
-      return <span className="block whitespace-nowrap text-right font-mono text-sm">{amount}</span>;
+  txHelper.accessor(
+    (tx) => {
+      const postings = tx.postings || [];
+      if (postings.length === 0) return 0;
+      const pos = postings.find((p) => firstQuantity(p) > 0);
+      return pos ? firstQuantity(pos) : firstQuantity(postings[0]);
     },
-    meta: { headerClass: "text-right", cellClass: "text-right" },
-  }),
+    {
+      id: "amount",
+      header: ({ column }) => <SortableHeader column={column} align="right">Amount</SortableHeader>,
+      cell: ({ row, table }) => {
+        const { focusedAccount } = table.options.meta;
+        const tx = row.original;
+        let amount = "";
+        if (focusedAccount) {
+          const display = accountRegisterDisplay(tx, focusedAccount);
+          amount = display?.amount || "";
+        } else {
+          const display = generalDisplay(tx);
+          amount = display?.amount || "";
+        }
+        return <span className="block whitespace-nowrap text-right font-mono text-sm">{amount}</span>;
+      },
+      meta: { headerClass: "text-right", cellClass: "text-right" },
+    },
+  ),
 ];
 
 // Account register columns (register mode)
 const registerColumns = [
   regHelper.accessor("date", {
     id: "date",
-    header: "Date",
+    header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
     cell: ({ getValue }) => (
       <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
         {formatDate(getValue())}
@@ -604,9 +638,9 @@ const registerColumns = [
     },
     meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
   }),
-  regHelper.display({
+  regHelper.accessor((tx) => tx.description, {
     id: "description",
-    header: "Description",
+    header: ({ column }) => <SortableHeader column={column}>Description</SortableHeader>,
     cell: ({ row, table }) => {
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
@@ -648,36 +682,42 @@ const registerColumns = [
       return <span className="text-sm text-muted-foreground">{cells.otherAccounts}</span>;
     },
   }),
-  regHelper.display({
-    id: "change",
-    header: () => <span className="block text-right">Change</span>,
-    cell: ({ row }) => {
-      const cells = resolveRegisterCells(row.original);
-      return (
-        <span className={cn(
-          "block whitespace-nowrap text-right font-mono text-sm",
-          cells.changePositive && "text-success",
-          cells.changeNegative && "text-destructive",
-        )}>
-          {cells.change}
-        </span>
-      );
+  regHelper.accessor(
+    (row) => (row.change?.length > 0 ? parseFloat(row.change[0].quantity) || 0 : 0),
+    {
+      id: "change",
+      header: ({ column }) => <SortableHeader column={column} align="right">Change</SortableHeader>,
+      cell: ({ row }) => {
+        const cells = resolveRegisterCells(row.original);
+        return (
+          <span className={cn(
+            "block whitespace-nowrap text-right font-mono text-sm",
+            cells.changePositive && "text-success",
+            cells.changeNegative && "text-destructive",
+          )}>
+            {cells.change}
+          </span>
+        );
+      },
+      meta: { cellClass: "text-right" },
     },
-    meta: { cellClass: "text-right" },
-  }),
-  regHelper.display({
-    id: "balance",
-    header: () => <span className="block text-right">Balance</span>,
-    cell: ({ row }) => {
-      const cells = resolveRegisterCells(row.original);
-      return (
-        <span className="block whitespace-nowrap text-right font-mono text-sm text-muted-foreground">
-          {cells.balance}
-        </span>
-      );
+  ),
+  regHelper.accessor(
+    (row) => (row.runningTotal?.length > 0 ? parseFloat(row.runningTotal[0].quantity) || 0 : 0),
+    {
+      id: "balance",
+      header: ({ column }) => <SortableHeader column={column} align="right">Balance</SortableHeader>,
+      cell: ({ row }) => {
+        const cells = resolveRegisterCells(row.original);
+        return (
+          <span className="block whitespace-nowrap text-right font-mono text-sm text-muted-foreground">
+            {cells.balance}
+          </span>
+        );
+      },
+      meta: { cellClass: "text-right" },
     },
-    meta: { cellClass: "text-right" },
-  }),
+  ),
 ];
 
 // ── main component ─────────────────────────────────────────────────────────
@@ -696,6 +736,7 @@ export function TransactionTable({
 }) {
   const [expanded, setExpanded] = useState({});
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
+  const [sorting, setSorting] = useState([]);
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
   const isRegisterMode = !!registerRows;
@@ -730,10 +771,12 @@ export function TransactionTable({
   const table = useReactTable({
     data: rows,
     columns,
-    state: { expanded, pagination, columnVisibility },
+    state: { expanded, pagination, columnVisibility, sorting },
     onExpandedChange: setExpanded,
     onPaginationChange: setPagination,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: (row) => !isRegisterMode && !!row.original.fid,
