@@ -123,49 +123,163 @@ func TestLoadSortsByPriority(t *testing.T) {
 }
 
 func TestPreview(t *testing.T) {
-	rules := []Rule{
-		{ID: "r1", Pattern: "amazon", Payee: "Amazon", Account: "expenses:shopping", Priority: 1},
+	sp := func(s string) *string { return &s }
+
+	amazon := Rule{ID: "amazon", Pattern: "amazon", Payee: "Amazon", Account: "expenses:shopping", Priority: 1}
+	netflix := Rule{ID: "netflix", Pattern: "netflix", Account: "expenses:entertainment", AutoReviewed: true, Priority: 2}
+	tagger := Rule{ID: "tagger", Pattern: "whole foods", Tags: map[string]string{"store": "wf"}, Priority: 3}
+
+	tests := []struct {
+		name     string
+		rules    []Rule
+		txns     []hledger.Transaction
+		wantFIDs []string // FIDs of expected matches, in order
+		// per-match assertions keyed by FID
+		wantPayee        map[string]*string
+		wantAccount      map[string]*string
+		wantTags         map[string]map[string]string
+		wantMarkReviewed map[string]bool
+	}{
+		{
+			name:     "match_payee_and_account",
+			rules:    []Rule{amazon},
+			txns:     []hledger.Transaction{{FID: "aabb1122", Description: "AMAZON.COM", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}}},
+			wantFIDs: []string{"aabb1122"},
+			wantPayee:   map[string]*string{"aabb1122": sp("Amazon")},
+			wantAccount: map[string]*string{"aabb1122": sp("expenses:shopping")},
+		},
+		{
+			name:     "no_match_unrecognized_description",
+			rules:    []Rule{amazon},
+			txns:     []hledger.Transaction{{FID: "aabb1122", Description: "UNKNOWN MERCHANT", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}}},
+			wantFIDs: []string{},
+		},
+		{
+			name:     "skip_transaction_without_fid",
+			rules:    []Rule{amazon},
+			txns:     []hledger.Transaction{{Description: "AMAZON.COM", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}}},
+			wantFIDs: []string{},
+		},
+		{
+			name: "skip_when_no_changes_needed",
+			rules: []Rule{amazon},
+			txns: []hledger.Transaction{{
+				FID: "aabb1122", Description: "AMAZON.COM",
+				Payee: sp("Amazon"),
+				Postings: []hledger.Posting{
+					{Account: "assets:checking"},
+					{Account: "expenses:shopping"}, // already correct
+				},
+			}},
+			wantFIDs: []string{},
+		},
+		{
+			name:             "auto_reviewed_on_uncleared",
+			rules:            []Rule{netflix},
+			txns:             []hledger.Transaction{{FID: "cc112233", Description: "NETFLIX", Status: "", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}}},
+			wantFIDs:         []string{"cc112233"},
+			wantAccount:      map[string]*string{"cc112233": sp("expenses:entertainment")},
+			wantMarkReviewed: map[string]bool{"cc112233": true},
+		},
+		{
+			name:  "auto_reviewed_skipped_when_already_cleared_but_other_changes_remain",
+			rules: []Rule{netflix},
+			txns: []hledger.Transaction{{
+				FID: "cc112233", Description: "NETFLIX", Status: "Cleared",
+				Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}},
+			}},
+			wantFIDs:         []string{"cc112233"},
+			wantAccount:      map[string]*string{"cc112233": sp("expenses:entertainment")},
+			wantMarkReviewed: map[string]bool{"cc112233": false}, // already cleared
+		},
+		{
+			name:     "tags_only_match",
+			rules:    []Rule{tagger},
+			txns:     []hledger.Transaction{{FID: "dd445566", Description: "WHOLE FOODS MARKET", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:food"}}}},
+			wantFIDs: []string{"dd445566"},
+			wantTags: map[string]map[string]string{"dd445566": {"store": "wf"}},
+		},
+		{
+			name:     "multiple_transactions_only_matching_ones_returned",
+			rules:    []Rule{amazon},
+			txns: []hledger.Transaction{
+				{FID: "aabb1122", Description: "AMAZON.COM", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}},
+				{FID: "ccdd3344", Description: "STARBUCKS", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}},
+				{FID: "eeff5566", Description: "AMAZON PRIME", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}},
+			},
+			wantFIDs:    []string{"aabb1122", "eeff5566"},
+			wantPayee:   map[string]*string{"aabb1122": sp("Amazon"), "eeff5566": sp("Amazon")},
+			wantAccount: map[string]*string{"aabb1122": sp("expenses:shopping"), "eeff5566": sp("expenses:shopping")},
+		},
 	}
 
-	txns := []hledger.Transaction{
-		{
-			FID:         "aabb1122",
-			Description: "AMAZON.COM purchase",
-			Postings: []hledger.Posting{
-				{Account: "assets:checking"},
-				{Account: "expenses:unknown"},
-			},
-		},
-		{
-			FID:         "ccdd3344",
-			Description: "STARBUCKS",
-			Postings: []hledger.Posting{
-				{Account: "assets:checking"},
-				{Account: "expenses:unknown"},
-			},
-		},
-		{
-			// No FID — should be skipped.
-			Description: "AMAZON no fid",
-			Postings: []hledger.Posting{
-				{Account: "assets:checking"},
-				{Account: "expenses:unknown"},
-			},
-		},
-	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			matches := Preview(tc.rules, tc.txns)
 
-	matches := Preview(rules, txns)
-	if len(matches) != 1 {
-		t.Fatalf("Preview returned %d matches, want 1", len(matches))
-	}
-	if matches[0].Transaction.FID != "aabb1122" {
-		t.Errorf("match FID = %q, want aabb1122", matches[0].Transaction.FID)
-	}
-	if matches[0].Changes.NewPayee == nil || *matches[0].Changes.NewPayee != "Amazon" {
-		t.Errorf("NewPayee = %v, want 'Amazon'", matches[0].Changes.NewPayee)
-	}
-	if matches[0].Changes.NewAccount == nil || *matches[0].Changes.NewAccount != "expenses:shopping" {
-		t.Errorf("NewAccount = %v, want 'expenses:shopping'", matches[0].Changes.NewAccount)
+			gotFIDs := make([]string, len(matches))
+			for i, m := range matches {
+				gotFIDs[i] = m.Transaction.FID
+			}
+
+			if len(gotFIDs) != len(tc.wantFIDs) {
+				t.Fatalf("Preview returned FIDs %v, want %v", gotFIDs, tc.wantFIDs)
+			}
+			for i, fid := range tc.wantFIDs {
+				if gotFIDs[i] != fid {
+					t.Errorf("match[%d].FID = %q, want %q", i, gotFIDs[i], fid)
+				}
+			}
+
+			matchByFID := make(map[string]RuleMatch, len(matches))
+			for _, m := range matches {
+				matchByFID[m.Transaction.FID] = m
+			}
+
+			for fid, wantP := range tc.wantPayee {
+				m := matchByFID[fid]
+				if wantP == nil {
+					if m.Changes.NewPayee != nil {
+						t.Errorf("[%s] NewPayee = %q, want nil", fid, *m.Changes.NewPayee)
+					}
+				} else if m.Changes.NewPayee == nil || *m.Changes.NewPayee != *wantP {
+					t.Errorf("[%s] NewPayee = %v, want %q", fid, m.Changes.NewPayee, *wantP)
+				}
+			}
+
+			for fid, wantA := range tc.wantAccount {
+				m := matchByFID[fid]
+				if wantA == nil {
+					if m.Changes.NewAccount != nil {
+						t.Errorf("[%s] NewAccount = %q, want nil", fid, *m.Changes.NewAccount)
+					}
+				} else if m.Changes.NewAccount == nil || *m.Changes.NewAccount != *wantA {
+					t.Errorf("[%s] NewAccount = %v, want %q", fid, m.Changes.NewAccount, *wantA)
+				}
+			}
+
+			for fid, wantT := range tc.wantTags {
+				m := matchByFID[fid]
+				for k, v := range wantT {
+					if m.Changes.AddTags[k] != v {
+						t.Errorf("[%s] AddTags[%q] = %q, want %q", fid, k, m.Changes.AddTags[k], v)
+					}
+				}
+			}
+
+			for fid, wantR := range tc.wantMarkReviewed {
+				m := matchByFID[fid]
+				if wantR {
+					if m.Changes.MarkReviewed == nil || !*m.Changes.MarkReviewed {
+						t.Errorf("[%s] MarkReviewed = %v, want &true", fid, m.Changes.MarkReviewed)
+					}
+				} else {
+					if m.Changes.MarkReviewed != nil {
+						t.Errorf("[%s] MarkReviewed = &%v, want nil", fid, *m.Changes.MarkReviewed)
+					}
+				}
+			}
+		})
 	}
 }
 
