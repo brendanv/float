@@ -62,28 +62,46 @@ func Apply(ctx context.Context, client *hledger.Client, dataDir string, matches 
 	return applied, nil
 }
 
-// applyMatch applies the changes from a single RuleMatch to the journal.
+// applyMatch applies the changes from a single RuleMatch to the journal in a single write.
 func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m RuleMatch) error {
 	txn := m.Transaction
 	changes := m.Changes
 
-	// Apply payee and/or account changes together via UpdateTransaction.
+	// Re-fetch to get the current source location; prior calls in the same batch
+	// may have shifted line numbers by removing and re-appending other transactions.
+	txns, err := client.Transactions(ctx, "code:"+txn.FID)
+	if err != nil {
+		return fmt.Errorf("lookup fid %q: %w", txn.FID, err)
+	}
+	switch len(txns) {
+	case 0:
+		return fmt.Errorf("no transaction found with fid %q", txn.FID)
+	case 1:
+		// expected
+	default:
+		return fmt.Errorf("fid %q matched %d transactions (corrupt journal — run audit)", txn.FID, len(txns))
+	}
+	t := txns[0]
+	src := &journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
+
+	input, err := journal.InputFromTransaction(t)
+	if err != nil {
+		return err
+	}
+
+	// Apply payee and/or account changes.
 	if changes.NewPayee != nil || changes.NewAccount != nil {
-		// Build updated description.
-		desc := txn.Description
+		desc := t.Description
 		if changes.NewPayee != nil {
 			newPayee := *changes.NewPayee
-			// Reconstruct description: "payee | note" or just "note" if payee is cleared.
-			if txn.Note != nil {
+			if t.Note != nil {
 				if newPayee != "" {
-					desc = newPayee + " | " + *txn.Note
+					desc = newPayee + " | " + *t.Note
 				} else {
-					desc = *txn.Note
+					desc = *t.Note
 				}
 			} else {
-				// No note — payee becomes the whole description.
 				if newPayee != "" {
-					// Preserve any existing note part after "|" from raw description.
 					if idx := strings.Index(desc, "|"); idx >= 0 {
 						desc = newPayee + " |" + desc[idx+1:]
 					} else {
@@ -92,65 +110,36 @@ func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m R
 				}
 			}
 		}
+		input.Description = desc
 
-		// Build updated postings.
-		postings := make([]journal.PostingInput, len(txn.Postings))
-		for i, p := range txn.Postings {
-			acc := p.Account
-			if changes.NewAccount != nil && isCategoryPosting(txn, i) {
-				acc = *changes.NewAccount
-			}
-			pi := journal.PostingInput{
-				Account: acc,
-				Comment: strings.TrimSpace(p.Comment),
-			}
-			if len(p.Amounts) > 0 {
-				a := p.Amounts[0]
-				pi.Commodity = a.Commodity
-				pi.Quantity = fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
-				cost, _ := a.ParseCost()
-				if cost != nil {
-					pi.Cost = &journal.CostInput{
-						Commodity: cost.Contents.Commodity,
-						Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
-						IsTotal:   cost.Tag == "TotalCost",
-					}
+		if changes.NewAccount != nil {
+			for i := range input.Postings {
+				if isCategoryPosting(t, i) {
+					input.Postings[i].Account = *changes.NewAccount
 				}
 			}
-			postings[i] = pi
-		}
-
-		_, err := journal.UpdateTransaction(ctx, client, dataDir, txn.FID, desc, "", txn.Comment, nil, postings, "")
-		if err != nil {
-			return fmt.Errorf("update transaction: %w", err)
 		}
 	}
 
-	// Apply tag changes.
+	// Merge new tags into the existing set.
 	if len(changes.AddTags) > 0 {
-		// Merge with existing tags.
 		merged := make(map[string]string)
-		for _, kv := range txn.Tags {
-			if !strings.HasPrefix(kv[0], hledger.HiddenMetaPrefix) {
-				merged[kv[0]] = kv[1]
-			}
+		for k, v := range input.Tags {
+			merged[k] = v
 		}
 		for k, v := range changes.AddTags {
 			merged[k] = v
 		}
-		if err := journal.ModifyTags(ctx, client, dataDir, txn.FID, merged); err != nil {
-			return fmt.Errorf("modify tags: %w", err)
-		}
+		input.Tags = merged
 	}
 
 	// Apply reviewed status.
 	if changes.MarkReviewed != nil && *changes.MarkReviewed {
-		if err := journal.UpdateTransactionStatus(ctx, client, dataDir, txn.FID, "Cleared"); err != nil {
-			return fmt.Errorf("mark reviewed: %w", err)
-		}
+		input.Status = "Cleared"
 	}
 
-	return nil
+	_, err = journal.WriteTransaction(ctx, client, dataDir, input, src)
+	return err
 }
 
 // buildChangeSet constructs the ChangeSet for applying rule to txn.

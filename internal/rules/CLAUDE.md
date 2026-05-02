@@ -24,4 +24,4 @@ Rules are stored as JSON in `<data-dir>/rules.json`.
 
 ## ChangeSet
 
-`Apply` uses `UpdateTransaction` for payee/account changes and `ModifyTags` for tag changes. For account changes, only 2-posting transactions with an unambiguous category posting are eligible.
+`Apply` does a single re-fetch and single `WriteTransaction` per matched transaction, applying payee/account, tag, and reviewed-status changes in one write. For account changes, only 2-posting transactions with an unambiguous category posting are eligible.
