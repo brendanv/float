@@ -1466,6 +1466,44 @@ func (h *Handler) RestoreSnapshot(ctx context.Context, req *connect.Request[floa
 	return connect.NewResponse(&floatv1.RestoreSnapshotResponse{}), nil
 }
 
+func (h *Handler) GetSnapshotDiff(ctx context.Context, req *connect.Request[floatv1.GetSnapshotDiffRequest]) (*connect.Response[floatv1.GetSnapshotDiffResponse], error) {
+	if h.snap == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("snapshots not enabled"))
+	}
+	if req.Msg.Hash == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("hash is required"))
+	}
+	files, err := h.snap.Diff(ctx, req.Msg.Hash)
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "snapshot diff failed", "hash", req.Msg.Hash, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	out := make([]*floatv1.FileDiff, len(files))
+	for i, f := range files {
+		out[i] = &floatv1.FileDiff{
+			Path:       f.Path,
+			OldPath:    f.OldPath,
+			ChangeType: changeTypeString(f.Change),
+			IsBinary:   f.IsBinary,
+			Patch:      f.Patch,
+		}
+	}
+	return connect.NewResponse(&floatv1.GetSnapshotDiffResponse{Hash: req.Msg.Hash, Files: out}), nil
+}
+
+func changeTypeString(c gitsnap.ChangeType) string {
+	switch c {
+	case gitsnap.ChangeAdded:
+		return "added"
+	case gitsnap.ChangeDeleted:
+		return "deleted"
+	case gitsnap.ChangeRenamed:
+		return "renamed"
+	default:
+		return "modified"
+	}
+}
+
 // ---- Import handlers ----
 
 func (h *Handler) ListBankProfiles(_ context.Context, _ *connect.Request[floatv1.ListBankProfilesRequest]) (*connect.Response[floatv1.ListBankProfilesResponse], error) {

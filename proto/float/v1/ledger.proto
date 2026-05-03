@@ -367,6 +367,23 @@ message RestoreSnapshotRequest {
 
 message RestoreSnapshotResponse {}
 
+message FileDiff {
+  string path = 1;          // new path; old path for deletes
+  string old_path = 2;      // set only on rename
+  string change_type = 3;   // "added" | "deleted" | "modified" | "renamed"
+  bool is_binary = 4;
+  string patch = 5;         // unified diff text; empty when is_binary
+}
+
+message GetSnapshotDiffRequest {
+  string hash = 1;
+}
+
+message GetSnapshotDiffResponse {
+  string hash = 1;
+  repeated FileDiff files = 2;
+}
+
 // ---- Import ----
 
 message BankProfile {
@@ -630,6 +647,7 @@ service LedgerService {
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
+  rpc GetSnapshotDiff(GetSnapshotDiffRequest) returns (GetSnapshotDiffResponse);
   rpc GetIncomeStatementTimeseries(GetIncomeStatementTimeseriesRequest) returns (GetIncomeStatementTimeseriesResponse);
 
   // Import
