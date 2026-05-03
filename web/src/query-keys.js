@@ -7,6 +7,7 @@ export const queryKeys = {
   prices:               () => ["prices"],
   accountDeclarations:  () => ["accountDeclarations"],
   snapshots:            () => ["snapshots"],
+  snapshotDiff:         (hash) => ["snapshotDiff", hash],
   bankProfiles:         () => ["bankProfiles"],
   rules:                () => ["rules"],
   netWorthTimeseries:              (begin) => ["netWorthTimeseries", begin],

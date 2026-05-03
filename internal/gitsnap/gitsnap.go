@@ -1,6 +1,7 @@
 package gitsnap
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
@@ -23,6 +25,23 @@ type Snapshot struct {
 	Hash      string
 	Message   string
 	Timestamp time.Time
+}
+
+type ChangeType int
+
+const (
+	ChangeAdded ChangeType = iota
+	ChangeDeleted
+	ChangeModified
+	ChangeRenamed
+)
+
+type FileDiff struct {
+	Path     string
+	OldPath  string
+	Change   ChangeType
+	IsBinary bool
+	Patch    string
 }
 
 func New(dir string) (*Repo, error) {
@@ -159,6 +178,89 @@ func (r *Repo) Restore(_ context.Context, hash string) error {
 	}
 	return nil
 }
+
+func (r *Repo) Diff(ctx context.Context, hash string) ([]FileDiff, error) {
+	h := plumbing.NewHash(hash)
+	if h.IsZero() {
+		return nil, fmt.Errorf("gitsnap: diff: invalid hash %q", hash)
+	}
+	commit, err := r.repo.CommitObject(h)
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: diff: commit %q not found: %w", hash, err)
+	}
+
+	var oldTree *object.Tree
+	parents := commit.Parents()
+	parent, err := parents.Next()
+	if err == nil {
+		oldTree, err = parent.Tree()
+		if err != nil {
+			return nil, fmt.Errorf("gitsnap: diff: parent tree: %w", err)
+		}
+	} else if !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("gitsnap: diff: parents: %w", err)
+	}
+	parents.Close()
+
+	newTree, err := commit.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: diff: tree: %w", err)
+	}
+
+	changes, err := object.DiffTreeWithOptions(ctx, oldTree, newTree, &object.DiffTreeOptions{DetectRenames: true})
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: diff: tree diff: %w", err)
+	}
+	patch, err := changes.Patch()
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: diff: patch: %w", err)
+	}
+
+	filePatches := patch.FilePatches()
+	out := make([]FileDiff, 0, len(filePatches))
+	for _, fp := range filePatches {
+		from, to := fp.Files()
+		fd := FileDiff{IsBinary: fp.IsBinary()}
+		switch {
+		case from == nil && to != nil:
+			fd.Change = ChangeAdded
+			fd.Path = to.Path()
+		case from != nil && to == nil:
+			fd.Change = ChangeDeleted
+			fd.Path = from.Path()
+		case from != nil && to != nil && from.Path() != to.Path():
+			fd.Change = ChangeRenamed
+			fd.OldPath = from.Path()
+			fd.Path = to.Path()
+		case from != nil && to != nil:
+			fd.Change = ChangeModified
+			fd.Path = to.Path()
+		default:
+			continue
+		}
+
+		if !fd.IsBinary {
+			var buf bytes.Buffer
+			enc := diff.NewUnifiedEncoder(&buf, diff.DefaultContextLines)
+			if err := enc.Encode(singleFilePatch{fp: fp, message: patch.Message()}); err != nil {
+				return nil, fmt.Errorf("gitsnap: diff: encode %q: %w", fd.Path, err)
+			}
+			fd.Patch = buf.String()
+		}
+		out = append(out, fd)
+	}
+	return out, nil
+}
+
+// singleFilePatch wraps one diff.FilePatch so we can render its unified diff
+// independently of the parent *object.Patch.
+type singleFilePatch struct {
+	fp      diff.FilePatch
+	message string
+}
+
+func (s singleFilePatch) FilePatches() []diff.FilePatch { return []diff.FilePatch{s.fp} }
+func (s singleFilePatch) Message() string               { return s.message }
 
 func (r *Repo) RecoverUncommitted(ctx context.Context) error {
 	wt, err := r.repo.Worktree()

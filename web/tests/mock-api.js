@@ -489,6 +489,108 @@ export const mockImports = [
   { importBatchId: "2026-01-31-d4e5f6a7", date: "2026-01-31", transactionCount: 12 },
 ];
 
+export const mockSnapshots = [
+  {
+    hash: "9f3a1c4b8e2d7a6f5b4c3d2e1a0b9c8d7e6f5a40",
+    message: "float: edit transaction (a1b2c3d4)",
+    timestamp: "2026-04-29T10:14:08-04:00",
+  },
+  {
+    hash: "7c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c01",
+    message: "float: add transaction (e5f6a7b8)",
+    timestamp: "2026-04-28T16:42:31-04:00",
+  },
+  {
+    hash: "4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a30",
+    message: "float: import 2026-04-15-b2c3d4e5",
+    timestamp: "2026-04-15T09:03:55-04:00",
+  },
+  {
+    hash: "1f2e3d4c5b6a7980abcdef0123456789abcdef01",
+    message: "float: init",
+    timestamp: "2026-01-02T12:00:00-04:00",
+  },
+];
+
+export const mockSnapshotDiffs = {
+  "9f3a1c4b8e2d7a6f5b4c3d2e1a0b9c8d7e6f5a40": {
+    hash: "9f3a1c4b8e2d7a6f5b4c3d2e1a0b9c8d7e6f5a40",
+    files: [
+      {
+        path: "2026/04.journal",
+        oldPath: "",
+        changeType: "modified",
+        isBinary: false,
+        patch: `diff --git a/2026/04.journal b/2026/04.journal
+index 4a58007052a65fbc..ad116abbb07be5c0 100644
+--- a/2026/04.journal
++++ b/2026/04.journal
+@@ -12,9 +12,9 @@
+ 2026-04-22 (e5f6a7b8) BLUE BOTTLE COFFEE
+     expenses:food:coffee     5.75 USD
+     assets:checking         -5.75 USD
+
+-2026-04-25 (a1b2c3d4) AMAZON.COM PURCHASE
+-    expenses:shopping       42.99 USD
+-    assets:checking        -42.99 USD
++2026-04-25 (a1b2c3d4) AMAZON.COM PURCHASE | books
++    expenses:books          42.99 USD
++    assets:checking        -42.99 USD
+
+ 2026-04-27 (c3d4e5f6) WHOLE FOODS MARKET
+     expenses:food:groceries  87.50 USD
+`,
+      },
+    ],
+  },
+  "4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a30": {
+    hash: "4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a30",
+    files: [
+      {
+        path: "2026/04.journal",
+        oldPath: "",
+        changeType: "added",
+        isBinary: false,
+        patch: `diff --git a/2026/04.journal b/2026/04.journal
+new file mode 100644
+index 0000000000000000..4a58007052a65fbc
+--- /dev/null
++++ b/2026/04.journal
+@@ -0,0 +1,5 @@
++2026-04-15 (b2c3d4e5) ACME CORP DIRECT DEPOSIT
++    income:salary       -2500.00 USD
++    assets:checking      2500.00 USD
++
++; imported from 2026-04-15-b2c3d4e5
+`,
+      },
+      {
+        path: "rules.json",
+        oldPath: "",
+        changeType: "modified",
+        isBinary: false,
+        patch: `diff --git a/rules.json b/rules.json
+index abc123..def456 100644
+--- a/rules.json
++++ b/rules.json
+@@ -3,6 +3,11 @@
+       "pattern": "AMAZON",
+       "account": "expenses:shopping",
+       "priority": 10
++    },
++    {
++      "pattern": "ACME CORP",
++      "account": "income:salary",
++      "priority": 5
+     }
+   ]
+ }
+`,
+      },
+    ],
+  },
+};
+
 export const mockImportedTransactions = [
   {
     fid: "a1b2c3d4",
@@ -803,6 +905,17 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
+        break;
+      case "ListSnapshots":
+        body = { snapshots: mockSnapshots };
+        break;
+      case "GetSnapshotDiff": {
+        const reqHash = reqBody.hash || "";
+        body = mockSnapshotDiffs[reqHash] ?? { hash: reqHash, files: [] };
+        break;
+      }
+      case "RestoreSnapshot":
+        body = {};
         break;
       default:
         body = {};

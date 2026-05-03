@@ -3,6 +3,7 @@ package gitsnap
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -261,6 +262,233 @@ func TestRecoverUncommitted_DirtyTree(t *testing.T) {
 	}
 	if snaps[0].Message != "float: recovery snapshot (uncommitted changes at startup)" {
 		t.Errorf("unexpected recovery message: %q", snaps[0].Message)
+	}
+}
+
+func TestDiff_ModifiedFile(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	journalPath := filepath.Join(dir, "main.journal")
+	if err := os.WriteFile(journalPath, []byte("version-A\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "commit A"); err != nil {
+		t.Fatalf("Commit A: %v", err)
+	}
+	if err := os.WriteFile(journalPath, []byte("version-B\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "commit B"); err != nil {
+		t.Fatalf("Commit B: %v", err)
+	}
+
+	snaps, _ := repo.List(ctx, 1)
+	files, err := repo.Diff(ctx, snaps[0].Hash)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+	if files[0].Path != "main.journal" {
+		t.Errorf("path: got %q, want %q", files[0].Path, "main.journal")
+	}
+	if files[0].Change != ChangeModified {
+		t.Errorf("change: got %v, want ChangeModified", files[0].Change)
+	}
+	if files[0].IsBinary {
+		t.Errorf("expected text file, got binary")
+	}
+	if !strings.Contains(files[0].Patch, "-version-A") || !strings.Contains(files[0].Patch, "+version-B") {
+		t.Errorf("patch missing markers:\n%s", files[0].Patch)
+	}
+}
+
+func TestDiff_AddedFile(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "new.journal"), []byte("new\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "add new"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	snaps, _ := repo.List(ctx, 1)
+	files, err := repo.Diff(ctx, snaps[0].Hash)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if len(files) != 1 || files[0].Path != "new.journal" || files[0].Change != ChangeAdded {
+		t.Fatalf("expected single ChangeAdded for new.journal, got %+v", files)
+	}
+	if !strings.Contains(files[0].Patch, "+new") {
+		t.Errorf("patch missing +new line:\n%s", files[0].Patch)
+	}
+}
+
+func TestDiff_DeletedFile(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	doomed := filepath.Join(dir, "doomed.journal")
+	if err := os.WriteFile(doomed, []byte("bye\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "add doomed"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if err := os.Remove(doomed); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "delete doomed"); err != nil {
+		t.Fatalf("Commit delete: %v", err)
+	}
+
+	snaps, _ := repo.List(ctx, 1)
+	files, err := repo.Diff(ctx, snaps[0].Hash)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if len(files) != 1 || files[0].Path != "doomed.journal" || files[0].Change != ChangeDeleted {
+		t.Fatalf("expected single ChangeDeleted for doomed.journal, got %+v", files)
+	}
+}
+
+func TestDiff_RenamedFile(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	content := []byte("the quick brown fox jumps over the lazy dog\n" +
+		"second line of identical content for rename detection\n")
+	if err := os.WriteFile(filepath.Join(dir, "old.journal"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "add old"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if err := os.Rename(filepath.Join(dir, "old.journal"), filepath.Join(dir, "new.journal")); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "rename old to new"); err != nil {
+		t.Fatalf("Commit rename: %v", err)
+	}
+
+	snaps, _ := repo.List(ctx, 1)
+	files, err := repo.Diff(ctx, snaps[0].Hash)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d (%+v)", len(files), files)
+	}
+	if files[0].Change != ChangeRenamed {
+		t.Errorf("change: got %v, want ChangeRenamed", files[0].Change)
+	}
+	if files[0].OldPath != "old.journal" || files[0].Path != "new.journal" {
+		t.Errorf("paths: got old=%q new=%q, want old=old.journal new=new.journal", files[0].OldPath, files[0].Path)
+	}
+}
+
+func TestDiff_RootCommit(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	snaps, err := repo.List(ctx, 10)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	rootHash := snaps[len(snaps)-1].Hash
+
+	files, err := repo.Diff(ctx, rootHash)
+	if err != nil {
+		t.Fatalf("Diff(root): %v", err)
+	}
+	found := false
+	for _, f := range files {
+		if f.Path == ".gitignore" && f.Change == ChangeAdded {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected .gitignore as added file in root commit; got %+v", files)
+	}
+}
+
+func TestDiff_InvalidHash(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if _, err := repo.Diff(ctx, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"); err == nil {
+		t.Fatal("expected error for nonexistent hash, got nil")
+	}
+	if _, err := repo.Diff(ctx, ""); err == nil {
+		t.Fatal("expected error for empty hash, got nil")
+	}
+}
+
+func TestDiff_BinaryFile(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	binPath := filepath.Join(dir, "data.bin")
+	if err := os.WriteFile(binPath, []byte{0, 1, 2, 0, 3}, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "add binary"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if err := os.WriteFile(binPath, []byte{0, 1, 2, 0, 3, 4, 5}, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "modify binary"); err != nil {
+		t.Fatalf("Commit modify: %v", err)
+	}
+
+	snaps, _ := repo.List(ctx, 1)
+	files, err := repo.Diff(ctx, snaps[0].Hash)
+	if err != nil {
+		t.Fatalf("Diff: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+	if !files[0].IsBinary {
+		t.Errorf("expected IsBinary=true, got false")
+	}
+	if files[0].Patch != "" {
+		t.Errorf("expected empty patch for binary, got %q", files[0].Patch)
 	}
 }
 

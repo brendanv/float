@@ -109,6 +109,9 @@ const (
 	// LedgerServiceRestoreSnapshotProcedure is the fully-qualified name of the LedgerService's
 	// RestoreSnapshot RPC.
 	LedgerServiceRestoreSnapshotProcedure = "/float.v1.LedgerService/RestoreSnapshot"
+	// LedgerServiceGetSnapshotDiffProcedure is the fully-qualified name of the LedgerService's
+	// GetSnapshotDiff RPC.
+	LedgerServiceGetSnapshotDiffProcedure = "/float.v1.LedgerService/GetSnapshotDiff"
 	// LedgerServiceGetIncomeStatementTimeseriesProcedure is the fully-qualified name of the
 	// LedgerService's GetIncomeStatementTimeseries RPC.
 	LedgerServiceGetIncomeStatementTimeseriesProcedure = "/float.v1.LedgerService/GetIncomeStatementTimeseries"
@@ -194,6 +197,7 @@ type LedgerServiceClient interface {
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error)
 	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
@@ -385,6 +389,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
 			connect.WithClientOptions(opts...),
 		),
+		getSnapshotDiff: connect.NewClient[v1.GetSnapshotDiffRequest, v1.GetSnapshotDiffResponse](
+			httpClient,
+			baseURL+LedgerServiceGetSnapshotDiffProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetSnapshotDiff")),
+			connect.WithClientOptions(opts...),
+		),
 		getIncomeStatementTimeseries: connect.NewClient[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse](
 			httpClient,
 			baseURL+LedgerServiceGetIncomeStatementTimeseriesProcedure,
@@ -530,6 +540,7 @@ type ledgerServiceClient struct {
 	bulkEditTransactions         *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
 	listSnapshots                *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
 	restoreSnapshot              *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
+	getSnapshotDiff              *connect.Client[v1.GetSnapshotDiffRequest, v1.GetSnapshotDiffResponse]
 	getIncomeStatementTimeseries *connect.Client[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse]
 	listBankProfiles             *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
 	createBankProfile            *connect.Client[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse]
@@ -681,6 +692,11 @@ func (c *ledgerServiceClient) RestoreSnapshot(ctx context.Context, req *connect.
 	return c.restoreSnapshot.CallUnary(ctx, req)
 }
 
+// GetSnapshotDiff calls float.v1.LedgerService.GetSnapshotDiff.
+func (c *ledgerServiceClient) GetSnapshotDiff(ctx context.Context, req *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error) {
+	return c.getSnapshotDiff.CallUnary(ctx, req)
+}
+
 // GetIncomeStatementTimeseries calls float.v1.LedgerService.GetIncomeStatementTimeseries.
 func (c *ledgerServiceClient) GetIncomeStatementTimeseries(ctx context.Context, req *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error) {
 	return c.getIncomeStatementTimeseries.CallUnary(ctx, req)
@@ -804,6 +820,7 @@ type LedgerServiceHandler interface {
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error)
 	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
@@ -991,6 +1008,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetSnapshotDiffHandler := connect.NewUnaryHandler(
+		LedgerServiceGetSnapshotDiffProcedure,
+		svc.GetSnapshotDiff,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetSnapshotDiff")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceGetIncomeStatementTimeseriesHandler := connect.NewUnaryHandler(
 		LedgerServiceGetIncomeStatementTimeseriesProcedure,
 		svc.GetIncomeStatementTimeseries,
@@ -1159,6 +1182,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceListSnapshotsHandler.ServeHTTP(w, r)
 		case LedgerServiceRestoreSnapshotProcedure:
 			ledgerServiceRestoreSnapshotHandler.ServeHTTP(w, r)
+		case LedgerServiceGetSnapshotDiffProcedure:
+			ledgerServiceGetSnapshotDiffHandler.ServeHTTP(w, r)
 		case LedgerServiceGetIncomeStatementTimeseriesProcedure:
 			ledgerServiceGetIncomeStatementTimeseriesHandler.ServeHTTP(w, r)
 		case LedgerServiceListBankProfilesProcedure:
@@ -1308,6 +1333,10 @@ func (UnimplementedLedgerServiceHandler) ListSnapshots(context.Context, *connect
 
 func (UnimplementedLedgerServiceHandler) RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RestoreSnapshot is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetSnapshotDiff is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error) {
