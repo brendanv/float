@@ -804,7 +804,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		Comment:     req.Msg.Comment,
 		Tags:        req.Msg.Tags,
 		Postings:    postings,
-		Status:      "Pending",
+		Status:      "Cleared",
 	}
 
 	var fid string
