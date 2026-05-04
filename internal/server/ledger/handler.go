@@ -1899,21 +1899,21 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			}
 			importedFIDs = append(importedFIDs, fid)
 		}
+
+		// Save a copy of the uploaded CSV inside lock.Do so it is included in the git commit.
+		// importBatchID may contain a "/" (profile-slug/date-fid), so we create the subdirectory.
+		uploadsDir := filepath.Join(h.dataDir, "uploads")
+		uploadFilePath := filepath.Join(uploadsDir, filepath.FromSlash(importBatchID+".csv"))
+		if mkErr := os.MkdirAll(filepath.Dir(uploadFilePath), 0o755); mkErr != nil {
+			logger.ErrorContext(ctx, "create uploads dir failed", "error", mkErr)
+		} else if wErr := os.WriteFile(uploadFilePath, req.Msg.CsvData, 0o644); wErr != nil {
+			logger.ErrorContext(ctx, "save uploaded CSV failed", "error", wErr)
+		}
 		return nil
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "import transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	// Save a copy of the uploaded CSV to uploads/<importBatchID>.csv.
-	// importBatchID may contain a "/" (profile-slug/date-fid), so we create the subdirectory.
-	uploadsDir := filepath.Join(h.dataDir, "uploads")
-	uploadFilePath := filepath.Join(uploadsDir, filepath.FromSlash(importBatchID+".csv"))
-	if mkErr := os.MkdirAll(filepath.Dir(uploadFilePath), 0o755); mkErr != nil {
-		logger.ErrorContext(ctx, "create uploads dir failed", "error", mkErr)
-	} else if wErr := os.WriteFile(uploadFilePath, req.Msg.CsvData, 0o644); wErr != nil {
-		logger.ErrorContext(ctx, "save uploaded CSV failed", "error", wErr)
 	}
 
 	// Fetch the imported transactions to return.
