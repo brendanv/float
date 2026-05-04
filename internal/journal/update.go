@@ -13,8 +13,9 @@ import (
 // transaction identified by fid, preserving the original fid, status, and hidden meta.
 // If newDate is empty, the existing transaction date is kept.
 // If tags is non-nil, it replaces all user-visible tags; if nil, existing tags are preserved.
+// If newStatus is non-empty, it overrides the current status in the same write.
 // Callers must wrap in txlock.Do().
-func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid, description, newDate, comment string, tags map[string]string, postings []PostingInput) (hledger.Transaction, error) {
+func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid, description, newDate, comment string, tags map[string]string, postings []PostingInput, newStatus string) (hledger.Transaction, error) {
 	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return hledger.Transaction{}, fmt.Errorf("journal: update: lookup fid %q: %w", fid, err)
@@ -49,6 +50,9 @@ func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 			return hledger.Transaction{}, fmt.Errorf("journal: update: invalid date %q: must be YYYY-MM-DD", newDate)
 		}
 		input.Date = parsedDate
+	}
+	if newStatus != "" && t.Status != newStatus {
+		input.Status = newStatus
 	}
 
 	if _, err := WriteTransaction(ctx, client, dataDir, input, src); err != nil {

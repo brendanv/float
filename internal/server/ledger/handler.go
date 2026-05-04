@@ -868,7 +868,7 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	var updated hledger.Transaction
 	err := h.lock.Do(ctx, fmt.Sprintf("update transaction %s", fid), func() error {
 		var e error
-		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, req.Msg.Tags, postings)
+		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, req.Msg.Tags, postings, req.Msg.Status)
 		return e
 	})
 	if err != nil {

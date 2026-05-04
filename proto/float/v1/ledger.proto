@@ -216,6 +216,7 @@ message UpdateTransactionRequest {
   repeated PostingInput postings = 5; // required; replaces all existing postings
   string payee = 6; // optional; if set, description becomes "payee | description"
   map<string, string> tags = 7; // optional; if set, replaces all user-visible tags
+  string status = 8; // optional; if non-empty, overrides the transaction status ("", "Pending", "Cleared")
 }
 
 message UpdateTransactionResponse {
