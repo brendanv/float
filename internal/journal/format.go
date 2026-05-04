@@ -18,13 +18,22 @@ type CostInput struct {
 	IsTotal   bool // false = per-unit (@), true = total (@@)
 }
 
+// BalanceAssertionInput represents a balance assertion on a posting (= or == with optional *).
+type BalanceAssertionInput struct {
+	Commodity string
+	Quantity  string
+	Inclusive bool // true = subaccount-inclusive (=* or ==*)
+	Total     bool // true = sole-commodity (== or ==*)
+}
+
 // PostingInput represents one leg of a transaction.
 type PostingInput struct {
-	Account   string     // e.g. "expenses:shopping"
-	Commodity string     // e.g. "USD", "AAPL"; empty = auto-balance posting
-	Quantity  string     // e.g. "45.00"; empty = auto-balance posting
-	Comment   string     // optional inline comment text (without "; " prefix)
-	Cost      *CostInput // optional cost annotation
+	Account          string                 // e.g. "expenses:shopping"
+	Commodity        string                 // e.g. "USD", "AAPL"; empty = auto-balance posting
+	Quantity         string                 // e.g. "45.00"; empty = auto-balance posting
+	Comment          string                 // optional inline comment text (without "; " prefix)
+	Cost             *CostInput             // optional cost annotation
+	BalanceAssertion *BalanceAssertionInput // optional balance assertion
 }
 
 // TransactionInput represents a transaction to be written.
@@ -54,6 +63,17 @@ func postingAmountString(p PostingInput) string {
 			op = "@@"
 		}
 		s += " " + op + " " + p.Cost.Quantity + " " + p.Cost.Commodity
+	}
+	if p.BalanceAssertion != nil {
+		ba := p.BalanceAssertion
+		op := "="
+		if ba.Total {
+			op = "=="
+		}
+		if ba.Inclusive {
+			op += "*"
+		}
+		s += " " + op + " " + ba.Quantity + " " + ba.Commodity
 	}
 	return s
 }

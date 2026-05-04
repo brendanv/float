@@ -10,10 +10,18 @@ message Amount {
   Cost cost = 3;       // optional cost annotation, e.g. 10 AAPL @ 175.00 USD
 }
 
+message BalanceAssertion {
+  string commodity = 1; // e.g. "USD"
+  string quantity = 2;  // e.g. "100.00"
+  bool inclusive = 3;   // true = subaccount-inclusive (=* or ==*)
+  bool total = 4;       // true = sole-commodity (== or ==*)
+}
+
 message Posting {
   string account = 1;
   repeated Amount amounts = 2;
   string comment = 3;
+  BalanceAssertion balance_assertion = 4; // null if no assertion on this posting
 }
 
 message Transaction {
@@ -189,10 +197,11 @@ message Cost {
 
 message PostingInput {
   string account = 1;
-  string commodity = 2;  // e.g. "USD", "AAPL"; empty = auto-balance
-  string quantity = 3;   // e.g. "45.00"; empty = auto-balance
+  string commodity = 2;                  // e.g. "USD", "AAPL"; empty = auto-balance
+  string quantity = 3;                   // e.g. "45.00"; empty = auto-balance
   string comment = 4;
-  Cost cost = 5;         // optional; e.g. 10 AAPL @ 175.00 USD
+  Cost cost = 5;                         // optional; e.g. 10 AAPL @ 175.00 USD
+  BalanceAssertion balance_assertion = 6; // optional; asserts running balance after this posting
 }
 
 message AddTransactionRequest {

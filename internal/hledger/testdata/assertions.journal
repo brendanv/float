@@ -1,0 +1,12 @@
+2024/01/01 Opening balances
+  assets:checking  $1000.00 = $1000.00
+  equity:opening  $-1000.00
+
+2024/01/02 Income
+  assets:checking  $500.00 =* $1500.00
+  income:salary  $-500.00
+
+2024/01/03 Multi-commodity
+  assets:checking  $200.00 == $1700.00
+  assets:savings   $0 ==* $0
+  income:other  $-200.00

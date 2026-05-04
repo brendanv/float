@@ -3,6 +3,7 @@ package hledger_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -994,6 +995,66 @@ func TestPayees(t *testing.T) {
 			t.Fatalf("Payees: %v", err)
 		}
 	})
+}
+
+func TestBalanceAssertionParsing(t *testing.T) {
+	c := mustClient(t, "assertions.journal")
+	txns, err := c.Transactions(t.Context())
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if len(txns) != 3 {
+		t.Fatalf("expected 3 transactions, got %d", len(txns))
+	}
+
+	tests := []struct {
+		txIdx       int
+		postingIdx  int
+		wantNil     bool
+		wantQty     string
+		wantCom     string
+		wantInc     bool
+		wantTotal   bool
+	}{
+		// tx0 posting0: $1000.00 = $1000.00 → regular, exclusive, single-commodity
+		{txIdx: 0, postingIdx: 0, wantNil: false, wantQty: "1000.00", wantCom: "$", wantInc: false, wantTotal: false},
+		// tx0 posting1: no assertion
+		{txIdx: 0, postingIdx: 1, wantNil: true},
+		// tx1 posting0: $1500.00 =* → inclusive, single-commodity
+		{txIdx: 1, postingIdx: 0, wantNil: false, wantQty: "1500.00", wantCom: "$", wantInc: true, wantTotal: false},
+		// tx2 posting0: == $1700.00 → exclusive, sole-commodity
+		{txIdx: 2, postingIdx: 0, wantNil: false, wantQty: "1700.00", wantCom: "$", wantInc: false, wantTotal: true},
+		// tx2 posting1: ==* $0 → inclusive, sole-commodity (hledger omits decimal places for whole numbers)
+		{txIdx: 2, postingIdx: 1, wantNil: false, wantQty: "0", wantCom: "$", wantInc: true, wantTotal: true},
+	}
+
+	for _, tt := range tests {
+		p := txns[tt.txIdx].Postings[tt.postingIdx]
+		if tt.wantNil {
+			if p.BalanceAssertion != nil {
+				t.Errorf("txns[%d].Postings[%d]: expected nil BalanceAssertion, got %+v", tt.txIdx, tt.postingIdx, p.BalanceAssertion)
+			}
+			continue
+		}
+		ba := p.BalanceAssertion
+		if ba == nil {
+			t.Errorf("txns[%d].Postings[%d]: expected non-nil BalanceAssertion", tt.txIdx, tt.postingIdx)
+			continue
+		}
+		qty := fmt.Sprintf("%.*f", ba.Amount.Quantity.DecimalPlaces, ba.Amount.Quantity.FloatingPoint)
+		if qty != tt.wantQty {
+			t.Errorf("txns[%d].Postings[%d]: quantity = %q, want %q", tt.txIdx, tt.postingIdx, qty, tt.wantQty)
+		}
+		if ba.Amount.Commodity != tt.wantCom {
+			t.Errorf("txns[%d].Postings[%d]: commodity = %q, want %q", tt.txIdx, tt.postingIdx, ba.Amount.Commodity, tt.wantCom)
+		}
+		if ba.Inclusive != tt.wantInc {
+			t.Errorf("txns[%d].Postings[%d]: inclusive = %v, want %v", tt.txIdx, tt.postingIdx, ba.Inclusive, tt.wantInc)
+		}
+		if ba.Total != tt.wantTotal {
+			t.Errorf("txns[%d].Postings[%d]: total = %v, want %v", tt.txIdx, tt.postingIdx, ba.Total, tt.wantTotal)
+		}
+	}
 }
 
 func TestIncomeStatementTimeseries(t *testing.T) {

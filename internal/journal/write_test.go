@@ -434,3 +434,104 @@ func TestInputFromTransaction(t *testing.T) {
 		t.Errorf("FID = %q, want %q", input.FID, fid)
 	}
 }
+
+func TestPostingAmountString_BalanceAssertion(t *testing.T) {
+	tests := []struct {
+		name string
+		p    PostingInput
+		want string
+	}{
+		{
+			name: "no assertion",
+			p:    PostingInput{Commodity: "$", Quantity: "100.00"},
+			want: "100.00 $",
+		},
+		{
+			name: "regular assertion",
+			p: PostingInput{
+				Commodity:        "$",
+				Quantity:         "100.00",
+				BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00"},
+			},
+			want: "100.00 $ = 100.00 $",
+		},
+		{
+			name: "sole-commodity assertion",
+			p: PostingInput{
+				Commodity:        "$",
+				Quantity:         "100.00",
+				BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00", Total: true},
+			},
+			want: "100.00 $ == 100.00 $",
+		},
+		{
+			name: "inclusive assertion",
+			p: PostingInput{
+				Commodity:        "$",
+				Quantity:         "100.00",
+				BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00", Inclusive: true},
+			},
+			want: "100.00 $ =* 100.00 $",
+		},
+		{
+			name: "inclusive sole-commodity assertion",
+			p: PostingInput{
+				Commodity:        "$",
+				Quantity:         "100.00",
+				BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00", Inclusive: true, Total: true},
+			},
+			want: "100.00 $ ==* 100.00 $",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := postingAmountString(tt.p)
+			if got != tt.want {
+				t.Errorf("postingAmountString() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWriteTransaction_BalanceAssertion(t *testing.T) {
+	dir := setupWriteDir(t)
+	c := mustHledgerClient(t, dir)
+
+	tx := TransactionInput{
+		Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+		Description: "Balance assertion test",
+		Postings: []PostingInput{
+			{
+				Account:          "assets:checking",
+				Commodity:        "$",
+				Quantity:         "500.00",
+				BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "500.00"},
+			},
+			{Account: "income:salary", Commodity: "$", Quantity: "-500.00"},
+		},
+	}
+	fid, err := WriteTransaction(t.Context(), c, dir, tx, nil)
+	if err != nil {
+		t.Fatalf("WriteTransaction: %v", err)
+	}
+
+	txns, err := c.Transactions(t.Context(), "code:"+fid)
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if len(txns) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(txns))
+	}
+
+	p := txns[0].Postings[0]
+	if p.BalanceAssertion == nil {
+		t.Fatal("expected non-nil BalanceAssertion on first posting")
+	}
+	if p.BalanceAssertion.Amount.Commodity != "$" {
+		t.Errorf("commodity = %q, want %q", p.BalanceAssertion.Amount.Commodity, "$")
+	}
+	if p.BalanceAssertion.Inclusive || p.BalanceAssertion.Total {
+		t.Errorf("expected regular assertion (inclusive=false, total=false), got inclusive=%v total=%v",
+			p.BalanceAssertion.Inclusive, p.BalanceAssertion.Total)
+	}
+}

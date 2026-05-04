@@ -121,6 +121,14 @@ func postingsFromTransaction(t hledger.Transaction) []PostingInput {
 				}
 			}
 		}
+		if ba := p.BalanceAssertion; ba != nil {
+			pi.BalanceAssertion = &BalanceAssertionInput{
+				Commodity: ba.Amount.Commodity,
+				Quantity:  fmt.Sprintf("%.*f", ba.Amount.Quantity.DecimalPlaces, ba.Amount.Quantity.FloatingPoint),
+				Inclusive: ba.Inclusive,
+				Total:     ba.Total,
+			}
+		}
 		postings[i] = pi
 	}
 	return postings

@@ -25,16 +25,25 @@ type Amount struct {
 	Cost      *json.RawMessage `json:"acost"`
 }
 
+// BalanceAssertion is the parsed form of hledger's pbalanceassertion field.
+// It corresponds to a balance assertion on a posting (e.g. "= $100" or "==* $200").
+type BalanceAssertion struct {
+	Amount    Amount `json:"baamount"`
+	Inclusive bool   `json:"bainclusive"` // true = subaccount-inclusive (=* or ==*)
+	Total     bool   `json:"batotal"`     // true = sole-commodity (== or ==*)
+}
+
 type Posting struct {
-	Account          string      `json:"paccount"`
-	Amounts          []Amount    `json:"pamount"`
-	Comment          string      `json:"pcomment"`
-	Tags             [][2]string `json:"ptags"`
-	Status           string      `json:"pstatus"`
-	Type             string      `json:"ptype"`
-	TransactionIndex string      `json:"ptransaction_"`
-	Date             *string     `json:"pdate"`
-	Date2            *string     `json:"pdate2"`
+	Account          string            `json:"paccount"`
+	Amounts          []Amount          `json:"pamount"`
+	Comment          string            `json:"pcomment"`
+	Tags             [][2]string       `json:"ptags"`
+	Status           string            `json:"pstatus"`
+	Type             string            `json:"ptype"`
+	TransactionIndex string            `json:"ptransaction_"`
+	Date             *string           `json:"pdate"`
+	Date2            *string           `json:"pdate2"`
+	BalanceAssertion *BalanceAssertion `json:"pbalanceassertion"`
 }
 
 // SourcePos is a file location emitted by hledger in its JSON output as

@@ -787,11 +787,12 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 	postings := make([]journal.PostingInput, len(req.Msg.Postings))
 	for i, p := range req.Msg.Postings {
 		postings[i] = journal.PostingInput{
-			Account:   p.Account,
-			Commodity: p.Commodity,
-			Quantity:  p.Quantity,
-			Comment:   p.Comment,
-			Cost:      protoToJournalCost(p.Cost),
+			Account:          p.Account,
+			Commodity:        p.Commodity,
+			Quantity:         p.Quantity,
+			Comment:          p.Comment,
+			Cost:             protoToJournalCost(p.Cost),
+			BalanceAssertion: protoToJournalBalanceAssertion(p.BalanceAssertion),
 		}
 	}
 	desc := req.Msg.Description
@@ -852,11 +853,12 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	postings := make([]journal.PostingInput, len(req.Msg.Postings))
 	for i, p := range req.Msg.Postings {
 		postings[i] = journal.PostingInput{
-			Account:   p.Account,
-			Commodity: p.Commodity,
-			Quantity:  p.Quantity,
-			Comment:   p.Comment,
-			Cost:      protoToJournalCost(p.Cost),
+			Account:          p.Account,
+			Commodity:        p.Commodity,
+			Quantity:         p.Quantity,
+			Comment:          p.Comment,
+			Cost:             protoToJournalCost(p.Cost),
+			BalanceAssertion: protoToJournalBalanceAssertion(p.BalanceAssertion),
 		}
 	}
 
@@ -969,11 +971,20 @@ func toProtoPosting(p hledger.Posting) *floatv1.Posting {
 	for i, a := range p.Amounts {
 		amounts[i] = toProtoAmount(a)
 	}
-	return &floatv1.Posting{
+	out := &floatv1.Posting{
 		Account: p.Account,
 		Amounts: amounts,
 		Comment: p.Comment,
 	}
+	if ba := p.BalanceAssertion; ba != nil {
+		out.BalanceAssertion = &floatv1.BalanceAssertion{
+			Commodity: ba.Amount.Commodity,
+			Quantity:  fmt.Sprintf("%.*f", ba.Amount.Quantity.DecimalPlaces, ba.Amount.Quantity.FloatingPoint),
+			Inclusive: ba.Inclusive,
+			Total:     ba.Total,
+		}
+	}
+	return out
 }
 
 func toProtoAmount(a hledger.Amount) *floatv1.Amount {
@@ -2365,6 +2376,18 @@ func protoToJournalCost(c *floatv1.Cost) *journal.CostInput {
 		Commodity: c.Commodity,
 		Quantity:  c.Quantity,
 		IsTotal:   c.IsTotal,
+	}
+}
+
+func protoToJournalBalanceAssertion(ba *floatv1.BalanceAssertion) *journal.BalanceAssertionInput {
+	if ba == nil {
+		return nil
+	}
+	return &journal.BalanceAssertionInput{
+		Commodity: ba.Commodity,
+		Quantity:  ba.Quantity,
+		Inclusive: ba.Inclusive,
+		Total:     ba.Total,
 	}
 }
 
