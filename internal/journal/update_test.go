@@ -12,7 +12,7 @@ func TestUpdateTransaction(t *testing.T) {
 	t.Run("not_found", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 110, NumTxns: 3, WithFIDs: true})
 		client := mustHledgerClient(t, dir)
-		_, err := UpdateTransaction(t.Context(), client, dir, "00000000", "DESCRIPTION", "", "", nil, nil)
+		_, err := UpdateTransaction(t.Context(), client, dir, "00000000", "DESCRIPTION", "", "", nil, nil, "")
 		if err == nil {
 			t.Fatal("expected error for non-existent fid, got nil")
 		}
@@ -37,7 +37,7 @@ func TestUpdateTransaction(t *testing.T) {
 			t.Fatalf("AppendTransaction: %v", err)
 		}
 
-		_, err = UpdateTransaction(t.Context(), client, dir, fid, "UPDATED", "not-a-date", "", nil, nil)
+		_, err = UpdateTransaction(t.Context(), client, dir, fid, "UPDATED", "not-a-date", "", nil, nil, "")
 		if err == nil {
 			t.Fatal("expected error for invalid date, got nil")
 		}
@@ -65,7 +65,7 @@ func TestUpdateTransaction(t *testing.T) {
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "UPDATED DESCRIPTION", "", "", nil, []PostingInput{
 			{Account: "expenses:food", Commodity: "USD", Quantity: "25.00"},
 			{Account: "assets:checking"},
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("UpdateTransaction: %v", err)
 		}
@@ -100,7 +100,7 @@ func TestUpdateTransaction(t *testing.T) {
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "DATE UPDATE TEST", "2026-03-20", "", nil, []PostingInput{
 			{Account: "expenses:shopping", Commodity: "USD", Quantity: "40.00"},
 			{Account: "assets:checking"},
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("UpdateTransaction: %v", err)
 		}
@@ -135,7 +135,7 @@ func TestUpdateTransaction(t *testing.T) {
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "CROSS MONTH TEST", "2026-04-01", "", nil, []PostingInput{
 			{Account: "expenses:food", Commodity: "USD", Quantity: "15.00"},
 			{Account: "assets:checking"},
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("UpdateTransaction: %v", err)
 		}
@@ -170,7 +170,7 @@ func TestUpdateTransaction(t *testing.T) {
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "REPLACE POSTINGS TEST", "", "", nil, []PostingInput{
 			{Account: "expenses:shopping", Commodity: "USD", Quantity: "99.00"},
 			{Account: "liabilities:credit-card"},
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("UpdateTransaction: %v", err)
 		}
@@ -212,7 +212,7 @@ func TestUpdateTransaction(t *testing.T) {
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "COMMENT UPDATE TEST", "", "new note", nil, []PostingInput{
 			{Account: "expenses:misc", Commodity: "USD", Quantity: "5.00"},
 			{Account: "assets:checking"},
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("UpdateTransaction: %v", err)
 		}
@@ -247,7 +247,7 @@ func TestUpdateTransaction(t *testing.T) {
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "FID PRESERVATION TEST UPDATED", "", "", nil, []PostingInput{
 			{Account: "expenses:food", Commodity: "USD", Quantity: "8.00"},
 			{Account: "assets:checking"},
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("UpdateTransaction: %v", err)
 		}
@@ -285,7 +285,7 @@ func TestUpdateTransaction(t *testing.T) {
 		updated, err := UpdateTransaction(t.Context(), client, dir, fid, "KEEP DATE TEST UPDATED", "", "", nil, []PostingInput{
 			{Account: "expenses:food", Commodity: "USD", Quantity: "12.00"},
 			{Account: "assets:checking"},
-		})
+		}, "")
 		if err != nil {
 			t.Fatalf("UpdateTransaction: %v", err)
 		}

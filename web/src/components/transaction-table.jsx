@@ -256,12 +256,15 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   async function save() {
     setSaving(true);
     setError(null);
+    const trimmed = postings.map((p) => ({ account: p.account.trim(), commodity: p.commodity.trim(), quantity: p.quantity.trim(), cost: p.cost }));
+    const autoReview = tx.status !== "Cleared" && trimmed.every((p) => !p.account.toLowerCase().includes("unknown"));
     try {
       await ledgerClient.updateTransaction({
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
-        postings: postings.map((p) => ({ account: p.account.trim(), commodity: p.commodity.trim(), quantity: p.quantity.trim(), cost: p.cost })),
+        postings: trimmed,
+        status: autoReview ? "Cleared" : "",
       });
       if (onSaved) onSaved();
     } catch (err) {

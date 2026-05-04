@@ -119,7 +119,7 @@ func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m R
 			postings[i] = pi
 		}
 
-		_, err := journal.UpdateTransaction(ctx, client, dataDir, txn.FID, desc, "", txn.Comment, nil, postings)
+		_, err := journal.UpdateTransaction(ctx, client, dataDir, txn.FID, desc, "", txn.Comment, nil, postings, "")
 		if err != nil {
 			return fmt.Errorf("update transaction: %w", err)
 		}
