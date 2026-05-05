@@ -9,12 +9,21 @@ import (
 	"time"
 )
 
-const baseURL = "https://openrouter.ai/api/v1/chat/completions"
+const productionBaseURL = "https://openrouter.ai/api/v1/chat/completions"
+
+// Option configures a Client.
+type Option func(*Client)
+
+// WithBaseURL overrides the API endpoint. Used in tests to point at an httptest.Server.
+func WithBaseURL(url string) Option {
+	return func(c *Client) { c.baseURL = url }
+}
 
 // Client calls the OpenRouter chat completions API (OpenAI-compatible).
 type Client struct {
 	apiKey     string
 	model      string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -36,12 +45,17 @@ type jsonSchema struct {
 	Schema map[string]any `json:"schema"`
 }
 
-func NewClient(apiKey, model string) *Client {
-	return &Client{
+func NewClient(apiKey, model string, opts ...Option) *Client {
+	c := &Client{
 		apiKey:     apiKey,
 		model:      model,
+		baseURL:    productionBaseURL,
 		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // chat sends messages with a structured output schema and returns the raw JSON
@@ -63,7 +77,7 @@ func (c *Client) chat(ctx context.Context, messages []ChatMessage, schemaName st
 		return "", fmt.Errorf("ai: marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("ai: build request: %w", err)
 	}

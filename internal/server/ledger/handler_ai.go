@@ -29,7 +29,11 @@ func (h *Handler) aiClient() (*ai.Client, error) {
 	if model == "" {
 		model = defaultAIModel
 	}
-	return ai.NewClient(key, model), nil
+	opts := []ai.Option{}
+	if h.AIBaseURL != "" {
+		opts = append(opts, ai.WithBaseURL(h.AIBaseURL))
+	}
+	return ai.NewClient(key, model, opts...), nil
 }
 
 // SuggestRules fetches transactions (by FID list or hledger query), then asks
