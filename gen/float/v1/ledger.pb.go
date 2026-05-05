@@ -5690,17 +5690,18 @@ func (x *PreviewApplyRulesRequest) GetQuery() []string {
 }
 
 type RuleApplicationPreview struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Fid            string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`                                             // transaction FID
-	Description    string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`                             // current description
-	MatchedRuleId  string                 `protobuf:"bytes,3,opt,name=matched_rule_id,json=matchedRuleId,proto3" json:"matched_rule_id,omitempty"`  // which rule matched
-	CurrentAccount string                 `protobuf:"bytes,4,opt,name=current_account,json=currentAccount,proto3" json:"current_account,omitempty"` // current category account
-	NewAccount     string                 `protobuf:"bytes,5,opt,name=new_account,json=newAccount,proto3" json:"new_account,omitempty"`             // proposed new account (empty = no change)
-	CurrentPayee   string                 `protobuf:"bytes,6,opt,name=current_payee,json=currentPayee,proto3" json:"current_payee,omitempty"`
-	NewPayee       string                 `protobuf:"bytes,7,opt,name=new_payee,json=newPayee,proto3" json:"new_payee,omitempty"` // proposed new payee (empty = no change)
-	AddTags        map[string]string      `protobuf:"bytes,8,rep,name=add_tags,json=addTags,proto3" json:"add_tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Fid              string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`                                             // transaction FID
+	Description      string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`                             // current description
+	MatchedRuleId    string                 `protobuf:"bytes,3,opt,name=matched_rule_id,json=matchedRuleId,proto3" json:"matched_rule_id,omitempty"`  // which rule matched
+	CurrentAccount   string                 `protobuf:"bytes,4,opt,name=current_account,json=currentAccount,proto3" json:"current_account,omitempty"` // current category account
+	NewAccount       string                 `protobuf:"bytes,5,opt,name=new_account,json=newAccount,proto3" json:"new_account,omitempty"`             // proposed new account (empty = no change)
+	CurrentPayee     string                 `protobuf:"bytes,6,opt,name=current_payee,json=currentPayee,proto3" json:"current_payee,omitempty"`
+	NewPayee         string                 `protobuf:"bytes,7,opt,name=new_payee,json=newPayee,proto3" json:"new_payee,omitempty"` // proposed new payee (empty = no change)
+	AddTags          map[string]string      `protobuf:"bytes,8,rep,name=add_tags,json=addTags,proto3" json:"add_tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	WillMarkReviewed bool                   `protobuf:"varint,9,opt,name=will_mark_reviewed,json=willMarkReviewed,proto3" json:"will_mark_reviewed,omitempty"` // true if rule will mark transaction as reviewed (Cleared)
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RuleApplicationPreview) Reset() {
@@ -5787,6 +5788,13 @@ func (x *RuleApplicationPreview) GetAddTags() map[string]string {
 		return x.AddTags
 	}
 	return nil
+}
+
+func (x *RuleApplicationPreview) GetWillMarkReviewed() bool {
+	if x != nil {
+		return x.WillMarkReviewed
+	}
+	return false
 }
 
 type PreviewApplyRulesResponse struct {
@@ -6850,7 +6858,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x12DeleteRuleResponse\"K\n" +
 	"\x18PreviewApplyRulesRequest\x12\x19\n" +
 	"\brule_ids\x18\x01 \x03(\tR\aruleIds\x12\x14\n" +
-	"\x05query\x18\x02 \x03(\tR\x05query\"\x86\x03\n" +
+	"\x05query\x18\x02 \x03(\tR\x05query\"\xb4\x03\n" +
 	"\x16RuleApplicationPreview\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12&\n" +
@@ -6860,7 +6868,8 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"newAccount\x12#\n" +
 	"\rcurrent_payee\x18\x06 \x01(\tR\fcurrentPayee\x12\x1b\n" +
 	"\tnew_payee\x18\a \x01(\tR\bnewPayee\x12H\n" +
-	"\badd_tags\x18\b \x03(\v2-.float.v1.RuleApplicationPreview.AddTagsEntryR\aaddTags\x1a:\n" +
+	"\badd_tags\x18\b \x03(\v2-.float.v1.RuleApplicationPreview.AddTagsEntryR\aaddTags\x12,\n" +
+	"\x12will_mark_reviewed\x18\t \x01(\bR\x10willMarkReviewed\x1a:\n" +
 	"\fAddTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Y\n" +

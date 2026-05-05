@@ -553,6 +553,7 @@ message RuleApplicationPreview {
   string current_payee = 6;
   string new_payee = 7;           // proposed new payee (empty = no change)
   map<string, string> add_tags = 8;
+  bool will_mark_reviewed = 9;    // true if rule will mark transaction as reviewed (Cleared)
 }
 
 message PreviewApplyRulesResponse {

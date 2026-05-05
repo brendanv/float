@@ -666,6 +666,7 @@ export function RulesPage() {
                     <TableHead>Description</TableHead>
                     <TableHead>Account</TableHead>
                     <TableHead>Payee</TableHead>
+                    <TableHead>Reviewed</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -696,6 +697,13 @@ export function RulesPage() {
                             {" → "}
                             <span className="text-success">{p.newPayee}</span>
                           </span>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {p.willMarkReviewed ? (
+                          <span className="text-success">Will mark reviewed</span>
                         ) : (
                           <span className="text-muted-foreground/60">—</span>
                         )}
