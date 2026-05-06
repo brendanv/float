@@ -158,6 +158,12 @@ const rulesColumns = [
   }),
 ];
 
+const SOURCE_LABELS = {
+  unreviewed: "Unreviewed transactions",
+  account: "From a specific account",
+  nopayee: "Transactions without payees",
+};
+
 function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
   const [step, setStep] = useState("source");
   const [sourceType, setSourceType] = useState("unreviewed");
@@ -267,8 +273,8 @@ function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
               <div className="flex flex-col gap-1.5">
                 <Label>Transaction source</Label>
                 <Select value={sourceType} onValueChange={setSourceType}>
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{() => SOURCE_LABELS[sourceType]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unreviewed">Unreviewed transactions</SelectItem>
@@ -325,7 +331,7 @@ function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
                   <div
                     key={i}
                     className={cn(
-                      "flex gap-3 rounded border p-2",
+                      "flex gap-3 rounded border p-3",
                       selected.has(i) ? "border-primary/30 bg-primary/5" : "border-transparent bg-muted/30"
                     )}
                   >
@@ -334,19 +340,9 @@ function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
                       onCheckedChange={() => toggleOne(i)}
                       className="mt-0.5 shrink-0"
                     />
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary" className="font-mono text-xs">{s.pattern}</Badge>
-                        {s.payee && (
-                          <span className="text-xs">
-                            <span className="text-muted-foreground">Payee:</span> {s.payee}
-                          </span>
-                        )}
-                        {s.account && (
-                          <span className="font-mono text-xs">
-                            <span className="text-muted-foreground">→</span> {s.account}
-                          </span>
-                        )}
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{s.pattern}</code>
                         {s.tags && Object.keys(s.tags).length > 0 &&
                           Object.entries(s.tags).map(([k, v]) => (
                             <Badge key={k} variant="outline" className="font-mono text-xs">
@@ -355,12 +351,28 @@ function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
                           ))
                         }
                       </div>
+                      {(s.payee || s.account) && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                          {s.payee && (
+                            <span>
+                              <span className="text-muted-foreground">Payee: </span>
+                              <span className="font-medium">{s.payee}</span>
+                            </span>
+                          )}
+                          {s.account && (
+                            <span>
+                              <span className="text-muted-foreground">Category: </span>
+                              <span className="font-mono">{s.account}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {s.reasoning && (
                         <p className="text-xs text-muted-foreground">{s.reasoning}</p>
                       )}
                       {s.exampleFids && s.exampleFids.length > 0 && (
-                        <p className="text-xs text-muted-foreground/60">
-                          {s.exampleFids.length} example transaction(s)
+                        <p className="text-xs text-muted-foreground/50">
+                          {s.exampleFids.length} example transaction{s.exampleFids.length !== 1 ? "s" : ""}
                         </p>
                       )}
                     </div>
