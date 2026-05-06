@@ -643,12 +643,16 @@ func (m RulesTab) submitForm() (RulesTab, tea.Cmd) {
 
 	if m.editingID == "" {
 		req := &floatv1.AddRuleRequest{
-			Pattern:      pattern,
-			Payee:        strings.TrimSpace(m.payeeInput.Value()),
-			Account:      strings.TrimSpace(m.accountInput.Value()),
-			Tags:         tags,
-			Priority:     priority,
-			AutoReviewed: m.autoReviewed,
+			Rules: []*floatv1.RuleInput{
+				{
+					Pattern:      pattern,
+					Payee:        strings.TrimSpace(m.payeeInput.Value()),
+					Account:      strings.TrimSpace(m.accountInput.Value()),
+					Tags:         tags,
+					Priority:     priority,
+					AutoReviewed: m.autoReviewed,
+				},
+			},
 		}
 		return m, AddRuleCmd(m.client, req)
 	}

@@ -235,8 +235,8 @@ type RulesMsg struct {
 
 // AddRuleMsg carries the result of an AddRule RPC.
 type AddRuleMsg struct {
-	Rule *floatv1.TransactionRule
-	Err  error
+	Rules []*floatv1.TransactionRule
+	Err   error
 }
 
 // UpdateRuleMsg carries the result of an UpdateRule RPC.
@@ -278,7 +278,7 @@ func AddRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddRuleR
 		if err != nil {
 			return AddRuleMsg{Err: err}
 		}
-		return AddRuleMsg{Rule: resp.Msg.Rule}
+		return AddRuleMsg{Rules: resp.Msg.Rules}
 	}
 }
 

@@ -870,6 +870,36 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "ApplyRules":
         body = { appliedCount: 3 };
         break;
+      case "SuggestRules":
+        body = {
+          suggestions: [
+            {
+              pattern: "AMAZON|amazon\\.com",
+              payee: "Amazon",
+              account: "expenses:shopping",
+              tags: {},
+              reasoning: "Multiple transactions with 'AMAZON' in the description, all categorized inconsistently. A single rule would normalize these.",
+              exampleFids: ["a1b2c3d4", "e5f6g7h8", "i9j0k1l2"],
+            },
+            {
+              pattern: "STARBUCKS|SBUX",
+              payee: "Starbucks",
+              account: "expenses:food:coffee",
+              tags: {},
+              reasoning: "Recurring Starbucks purchases appearing as unreviewed. Clear merchant pattern with consistent spend category.",
+              exampleFids: ["m3n4o5p6", "q7r8s9t0"],
+            },
+            {
+              pattern: "WHOLEFDS|WHOLE FOODS",
+              payee: "Whole Foods",
+              account: "expenses:food:groceries",
+              tags: {},
+              reasoning: "Whole Foods purchases appear regularly. Pattern covers both POS description variants.",
+              exampleFids: ["u1v2w3x4"],
+            },
+          ],
+        };
+        break;
       case "ListAccountDeclarations":
         body = { declarations: accountDeclarations ?? mockAccountDeclarations };
         break;

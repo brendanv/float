@@ -10,7 +10,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { CircleCheck, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { CircleCheck, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon, Sparkles } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -53,6 +53,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 function emptyForm() {
@@ -149,6 +158,238 @@ const rulesColumns = [
   }),
 ];
 
+function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
+  const [step, setStep] = useState("source");
+  const [sourceType, setSourceType] = useState("unreviewed");
+  const [accountName, setAccountName] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  function resetWizard() {
+    setStep("source");
+    setSourceType("unreviewed");
+    setAccountName("");
+    setSuggestions([]);
+    setSelected(new Set());
+    setLoading(false);
+    setError(null);
+    setSaving(false);
+    setSaveError(null);
+  }
+
+  function handleOpenChange(val) {
+    if (!val) resetWizard();
+    onOpenChange(val);
+  }
+
+  function buildQuery() {
+    if (sourceType === "account") return `account:${accountName}`;
+    if (sourceType === "nopayee") return "not:payee:.+";
+    return "status:!";
+  }
+
+  async function handleAnalyze() {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await ledgerClient.suggestRules({ query: buildQuery(), fids: [] });
+      const suggs = res.suggestions ?? [];
+      setSuggestions(suggs);
+      setSelected(new Set(suggs.map((_, i) => i)));
+      setStep("suggestions");
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave() {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const rulesToAdd = [...selected].map((i) => {
+        const s = suggestions[i];
+        return {
+          pattern: s.pattern,
+          payee: s.payee,
+          account: s.account,
+          tags: s.tags ?? {},
+          priority: 0,
+          autoReviewed: true,
+        };
+      });
+      await ledgerClient.addRule({ rules: rulesToAdd });
+      onRulesAdded();
+      handleOpenChange(false);
+    } catch (err) {
+      setSaveError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleAll() {
+    if (selected.size === suggestions.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(suggestions.map((_, i) => i)));
+    }
+  }
+
+  function toggleOne(i) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }
+
+  const canAnalyze = sourceType !== "account" || accountName.trim().length > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        {step === "source" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Suggest Rules with AI</DialogTitle>
+              <DialogDescription>
+                Choose which transactions to analyze for rule suggestions.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label>Transaction source</Label>
+                <Select value={sourceType} onValueChange={setSourceType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unreviewed">Unreviewed transactions</SelectItem>
+                    <SelectItem value="account">From a specific account</SelectItem>
+                    <SelectItem value="nopayee">Transactions without payees</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {sourceType === "account" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label>Account</Label>
+                  <AccountInput
+                    value={accountName}
+                    onChange={setAccountName}
+                    accounts={accounts}
+                    placeholder="expenses:unknown"
+                  />
+                </div>
+              )}
+              {error && <ErrorBanner error={error} />}
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline" size="sm" disabled={loading}>Cancel</Button>
+              </DialogClose>
+              <Button size="sm" onClick={handleAnalyze} disabled={loading || !canAnalyze}>
+                {loading && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {loading ? "Analyzing…" : "Analyze"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {step === "suggestions" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Suggested Rules</DialogTitle>
+              <DialogDescription>
+                {suggestions.length === 0
+                  ? "No rules could be suggested for the selected transactions."
+                  : `${suggestions.length} rule(s) suggested. Select the ones you'd like to create.`}
+              </DialogDescription>
+            </DialogHeader>
+            {suggestions.length > 0 && (
+              <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+                <div className="flex items-center gap-2 border-b pb-1">
+                  <Checkbox
+                    checked={selected.size === suggestions.length}
+                    onCheckedChange={toggleAll}
+                  />
+                  <span className="text-xs text-muted-foreground">Select all</span>
+                </div>
+                {suggestions.map((s, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex gap-3 rounded border p-2",
+                      selected.has(i) ? "border-primary/30 bg-primary/5" : "border-transparent bg-muted/30"
+                    )}
+                  >
+                    <Checkbox
+                      checked={selected.has(i)}
+                      onCheckedChange={() => toggleOne(i)}
+                      className="mt-0.5 shrink-0"
+                    />
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary" className="font-mono text-xs">{s.pattern}</Badge>
+                        {s.payee && (
+                          <span className="text-xs">
+                            <span className="text-muted-foreground">Payee:</span> {s.payee}
+                          </span>
+                        )}
+                        {s.account && (
+                          <span className="font-mono text-xs">
+                            <span className="text-muted-foreground">→</span> {s.account}
+                          </span>
+                        )}
+                        {s.tags && Object.keys(s.tags).length > 0 &&
+                          Object.entries(s.tags).map(([k, v]) => (
+                            <Badge key={k} variant="outline" className="font-mono text-xs">
+                              {v ? `${k}=${v}` : k}
+                            </Badge>
+                          ))
+                        }
+                      </div>
+                      {s.reasoning && (
+                        <p className="text-xs text-muted-foreground">{s.reasoning}</p>
+                      )}
+                      {s.exampleFids && s.exampleFids.length > 0 && (
+                        <p className="text-xs text-muted-foreground/60">
+                          {s.exampleFids.length} example transaction(s)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {saveError && <ErrorBanner error={saveError} />}
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setStep("source")} disabled={saving}>
+                ← Back
+              </Button>
+              <DialogClose asChild>
+                <Button variant="outline" size="sm" disabled={saving}>Cancel</Button>
+              </DialogClose>
+              {suggestions.length > 0 && (
+                <Button size="sm" onClick={handleSave} disabled={saving || selected.size === 0}>
+                  {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                  {saving ? "Adding…" : `Add ${selected.size} Rule(s)`}
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function RulesPage() {
   const queryClient = useQueryClient();
 
@@ -162,6 +403,7 @@ export function RulesPage() {
     queryFn: () => ledgerClient.listAccounts({}),
   });
 
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState(null);
 
@@ -222,7 +464,7 @@ export function RulesPage() {
     mutationFn: (payload) =>
       editingId
         ? ledgerClient.updateRule({ id: editingId, ...payload })
-        : ledgerClient.addRule(payload),
+        : ledgerClient.addRule({ rules: [payload] }),
     onSuccess: () => {
       setEditingId(null);
       form.reset();
@@ -477,6 +719,14 @@ export function RulesPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setWizardOpen(true)}
+              >
+                <Sparkles data-icon="inline-start" className="size-3.5" />
+                Suggest with AI
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handlePreviewApply}
                 disabled={applyLoading}
               >
@@ -633,6 +883,13 @@ export function RulesPage() {
           )}
         </CardContent>
       </Card>
+
+      <SuggestRulesWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        accounts={accountsData?.accounts ?? []}
+        onRulesAdded={() => queryClient.invalidateQueries({ queryKey: queryKeys.rules() })}
+      />
 
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="bottom">
         <DrawerContent className="max-h-[80vh]">
