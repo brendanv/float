@@ -906,6 +906,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
+      case "GetAIConfig":
+        body = { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6" };
+        break;
       case "ListSnapshots":
         body = { snapshots: mockSnapshots };
         break;
