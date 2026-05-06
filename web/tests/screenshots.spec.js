@@ -407,6 +407,29 @@ test("rules page - mobile form", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules-mobile-form.png", fullPage: true });
 });
 
+test("rules page - suggest with AI wizard source step", async ({ page }) => {
+  await page.goto("/#/rules");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.click('button:has-text("Suggest with AI")');
+  await page.waitForSelector('[data-slot="dialog-content"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/rules-ai-wizard-source.png", fullPage: false });
+});
+
+test("rules page - suggest with AI wizard suggestions step", async ({ page }) => {
+  await page.goto("/#/rules");
+  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.click('button:has-text("Suggest with AI")');
+  await page.waitForSelector('[data-slot="dialog-content"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.click('button:has-text("Analyze")');
+  await page.waitForSelector('text=Suggested Rules', { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/rules-ai-wizard-suggestions.png", fullPage: false });
+});
+
 test("portfolio page", async ({ page }) => {
   await page.goto("/#/portfolio");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
