@@ -189,7 +189,7 @@ function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
   function buildQuery() {
     if (sourceType === "account") return `account:${accountName}`;
     if (sourceType === "nopayee") return "not:payee:.+";
-    return "status:!";
+    return "not:status:*";
   }
 
   async function handleAnalyze() {

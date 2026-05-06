@@ -108,8 +108,8 @@ func (h *Handler) SuggestRules(ctx context.Context, req *connect.Request[floatv1
 	} else {
 		query := req.Msg.Query
 		if query == "" {
-			// Default: pending (unreviewed) transactions.
-			query = "status:!"
+			// Default: unreviewed (not-cleared) transactions.
+			query = "not:status:*"
 		}
 		txns, err = h.hl.Transactions(ctx, query)
 		if err != nil {

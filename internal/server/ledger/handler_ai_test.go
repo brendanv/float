@@ -139,8 +139,8 @@ func TestSuggestRules_WithFIDs(t *testing.T) {
 	}
 }
 
-func TestSuggestRules_DefaultsToStatusPending(t *testing.T) {
-	// When no query is provided, the handler should default to "status:!" and
+func TestSuggestRules_DefaultsToUnreviewed(t *testing.T) {
+	// When no query is provided, the handler should default to "not:status:*" and
 	// succeed (returning empty when no transactions match).
 	t.Setenv("OPENROUTER_API_KEY", "test-key")
 
