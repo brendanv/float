@@ -2104,33 +2104,47 @@ func (h *Handler) ListRules(ctx context.Context, _ *connect.Request[floatv1.List
 
 func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddRuleRequest]) (*connect.Response[floatv1.AddRuleResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if req.Msg.Pattern == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pattern is required"))
+	if len(req.Msg.Rules) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("at least one rule is required"))
+	}
+	patterns := make([]string, len(req.Msg.Rules))
+	for i, r := range req.Msg.Rules {
+		if r.Pattern == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pattern is required"))
+		}
+		patterns[i] = r.Pattern
 	}
 
-	var newRule rules.Rule
-	err := h.lock.Do(ctx, fmt.Sprintf("add rule: %s", req.Msg.Pattern), func() error {
+	var newRules []rules.Rule
+	err := h.lock.Do(ctx, fmt.Sprintf("add %d rule(s): %s", len(req.Msg.Rules), strings.Join(patterns, ", ")), func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
 		}
-		newRule = rules.Rule{
-			ID:           journal.MintFID(),
-			Pattern:      req.Msg.Pattern,
-			Payee:        req.Msg.Payee,
-			Account:      req.Msg.Account,
-			Tags:         req.Msg.Tags,
-			Priority:     int(req.Msg.Priority),
-			AutoReviewed: req.Msg.AutoReviewed,
+		newRules = make([]rules.Rule, len(req.Msg.Rules))
+		for i, r := range req.Msg.Rules {
+			newRules[i] = rules.Rule{
+				ID:           journal.MintFID(),
+				Pattern:      r.Pattern,
+				Payee:        r.Payee,
+				Account:      r.Account,
+				Tags:         r.Tags,
+				Priority:     int(r.Priority),
+				AutoReviewed: r.AutoReviewed,
+			}
 		}
-		rulesList = append(rulesList, newRule)
+		rulesList = append(rulesList, newRules...)
 		return rules.Save(h.dataDir, rulesList)
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "add rule failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&floatv1.AddRuleResponse{Rule: toProtoRule(newRule)}), nil
+	out := make([]*floatv1.TransactionRule, len(newRules))
+	for i, r := range newRules {
+		out[i] = toProtoRule(r)
+	}
+	return connect.NewResponse(&floatv1.AddRuleResponse{Rules: out}), nil
 }
 
 func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.UpdateRuleRequest]) (*connect.Response[floatv1.UpdateRuleResponse], error) {

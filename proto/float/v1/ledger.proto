@@ -506,7 +506,7 @@ message ListRulesResponse {
   repeated TransactionRule rules = 1;
 }
 
-message AddRuleRequest {
+message RuleInput {
   string pattern = 1;
   string payee = 2;
   string account = 3;
@@ -515,8 +515,12 @@ message AddRuleRequest {
   bool auto_reviewed = 6;
 }
 
+message AddRuleRequest {
+  repeated RuleInput rules = 1;
+}
+
 message AddRuleResponse {
-  TransactionRule rule = 1;
+  repeated TransactionRule rules = 1;
 }
 
 message UpdateRuleRequest {

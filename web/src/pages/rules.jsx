@@ -212,17 +212,18 @@ function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded }) {
     setSaveError(null);
     setSaving(true);
     try {
-      for (const i of selected) {
+      const rulesToAdd = [...selected].map((i) => {
         const s = suggestions[i];
-        await ledgerClient.addRule({
+        return {
           pattern: s.pattern,
           payee: s.payee,
           account: s.account,
           tags: s.tags ?? {},
           priority: 0,
           autoReviewed: true,
-        });
-      }
+        };
+      });
+      await ledgerClient.addRule({ rules: rulesToAdd });
       onRulesAdded();
       handleOpenChange(false);
     } catch (err) {
@@ -463,7 +464,7 @@ export function RulesPage() {
     mutationFn: (payload) =>
       editingId
         ? ledgerClient.updateRule({ id: editingId, ...payload })
-        : ledgerClient.addRule(payload),
+        : ledgerClient.addRule({ rules: [payload] }),
     onSuccess: () => {
       setEditingId(null);
       form.reset();
