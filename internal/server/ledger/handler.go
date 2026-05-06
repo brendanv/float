@@ -35,6 +35,8 @@ type Handler struct {
 	cache      *cache.Cache[any] // nil = bypass cache
 	snap       *gitsnap.Repo
 	cfg        *config.Config
+	// AIBaseURL overrides the OpenRouter API endpoint. Set in tests only.
+	AIBaseURL string
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config) *Handler {

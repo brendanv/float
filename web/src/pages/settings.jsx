@@ -14,42 +14,82 @@ import { CheckCircle, Circle } from "lucide-react";
 export function SettingsPage() {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error: fetchError } = useQuery({
+  // --- Alpha Vantage ---
+  const { data: avData, isLoading: avLoading, error: avFetchError } = useQuery({
     queryKey: queryKeys.alphaVantageConfig(),
     queryFn: () => ledgerClient.getAlphaVantageConfig({}),
   });
 
   const [apiKey, setApiKey] = useState("");
-  const [mutationError, setMutationError] = useState(null);
-  const [saved, setSaved] = useState(false);
+  const [avMutationError, setAvMutationError] = useState(null);
+  const [avSaved, setAvSaved] = useState(false);
 
   const setKeyMutation = useMutation({
     mutationFn: (key) => ledgerClient.setAlphaVantageApiKey({ apiKey: key }),
     onSuccess: () => {
       setApiKey("");
-      setSaved(true);
-      setMutationError(null);
+      setAvSaved(true);
+      setAvMutationError(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.alphaVantageConfig() });
-      setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setAvSaved(false), 3000);
     },
     onError: (err) => {
-      setMutationError(err);
-      setSaved(false);
+      setAvMutationError(err);
+      setAvSaved(false);
     },
   });
 
-  function handleSave(e) {
+  function handleAvSave(e) {
     e.preventDefault();
-    setMutationError(null);
-    setSaved(false);
+    setAvMutationError(null);
+    setAvSaved(false);
     setKeyMutation.mutate(apiKey);
   }
 
-  function handleClear() {
+  function handleAvClear() {
     if (!confirm("Clear the AlphaVantage API key?")) return;
-    setMutationError(null);
-    setSaved(false);
+    setAvMutationError(null);
+    setAvSaved(false);
     setKeyMutation.mutate("");
+  }
+
+  // --- AI Model ---
+  const { data: aiData, isLoading: aiLoading, error: aiFetchError } = useQuery({
+    queryKey: queryKeys.aiConfig(),
+    queryFn: () => ledgerClient.getAIConfig({}),
+  });
+
+  const [modelInput, setModelInput] = useState("");
+  const [aiMutationError, setAiMutationError] = useState(null);
+  const [aiSaved, setAiSaved] = useState(false);
+
+  const setModelMutation = useMutation({
+    mutationFn: (model) => ledgerClient.setAIModel({ model }),
+    onSuccess: () => {
+      setModelInput("");
+      setAiSaved(true);
+      setAiMutationError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiConfig() });
+      setTimeout(() => setAiSaved(false), 3000);
+    },
+    onError: (err) => {
+      setAiMutationError(err);
+      setAiSaved(false);
+    },
+  });
+
+  function handleAiSave(e) {
+    e.preventDefault();
+    setAiMutationError(null);
+    setAiSaved(false);
+    setModelMutation.mutate(modelInput.trim());
+  }
+
+  function handleAiReset() {
+    if (!confirm("Reset the AI model to the default?")) return;
+    setAiMutationError(null);
+    setAiSaved(false);
+    setModelMutation.mutate("");
   }
 
   return (
@@ -73,20 +113,20 @@ export function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {fetchError && <ErrorBanner error={fetchError} />}
-          {mutationError && <ErrorBanner error={mutationError} />}
+          {avFetchError && <ErrorBanner error={avFetchError} />}
+          {avMutationError && <ErrorBanner error={avMutationError} />}
 
-          {isLoading && <Loading />}
+          {avLoading && <Loading />}
 
-          {data && (
+          {avData && (
             <>
               <div className="flex items-center gap-2 text-sm">
-                {data.apiKeyConfigured ? (
+                {avData.apiKeyConfigured ? (
                   <>
                     <CheckCircle className="size-4 text-success" />
                     <span>API key configured</span>
                     <Badge variant="secondary" className="font-mono">
-                      {data.apiKeyPreview}
+                      {avData.apiKeyPreview}
                     </Badge>
                   </>
                 ) : (
@@ -97,10 +137,10 @@ export function SettingsPage() {
                 )}
               </div>
 
-              <form onSubmit={handleSave} className="flex flex-col gap-3">
+              <form onSubmit={handleAvSave} className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="api-key">
-                    {data.apiKeyConfigured ? "Replace API key" : "Set API key"}
+                    {avData.apiKeyConfigured ? "Replace API key" : "Set API key"}
                   </Label>
                   <div className="flex gap-2">
                     <Input
@@ -120,21 +160,103 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                {saved && (
+                {avSaved && (
                   <p className="text-sm text-success">API key saved.</p>
                 )}
               </form>
 
-              {data.apiKeyConfigured && (
+              {avData.apiKeyConfigured && (
                 <div>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="text-destructive hover:text-destructive"
                     disabled={setKeyMutation.isPending}
-                    onClick={handleClear}
+                    onClick={handleAvClear}
                   >
                     Clear API key
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Model</CardTitle>
+          <CardDescription>
+            OpenRouter model used for AI features (rule suggestions, query translation).
+            Requires <code className="font-mono text-xs">OPENROUTER_API_KEY</code> to be set on the server.
+            Browse available models at{" "}
+            <a
+              href="https://openrouter.ai/models"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              openrouter.ai/models
+            </a>
+            .
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {aiFetchError && <ErrorBanner error={aiFetchError} />}
+          {aiMutationError && <ErrorBanner error={aiMutationError} />}
+
+          {aiLoading && <Loading />}
+
+          {aiData && (
+            <>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Active model:</span>
+                <Badge variant="secondary" className="font-mono">
+                  {aiData.effectiveModel}
+                </Badge>
+                {!aiData.model && (
+                  <span className="text-xs text-muted-foreground">(default)</span>
+                )}
+              </div>
+
+              <form onSubmit={handleAiSave} className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="ai-model">
+                    {aiData.model ? "Replace model" : "Set model"}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="ai-model"
+                      type="text"
+                      placeholder={aiData.effectiveModel}
+                      value={modelInput}
+                      onChange={(e) => setModelInput(e.target.value)}
+                      className="max-w-sm font-mono"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={!modelInput.trim() || setModelMutation.isPending}
+                    >
+                      {setModelMutation.isPending ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </div>
+
+                {aiSaved && (
+                  <p className="text-sm text-success">Model saved.</p>
+                )}
+              </form>
+
+              {aiData.model && (
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={setModelMutation.isPending}
+                    onClick={handleAiReset}
+                  >
+                    Reset to default
                   </Button>
                 </div>
               )}

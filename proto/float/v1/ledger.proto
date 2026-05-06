@@ -607,6 +607,35 @@ message GetPortfolioTimeseriesResponse {
   repeated PortfolioTimeseriesSnapshot snapshots = 1;
 }
 
+// ---- AI ----
+
+message SuggestedRule {
+  string pattern = 1;
+  string payee = 2;
+  string account = 3;
+  map<string, string> tags = 4;
+  string reasoning = 5;
+  repeated string example_fids = 6;
+}
+
+message SuggestRulesRequest {
+  repeated string fids = 1; // specific transaction FIDs; if empty, query is used
+  string query = 2;         // hledger query to find transactions (e.g. "status:!")
+}
+
+message SuggestRulesResponse {
+  repeated SuggestedRule suggestions = 1;
+}
+
+message TranslateQueryRequest {
+  string question = 1; // plain-English question about finances
+}
+
+message TranslateQueryResponse {
+  string hledger_query = 1; // resulting hledger query tokens
+  string explanation = 2;   // plain-English description of what the query does
+}
+
 // ---- Settings ----
 
 message GetAlphaVantageConfigRequest {}
@@ -621,6 +650,19 @@ message SetAlphaVantageApiKeyRequest {
 }
 
 message SetAlphaVantageApiKeyResponse {}
+
+message GetAIConfigRequest {}
+
+message GetAIConfigResponse {
+  string model = 1;         // current model ID from config.toml (empty if not set)
+  string effective_model = 2; // model that will actually be used (config → env → default)
+}
+
+message SetAIModelRequest {
+  string model = 1; // new model ID; empty string clears the override (reverts to default)
+}
+
+message SetAIModelResponse {}
 
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
@@ -672,7 +714,13 @@ service LedgerService {
   rpc PreviewApplyRules(PreviewApplyRulesRequest) returns (PreviewApplyRulesResponse);
   rpc ApplyRules(ApplyRulesRequest) returns (ApplyRulesResponse);
 
+  // AI
+  rpc SuggestRules(SuggestRulesRequest) returns (SuggestRulesResponse);
+  rpc TranslateQuery(TranslateQueryRequest) returns (TranslateQueryResponse);
+
   // Settings
   rpc GetAlphaVantageConfig(GetAlphaVantageConfigRequest) returns (GetAlphaVantageConfigResponse);
   rpc SetAlphaVantageApiKey(SetAlphaVantageApiKeyRequest) returns (SetAlphaVantageApiKeyResponse);
+  rpc GetAIConfig(GetAIConfigRequest) returns (GetAIConfigResponse);
+  rpc SetAIModel(SetAIModelRequest) returns (SetAIModelResponse);
 }

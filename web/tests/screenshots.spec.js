@@ -493,3 +493,10 @@ test("snapshots page - diff dialog (added + modified)", async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/snapshots-diff-multi.png", fullPage: true });
 });
+
+test("settings page", async ({ page }) => {
+  await page.goto("/#/settings");
+  await page.waitForSelector("h2", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/settings.png", fullPage: true });
+});

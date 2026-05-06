@@ -161,12 +161,24 @@ const (
 	// LedgerServiceApplyRulesProcedure is the fully-qualified name of the LedgerService's ApplyRules
 	// RPC.
 	LedgerServiceApplyRulesProcedure = "/float.v1.LedgerService/ApplyRules"
+	// LedgerServiceSuggestRulesProcedure is the fully-qualified name of the LedgerService's
+	// SuggestRules RPC.
+	LedgerServiceSuggestRulesProcedure = "/float.v1.LedgerService/SuggestRules"
+	// LedgerServiceTranslateQueryProcedure is the fully-qualified name of the LedgerService's
+	// TranslateQuery RPC.
+	LedgerServiceTranslateQueryProcedure = "/float.v1.LedgerService/TranslateQuery"
 	// LedgerServiceGetAlphaVantageConfigProcedure is the fully-qualified name of the LedgerService's
 	// GetAlphaVantageConfig RPC.
 	LedgerServiceGetAlphaVantageConfigProcedure = "/float.v1.LedgerService/GetAlphaVantageConfig"
 	// LedgerServiceSetAlphaVantageApiKeyProcedure is the fully-qualified name of the LedgerService's
 	// SetAlphaVantageApiKey RPC.
 	LedgerServiceSetAlphaVantageApiKeyProcedure = "/float.v1.LedgerService/SetAlphaVantageApiKey"
+	// LedgerServiceGetAIConfigProcedure is the fully-qualified name of the LedgerService's GetAIConfig
+	// RPC.
+	LedgerServiceGetAIConfigProcedure = "/float.v1.LedgerService/GetAIConfig"
+	// LedgerServiceSetAIModelProcedure is the fully-qualified name of the LedgerService's SetAIModel
+	// RPC.
+	LedgerServiceSetAIModelProcedure = "/float.v1.LedgerService/SetAIModel"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -217,9 +229,14 @@ type LedgerServiceClient interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	// AI
+	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
+	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
 	// Settings
 	GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error)
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
+	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
+	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -497,6 +514,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 			connect.WithClientOptions(opts...),
 		),
+		suggestRules: connect.NewClient[v1.SuggestRulesRequest, v1.SuggestRulesResponse](
+			httpClient,
+			baseURL+LedgerServiceSuggestRulesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SuggestRules")),
+			connect.WithClientOptions(opts...),
+		),
+		translateQuery: connect.NewClient[v1.TranslateQueryRequest, v1.TranslateQueryResponse](
+			httpClient,
+			baseURL+LedgerServiceTranslateQueryProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("TranslateQuery")),
+			connect.WithClientOptions(opts...),
+		),
 		getAlphaVantageConfig: connect.NewClient[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse](
 			httpClient,
 			baseURL+LedgerServiceGetAlphaVantageConfigProcedure,
@@ -507,6 +536,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceSetAlphaVantageApiKeyProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("SetAlphaVantageApiKey")),
+			connect.WithClientOptions(opts...),
+		),
+		getAIConfig: connect.NewClient[v1.GetAIConfigRequest, v1.GetAIConfigResponse](
+			httpClient,
+			baseURL+LedgerServiceGetAIConfigProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetAIConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		setAIModel: connect.NewClient[v1.SetAIModelRequest, v1.SetAIModelResponse](
+			httpClient,
+			baseURL+LedgerServiceSetAIModelProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetAIModel")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -558,8 +599,12 @@ type ledgerServiceClient struct {
 	deleteRule                   *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
 	previewApplyRules            *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
 	applyRules                   *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
+	suggestRules                 *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
+	translateQuery               *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
 	getAlphaVantageConfig        *connect.Client[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse]
 	setAlphaVantageApiKey        *connect.Client[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse]
+	getAIConfig                  *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
+	setAIModel                   *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -782,6 +827,16 @@ func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Reque
 	return c.applyRules.CallUnary(ctx, req)
 }
 
+// SuggestRules calls float.v1.LedgerService.SuggestRules.
+func (c *ledgerServiceClient) SuggestRules(ctx context.Context, req *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
+	return c.suggestRules.CallUnary(ctx, req)
+}
+
+// TranslateQuery calls float.v1.LedgerService.TranslateQuery.
+func (c *ledgerServiceClient) TranslateQuery(ctx context.Context, req *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error) {
+	return c.translateQuery.CallUnary(ctx, req)
+}
+
 // GetAlphaVantageConfig calls float.v1.LedgerService.GetAlphaVantageConfig.
 func (c *ledgerServiceClient) GetAlphaVantageConfig(ctx context.Context, req *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error) {
 	return c.getAlphaVantageConfig.CallUnary(ctx, req)
@@ -790,6 +845,16 @@ func (c *ledgerServiceClient) GetAlphaVantageConfig(ctx context.Context, req *co
 // SetAlphaVantageApiKey calls float.v1.LedgerService.SetAlphaVantageApiKey.
 func (c *ledgerServiceClient) SetAlphaVantageApiKey(ctx context.Context, req *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error) {
 	return c.setAlphaVantageApiKey.CallUnary(ctx, req)
+}
+
+// GetAIConfig calls float.v1.LedgerService.GetAIConfig.
+func (c *ledgerServiceClient) GetAIConfig(ctx context.Context, req *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error) {
+	return c.getAIConfig.CallUnary(ctx, req)
+}
+
+// SetAIModel calls float.v1.LedgerService.SetAIModel.
+func (c *ledgerServiceClient) SetAIModel(ctx context.Context, req *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error) {
+	return c.setAIModel.CallUnary(ctx, req)
 }
 
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
@@ -840,9 +905,14 @@ type LedgerServiceHandler interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	// AI
+	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
+	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
 	// Settings
 	GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error)
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
+	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
+	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1116,6 +1186,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceSuggestRulesHandler := connect.NewUnaryHandler(
+		LedgerServiceSuggestRulesProcedure,
+		svc.SuggestRules,
+		connect.WithSchema(ledgerServiceMethods.ByName("SuggestRules")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceTranslateQueryHandler := connect.NewUnaryHandler(
+		LedgerServiceTranslateQueryProcedure,
+		svc.TranslateQuery,
+		connect.WithSchema(ledgerServiceMethods.ByName("TranslateQuery")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceGetAlphaVantageConfigHandler := connect.NewUnaryHandler(
 		LedgerServiceGetAlphaVantageConfigProcedure,
 		svc.GetAlphaVantageConfig,
@@ -1126,6 +1208,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceSetAlphaVantageApiKeyProcedure,
 		svc.SetAlphaVantageApiKey,
 		connect.WithSchema(ledgerServiceMethods.ByName("SetAlphaVantageApiKey")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceGetAIConfigHandler := connect.NewUnaryHandler(
+		LedgerServiceGetAIConfigProcedure,
+		svc.GetAIConfig,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetAIConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceSetAIModelHandler := connect.NewUnaryHandler(
+		LedgerServiceSetAIModelProcedure,
+		svc.SetAIModel,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetAIModel")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1218,10 +1312,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServicePreviewApplyRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceApplyRulesProcedure:
 			ledgerServiceApplyRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceSuggestRulesProcedure:
+			ledgerServiceSuggestRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceTranslateQueryProcedure:
+			ledgerServiceTranslateQueryHandler.ServeHTTP(w, r)
 		case LedgerServiceGetAlphaVantageConfigProcedure:
 			ledgerServiceGetAlphaVantageConfigHandler.ServeHTTP(w, r)
 		case LedgerServiceSetAlphaVantageApiKeyProcedure:
 			ledgerServiceSetAlphaVantageApiKeyHandler.ServeHTTP(w, r)
+		case LedgerServiceGetAIConfigProcedure:
+			ledgerServiceGetAIConfigHandler.ServeHTTP(w, r)
+		case LedgerServiceSetAIModelProcedure:
+			ledgerServiceSetAIModelHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1407,10 +1509,26 @@ func (UnimplementedLedgerServiceHandler) ApplyRules(context.Context, *connect.Re
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ApplyRules is not implemented"))
 }
 
+func (UnimplementedLedgerServiceHandler) SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SuggestRules is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.TranslateQuery is not implemented"))
+}
+
 func (UnimplementedLedgerServiceHandler) GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetAlphaVantageConfig is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAlphaVantageApiKey is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetAIConfig is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAIModel is not implemented"))
 }
