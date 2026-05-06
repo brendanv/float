@@ -937,7 +937,7 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
       case "GetAIConfig":
-        body = { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6" };
+        body = { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6", prompt: "My accounts use kebab-case. Groceries go under expenses:food:groceries." };
         break;
       case "ListSnapshots":
         body = { snapshots: mockSnapshots };
