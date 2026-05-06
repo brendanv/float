@@ -48,15 +48,44 @@ func (h *Handler) aiClient() (*ai.Client, error) {
 	return ai.NewClient(key, h.effectiveAIModel(), opts...), nil
 }
 
-// GetAIConfig returns the current AI model configuration.
+// GetAIConfig returns the current AI model and prompt configuration.
 func (h *Handler) GetAIConfig(ctx context.Context, req *connect.Request[floatv1.GetAIConfigRequest]) (*connect.Response[floatv1.GetAIConfigResponse], error) {
 	if h.cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	return connect.NewResponse(&floatv1.GetAIConfigResponse{
-		Model:         h.cfg.AI.Model,
+		Model:          h.cfg.AI.Model,
 		EffectiveModel: h.effectiveAIModel(),
+		Prompt:         h.cfg.AI.Prompt,
 	}), nil
+}
+
+// SetAIPrompt updates the AI user guidelines in config.toml. An empty prompt
+// clears the guidelines so only the built-in system prompt is used.
+func (h *Handler) SetAIPrompt(ctx context.Context, req *connect.Request[floatv1.SetAIPromptRequest]) (*connect.Response[floatv1.SetAIPromptResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	oldPrompt := h.cfg.AI.Prompt
+	err := h.lock.Do(ctx, "set AI prompt", func() error {
+		h.cfg.AI.Prompt = req.Msg.Prompt
+		if err := config.Save(h.configPath, h.cfg); err != nil {
+			h.cfg.AI.Prompt = oldPrompt
+			return fmt.Errorf("save config: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "set AI prompt failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "updated AI prompt")
+	return connect.NewResponse(&floatv1.SetAIPromptResponse{}), nil
 }
 
 // SetAIModel updates the AI model in config.toml. An empty model string clears
@@ -161,7 +190,11 @@ func (h *Handler) SuggestRules(ctx context.Context, req *connect.Request[floatv1
 		accountNames[i] = a.FullName
 	}
 
-	suggestions, err := aiCl.SuggestRules(ctx, summaries, ruleSummaries, accountNames)
+	userGuidelines := ""
+	if h.cfg != nil {
+		userGuidelines = h.cfg.AI.Prompt
+	}
+	suggestions, err := aiCl.SuggestRules(ctx, summaries, ruleSummaries, accountNames, userGuidelines)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("AI suggest rules: %w", err))
 	}
@@ -200,7 +233,11 @@ func (h *Handler) TranslateQuery(ctx context.Context, req *connect.Request[float
 		accountNames[i] = a.FullName
 	}
 
-	query, explanation, err := aiCl.TranslateQuery(ctx, req.Msg.Question, accountNames)
+	userGuidelines := ""
+	if h.cfg != nil {
+		userGuidelines = h.cfg.AI.Prompt
+	}
+	query, explanation, err := aiCl.TranslateQuery(ctx, req.Msg.Question, accountNames, userGuidelines)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("AI translate query: %w", err))
 	}

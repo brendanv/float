@@ -28,7 +28,8 @@ type AlphaVantageConfig struct {
 }
 
 type AIConfig struct {
-	Model string `toml:"model"` // OpenRouter model ID; empty = use default
+	Model  string `toml:"model"`  // OpenRouter model ID; empty = use default
+	Prompt string `toml:"prompt"` // User-defined guidelines prepended to AI system prompts
 }
 
 type Config struct {

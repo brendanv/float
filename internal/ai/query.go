@@ -20,10 +20,16 @@ var translateQuerySchema = map[string]any{
 
 // TranslateQuery converts a natural-language finance question into a hledger
 // query string. accounts is the user's full account list for context.
-func (c *Client) TranslateQuery(ctx context.Context, question string, accounts []string) (query, explanation string, err error) {
+// userGuidelines, if non-empty, is prepended to the system prompt as additional instructions.
+func (c *Client) TranslateQuery(ctx context.Context, question string, accounts []string, userGuidelines string) (query, explanation string, err error) {
 	today := time.Now().Format("2006-01-02")
 
-	systemPrompt := strings.TrimSpace(`
+	guidelinesSection := ""
+	if userGuidelines != "" {
+		guidelinesSection = "## User guidelines\n\n" + userGuidelines + "\n\n"
+	}
+
+	systemPrompt := strings.TrimSpace(guidelinesSection + `
 You are a personal finance assistant that translates plain-English questions into hledger query syntax.
 
 Today's date: ` + today + `

@@ -179,6 +179,9 @@ const (
 	// LedgerServiceSetAIModelProcedure is the fully-qualified name of the LedgerService's SetAIModel
 	// RPC.
 	LedgerServiceSetAIModelProcedure = "/float.v1.LedgerService/SetAIModel"
+	// LedgerServiceSetAIPromptProcedure is the fully-qualified name of the LedgerService's SetAIPrompt
+	// RPC.
+	LedgerServiceSetAIPromptProcedure = "/float.v1.LedgerService/SetAIPrompt"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -237,6 +240,7 @@ type LedgerServiceClient interface {
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
+	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -550,6 +554,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SetAIModel")),
 			connect.WithClientOptions(opts...),
 		),
+		setAIPrompt: connect.NewClient[v1.SetAIPromptRequest, v1.SetAIPromptResponse](
+			httpClient,
+			baseURL+LedgerServiceSetAIPromptProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetAIPrompt")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -605,6 +615,7 @@ type ledgerServiceClient struct {
 	setAlphaVantageApiKey        *connect.Client[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse]
 	getAIConfig                  *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
 	setAIModel                   *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
+	setAIPrompt                  *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -857,6 +868,11 @@ func (c *ledgerServiceClient) SetAIModel(ctx context.Context, req *connect.Reque
 	return c.setAIModel.CallUnary(ctx, req)
 }
 
+// SetAIPrompt calls float.v1.LedgerService.SetAIPrompt.
+func (c *ledgerServiceClient) SetAIPrompt(ctx context.Context, req *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error) {
+	return c.setAIPrompt.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -913,6 +929,7 @@ type LedgerServiceHandler interface {
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
+	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1222,6 +1239,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SetAIModel")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceSetAIPromptHandler := connect.NewUnaryHandler(
+		LedgerServiceSetAIPromptProcedure,
+		svc.SetAIPrompt,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetAIPrompt")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -1324,6 +1347,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetAIConfigHandler.ServeHTTP(w, r)
 		case LedgerServiceSetAIModelProcedure:
 			ledgerServiceSetAIModelHandler.ServeHTTP(w, r)
+		case LedgerServiceSetAIPromptProcedure:
+			ledgerServiceSetAIPromptHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1531,4 +1556,8 @@ func (UnimplementedLedgerServiceHandler) GetAIConfig(context.Context, *connect.R
 
 func (UnimplementedLedgerServiceHandler) SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAIModel is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAIPrompt is not implemented"))
 }
