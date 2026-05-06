@@ -658,8 +658,9 @@ message SetAlphaVantageApiKeyResponse {}
 message GetAIConfigRequest {}
 
 message GetAIConfigResponse {
-  string model = 1;         // current model ID from config.toml (empty if not set)
+  string model = 1;           // current model ID from config.toml (empty if not set)
   string effective_model = 2; // model that will actually be used (config → env → default)
+  string prompt = 3;          // user-defined guidelines prepended to AI system prompts
 }
 
 message SetAIModelRequest {
@@ -667,6 +668,12 @@ message SetAIModelRequest {
 }
 
 message SetAIModelResponse {}
+
+message SetAIPromptRequest {
+  string prompt = 1; // user-defined guidelines; empty string clears the prompt
+}
+
+message SetAIPromptResponse {}
 
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
@@ -727,4 +734,5 @@ service LedgerService {
   rpc SetAlphaVantageApiKey(SetAlphaVantageApiKeyRequest) returns (SetAlphaVantageApiKeyResponse);
   rpc GetAIConfig(GetAIConfigRequest) returns (GetAIConfigResponse);
   rpc SetAIModel(SetAIModelRequest) returns (SetAIModelResponse);
+  rpc SetAIPrompt(SetAIPromptRequest) returns (SetAIPromptResponse);
 }

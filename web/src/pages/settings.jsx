@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, Circle } from "lucide-react";
 
 export function SettingsPage() {
@@ -90,6 +91,37 @@ export function SettingsPage() {
     setAiMutationError(null);
     setAiSaved(false);
     setModelMutation.mutate("");
+  }
+
+  // --- AI Prompt ---
+  const [promptInput, setPromptInput] = useState(null); // null = not yet initialized from server
+  const [promptMutationError, setPromptMutationError] = useState(null);
+  const [promptSaved, setPromptSaved] = useState(false);
+
+  const setPromptMutation = useMutation({
+    mutationFn: (prompt) => ledgerClient.setAIPrompt({ prompt }),
+    onSuccess: () => {
+      setPromptSaved(true);
+      setPromptMutationError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiConfig() });
+      setTimeout(() => setPromptSaved(false), 3000);
+    },
+    onError: (err) => {
+      setPromptMutationError(err);
+      setPromptSaved(false);
+    },
+  });
+
+  // Initialise textarea from server data once loaded (only on first load).
+  if (aiData && promptInput === null) {
+    setPromptInput(aiData.prompt ?? "");
+  }
+
+  function handlePromptSave(e) {
+    e.preventDefault();
+    setPromptMutationError(null);
+    setPromptSaved(false);
+    setPromptMutation.mutate(promptInput);
   }
 
   return (
@@ -261,6 +293,46 @@ export function SettingsPage() {
                 </div>
               )}
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Guidelines</CardTitle>
+          <CardDescription>
+            Optional instructions prepended to the AI system prompt for all AI features.
+            Use this to tell the AI about your account naming conventions, preferred categorization
+            style, or any other context that should influence its suggestions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {promptMutationError && <ErrorBanner error={promptMutationError} />}
+
+          {aiLoading && <Loading />}
+
+          {aiData && promptInput !== null && (
+            <form onSubmit={handlePromptSave} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ai-prompt">Guidelines</Label>
+                <Textarea
+                  id="ai-prompt"
+                  placeholder="e.g. My accounts use kebab-case. Groceries go under expenses:food:groceries. Always prefer specific accounts over broad ones."
+                  value={promptInput}
+                  onChange={(e) => setPromptInput(e.target.value)}
+                  className="min-h-32 font-mono text-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={setPromptMutation.isPending}>
+                  {setPromptMutation.isPending ? "Saving…" : "Save guidelines"}
+                </Button>
+                {promptSaved && (
+                  <p className="text-sm text-success">Guidelines saved.</p>
+                )}
+              </div>
+            </form>
           )}
         </CardContent>
       </Card>

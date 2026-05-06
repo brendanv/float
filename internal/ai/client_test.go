@@ -58,7 +58,7 @@ func TestSuggestRules_ReturnsSuggestions(t *testing.T) {
 		{FID: "abc12345", Description: "WHOLE FOODS MARKET #123", Amount: "-45.67 $", Date: "2026-01-05"},
 		{FID: "def67890", Description: "NETFLIX.COM", Amount: "-15.99 $", Date: "2026-01-06"},
 	}
-	suggestions, err := cl.SuggestRules(t.Context(), txns, nil, []string{"expenses:food:groceries", "expenses:entertainment"})
+	suggestions, err := cl.SuggestRules(t.Context(), txns, nil, []string{"expenses:food:groceries", "expenses:entertainment"}, "")
 	if err != nil {
 		t.Fatalf("SuggestRules: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestSuggestRules_FiltersInvalidRegex(t *testing.T) {
 	cl := ai.NewClient("test-key", "test-model", ai.WithBaseURL(srv.URL))
 	suggestions, err := cl.SuggestRules(t.Context(), []ai.TxnSummary{
 		{FID: "aaa11111", Description: "AMAZON.COM", Amount: "-29.99 $", Date: "2026-01-01"},
-	}, nil, nil)
+	}, nil, nil, "")
 	if err != nil {
 		t.Fatalf("SuggestRules: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestSuggestRules_EmptyRulesInResponse(t *testing.T) {
 	cl := ai.NewClient("test-key", "test-model", ai.WithBaseURL(srv.URL))
 	suggestions, err := cl.SuggestRules(t.Context(), []ai.TxnSummary{
 		{FID: "aaa11111", Description: "UNKNOWN MERCHANT", Amount: "-10.00 $", Date: "2026-01-01"},
-	}, nil, nil)
+	}, nil, nil, "")
 	if err != nil {
 		t.Fatalf("SuggestRules: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestSuggestRules_APIError(t *testing.T) {
 	cl := ai.NewClient("test-key", "test-model", ai.WithBaseURL(srv.URL))
 	_, err := cl.SuggestRules(t.Context(), []ai.TxnSummary{
 		{FID: "aaa11111", Description: "SOME MERCHANT", Amount: "-10.00 $", Date: "2026-01-01"},
-	}, nil, nil)
+	}, nil, nil, "")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -143,7 +143,7 @@ func TestSuggestRules_SendsTransactionsAndAccounts(t *testing.T) {
 	existingRules := []ai.RuleSummary{{Pattern: "AMAZON", Payee: "Amazon", Account: "expenses:shopping"}}
 	accounts := []string{"expenses:food:coffee", "expenses:shopping"}
 
-	_, err := cl.SuggestRules(t.Context(), txns, existingRules, accounts)
+	_, err := cl.SuggestRules(t.Context(), txns, existingRules, accounts, "")
 	if err != nil {
 		t.Fatalf("SuggestRules: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestTranslateQuery_ReturnsQueryAndExplanation(t *testing.T) {
 	defer srv.Close()
 
 	cl := ai.NewClient("test-key", "test-model", ai.WithBaseURL(srv.URL))
-	query, explanation, err := cl.TranslateQuery(t.Context(), "how much did I spend on food last month?", []string{"expenses:food", "assets:checking"})
+	query, explanation, err := cl.TranslateQuery(t.Context(), "how much did I spend on food last month?", []string{"expenses:food", "assets:checking"}, "")
 	if err != nil {
 		t.Fatalf("TranslateQuery: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestTranslateQuery_APIError(t *testing.T) {
 	defer srv.Close()
 
 	cl := ai.NewClient("test-key", "test-model", ai.WithBaseURL(srv.URL))
-	_, _, err := cl.TranslateQuery(t.Context(), "show me expenses", nil)
+	_, _, err := cl.TranslateQuery(t.Context(), "show me expenses", nil, "")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -211,7 +211,7 @@ func TestTranslateQuery_SendsAccountsAndQuestion(t *testing.T) {
 
 	cl := ai.NewClient("test-key", "test-model", ai.WithBaseURL(srv.URL))
 	accounts := []string{"expenses:rent", "assets:checking"}
-	_, _, err := cl.TranslateQuery(t.Context(), "show me my rent payments", accounts)
+	_, _, err := cl.TranslateQuery(t.Context(), "show me my rent payments", accounts, "")
 	if err != nil {
 		t.Fatalf("TranslateQuery: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestClient_UsesAuthorizationHeader(t *testing.T) {
 	cl := ai.NewClient("my-secret-key", "test-model", ai.WithBaseURL(srv.URL))
 	_, _ = cl.SuggestRules(context.Background(), []ai.TxnSummary{
 		{FID: "x", Description: "TEST", Amount: "-1.00 $", Date: "2026-01-01"},
-	}, nil, nil)
+	}, nil, nil, "")
 
 	if capturedAuth != "Bearer my-secret-key" {
 		t.Errorf("Authorization = %q, want %q", capturedAuth, "Bearer my-secret-key")
@@ -258,7 +258,7 @@ func TestClient_SendsStructuredOutputSchema(t *testing.T) {
 	defer srv.Close()
 
 	cl := ai.NewClient("test-key", "test-model", ai.WithBaseURL(srv.URL))
-	_, _, _ = cl.TranslateQuery(t.Context(), "show expenses", nil)
+	_, _, _ = cl.TranslateQuery(t.Context(), "show expenses", nil, "")
 
 	var body map[string]any
 	if err := json.Unmarshal(captured, &body); err != nil {

@@ -60,7 +60,8 @@ var suggestRulesSchema = map[string]any{
 // SuggestRules asks the AI to suggest categorization rules for the given
 // transactions. Existing rules and the full account list are provided as
 // context so the AI avoids duplicates and uses real account names.
-func (c *Client) SuggestRules(ctx context.Context, txns []TxnSummary, existingRules []RuleSummary, accounts []string) ([]SuggestedRule, error) {
+// userGuidelines, if non-empty, is prepended to the system prompt as additional instructions.
+func (c *Client) SuggestRules(ctx context.Context, txns []TxnSummary, existingRules []RuleSummary, accounts []string, userGuidelines string) ([]SuggestedRule, error) {
 	type txnInput struct {
 		FID         string `json:"fid"`
 		Description string `json:"description"`
@@ -92,7 +93,12 @@ func (c *Client) SuggestRules(ctx context.Context, txns []TxnSummary, existingRu
 		return nil, fmt.Errorf("ai: marshal suggest-rules payload: %w", err)
 	}
 
-	systemPrompt := strings.TrimSpace(`
+	guidelinesSection := ""
+	if userGuidelines != "" {
+		guidelinesSection = "## User guidelines\n\n" + userGuidelines + "\n\n"
+	}
+
+	systemPrompt := strings.TrimSpace(guidelinesSection + `
 You are a personal finance assistant helping a user create categorization rules for their transactions.
 Rules use Go regex patterns (case-insensitive) matched against the transaction description.
 Each rule sets a payee name and/or a category account from the user's account hierarchy.
