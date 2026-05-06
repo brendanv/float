@@ -27,11 +27,16 @@ type AlphaVantageConfig struct {
 	APIKey string `toml:"api_key"`
 }
 
+type AIConfig struct {
+	Model string `toml:"model"` // OpenRouter model ID; empty = use default
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	Users        []User             `toml:"users"`
 	BankProfiles []BankProfile      `toml:"bank_profiles"`
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
+	AI           AIConfig           `toml:"ai"`
 }
 
 // Load parses config.toml at path and returns a *Config.

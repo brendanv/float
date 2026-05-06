@@ -11,29 +11,80 @@ import (
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/internal/ai"
+	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/rules"
+	"github.com/brendanv/float/internal/slogctx"
 )
 
 const defaultAIModel = "google/gemini-2.0-flash-001"
 
-// aiClient constructs an ai.Client from environment variables.
-// Returns FailedPrecondition if OPENROUTER_API_KEY is not set.
+// effectiveAIModel returns the model to use, in priority order:
+//  1. OPENROUTER_MODEL env var (allows runtime override without editing config)
+//  2. h.cfg.AI.Model (stored in config.toml, editable from the settings page)
+//  3. defaultAIModel
+func (h *Handler) effectiveAIModel() string {
+	if m := os.Getenv("OPENROUTER_MODEL"); m != "" {
+		return m
+	}
+	if h.cfg != nil && h.cfg.AI.Model != "" {
+		return h.cfg.AI.Model
+	}
+	return defaultAIModel
+}
+
+// aiClient constructs an ai.Client. Returns FailedPrecondition if
+// OPENROUTER_API_KEY is not set.
 func (h *Handler) aiClient() (*ai.Client, error) {
 	key := os.Getenv("OPENROUTER_API_KEY")
 	if key == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("OPENROUTER_API_KEY environment variable is not set"))
 	}
-	model := os.Getenv("OPENROUTER_MODEL")
-	if model == "" {
-		model = defaultAIModel
-	}
 	opts := []ai.Option{}
 	if h.AIBaseURL != "" {
 		opts = append(opts, ai.WithBaseURL(h.AIBaseURL))
 	}
-	return ai.NewClient(key, model, opts...), nil
+	return ai.NewClient(key, h.effectiveAIModel(), opts...), nil
+}
+
+// GetAIConfig returns the current AI model configuration.
+func (h *Handler) GetAIConfig(ctx context.Context, req *connect.Request[floatv1.GetAIConfigRequest]) (*connect.Response[floatv1.GetAIConfigResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	return connect.NewResponse(&floatv1.GetAIConfigResponse{
+		Model:         h.cfg.AI.Model,
+		EffectiveModel: h.effectiveAIModel(),
+	}), nil
+}
+
+// SetAIModel updates the AI model in config.toml. An empty model string clears
+// the override and reverts to the default.
+func (h *Handler) SetAIModel(ctx context.Context, req *connect.Request[floatv1.SetAIModelRequest]) (*connect.Response[floatv1.SetAIModelResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	oldModel := h.cfg.AI.Model
+	err := h.lock.Do(ctx, "set AI model", func() error {
+		h.cfg.AI.Model = req.Msg.Model
+		if err := config.Save(h.configPath, h.cfg); err != nil {
+			h.cfg.AI.Model = oldModel
+			return fmt.Errorf("save config: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "set AI model failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "updated AI model", "model", req.Msg.Model)
+	return connect.NewResponse(&floatv1.SetAIModelResponse{}), nil
 }
 
 // SuggestRules fetches transactions (by FID list or hledger query), then asks
