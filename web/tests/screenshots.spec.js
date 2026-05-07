@@ -456,6 +456,30 @@ test("payees page - set payee inline form open", async ({ page }) => {
   await page.screenshot({ path: "test-results/payees-set-payee.png", fullPage: true });
 });
 
+test("payees page - suggest rules wizard source step", async ({ page }) => {
+  await page.goto("/#/payees");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  await page.locator("button:has-text('Suggest rules with AI')").click();
+  await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/payees-suggest-rules-source.png", fullPage: true });
+});
+
+test("payees page - suggest rules wizard suggestions step", async ({ page }) => {
+  await page.goto("/#/payees");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  await page.locator("button:has-text('Suggest rules with AI')").click();
+  await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  await page.locator("[role='dialog'] button:has-text('Analyze')").click();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: "test-results/payees-suggest-rules-suggestions.png", fullPage: true });
+});
+
 test("payees page - mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/payees");
