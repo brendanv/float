@@ -49,7 +49,7 @@ depends = ["lint", "vet", "test"]
 [tasks.build]
 description = "Regenerate protobuf code, build web UI, and compile floatd"
 depends = ["proto-gen"]
-run = "cd web && bun run build && cd .. && go build -o floatd ./cmd/floatd/"
+run = "cd web && bun run build && cd .. && go build -tags webui -o floatd ./cmd/floatd/"
 
 [tasks.floatctl]
 description = "Run floatctl"
