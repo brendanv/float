@@ -25,7 +25,7 @@ RUN go mod download \
 COPY . .
 RUN buf generate
 COPY --from=web-build /app/internal/webui/dist/ ./internal/webui/dist/
-RUN CGO_ENABLED=0 go build -o /floatd ./cmd/floatd/
+RUN CGO_ENABLED=0 go build -tags webui -o /floatd ./cmd/floatd/
 
 FROM debian:bookworm-slim
 RUN apt-get update \
