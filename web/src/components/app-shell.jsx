@@ -43,7 +43,6 @@ const NAV_OVERVIEW = [
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/monthly", label: "Monthly", icon: BarChart2 },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { href: "/snapshots", label: "Snapshots", icon: History },
 ];
 
 const NAV_FINANCES = [
@@ -60,6 +59,7 @@ const NAV_SETUP = [
 ];
 
 const NAV_SETTINGS = [
+  { href: "/snapshots", label: "Snapshots", icon: History },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
