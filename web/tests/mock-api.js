@@ -271,10 +271,25 @@ export const mockTransactions = [
 export const mockPrices = [
   { pid: "a1b2c3d4", date: "2026-01-02", commodity: "AAPL", price: { commodity: "USD", quantity: "182.63" } },
   { pid: "b2c3d4e5", date: "2026-01-02", commodity: "MSFT", price: { commodity: "USD", quantity: "425.22" } },
+  { pid: "b2c3d4e6", date: "2026-01-02", commodity: "GOOG", price: { commodity: "USD", quantity: "193.45" } },
   { pid: "c3d4e5f6", date: "2026-02-03", commodity: "AAPL", price: { commodity: "USD", quantity: "188.44" } },
   { pid: "d4e5f6a7", date: "2026-02-03", commodity: "MSFT", price: { commodity: "USD", quantity: "415.10" } },
+  { pid: "d4e5f6a8", date: "2026-02-03", commodity: "GOOG", price: { commodity: "USD", quantity: "197.82" } },
   { pid: "e5f6a7b8", date: "2026-03-01", commodity: "AAPL", price: { commodity: "USD", quantity: "178.50" } },
   { pid: "f6a7b8c9", date: "2026-03-01", commodity: "MSFT", price: { commodity: "USD", quantity: "398.75" } },
+  { pid: "f6a7b8ca", date: "2026-03-01", commodity: "GOOG", price: { commodity: "USD", quantity: "185.20" } },
+  { pid: "g7b8c9d1", date: "2026-03-15", commodity: "AAPL", price: { commodity: "USD", quantity: "181.10" } },
+  { pid: "g7b8c9d2", date: "2026-03-15", commodity: "MSFT", price: { commodity: "USD", quantity: "402.30" } },
+  { pid: "g7b8c9d3", date: "2026-03-15", commodity: "GOOG", price: { commodity: "USD", quantity: "187.65" } },
+  { pid: "h8c9d1e2", date: "2026-04-01", commodity: "AAPL", price: { commodity: "USD", quantity: "175.90" } },
+  { pid: "h8c9d1e3", date: "2026-04-01", commodity: "MSFT", price: { commodity: "USD", quantity: "391.44" } },
+  { pid: "h8c9d1e4", date: "2026-04-01", commodity: "GOOG", price: { commodity: "USD", quantity: "180.11" } },
+  { pid: "i9d1e2f3", date: "2026-04-15", commodity: "AAPL", price: { commodity: "USD", quantity: "172.30" } },
+  { pid: "i9d1e2f4", date: "2026-04-15", commodity: "MSFT", price: { commodity: "USD", quantity: "385.60" } },
+  { pid: "i9d1e2f5", date: "2026-04-15", commodity: "GOOG", price: { commodity: "USD", quantity: "176.40" } },
+  { pid: "j1e2f3g4", date: "2026-05-01", commodity: "AAPL", price: { commodity: "USD", quantity: "179.88" } },
+  { pid: "j1e2f3g5", date: "2026-05-01", commodity: "MSFT", price: { commodity: "USD", quantity: "412.77" } },
+  { pid: "j1e2f3g6", date: "2026-05-01", commodity: "GOOG", price: { commodity: "USD", quantity: "184.32" } },
 ];
 
 export const mockNetWorthSnapshots = [
