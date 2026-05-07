@@ -5,9 +5,11 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { Loader2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -22,8 +24,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function SortHeader({ column, children }) {
   const sorted = column.getIsSorted();
@@ -46,6 +61,71 @@ function SortHeader({ column, children }) {
   );
 }
 
+function TablePagination({ table }) {
+  const { pageIndex, pageSize } = table.getState().pagination;
+  const total = table.getFilteredRowModel().rows.length;
+  if (total === 0) return null;
+  const from = pageIndex * pageSize + 1;
+  const to = Math.min((pageIndex + 1) * pageSize, total);
+  return (
+    <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
+        <Select
+          value={String(pageSize)}
+          onValueChange={(val) => {
+            table.setPageSize(Number(val));
+            table.setPageIndex(0);
+          }}
+        >
+          <SelectTrigger className="h-8 w-16">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="10">10</SelectItem>
+            <SelectItem value="25">25</SelectItem>
+            <SelectItem value="50">50</SelectItem>
+            <SelectItem value="100">100</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="whitespace-nowrap text-sm text-muted-foreground">
+          {from}–{to} of {total}
+        </span>
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <Button
+                aria-label="Go to previous page"
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <ChevronLeftIcon className="size-4" />
+              </Button>
+            </PaginationItem>
+            <PaginationItem>
+              <Button
+                aria-label="Go to next page"
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <ChevronRightIcon className="size-4" />
+              </Button>
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    </div>
+  );
+}
+
 export function PayeesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -65,33 +145,19 @@ export function PayeesPage() {
     error: txError,
   } = useQuery({
     queryKey: queryKeys.noPayeeTransactions(),
-    queryFn: () => ledgerClient.listTransactions({ query: ["not:payee:.+"] }),
+    queryFn: () => ledgerClient.listTransactions({ query: ["not:desc:.*[|].*"] }),
   });
-
-  // Group unassigned transactions by description
-  const descRows = useMemo(() => {
-    const map = new Map();
-    for (const tx of txData?.transactions ?? []) {
-      if (!map.has(tx.description)) map.set(tx.description, []);
-      map.get(tx.description).push(tx.fid);
-    }
-    return [...map.entries()].map(([description, fids]) => ({
-      description,
-      fids,
-      count: fids.length,
-    }));
-  }, [txData]);
 
   // ── Payees table ──────────────────────────────────────────────────────────
 
+  const payeeRows = useMemo(
+    () => (payeesData?.payees ?? []).map((name) => ({ name })),
+    [payeesData],
+  );
+
   const [payeeFilter, setPayeeFilter] = useState("");
   const [payeeSorting, setPayeeSorting] = useState([{ id: "name", desc: false }]);
-
-  const payeeRows = useMemo(() => {
-    const q = payeeFilter.trim().toLowerCase();
-    const all = (payeesData?.payees ?? []).map((name) => ({ name }));
-    return q ? all.filter((r) => r.name.toLowerCase().includes(q)) : all;
-  }, [payeesData, payeeFilter]);
+  const [payeePagination, setPayeePagination] = useState({ pageIndex: 0, pageSize: 25 });
 
   const payeeColumns = useMemo(
     () => [
@@ -99,9 +165,7 @@ export function PayeesPage() {
         id: "name",
         accessorKey: "name",
         header: ({ column }) => <SortHeader column={column}>Payee</SortHeader>,
-        cell: ({ getValue }) => (
-          <span className="font-medium">{getValue()}</span>
-        ),
+        cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
       },
       {
         id: "actions",
@@ -125,22 +189,44 @@ export function PayeesPage() {
         meta: { headerClass: "w-44" },
       },
     ],
-    [navigate]
+    [navigate],
   );
 
   const payeeTable = useReactTable({
     data: payeeRows,
     columns: payeeColumns,
-    state: { sorting: payeeSorting },
+    state: { sorting: payeeSorting, globalFilter: payeeFilter, pagination: payeePagination },
     onSortingChange: setPayeeSorting,
+    onGlobalFilterChange: (filter) => {
+      setPayeeFilter(filter);
+      setPayeePagination((p) => ({ ...p, pageIndex: 0 }));
+    },
+    onPaginationChange: setPayeePagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: "includesString",
   });
 
   // ── Descriptions table ────────────────────────────────────────────────────
 
+  const descRows = useMemo(() => {
+    const map = new Map();
+    for (const tx of txData?.transactions ?? []) {
+      if (!map.has(tx.description)) map.set(tx.description, []);
+      map.get(tx.description).push(tx.fid);
+    }
+    return [...map.entries()].map(([description, fids]) => ({
+      description,
+      fids,
+      count: fids.length,
+    }));
+  }, [txData]);
+
   const [descFilter, setDescFilter] = useState("");
   const [descSorting, setDescSorting] = useState([{ id: "count", desc: true }]);
+  const [descPagination, setDescPagination] = useState({ pageIndex: 0, pageSize: 25 });
   const [activeDesc, setActiveDesc] = useState(null);
   const [newPayee, setNewPayee] = useState("");
   const [settingPayee, setSettingPayee] = useState(false);
@@ -187,22 +273,14 @@ export function PayeesPage() {
       {
         id: "description",
         accessorKey: "description",
-        header: ({ column }) => (
-          <SortHeader column={column}>Description</SortHeader>
-        ),
-        cell: ({ getValue }) => (
-          <span className="font-mono text-sm">{getValue()}</span>
-        ),
+        header: ({ column }) => <SortHeader column={column}>Description</SortHeader>,
+        cell: ({ getValue }) => <span className="font-mono text-sm">{getValue()}</span>,
       },
       {
         id: "count",
         accessorKey: "count",
-        header: ({ column }) => (
-          <SortHeader column={column}>Count</SortHeader>
-        ),
-        cell: ({ getValue }) => (
-          <Badge variant="secondary">{getValue()}</Badge>
-        ),
+        header: ({ column }) => <SortHeader column={column}>Count</SortHeader>,
+        cell: ({ getValue }) => <Badge variant="secondary">{getValue()}</Badge>,
         meta: { headerClass: "w-28" },
       },
       {
@@ -230,11 +308,7 @@ export function PayeesPage() {
                   disabled={settingPayee || !newPayee.trim()}
                   onClick={() => confirmSetPayee(fids)}
                 >
-                  {settingPayee ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    "Set"
-                  )}
+                  {settingPayee ? <Loader2 className="size-3 animate-spin" /> : "Set"}
                 </Button>
                 <Button
                   variant="ghost"
@@ -251,11 +325,7 @@ export function PayeesPage() {
             </div>
           ) : (
             <div className="flex items-center justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => openSetPayee(description)}
-              >
+              <Button variant="ghost" size="sm" onClick={() => openSetPayee(description)}>
                 Set payee
               </Button>
               <Button
@@ -276,21 +346,24 @@ export function PayeesPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [navigate, activeDesc, newPayee, settingPayee, setPayeeError]
+    [navigate, activeDesc, newPayee, settingPayee, setPayeeError],
   );
 
-  const filteredDescRows = useMemo(() => {
-    const q = descFilter.trim().toLowerCase();
-    return q ? descRows.filter((r) => r.description.toLowerCase().includes(q)) : descRows;
-  }, [descRows, descFilter]);
-
   const descTable = useReactTable({
-    data: filteredDescRows,
+    data: descRows,
     columns: descColumns,
-    state: { sorting: descSorting },
+    state: { sorting: descSorting, globalFilter: descFilter, pagination: descPagination },
     onSortingChange: setDescSorting,
+    onGlobalFilterChange: (filter) => {
+      setDescFilter(filter);
+      setDescPagination((p) => ({ ...p, pageIndex: 0 }));
+    },
+    onPaginationChange: setDescPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: "includesString",
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -312,41 +385,44 @@ export function PayeesPage() {
           <Input
             placeholder="Filter payees…"
             value={payeeFilter}
-            onChange={(e) => setPayeeFilter(e.target.value)}
+            onChange={(e) => payeeTable.setGlobalFilter(e.target.value)}
             className="max-w-sm"
           />
-          {payeeTable.getRowModel().rows.length === 0 ? (
+          {payeeTable.getFilteredRowModel().rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No payees found.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                {payeeTable.getHeaderGroups().map((hg) => (
-                  <TableRow key={hg.id}>
-                    {hg.headers.map((header) => (
-                      <TableHead
-                        key={header.id}
-                        className={header.column.columnDef.meta?.headerClass}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {payeeTable.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <Table>
+                <TableHeader>
+                  {payeeTable.getHeaderGroups().map((hg) => (
+                    <TableRow key={hg.id}>
+                      {hg.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          className={header.column.columnDef.meta?.headerClass}
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {payeeTable.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <TablePagination table={payeeTable} />
+            </>
           )}
         </CardContent>
       </Card>
@@ -366,41 +442,49 @@ export function PayeesPage() {
               <Input
                 placeholder="Filter descriptions…"
                 value={descFilter}
-                onChange={(e) => setDescFilter(e.target.value)}
+                onChange={(e) => descTable.setGlobalFilter(e.target.value)}
                 className="max-w-sm"
               />
-              {descTable.getRowModel().rows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No descriptions match your filter.</p>
+              {descTable.getFilteredRowModel().rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No descriptions match your filter.
+                </p>
               ) : (
-            <Table>
-              <TableHeader>
-                {descTable.getHeaderGroups().map((hg) => (
-                  <TableRow key={hg.id}>
-                    {hg.headers.map((header) => (
-                      <TableHead
-                        key={header.id}
-                        className={header.column.columnDef.meta?.headerClass}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(header.column.columnDef.header, header.getContext())}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {descTable.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                <>
+                  <Table>
+                    <TableHeader>
+                      {descTable.getHeaderGroups().map((hg) => (
+                        <TableRow key={hg.id}>
+                          {hg.headers.map((header) => (
+                            <TableHead
+                              key={header.id}
+                              className={header.column.columnDef.meta?.headerClass}
+                            >
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  )}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {descTable.getRowModel().rows.map((row) => (
+                        <TableRow key={row.id}>
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <TablePagination table={descTable} />
+                </>
               )}
             </>
           )}

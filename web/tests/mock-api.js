@@ -778,7 +778,7 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         let txs = mockTransactions;
         const query = reqBody.query || [];
         for (const token of query) {
-          if (token === "not:payee:.+") {
+          if (token === "not:desc:.*[|].*") {
             txs = txs.filter((tx) => !tx.payee);
           } else if (token.startsWith("payee:")) {
             const payeeFilter = token.slice("payee:".length).toLowerCase();

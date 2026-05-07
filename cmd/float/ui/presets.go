@@ -13,5 +13,5 @@ var txFilterPresets = []filterPreset{
 	{label: "Unreviewed", tokens: []string{"not:status:*"}},
 	{label: "All", tokens: nil},
 	{label: "Reviewed", tokens: []string{"status:*"}},
-	{label: "No payee", tokens: []string{"not:payee:.+"}},
+	{label: "No payee", tokens: []string{"not:desc:.*[|].*"}},
 }
