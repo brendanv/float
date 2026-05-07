@@ -9,11 +9,12 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { Loader2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { Loader2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon, Sparkles } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -147,6 +148,13 @@ export function PayeesPage() {
     queryKey: queryKeys.noPayeeTransactions(),
     queryFn: () => ledgerClient.listTransactions({ query: ["not:desc:.*[|].*"] }),
   });
+
+  const { data: accountsData } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+  });
+
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // ── Payees table ──────────────────────────────────────────────────────────
 
@@ -430,7 +438,15 @@ export function PayeesPage() {
       {/* Section 2: Common descriptions without payees */}
       <Card>
         <CardHeader>
-          <CardTitle>Common descriptions without a payee</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <CardTitle>Common descriptions without a payee</CardTitle>
+            {descRows.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
+                <Sparkles data-icon="inline-start" className="size-3.5" />
+                Suggest Rules
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {descRows.length === 0 ? (
@@ -490,6 +506,14 @@ export function PayeesPage() {
           )}
         </CardContent>
       </Card>
+
+      <SuggestRulesWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        accounts={accountsData?.accounts ?? []}
+        initialSourceType="nopayee"
+        onRulesAdded={() => queryClient.invalidateQueries({ queryKey: queryKeys.rules() })}
+      />
     </div>
   );
 }
