@@ -38,24 +38,32 @@ import {
 } from "@/components/ui/sidebar";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 
-const NAV_MAIN = [
+const NAV_OVERVIEW = [
   { href: "/", label: "Home", icon: House },
-  { href: "/transactions", label: "Transactions", icon: List },
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/monthly", label: "Monthly", icon: BarChart2 },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { href: "/prices", label: "Prices", icon: Tag },
-  { href: "/accounts", label: "Accounts", icon: BookOpen },
   { href: "/snapshots", label: "Snapshots", icon: History },
 ];
 
-const NAV_MANAGE = [
-  { href: "/payees", label: "Payees", icon: Users },
+const NAV_FINANCES = [
+  { href: "/transactions", label: "Transactions", icon: List },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/imports", label: "Import History", icon: ClockArrowUp },
+  { href: "/prices", label: "Prices", icon: Tag },
   { href: "/rules", label: "Rules", icon: ListFilter },
+];
+
+const NAV_SETUP = [
+  { href: "/accounts", label: "Accounts", icon: BookOpen },
+  { href: "/payees", label: "Payees", icon: Users },
+];
+
+const NAV_SETTINGS = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+const ALL_NAV = [...NAV_OVERVIEW, ...NAV_FINANCES, ...NAV_SETUP, ...NAV_SETTINGS];
 
 function ThemeSwitcher() {
   const [isDark, setIsDark] = useState(
@@ -135,8 +143,10 @@ function AppSidebar({ currentPath, onAddTransaction }) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavGroup label="Overview" items={NAV_MAIN} currentPath={currentPath} />
-        <NavGroup label="Manage" items={NAV_MANAGE} currentPath={currentPath} />
+        <NavGroup label="Overview" items={NAV_OVERVIEW} currentPath={currentPath} />
+        <NavGroup label="Finances" items={NAV_FINANCES} currentPath={currentPath} />
+        <NavGroup label="Setup" items={NAV_SETUP} currentPath={currentPath} />
+        <NavGroup label="Settings" items={NAV_SETTINGS} currentPath={currentPath} />
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -171,7 +181,7 @@ export function AppShell({ children, currentPath }) {
             className="mr-2 data-vertical:h-4 data-vertical:self-auto"
           />
           <span className="text-sm font-medium text-muted-foreground">
-            {[...NAV_MAIN, ...NAV_MANAGE].find((i) => i.href === currentPath)?.label ?? "float"}
+            {ALL_NAV.find((i) => i.href === currentPath)?.label ?? "float"}
           </span>
         </header>
         <div className="flex flex-1 flex-col p-4 pt-0">
