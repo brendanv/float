@@ -16,8 +16,7 @@
 # web UI
 web/node_modules/
 web/src/gen/
-internal/webui/dist/*
-!internal/webui/dist/.gitkeep
+internal/webui/dist/
 
 # npm artifacts (project uses bun)
 web/package-lock.json
