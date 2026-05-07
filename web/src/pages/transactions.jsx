@@ -361,7 +361,7 @@ function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId
   if (account) tokens.push(`acct:${account}`);
   if (importBatchId) tokens.push(`tag:float-import=${importBatchId}`);
   else if (tag) tokens.push(`tag:${tag}`);
-  if (payee === PAYEE_NONE) tokens.push("not:payee:.+");
+  if (payee === PAYEE_NONE) tokens.push("not:desc:.*[|].*");
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
@@ -374,7 +374,7 @@ function buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
   if (importBatchId) tokens.push(`tag:float-import=${importBatchId}`);
   else if (tag) tokens.push(`tag:${tag}`);
-  if (payee === PAYEE_NONE) tokens.push("not:payee:.+");
+  if (payee === PAYEE_NONE) tokens.push("not:desc:.*[|].*");
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");

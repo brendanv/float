@@ -506,7 +506,7 @@ func FetchPayees(client floatv1connect.LedgerServiceClient) tea.Cmd {
 func FetchNoPayeeTransactions(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
 		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
-			Query: []string{"not:payee:.+"},
+			Query: []string{"not:desc:.*[|].*"},
 		}))
 		if err != nil {
 			return NoPayeeTransactionsMsg{Err: err}
