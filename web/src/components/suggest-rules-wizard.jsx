@@ -133,7 +133,7 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
         {step === "source" && (
           <>
             <DialogHeader>
-              <DialogTitle>Suggest Rules with AI</DialogTitle>
+              <DialogTitle>Suggest Rules</DialogTitle>
               <DialogDescription>
                 Choose which transactions to analyze for rule suggestions.
               </DialogDescription>

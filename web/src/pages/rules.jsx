@@ -482,7 +482,7 @@ export function RulesPage() {
                 onClick={() => setWizardOpen(true)}
               >
                 <Sparkles data-icon="inline-start" className="size-3.5" />
-                Suggest with AI
+                Suggest Rules
               </Button>
               <Button
                 variant="outline"

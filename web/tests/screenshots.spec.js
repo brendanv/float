@@ -407,21 +407,21 @@ test("rules page - mobile form", async ({ page }) => {
   await page.screenshot({ path: "test-results/rules-mobile-form.png", fullPage: true });
 });
 
-test("rules page - suggest with AI wizard source step", async ({ page }) => {
+test("rules page - suggest rules wizard source step", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  await page.click('button:has-text("Suggest with AI")');
+  await page.click('button:has-text("Suggest Rules")');
   await page.waitForSelector('[data-slot="dialog-content"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/rules-ai-wizard-source.png", fullPage: false });
 });
 
-test("rules page - suggest with AI wizard suggestions step", async ({ page }) => {
+test("rules page - suggest rules wizard suggestions step", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  await page.click('button:has-text("Suggest with AI")');
+  await page.click('button:has-text("Suggest Rules")');
   await page.waitForSelector('[data-slot="dialog-content"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.click('button:has-text("Analyze")');
@@ -461,7 +461,7 @@ test("payees page - suggest rules wizard source step", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
-  await page.locator("button:has-text('Suggest rules with AI')").click();
+  await page.locator("button:has-text('Suggest Rules')").click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/payees-suggest-rules-source.png", fullPage: true });
@@ -472,7 +472,7 @@ test("payees page - suggest rules wizard suggestions step", async ({ page }) => 
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
-  await page.locator("button:has-text('Suggest rules with AI')").click();
+  await page.locator("button:has-text('Suggest Rules')").click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(200);
   await page.locator("[role='dialog'] button:has-text('Analyze')").click();
