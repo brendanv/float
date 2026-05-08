@@ -965,6 +965,20 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "RestoreSnapshot":
         body = {};
         break;
+      case "RunHledgerQuery":
+        body = {
+          stdout: `              $  12,450.00  assets
+              $   8,450.00    checking
+              $   4,000.00    savings
+             $  -1,230.00  liabilities
+             $  -1,230.00    creditcard
+--------------------
+              $  11,220.00`,
+          stderr: "",
+          success: true,
+          commandLine: "hledger -f /data/main.journal bal --depth 2",
+        };
+        break;
       default:
         body = {};
     }
