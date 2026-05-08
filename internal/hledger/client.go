@@ -120,6 +120,55 @@ func (c *Client) RunRaw(ctx context.Context, args ...string) (stdout, stderr []b
 	return
 }
 
+// RunQuery runs hledger with the given shell-like argument string, automatically
+// prepending -f <journal>. The argsStr should look like "bal --depth 2 assets"
+// without the hledger binary name or the journal flag. Both single- and double-
+// quoted tokens are supported. Returns raw stdout, stderr, the full command line
+// for display, and the exit error (nil on success).
+func (c *Client) RunQuery(ctx context.Context, argsStr string) (stdout, stderr []byte, cmdLine string, err error) {
+	userArgs, splitErr := shellSplit(strings.TrimSpace(argsStr))
+	if splitErr != nil {
+		return nil, nil, "", splitErr
+	}
+	args := append([]string{"-f", c.journal}, userArgs...)
+	cmdLine = c.bin + " " + strings.Join(args, " ")
+	stdout, stderr, err = c.run(ctx, args...)
+	return
+}
+
+// shellSplit splits a string into tokens using shell-like quoting rules.
+// Single- and double-quoted regions are treated as single tokens; whitespace
+// outside quotes acts as a delimiter. Escape sequences are not supported.
+func shellSplit(s string) ([]string, error) {
+	var args []string
+	var cur strings.Builder
+	inSingle := false
+	inDouble := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\'' && !inDouble:
+			inSingle = !inSingle
+		case c == '"' && !inSingle:
+			inDouble = !inDouble
+		case (c == ' ' || c == '\t' || c == '\n') && !inSingle && !inDouble:
+			if cur.Len() > 0 {
+				args = append(args, cur.String())
+				cur.Reset()
+			}
+		default:
+			cur.WriteByte(c)
+		}
+	}
+	if inSingle || inDouble {
+		return nil, fmt.Errorf("unclosed quote in args")
+	}
+	if cur.Len() > 0 {
+		args = append(args, cur.String())
+	}
+	return args, nil
+}
+
 // Version returns the hledger version string.
 func (c *Client) Version(ctx context.Context) (string, error) {
 	stdout, _, err := c.run(ctx, "--version")

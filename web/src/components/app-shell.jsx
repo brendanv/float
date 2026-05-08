@@ -17,6 +17,7 @@ import {
   BookOpen,
   Users,
   Settings,
+  Terminal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -61,6 +62,7 @@ const NAV_SETUP = [
 const NAV_SETTINGS = [
   { href: "/snapshots", label: "Snapshots", icon: History },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/hledger-query", label: "hledger Query", icon: Terminal },
 ];
 
 const ALL_NAV = [...NAV_OVERVIEW, ...NAV_FINANCES, ...NAV_SETUP, ...NAV_SETTINGS];

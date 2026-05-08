@@ -43,6 +43,24 @@ func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configP
 	return &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, cfg: cfg}
 }
 
+func (h *Handler) RunHledgerQuery(ctx context.Context, req *connect.Request[floatv1.RunHledgerQueryRequest]) (*connect.Response[floatv1.RunHledgerQueryResponse], error) {
+	logger := slogctx.FromContext(ctx)
+	if strings.TrimSpace(req.Msg.Args) == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("args is required"))
+	}
+	stdout, stderr, cmdLine, err := h.hl.RunQuery(ctx, req.Msg.Args)
+	success := err == nil
+	if err != nil {
+		logger.InfoContext(ctx, "hledger query returned non-zero", "args", req.Msg.Args, "error", err)
+	}
+	return connect.NewResponse(&floatv1.RunHledgerQueryResponse{
+		Stdout:      string(stdout),
+		Stderr:      string(stderr),
+		Success:     success,
+		CommandLine: cmdLine,
+	}), nil
+}
+
 // cacheKey helpers produce deterministic, namespaced keys from RPC parameters.
 // Query args are sorted so that ["b","a"] and ["a","b"] produce the same key.
 
