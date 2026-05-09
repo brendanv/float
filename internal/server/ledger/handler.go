@@ -807,11 +807,12 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 	postings := make([]journal.PostingInput, len(req.Msg.Postings))
 	for i, p := range req.Msg.Postings {
 		postings[i] = journal.PostingInput{
-			Account:   p.Account,
-			Commodity: p.Commodity,
-			Quantity:  p.Quantity,
-			Comment:   p.Comment,
-			Cost:      protoToJournalCost(p.Cost),
+			Account:          p.Account,
+			Commodity:        p.Commodity,
+			Quantity:         p.Quantity,
+			Comment:          p.Comment,
+			Cost:             protoToJournalCost(p.Cost),
+			BalanceAssertion: protoToJournalAssertion(p.BalanceAssertion),
 		}
 	}
 	desc := req.Msg.Description
@@ -872,11 +873,12 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 	postings := make([]journal.PostingInput, len(req.Msg.Postings))
 	for i, p := range req.Msg.Postings {
 		postings[i] = journal.PostingInput{
-			Account:   p.Account,
-			Commodity: p.Commodity,
-			Quantity:  p.Quantity,
-			Comment:   p.Comment,
-			Cost:      protoToJournalCost(p.Cost),
+			Account:          p.Account,
+			Commodity:        p.Commodity,
+			Quantity:         p.Quantity,
+			Comment:          p.Comment,
+			Cost:             protoToJournalCost(p.Cost),
+			BalanceAssertion: protoToJournalAssertion(p.BalanceAssertion),
 		}
 	}
 
@@ -990,9 +992,22 @@ func toProtoPosting(p hledger.Posting) *floatv1.Posting {
 		amounts[i] = toProtoAmount(a)
 	}
 	return &floatv1.Posting{
-		Account: p.Account,
-		Amounts: amounts,
-		Comment: p.Comment,
+		Account:          p.Account,
+		Amounts:          amounts,
+		Comment:          p.Comment,
+		BalanceAssertion: toProtoBalanceAssertion(p.BalanceAssertion),
+	}
+}
+
+// toProtoBalanceAssertion exposes only the simple = form via gRPC.
+// Non-`=` variants (=*, ==, ==*) are preserved on disk by the journal
+// package but hidden from API responses.
+func toProtoBalanceAssertion(ba *hledger.BalanceAssertion) *floatv1.BalanceAssertion {
+	if ba == nil || ba.Inclusive || ba.Total {
+		return nil
+	}
+	return &floatv1.BalanceAssertion{
+		Amount: toProtoAmount(ba.Amount),
 	}
 }
 
@@ -2402,6 +2417,19 @@ func protoToJournalCost(c *floatv1.Cost) *journal.CostInput {
 		Commodity: c.Commodity,
 		Quantity:  c.Quantity,
 		IsTotal:   c.IsTotal,
+	}
+}
+
+// protoToJournalAssertion converts a proto BalanceAssertion to the journal
+// input form. The gRPC API only exposes the simple = form, so Inclusive
+// and Total are always false here.
+func protoToJournalAssertion(ba *floatv1.BalanceAssertion) *journal.BalanceAssertionInput {
+	if ba == nil || ba.Amount == nil {
+		return nil
+	}
+	return &journal.BalanceAssertionInput{
+		Commodity: ba.Amount.Commodity,
+		Quantity:  ba.Amount.Quantity,
 	}
 }
 

@@ -2398,6 +2398,213 @@ func TestRoundTripCost(t *testing.T) {
 	})
 }
 
+// TestRoundTripBalanceAssertion verifies the gRPC API contract for balance
+// assertions: the `=` form round-trips, non-`=` variants are hidden from
+// API responses but preserved on disk, and a wrong assertion rolls the
+// write back via hledger check.
+func TestRoundTripBalanceAssertion(t *testing.T) {
+	// emptyDataDir sets up a starting journal with no transactions so the
+	// running balance after a single posting is deterministic.
+	emptyDataDir := func(t *testing.T) string {
+		t.Helper()
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte("; float main journal\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+
+	t.Run("add_with_assertion_round_trips", func(t *testing.T) {
+		dir := emptyDataDir(t)
+		h := mustRealHandler(t, dir)
+
+		resp, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Open fresh account",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{
+					Account: "assets:fresh", Commodity: "USD", Quantity: "100.00",
+					BalanceAssertion: &floatv1.BalanceAssertion{
+						Amount: &floatv1.Amount{Commodity: "USD", Quantity: "100.00"},
+					},
+				},
+				{Account: "income:salary"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+
+		got := resp.Msg.Transaction.Postings[0]
+		if got.BalanceAssertion == nil {
+			t.Fatalf("BalanceAssertion is nil in response; postings=%+v", resp.Msg.Transaction.Postings)
+		}
+		if got.BalanceAssertion.Amount == nil {
+			t.Fatalf("BalanceAssertion.Amount is nil")
+		}
+		if got.BalanceAssertion.Amount.Commodity != "USD" {
+			t.Errorf("Amount.Commodity = %q, want %q", got.BalanceAssertion.Amount.Commodity, "USD")
+		}
+		if got.BalanceAssertion.Amount.Quantity != "100.00" {
+			t.Errorf("Amount.Quantity = %q, want %q", got.BalanceAssertion.Amount.Quantity, "100.00")
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, "2026/04.journal"))
+		if err != nil {
+			t.Fatalf("read journal: %v", err)
+		}
+		if !strings.Contains(string(data), "= 100.00 USD") && !strings.Contains(string(data), "= USD 100.00") {
+			t.Errorf("journal missing balance assertion syntax; got:\n%s", data)
+		}
+	})
+
+	t.Run("update_clears_assertion_when_omitted", func(t *testing.T) {
+		dir := emptyDataDir(t)
+		h := mustRealHandler(t, dir)
+
+		add, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Initial",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{
+					Account: "assets:fresh", Commodity: "USD", Quantity: "200.00",
+					BalanceAssertion: &floatv1.BalanceAssertion{
+						Amount: &floatv1.Amount{Commodity: "USD", Quantity: "200.00"},
+					},
+				},
+				{Account: "income:salary"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+		fid := add.Msg.Transaction.Fid
+
+		// Update without specifying balance_assertion: it should be cleared.
+		upd, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid:         fid,
+			Description: "Updated",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{Account: "assets:fresh", Commodity: "USD", Quantity: "200.00"},
+				{Account: "income:salary"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransaction: %v", err)
+		}
+		if upd.Msg.Transaction.Postings[0].BalanceAssertion != nil {
+			t.Errorf("expected BalanceAssertion cleared after update, got %+v",
+				upd.Msg.Transaction.Postings[0].BalanceAssertion)
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, "2026/04.journal"))
+		if err != nil {
+			t.Fatalf("read journal: %v", err)
+		}
+		if strings.Contains(string(data), "= 200.00 USD") {
+			t.Errorf("journal still contains old assertion; got:\n%s", data)
+		}
+	})
+
+	t.Run("failed_assertion_rolls_back_write", func(t *testing.T) {
+		dir := emptyDataDir(t)
+		h := mustRealHandler(t, dir)
+
+		// Capture journal contents before the failing write.
+		before, err := os.ReadFile(filepath.Join(dir, "main.journal"))
+		if err != nil {
+			t.Fatalf("read main.journal: %v", err)
+		}
+
+		// Asserted balance ($999) does not match the actual balance ($100)
+		// after the posting; hledger check inside txlock must roll this back.
+		_, err = h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Description: "Bad assertion",
+			Date:        "2026-04-30",
+			Postings: []*floatv1.PostingInput{
+				{
+					Account: "assets:fresh", Commodity: "USD", Quantity: "100.00",
+					BalanceAssertion: &floatv1.BalanceAssertion{
+						Amount: &floatv1.Amount{Commodity: "USD", Quantity: "999.00"},
+					},
+				},
+				{Account: "income:salary"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error from failed balance assertion, got nil")
+		}
+
+		after, err := os.ReadFile(filepath.Join(dir, "main.journal"))
+		if err != nil {
+			t.Fatalf("read main.journal after rollback: %v", err)
+		}
+		if string(before) != string(after) {
+			t.Errorf("main.journal changed despite failed assertion:\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+		// Month file must not have been created (or must be empty if it was).
+		monthPath := filepath.Join(dir, "2026/04.journal")
+		if data, err := os.ReadFile(monthPath); err == nil && strings.Contains(string(data), "Bad assertion") {
+			t.Errorf("month file contains failed transaction; got:\n%s", data)
+		}
+	})
+
+	t.Run("non_simple_variants_hidden_from_proto_but_preserved_on_disk", func(t *testing.T) {
+		// Hand-write a journal with =* (subaccount-inclusive) and verify:
+		//   1. ListTransactions response does NOT include balance_assertion for
+		//      that posting (only the simple = form is exposed).
+		//   2. After a non-posting mutation (UpdateTransactionStatus),
+		//      the =* line is still present in the journal.
+		dir := t.TempDir()
+		main := "; float main journal\ninclude 2026/01.journal\n"
+		journal := `2026-01-15 (cc000003) deposit
+    assets:fresh                $200.00 =* $200.00
+    assets:other               $-200.00
+`
+		if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(journal), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		h := mustRealHandler(t, dir)
+
+		listResp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+		if err != nil {
+			t.Fatalf("ListTransactions: %v", err)
+		}
+		if len(listResp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(listResp.Msg.Transactions))
+		}
+		if ba := listResp.Msg.Transactions[0].Postings[0].BalanceAssertion; ba != nil {
+			t.Errorf("=* assertion leaked into proto response: %+v", ba)
+		}
+
+		// UpdateTransactionStatus does not touch postings — the =* line
+		// should still be in the journal afterward.
+		_, err = h.UpdateTransactionStatus(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionStatusRequest{
+			Fid:    "cc000003",
+			Status: "Cleared",
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransactionStatus: %v", err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
+		if err != nil {
+			t.Fatalf("read journal after status update: %v", err)
+		}
+		if !strings.Contains(string(data), "=*") {
+			t.Errorf("=* assertion lost after UpdateTransactionStatus; journal:\n%s", data)
+		}
+	})
+}
+
 func TestGetPortfolioHoldings_AggregatesLots(t *testing.T) {
 	dir := t.TempDir()
 

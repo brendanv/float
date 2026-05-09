@@ -121,9 +121,25 @@ func postingsFromTransaction(t hledger.Transaction) []PostingInput {
 				}
 			}
 		}
+		pi.BalanceAssertion = balanceAssertionInputFromHledger(p.BalanceAssertion)
 		postings[i] = pi
 	}
 	return postings
+}
+
+// balanceAssertionInputFromHledger converts a parsed hledger balance assertion
+// to the journal package's input form, preserving Inclusive/Total flags.
+// Returns nil when the source assertion is nil.
+func balanceAssertionInputFromHledger(ba *hledger.BalanceAssertion) *BalanceAssertionInput {
+	if ba == nil {
+		return nil
+	}
+	return &BalanceAssertionInput{
+		Commodity: ba.Amount.Commodity,
+		Quantity:  fmt.Sprintf("%.*f", ba.Amount.Quantity.DecimalPlaces, ba.Amount.Quantity.FloatingPoint),
+		Inclusive: ba.Inclusive,
+		Total:     ba.Total,
+	}
 }
 
 // userTagsFromTransaction extracts user-visible (non-float-) tags from t.Tags into a map.

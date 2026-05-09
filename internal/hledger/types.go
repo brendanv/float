@@ -26,15 +26,25 @@ type Amount struct {
 }
 
 type Posting struct {
-	Account          string      `json:"paccount"`
-	Amounts          []Amount    `json:"pamount"`
-	Comment          string      `json:"pcomment"`
-	Tags             [][2]string `json:"ptags"`
-	Status           string      `json:"pstatus"`
-	Type             string      `json:"ptype"`
-	TransactionIndex string      `json:"ptransaction_"`
-	Date             *string     `json:"pdate"`
-	Date2            *string     `json:"pdate2"`
+	Account          string            `json:"paccount"`
+	Amounts          []Amount          `json:"pamount"`
+	Comment          string            `json:"pcomment"`
+	Tags             [][2]string       `json:"ptags"`
+	Status           string            `json:"pstatus"`
+	Type             string            `json:"ptype"`
+	TransactionIndex string            `json:"ptransaction_"`
+	Date             *string           `json:"pdate"`
+	Date2            *string           `json:"pdate2"`
+	BalanceAssertion *BalanceAssertion `json:"pbalanceassertion"`
+}
+
+// BalanceAssertion mirrors hledger's pbalanceassertion JSON object.
+// Inclusive==true means =* (subaccount-inclusive); Total==true means
+// == (sole-commodity total). Both false is the simple = form.
+type BalanceAssertion struct {
+	Amount    Amount `json:"baamount"`
+	Inclusive bool   `json:"bainclusive"`
+	Total     bool   `json:"batotal"`
 }
 
 // SourcePos is a file location emitted by hledger in its JSON output as

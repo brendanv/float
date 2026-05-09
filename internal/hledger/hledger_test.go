@@ -938,6 +938,75 @@ func TestTransactionFloatMeta(t *testing.T) {
 	})
 }
 
+func TestTransactionBalanceAssertion(t *testing.T) {
+	c, err := hledger.New("hledger", "testdata/assertions.journal")
+	if err != nil {
+		t.Skip("hledger binary not available:", err)
+	}
+	txns, err := c.Transactions(t.Context())
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if len(txns) != 4 {
+		t.Fatalf("expected 4 transactions, got %d", len(txns))
+	}
+
+	tests := []struct {
+		name          string
+		fid           string
+		postingIdx    int
+		wantNil       bool
+		wantQuantity  float64
+		wantInclusive bool
+		wantTotal     bool
+	}{
+		{name: "simple = on first posting", fid: "aa000001", postingIdx: 0, wantQuantity: 1000.00},
+		{name: "auto-balance posting has no assertion", fid: "aa000001", postingIdx: 1, wantNil: true},
+		{name: "= after running balance update", fid: "bb000002", postingIdx: 0, wantQuantity: 1500.00},
+		{name: "=* inclusive variant", fid: "cc000003", postingIdx: 0, wantQuantity: 200.00, wantInclusive: true},
+		{name: "== total variant", fid: "dd000004", postingIdx: 1, wantQuantity: 1250.00, wantTotal: true},
+	}
+
+	byFID := map[string]hledger.Transaction{}
+	for _, tx := range txns {
+		byFID[tx.FID] = tx
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tx, ok := byFID[tt.fid]
+			if !ok {
+				t.Fatalf("no transaction with fid %q", tt.fid)
+			}
+			if tt.postingIdx >= len(tx.Postings) {
+				t.Fatalf("posting index %d out of range (got %d postings)", tt.postingIdx, len(tx.Postings))
+			}
+			ba := tx.Postings[tt.postingIdx].BalanceAssertion
+			if tt.wantNil {
+				if ba != nil {
+					t.Errorf("BalanceAssertion = %+v, want nil", ba)
+				}
+				return
+			}
+			if ba == nil {
+				t.Fatalf("BalanceAssertion is nil, want non-nil")
+			}
+			if ba.Inclusive != tt.wantInclusive {
+				t.Errorf("Inclusive = %v, want %v", ba.Inclusive, tt.wantInclusive)
+			}
+			if ba.Total != tt.wantTotal {
+				t.Errorf("Total = %v, want %v", ba.Total, tt.wantTotal)
+			}
+			if ba.Amount.Quantity.FloatingPoint != tt.wantQuantity {
+				t.Errorf("Quantity = %v, want %v", ba.Amount.Quantity.FloatingPoint, tt.wantQuantity)
+			}
+			if ba.Amount.Commodity != "$" {
+				t.Errorf("Commodity = %q, want %q", ba.Amount.Commodity, "$")
+			}
+		})
+	}
+}
+
 func TestPayees(t *testing.T) {
 	tests := []struct {
 		name   string

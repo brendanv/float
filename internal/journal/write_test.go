@@ -434,3 +434,79 @@ func TestInputFromTransaction(t *testing.T) {
 		t.Errorf("FID = %q, want %q", input.FID, fid)
 	}
 }
+
+func TestWriteTransaction_BalanceAssertion(t *testing.T) {
+	t.Run("simple_=_round_trip", func(t *testing.T) {
+		dir := setupWriteDir(t)
+		c := mustHledgerClient(t, dir)
+		// Empty journal: posting $100 to assets:checking yields a balance of $100,
+		// so assert that exact value to satisfy hledger check.
+		tx := TransactionInput{
+			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+			Description: "ASSERT TEST",
+			Postings: []PostingInput{
+				{
+					Account: "assets:checking", Commodity: "$", Quantity: "100.00",
+					BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00"},
+				},
+				{Account: "income:salary"},
+			},
+		}
+		fid, err := WriteTransaction(t.Context(), c, dir, tx, nil)
+		if err != nil {
+			t.Fatalf("WriteTransaction: %v", err)
+		}
+		txns, err := c.Transactions(t.Context(), "code:"+fid)
+		if err != nil || len(txns) != 1 {
+			t.Fatalf("re-fetch: txns=%d err=%v", len(txns), err)
+		}
+		ba := txns[0].Postings[0].BalanceAssertion
+		if ba == nil {
+			t.Fatal("BalanceAssertion is nil after round-trip")
+		}
+		if ba.Inclusive || ba.Total {
+			t.Errorf("flags Inclusive=%v Total=%v, want both false", ba.Inclusive, ba.Total)
+		}
+		if ba.Amount.Quantity.FloatingPoint != 100.00 {
+			t.Errorf("Quantity = %v, want 100.00", ba.Amount.Quantity.FloatingPoint)
+		}
+	})
+
+	t.Run("inclusive_=*_preserved_via_input_roundtrip", func(t *testing.T) {
+		// Simulate the flow used by ModifyTags / UpdateTransactionStatus etc.:
+		// write a transaction with =*, fetch it, run InputFromTransaction,
+		// then re-write it. The =* must survive untouched.
+		dir := setupWriteDir(t)
+		c := mustHledgerClient(t, dir)
+		tx := TransactionInput{
+			Date:        time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
+			Description: "INCLUSIVE ASSERT",
+			Postings: []PostingInput{
+				{
+					Account: "assets:savings", Commodity: "$", Quantity: "200.00",
+					BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "200.00", Inclusive: true},
+				},
+				{Account: "assets:checking"},
+			},
+		}
+		fid, err := WriteTransaction(t.Context(), c, dir, tx, nil)
+		if err != nil {
+			t.Fatalf("WriteTransaction: %v", err)
+		}
+		txns, err := c.Transactions(t.Context(), "code:"+fid)
+		if err != nil || len(txns) != 1 {
+			t.Fatalf("re-fetch: txns=%d err=%v", len(txns), err)
+		}
+		input, err := InputFromTransaction(txns[0])
+		if err != nil {
+			t.Fatalf("InputFromTransaction: %v", err)
+		}
+		ba := input.Postings[0].BalanceAssertion
+		if ba == nil {
+			t.Fatal("BalanceAssertion lost in InputFromTransaction")
+		}
+		if !ba.Inclusive {
+			t.Errorf("Inclusive flag lost: got %+v", ba)
+		}
+	})
+}

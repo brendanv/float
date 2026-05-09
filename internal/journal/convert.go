@@ -54,6 +54,7 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 				}
 			}
 		}
+		pi.BalanceAssertion = balanceAssertionInputFromHledger(p.BalanceAssertion)
 		postings = append(postings, pi)
 	}
 
