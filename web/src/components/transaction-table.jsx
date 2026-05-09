@@ -309,7 +309,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
         <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
       )}
       <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onTagsChanged} />
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      {error && <p className="mt-2 whitespace-pre-wrap break-words text-xs text-destructive">{error}</p>}
       <div className="mt-3 flex justify-between gap-2">
         <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <DialogTrigger asChild>
