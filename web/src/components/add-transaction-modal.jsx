@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
-import { PostingFields } from "./posting-fields.jsx";
+import { PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { ErrorBanner } from "./error-banner.jsx";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,7 +43,7 @@ function AddTransactionForm({ onSuccess }) {
     try {
       const postingInputs = postings
         .filter((p) => p.account.trim())
-        .map((p) => ({ account: p.account.trim(), commodity: p.commodity.trim(), quantity: p.quantity.trim() }));
+        .map(toPostingInput);
       if (postingInputs.length < 2) throw new Error("At least 2 postings are required.");
       await ledgerClient.addTransaction({
         date,
