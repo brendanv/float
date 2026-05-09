@@ -1,0 +1,20 @@
+account assets:checking
+account assets:savings
+account expenses:shopping
+account income:salary
+
+2026/01/01 (aa000001) opening balance
+    assets:checking   $1000.00 = $1000.00
+    equity:opening
+
+2026/01/15 (bb000002) PAYROLL
+    assets:checking   $500.00 = $1500.00
+    income:salary
+
+2026/01/20 (cc000003) deposit to savings (subaccount inclusive assertion)
+    assets:savings    $200.00 =* $200.00
+    assets:checking
+
+2026/01/25 (dd000004) shopping (sole-commodity total assertion)
+    expenses:shopping  $50.00
+    assets:checking   $-50.00 == $1250.00

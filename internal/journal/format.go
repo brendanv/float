@@ -18,13 +18,27 @@ type CostInput struct {
 	IsTotal   bool // false = per-unit (@), true = total (@@)
 }
 
+// BalanceAssertionInput represents an hledger balance assertion on a posting.
+// Inclusive==true renders as =* (subaccount-inclusive); Total==true renders
+// as == (sole-commodity total). Both false is the simple = form, which is
+// the only variant exposed via the gRPC API. The full struct is preserved
+// internally so that operations that round-trip postings (ModifyTags,
+// UpdateTransactionStatus, etc.) don't destroy assertions written by hand.
+type BalanceAssertionInput struct {
+	Commodity string
+	Quantity  string
+	Inclusive bool
+	Total     bool
+}
+
 // PostingInput represents one leg of a transaction.
 type PostingInput struct {
-	Account   string     // e.g. "expenses:shopping"
-	Commodity string     // e.g. "USD", "AAPL"; empty = auto-balance posting
-	Quantity  string     // e.g. "45.00"; empty = auto-balance posting
-	Comment   string     // optional inline comment text (without "; " prefix)
-	Cost      *CostInput // optional cost annotation
+	Account          string                 // e.g. "expenses:shopping"
+	Commodity        string                 // e.g. "USD", "AAPL"; empty = auto-balance posting
+	Quantity         string                 // e.g. "45.00"; empty = auto-balance posting
+	Comment          string                 // optional inline comment text (without "; " prefix)
+	Cost             *CostInput             // optional cost annotation
+	BalanceAssertion *BalanceAssertionInput // optional balance assertion (= / =* / == / ==*)
 }
 
 // TransactionInput represents a transaction to be written.
@@ -56,6 +70,24 @@ func postingAmountString(p PostingInput) string {
 		s += " " + op + " " + p.Cost.Quantity + " " + p.Cost.Commodity
 	}
 	return s
+}
+
+// postingAssertionString builds the hledger balance-assertion suffix
+// (e.g. " = $100", " =* $100", " == $100", " ==* $100"). The leading space
+// lets callers concatenate it directly after the amount or account.
+// Returns "" when no assertion is set.
+func postingAssertionString(p PostingInput) string {
+	if p.BalanceAssertion == nil {
+		return ""
+	}
+	op := "="
+	if p.BalanceAssertion.Total {
+		op = "=="
+	}
+	if p.BalanceAssertion.Inclusive {
+		op += "*"
+	}
+	return " " + op + " " + p.BalanceAssertion.Quantity + " " + p.BalanceAssertion.Commodity
 }
 
 // draftFormat renders a TransactionInput + fid as minimal hledger journal text.
@@ -99,12 +131,19 @@ func draftFormat(tx TransactionInput, fid string) string {
 	}
 	for _, p := range tx.Postings {
 		amtStr := postingAmountString(p)
-		if amtStr == "" {
-			fmt.Fprintf(&b, "    %s\n", p.Account)
-		} else if p.Comment != "" {
-			fmt.Fprintf(&b, "    %s  %s  ; %s\n", p.Account, amtStr, p.Comment)
+		// assertStr is "" or starts with a space (e.g. " = $100").
+		// hledger requires the assertion to appear directly after the
+		// amount and BEFORE any inline comment.
+		assertStr := postingAssertionString(p)
+		head := "    " + p.Account
+		if amtStr != "" {
+			head += "  " + amtStr
+		}
+		head += assertStr
+		if p.Comment != "" {
+			fmt.Fprintf(&b, "%s  ; %s\n", head, p.Comment)
 		} else {
-			fmt.Fprintf(&b, "    %s  %s\n", p.Account, amtStr)
+			fmt.Fprintf(&b, "%s\n", head)
 		}
 	}
 	return b.String()

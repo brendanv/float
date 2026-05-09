@@ -422,11 +422,13 @@ func (c *Client) Payees(ctx context.Context) ([]string, error) {
 	return parsePayees(stdout), nil
 }
 
-// PrintText runs `hledger print -f <journalFile>` and returns the plain-text
+// PrintText runs `hledger print -f <journalFile> -I` and returns the plain-text
 // output. Used to normalize/canonicalize transaction text before appending to
-// real journal files.
+// real journal files. Balance assertions are ignored (-I) because the temp file
+// contains only the draft transaction, not the full journal history; the full
+// journal check happens at txlock commit time.
 func (c *Client) PrintText(ctx context.Context, journalFile string) (string, error) {
-	printArgs := []string{"print", "-f", journalFile}
+	printArgs := []string{"print", "-f", journalFile, "-I"}
 	stdout, stderr, err := c.run(ctx, printArgs...)
 	if err != nil {
 		return "", cmdError(c.bin, printArgs, stderr, fmt.Errorf("hledger print: %w", err))

@@ -738,3 +738,61 @@ func TestModifyFloatMetaMovesHeaderInlineComment(t *testing.T) {
 		t.Errorf("float-import-id = %q, want %q", txns[0].FloatMeta["float-import-id"], "batch99")
 	}
 }
+
+// Editing tags must not destroy a balance assertion on a posting,
+// including non-`=` variants the gRPC API doesn't surface.
+func TestModifyTagsPreservesBalanceAssertions(t *testing.T) {
+	cases := []struct {
+		name string
+		ba   *BalanceAssertionInput
+	}{
+		{name: "simple =", ba: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00"}},
+		{name: "inclusive =*", ba: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00", Inclusive: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Empty starting journal so the assertion ($100) matches the actual
+			// balance after the single posting.
+			dir := setupWriteDir(t)
+			client := mustHledgerClient(t, dir)
+
+			tx := TransactionInput{
+				Date:        time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+				Description: "PRESERVE ASSERTION",
+				Postings: []PostingInput{
+					{
+						Account: "assets:checking", Commodity: "$", Quantity: "100.00",
+						BalanceAssertion: tc.ba,
+					},
+					{Account: "income:salary"},
+				},
+			}
+			fid, err := AppendTransaction(t.Context(), client, dir, tx)
+			if err != nil {
+				t.Fatalf("AppendTransaction: %v", err)
+			}
+
+			if err := ModifyTags(t.Context(), client, dir, fid, map[string]string{"category": "test"}); err != nil {
+				t.Fatalf("ModifyTags: %v", err)
+			}
+			if err := client.Check(t.Context()); err != nil {
+				t.Fatalf("hledger check after modify-tags: %v", err)
+			}
+
+			txns, err := client.Transactions(t.Context(), "code:"+fid)
+			if err != nil || len(txns) != 1 {
+				t.Fatalf("re-fetch: %d txns, err=%v", len(txns), err)
+			}
+			ba := txns[0].Postings[0].BalanceAssertion
+			if ba == nil {
+				t.Fatal("BalanceAssertion lost after ModifyTags")
+			}
+			if ba.Inclusive != tc.ba.Inclusive {
+				t.Errorf("Inclusive flag = %v, want %v", ba.Inclusive, tc.ba.Inclusive)
+			}
+			if ba.Total != tc.ba.Total {
+				t.Errorf("Total flag = %v, want %v", ba.Total, tc.ba.Total)
+			}
+		})
+	}
+}

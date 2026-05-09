@@ -14,6 +14,7 @@ message Posting {
   string account = 1;
   repeated Amount amounts = 2;
   string comment = 3;
+  optional BalanceAssertion balance_assertion = 4; // only set for the simple = form
 }
 
 message Transaction {
@@ -193,6 +194,7 @@ message PostingInput {
   string quantity = 3;   // e.g. "45.00"; empty = auto-balance
   string comment = 4;
   Cost cost = 5;         // optional; e.g. 10 AAPL @ 175.00 USD
+  BalanceAssertion balance_assertion = 6; // optional; the simple = form only
 }
 
 message AddTransactionRequest {
@@ -687,6 +689,14 @@ message RunHledgerQueryResponse {
   string stderr = 2;
   bool success = 3;
   string command_line = 4;
+}
+
+// BalanceAssertion is an hledger balance assertion attached to a posting.
+// Only the simple = form (single account, single commodity) is exposed via
+// the gRPC API. Postings with =* / == / ==* assertions in the journal file
+// are preserved on disk but their assertion is omitted from gRPC responses.
+message BalanceAssertion {
+  Amount amount = 1; // the asserted balance, e.g. {commodity: "$", quantity: "100.00"}
 }
 
 service LedgerService {
