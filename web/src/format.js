@@ -26,6 +26,11 @@ export function formatCost(cost) {
   return (cost.isTotal ? " @@ " : " @ ") + formatCurrency(cost.quantity, cost.commodity);
 }
 
+export function formatBalanceAssertion(ba) {
+  if (!ba?.amount?.quantity) return "";
+  return " = " + formatCurrency(ba.amount.quantity, ba.amount.commodity);
+}
+
 export function formatAmounts(amounts) {
   if (!amounts || amounts.length === 0) return "";
   return amounts.map((a) => formatCurrency(a.quantity, a.commodity) + formatCost(a.cost)).join(", ");

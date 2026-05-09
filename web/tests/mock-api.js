@@ -144,6 +144,7 @@ export const mockTransactions = [
       {
         account: "assets:checking",
         amounts: [{ commodity: "USD", quantity: "-1750.00" }],
+        balanceAssertion: { amount: { commodity: "USD", quantity: "5250.00" } },
       },
     ],
     tags: {},

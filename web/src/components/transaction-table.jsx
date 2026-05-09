@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown, Scale } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -244,7 +244,14 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   function toFields(ps) {
     return (ps || []).map((p) => {
       const a = p.amounts && p.amounts[0];
-      return { account: p.account, commodity: a ? a.commodity : "", quantity: a ? a.quantity : "", cost: a ? a.cost : undefined };
+      const ba = p.balanceAssertion;
+      return {
+        account: p.account,
+        commodity: a ? a.commodity : "",
+        quantity: a ? a.quantity : "",
+        cost: a ? a.cost : undefined,
+        balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
+      };
     });
   }
 
@@ -618,7 +625,18 @@ const transactionColumns = [
           const display = generalDisplay(tx);
           amount = display?.amount || "";
         }
-        return <span className="block whitespace-nowrap text-right font-mono text-sm">{amount}</span>;
+        const hasAssertion = (tx.postings || []).some((p) => p.balanceAssertion);
+        return (
+          <span className="flex items-center justify-end gap-1 whitespace-nowrap font-mono text-sm">
+            {hasAssertion && (
+              <Tooltip>
+                <TooltipTrigger render={<Scale className="size-3 shrink-0 text-muted-foreground" />} />
+                <TooltipContent>Has balance assertion</TooltipContent>
+              </Tooltip>
+            )}
+            {amount}
+          </span>
+        );
       },
       meta: { headerClass: "text-right", cellClass: "text-right" },
     },
@@ -1050,6 +1068,9 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             />
           </span>
           <div className="flex shrink-0 items-center gap-1">
+            {(tx.postings || []).some((p) => p.balanceAssertion) && (
+              <Scale className="size-3 shrink-0 text-muted-foreground" />
+            )}
             <span className={cn(
               "whitespace-nowrap font-mono text-sm",
               isRegisterMode && changePositive && "text-success",
