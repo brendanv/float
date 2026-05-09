@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatAmounts, formatCurrency, formatDate } from "../format.js";
-import { PostingFields } from "./posting-fields.jsx";
+import { PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -177,7 +177,12 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
         fid,
         description: draft.trim(),
         date,
-        postings: postings.map((p) => ({ account: p.account, commodity: p.amounts?.[0]?.commodity ?? "", quantity: p.amounts?.[0]?.quantity ?? "", cost: p.amounts?.[0]?.cost })),
+        postings: postings.map((p) => toPostingInput({
+          account: p.account,
+          commodity: p.amounts?.[0]?.commodity ?? "",
+          quantity: p.amounts?.[0]?.quantity ?? "",
+          cost: p.amounts?.[0]?.cost,
+        })),
       });
       setEditing(false);
       if (onSaved) onSaved();
@@ -256,7 +261,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   async function save() {
     setSaving(true);
     setError(null);
-    const trimmed = postings.map((p) => ({ account: p.account.trim(), commodity: p.commodity.trim(), quantity: p.quantity.trim(), cost: p.cost }));
+    const trimmed = postings.map(toPostingInput);
     const autoReview = tx.status !== "Cleared" && trimmed.every((p) => !p.account.toLowerCase().includes("unknown"));
     try {
       await ledgerClient.updateTransaction({
