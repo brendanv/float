@@ -6,7 +6,7 @@ export function ErrorBanner({ error }) {
   return (
     <Alert variant="destructive" className="mb-4">
       <AlertTriangle />
-      <AlertDescription>{error.message || String(error)}</AlertDescription>
+      <AlertDescription className="whitespace-pre-wrap break-words">{(error.message || String(error)).replace(/^\[[^\]]+\]\s*/, "")}</AlertDescription>
     </Alert>
   );
 }
