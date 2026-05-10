@@ -170,28 +170,8 @@ func cachedNetWorth(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 	return val.(*hledger.BalanceSheetTimeseries), nil
 }
 
-func balancesCostKey(query []string) string {
-	sorted := append([]string(nil), query...)
-	sort.Strings(sorted)
-	return fmt.Sprintf("balancescost:%s", strings.Join(sorted, "|"))
-}
-
 func portfolioTimeseriesKey(prefix, begin string) string {
 	return fmt.Sprintf("portfoliotimeseries:%s:%s", prefix, begin)
-}
-
-// cachedBalancesCost fetches cost-basis balances from cache or hledger.
-func cachedBalancesCost(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
-	if c == nil {
-		return hl.BalancesCost(ctx, depth, query...)
-	}
-	val, err := c.Get(ctx, balancesCostKey(query), func(ctx context.Context) (any, error) {
-		return hl.BalancesCost(ctx, depth, query...)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return val.(*hledger.BalanceReport), nil
 }
 
 // cachedPortfolioTimeseries fetches a portfolio value timeseries from cache or hledger.
