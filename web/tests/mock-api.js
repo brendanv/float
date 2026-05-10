@@ -799,6 +799,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
           } else if (token.startsWith("payee:")) {
             const payeeFilter = token.slice("payee:".length).toLowerCase();
             txs = txs.filter((tx) => tx.payee && tx.payee.toLowerCase().includes(payeeFilter));
+          } else if (token.startsWith("code:")) {
+            const fidFilter = token.slice("code:".length).toLowerCase();
+            txs = txs.filter((tx) => tx.fid && tx.fid.toLowerCase().startsWith(fidFilter));
           }
           if (token.startsWith("acct:")) {
             const acctFilter = token.slice("acct:".length).toLowerCase();

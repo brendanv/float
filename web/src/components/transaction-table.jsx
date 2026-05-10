@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatAmounts, formatCurrency, formatDate } from "../format.js";
-import { PostingFields, toPostingInput } from "./posting-fields.jsx";
+import { AccountInput, PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -236,6 +236,115 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
       ) : (
         description
       )}
+    </span>
+  );
+}
+
+function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [txData, setTxData] = useState(null);
+  const [newAccount, setNewAccount] = useState("");
+  const [error, setError] = useState(null);
+
+  const canEdit = !!fid && otherAccounts.length === 1;
+  const displayText = otherAccounts.length === 0 ? ""
+    : otherAccounts.length === 1 ? otherAccounts[0]
+    : "various accounts";
+
+  async function startEdit(e) {
+    e.stopPropagation();
+    setLoading(true);
+    setError(null);
+    try {
+      const resp = await ledgerClient.listTransactions({ query: [`code:${fid}`], limit: 1 });
+      const tx = resp.transactions?.[0];
+      if (!tx) throw new Error("Transaction not found");
+      setTxData(tx);
+      setNewAccount(otherAccounts[0]);
+      setEditing(true);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function save(e) {
+    e.stopPropagation();
+    if (!txData || !newAccount) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const oldAccount = otherAccounts[0];
+      const newPostings = (txData.postings || []).map((p) => {
+        const a = p.amounts?.[0];
+        const ba = p.balanceAssertion;
+        return toPostingInput({
+          account: p.account === oldAccount ? newAccount : p.account,
+          commodity: a?.commodity ?? "",
+          quantity: a?.quantity ?? "",
+          cost: a?.cost,
+          balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
+        });
+      });
+      await ledgerClient.updateTransaction({
+        fid: txData.fid,
+        description: txData.description,
+        date: txData.date,
+        postings: newPostings,
+        status: "Cleared",
+      });
+      setEditing(false);
+      setTxData(null);
+      if (onSaved) onSaved();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancel(e) {
+    e.stopPropagation();
+    setEditing(false);
+    setTxData(null);
+    setError(null);
+  }
+
+  if (!canEdit) {
+    return <span className="text-sm text-muted-foreground">{displayText}</span>;
+  }
+
+  if (loading) {
+    return <Loader2 className="size-3 animate-spin" />;
+  }
+
+  if (editing) {
+    return (
+      <span onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+        <span className="min-w-40 flex-1">
+          <AccountInput value={newAccount} onChange={setNewAccount} accounts={accounts} />
+        </span>
+        <Button variant="ghost" size="icon-xs" onClick={save} disabled={saving} title="Save">
+          {saving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+        </Button>
+        <Button variant="ghost" size="icon-xs" onClick={cancel} disabled={saving} title="Cancel">
+          <X className="size-3" />
+        </Button>
+        {error && <span className="ml-1 text-xs text-destructive">{error}</span>}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      onClick={startEdit}
+      className="cursor-text text-sm text-muted-foreground decoration-dotted hover:underline"
+      title="Click to change account"
+    >
+      {displayText}
     </span>
   );
 }
@@ -703,9 +812,17 @@ const registerColumns = [
   regHelper.display({
     id: "otherAccounts",
     header: "Other accounts",
-    cell: ({ row }) => {
-      const cells = resolveRegisterCells(row.original);
-      return <span className="text-sm text-muted-foreground">{cells.otherAccounts}</span>;
+    cell: ({ row, table }) => {
+      const { accounts, onStatusChange } = table.options.meta;
+      const tx = row.original;
+      return (
+        <EditableOtherAccountCell
+          fid={tx.fid}
+          otherAccounts={tx.otherAccounts}
+          accounts={accounts}
+          onSaved={onStatusChange}
+        />
+      );
     },
   }),
   regHelper.accessor(
@@ -1080,7 +1197,18 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
           </div>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <div className="truncate text-xs text-muted-foreground">{accountCell}</div>
+          <div className="min-w-0 flex-1 text-xs">
+            {isRegisterMode ? (
+              <EditableOtherAccountCell
+                fid={tx.fid}
+                otherAccounts={tx.otherAccounts}
+                accounts={accounts}
+                onSaved={onStatusChange}
+              />
+            ) : (
+              <span className="truncate text-muted-foreground">{accountCell}</span>
+            )}
+          </div>
           {isRegisterMode && balanceCell && (
             <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
           )}

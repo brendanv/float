@@ -166,6 +166,33 @@ test("transactions page - account register view", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-account-register.png", fullPage: true });
 });
 
+test("transactions page - account register edit account", async ({ page }) => {
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Click the first editable other-account cell
+  await page.locator('[title="Click to change account"]').first().click();
+  await page.waitForSelector("button[role='combobox']", { timeout: 5000 });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/transactions-account-register-edit-account.png", fullPage: true });
+});
+
+test("transactions page - account register edit account dropdown open", async ({ page }) => {
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Click the first editable other-account cell to open the editor
+  await page.locator('[title="Click to change account"]').first().click();
+  await page.waitForSelector("button[role='combobox']", { timeout: 5000 });
+  await page.waitForTimeout(200);
+  // Open the AccountInput dropdown (it's inside the table, unlike the pagination select)
+  await page.locator("table button[role='combobox']").click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/transactions-account-register-edit-account-open.png", fullPage: true });
+});
+
 test("transactions page - account register mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions?account=assets%3Achecking");
@@ -173,6 +200,19 @@ test("transactions page - account register mobile", async ({ page }) => {
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-account-register-mobile.png", fullPage: true });
+});
+
+test("transactions page - account register mobile edit account", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Target visible elements only — the desktop table is display:none on mobile viewports
+  await page.locator('[title="Click to change account"]:visible').first().click();
+  await page.locator("button[role='combobox']:visible").first().waitFor({ timeout: 5000 });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/transactions-account-register-mobile-edit.png", fullPage: true });
 });
 
 test("transactions page - mobile bulk edit toolbar", async ({ page }) => {
