@@ -202,6 +202,19 @@ test("transactions page - account register mobile", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-account-register-mobile.png", fullPage: true });
 });
 
+test("transactions page - account register mobile edit account", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Target visible elements only — the desktop table is display:none on mobile viewports
+  await page.locator('[title="Click to change account"]:visible').first().click();
+  await page.locator("button[role='combobox']:visible").first().waitFor({ timeout: 5000 });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/transactions-account-register-mobile-edit.png", fullPage: true });
+});
+
 test("transactions page - mobile bulk edit toolbar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");

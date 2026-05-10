@@ -1197,7 +1197,18 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
           </div>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <div className="truncate text-xs text-muted-foreground">{accountCell}</div>
+          <div className="min-w-0 flex-1 text-xs">
+            {isRegisterMode ? (
+              <EditableOtherAccountCell
+                fid={tx.fid}
+                otherAccounts={tx.otherAccounts}
+                accounts={accounts}
+                onSaved={onStatusChange}
+              />
+            ) : (
+              <span className="truncate text-muted-foreground">{accountCell}</span>
+            )}
+          </div>
           {isRegisterMode && balanceCell && (
             <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
           )}
