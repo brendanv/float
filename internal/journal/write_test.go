@@ -509,4 +509,70 @@ func TestWriteTransaction_BalanceAssertion(t *testing.T) {
 			t.Errorf("Inclusive flag lost: got %+v", ba)
 		}
 	})
+
+	t.Run("replace_with_later_transaction_keeps_assertion_valid", func(t *testing.T) {
+		// Regression: replacing a transaction that has a balance assertion and is
+		// NOT the last transaction in the file used to move it to the end of the
+		// file, changing the running balance at that position and causing hledger
+		// to reject the journal with "Balance assertion failed".
+		dir := setupWriteDir(t)
+		c := mustHledgerClient(t, dir)
+
+		// First transaction: $100 deposit, assert running balance = $100.
+		txFirst := TransactionInput{
+			Date:        time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+			Description: "DEPOSIT",
+			Postings: []PostingInput{
+				{
+					Account: "assets:checking", Commodity: "$", Quantity: "100.00",
+					BalanceAssertion: &BalanceAssertionInput{Commodity: "$", Quantity: "100.00"},
+				},
+				{Account: "income:salary"},
+			},
+		}
+		fidFirst, err := WriteTransaction(t.Context(), c, dir, txFirst, nil)
+		if err != nil {
+			t.Fatalf("WriteTransaction first: %v", err)
+		}
+
+		// Second transaction: $50 expense after the deposit.
+		txSecond := TransactionInput{
+			Date:        time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC),
+			Description: "EXPENSE",
+			Postings: []PostingInput{
+				{Account: "expenses:food", Commodity: "$", Quantity: "50.00"},
+				{Account: "assets:checking"},
+			},
+		}
+		if _, err := WriteTransaction(t.Context(), c, dir, txSecond, nil); err != nil {
+			t.Fatalf("WriteTransaction second: %v", err)
+		}
+
+		// Now simulate UpdateTransactionStatus on the first transaction (it has a
+		// balance assertion and is followed by another transaction in the file).
+		txns, err := c.Transactions(t.Context(), "code:"+fidFirst)
+		if err != nil || len(txns) != 1 {
+			t.Fatalf("re-fetch first: txns=%d err=%v", len(txns), err)
+		}
+		input, err := InputFromTransaction(txns[0])
+		if err != nil {
+			t.Fatalf("InputFromTransaction: %v", err)
+		}
+		input.Status = "Cleared"
+		src := &SourceLocation{File: txns[0].SourcePos[0].File, Line: txns[0].SourcePos[0].Line}
+
+		// This must not fail with "Balance assertion failed".
+		if _, err := WriteTransaction(t.Context(), c, dir, input, src); err != nil {
+			t.Fatalf("WriteTransaction replace: %v", err)
+		}
+
+		// Sanity-check: hledger can still read the journal without errors.
+		result, err := c.Transactions(t.Context(), "")
+		if err != nil {
+			t.Fatalf("Transactions after replace: %v", err)
+		}
+		if len(result) != 2 {
+			t.Errorf("expected 2 transactions after replace, got %d", len(result))
+		}
+	})
 }

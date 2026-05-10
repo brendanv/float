@@ -43,13 +43,6 @@ func WriteTransaction(ctx context.Context, client *hledger.Client, dataDir strin
 		return "", err
 	}
 
-	if src != nil {
-		// Remove the existing transaction block before appending the replacement.
-		if err := removeTransactionAtLine(src.File, src.Line, fid); err != nil {
-			return "", fmt.Errorf("journal: write: remove old block: %w", err)
-		}
-	}
-
 	year, month := t.Date.Year(), int(t.Date.Month())
 	relPath, created, err := EnsureMonthFile(dataDir, year, month)
 	if err != nil {
@@ -61,8 +54,28 @@ func WriteTransaction(ctx context.Context, client *hledger.Client, dataDir strin
 			return "", err
 		}
 	}
-
 	absPath := filepath.Join(dataDir, relPath)
+
+	if src != nil {
+		if absPath == src.File {
+			// Same file: replace the block in-place so that the transaction's
+			// position among other transactions is unchanged. This is required
+			// when the transaction carries a balance assertion — moving it to
+			// the end of the file would change the running balance at that
+			// point and cause hledger to reject the journal.
+			if err := replaceTransactionAtLine(src.File, src.Line, fid, text); err != nil {
+				return "", fmt.Errorf("journal: write: replace block: %w", err)
+			}
+			slogctx.FromContext(ctx).Info("journal: transaction replaced", "fid", fid, "old_file", src.File, "new_path", relPath)
+			return fid, nil
+		}
+		// Date moved to a different month file: remove from the old file,
+		// then fall through to append to the new file below.
+		if err := removeTransactionAtLine(src.File, src.Line, fid); err != nil {
+			return "", fmt.Errorf("journal: write: remove old block: %w", err)
+		}
+	}
+
 	f, err := os.OpenFile(absPath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return "", fmt.Errorf("journal: write: open %s: %w", absPath, err)
@@ -174,6 +187,49 @@ func freeTextComment(comment string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// replaceTransactionAtLine replaces the transaction block starting at headerLine
+// (1-indexed) in path with newText. The replacement is done in-place, preserving
+// the transaction's file position and thus the validity of any balance assertions.
+func replaceTransactionAtLine(path string, headerLine int, fid, newText string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("journal: replace: read %s: %w", path, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	headerIdx := headerLine - 1
+
+	if headerIdx < 0 || headerIdx >= len(lines) {
+		return fmt.Errorf("journal: replace: source line %d out of range in %s", headerLine, path)
+	}
+
+	if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "("+fid+")") {
+		return fmt.Errorf("journal: replace: line %d in %s does not match expected transaction header for fid %q", headerLine, path, fid)
+	}
+
+	endIdx := headerIdx + 1
+	for endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) != "" {
+		endIdx++
+	}
+	if endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) == "" {
+		endIdx++
+	}
+
+	// Build replacement lines: strip trailing newlines, split, then re-add
+	// exactly one blank separator line to match the block structure we removed.
+	replacementLines := append(strings.Split(strings.TrimRight(newText, "\n"), "\n"), "")
+
+	newLines := make([]string, 0, len(lines)-(endIdx-headerIdx)+len(replacementLines))
+	newLines = append(newLines, lines[:headerIdx]...)
+	newLines = append(newLines, replacementLines...)
+	newLines = append(newLines, lines[endIdx:]...)
+
+	if err := os.WriteFile(path, []byte(strings.Join(newLines, "\n")), 0644); err != nil {
+		return fmt.Errorf("journal: replace: write %s: %w", path, err)
+	}
+	return nil
 }
 
 // removeTransactionAtLine removes the transaction block starting at headerLine
