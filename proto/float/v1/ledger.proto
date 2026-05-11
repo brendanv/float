@@ -458,10 +458,22 @@ message ImportTransactionsRequest {
   string profile_name = 3;             // same profile as preview
 }
 
-message ImportTransactionsResponse {
+message ImportProgress {
+  int32 imported = 1;
+  int32 total = 2;
+}
+
+message ImportTransactionsResult {
   int32 imported_count = 1;
-  repeated Transaction transactions = 2; // the imported transactions
-  string import_batch_id = 3;            // unique ID for this import batch (e.g. "2026-04-17-a1b2c3d4")
+  repeated Transaction transactions = 2;
+  string import_batch_id = 3;
+}
+
+message ImportTransactionsResponse {
+  oneof payload {
+    ImportProgress progress = 1;
+    ImportTransactionsResult result = 2;
+  }
 }
 
 message GetImportedTransactionsRequest {
@@ -748,7 +760,7 @@ service LedgerService {
   rpc UpdateBankProfile(UpdateBankProfileRequest) returns (UpdateBankProfileResponse);
   rpc DeleteBankProfile(DeleteBankProfileRequest) returns (DeleteBankProfileResponse);
   rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
-  rpc ImportTransactions(ImportTransactionsRequest) returns (ImportTransactionsResponse);
+  rpc ImportTransactions(ImportTransactionsRequest) returns (stream ImportTransactionsResponse);
   rpc GetImportedTransactions(GetImportedTransactionsRequest) returns (ListTransactionsResponse);
   rpc ListImports(ListImportsRequest) returns (ListImportsResponse);
   rpc GetImportFile(GetImportFileRequest) returns (GetImportFileResponse);

@@ -3,6 +3,8 @@ package ledger_test
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +14,7 @@ import (
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
+	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 
 	"github.com/brendanv/float/internal/cache"
@@ -21,6 +24,35 @@ import (
 	"github.com/brendanv/float/internal/testgen"
 	"github.com/brendanv/float/internal/txlock"
 )
+
+// importTransactions calls the streaming ImportTransactions RPC via a test HTTP
+// server and returns the final ImportTransactionsResult.
+func importTransactions(t *testing.T, h *serverledger.Handler, req *floatv1.ImportTransactionsRequest) (*floatv1.ImportTransactionsResult, error) {
+	t.Helper()
+	mux := http.NewServeMux()
+	path, handler := floatv1connect.NewLedgerServiceHandler(h)
+	mux.Handle(path, handler)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := floatv1connect.NewLedgerServiceClient(srv.Client(), srv.URL)
+	stream, err := client.ImportTransactions(t.Context(), connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() { _ = stream.Close() })
+
+	var result *floatv1.ImportTransactionsResult
+	for stream.Receive() {
+		if p, ok := stream.Msg().Payload.(*floatv1.ImportTransactionsResponse_Result); ok {
+			result = p.Result
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
 
 // versionRunner returns a valid hledger version string for client construction.
 func versionRunner(t *testing.T, data map[string][]byte) hledger.CommandRunner {
@@ -2010,22 +2042,22 @@ func TestImportTransactionsHandler(t *testing.T) {
 		h := serverledger.NewHandler(c, lock, dir, "", nil, nil, cfg)
 
 		csvData := []byte("date,description,amount\n2026-01-15,AMAZON MARKETPLACE,-45.00\n")
-		resp, err := h.ImportTransactions(t.Context(), connect.NewRequest(&floatv1.ImportTransactionsRequest{
+		result, err := importTransactions(t, h, &floatv1.ImportTransactionsRequest{
 			CsvData:          csvData,
 			ProfileName:      "test-bank",
 			CandidateIndices: []int32{0},
-		}))
+		})
 		if err != nil {
 			t.Fatalf("ImportTransactions: %v", err)
 		}
-		if resp.Msg.ImportedCount != 1 {
-			t.Errorf("ImportedCount = %d, want 1", resp.Msg.ImportedCount)
+		if result.ImportedCount != 1 {
+			t.Errorf("ImportedCount = %d, want 1", result.ImportedCount)
 		}
-		if len(resp.Msg.Transactions) != 1 {
-			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		if len(result.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(result.Transactions))
 		}
-		if resp.Msg.Transactions[0].Tags["source"] != "amazon" {
-			t.Errorf("Tags[source] = %q, want %q", resp.Msg.Transactions[0].Tags["source"], "amazon")
+		if result.Transactions[0].Tags["source"] != "amazon" {
+			t.Errorf("Tags[source] = %q, want %q", result.Transactions[0].Tags["source"], "amazon")
 		}
 	})
 
@@ -2050,22 +2082,22 @@ func TestImportTransactionsHandler(t *testing.T) {
 		h := serverledger.NewHandler(c, lock, dir, "", nil, nil, cfg)
 
 		csvData := []byte("date,description,amount\n2026-01-15,COFFEE SHOP,-4.50\n2026-01-16,GROCERY STORE,-30.00\n")
-		importResp, err := h.ImportTransactions(t.Context(), connect.NewRequest(&floatv1.ImportTransactionsRequest{
+		result, err := importTransactions(t, h, &floatv1.ImportTransactionsRequest{
 			CsvData:          csvData,
 			ProfileName:      "test-bank",
 			CandidateIndices: []int32{0, 1},
-		}))
+		})
 		if err != nil {
 			t.Fatalf("ImportTransactions: %v", err)
 		}
-		batchID := importResp.Msg.ImportBatchId
+		batchID := result.ImportBatchId
 		if batchID == "" {
 			t.Fatal("response ImportBatchId is empty")
 		}
-		if len(importResp.Msg.Transactions) != 2 {
-			t.Fatalf("expected 2 imported transactions, got %d", len(importResp.Msg.Transactions))
+		if len(result.Transactions) != 2 {
+			t.Fatalf("expected 2 imported transactions, got %d", len(result.Transactions))
 		}
-		for i, tx := range importResp.Msg.Transactions {
+		for i, tx := range result.Transactions {
 			if tx.ImportBatchId == nil {
 				t.Errorf("imported[%d].ImportBatchId = nil, want %q", i, batchID)
 				continue

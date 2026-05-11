@@ -1821,47 +1821,47 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	return connect.NewResponse(&floatv1.PreviewImportResponse{Candidates: out}), nil
 }
 
-func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[floatv1.ImportTransactionsRequest]) (*connect.Response[floatv1.ImportTransactionsResponse], error) {
+func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[floatv1.ImportTransactionsRequest], stream *connect.ServerStream[floatv1.ImportTransactionsResponse]) error {
 	logger := slogctx.FromContext(ctx)
 	if len(req.Msg.CsvData) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("csv_data is required"))
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("csv_data is required"))
 	}
 	if req.Msg.ProfileName == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("profile_name is required"))
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("profile_name is required"))
 	}
 	if len(req.Msg.CandidateIndices) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("candidate_indices must not be empty"))
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("candidate_indices must not be empty"))
 	}
 
 	profile, err := h.bankProfile(req.Msg.ProfileName)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, err)
+		return connect.NewError(connect.CodeNotFound, err)
 	}
 	rulesFile := filepath.Join(h.dataDir, profile.RulesFile)
 
 	// Write CSV to temp file.
 	tmp, err := os.CreateTemp("", "float-import-*.csv")
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
 	}
 	defer func() { _ = os.Remove(tmp.Name()) }()
 	if _, err := tmp.Write(req.Msg.CsvData); err != nil {
 		_ = tmp.Close()
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
 	}
 	_ = tmp.Close()
 
 	candidates, err := h.hl.PrintCSV(ctx, tmp.Name(), rulesFile)
 	if err != nil {
 		logger.ErrorContext(ctx, "hledger PrintCSV failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("parse CSV: %w", err))
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("parse CSV: %w", err))
 	}
 
 	// Load rules for categorization during import.
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
 		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, err)
 	}
 
 	// Build selected indices set.
@@ -1871,6 +1871,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	}
 
 	importBatchID := profileToSlug(req.Msg.ProfileName) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
+	total := int32(len(req.Msg.CandidateIndices))
 
 	var importedFIDs []string
 	err = h.lock.Do(ctx, fmt.Sprintf("import %d transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), func() error {
@@ -1920,6 +1921,17 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 				return fmt.Errorf("write transaction %d: %w", i, writeErr)
 			}
 			importedFIDs = append(importedFIDs, fid)
+
+			if sendErr := stream.Send(&floatv1.ImportTransactionsResponse{
+				Payload: &floatv1.ImportTransactionsResponse_Progress{
+					Progress: &floatv1.ImportProgress{
+						Imported: int32(len(importedFIDs)),
+						Total:    total,
+					},
+				},
+			}); sendErr != nil {
+				return sendErr
+			}
 		}
 
 		// Save a copy of the uploaded CSV inside lock.Do so it is included in the git commit.
@@ -1935,7 +1947,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "import transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, err)
 	}
 
 	// Fetch the imported transactions to return.
@@ -1948,11 +1960,15 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		txnProtos = append(txnProtos, toProtoTransaction(txns[0]))
 	}
 
-	return connect.NewResponse(&floatv1.ImportTransactionsResponse{
-		ImportedCount: int32(len(importedFIDs)),
-		Transactions:  txnProtos,
-		ImportBatchId: importBatchID,
-	}), nil
+	return stream.Send(&floatv1.ImportTransactionsResponse{
+		Payload: &floatv1.ImportTransactionsResponse_Result{
+			Result: &floatv1.ImportTransactionsResult{
+				ImportedCount: int32(len(importedFIDs)),
+				Transactions:  txnProtos,
+				ImportBatchId: importBatchID,
+			},
+		},
+	})
 }
 
 func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Request[floatv1.GetImportedTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
