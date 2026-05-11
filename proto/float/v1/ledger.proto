@@ -127,6 +127,7 @@ message AccountRegisterRow {
   repeated string other_accounts = 7; // Accounts in the txn not in or under the focused account
   repeated Amount change = 8;         // Signed net change to the focused account for this txn
   repeated Amount running_total = 9;  // Running balance of the focused account after this row
+  map<string, string> tags = 10;      // Non-float-* tags on the transaction
 }
 
 message GetAccountRegisterRequest {
