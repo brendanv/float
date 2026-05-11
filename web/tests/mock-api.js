@@ -324,6 +324,7 @@ export const mockAccountRegisterRows = [
     otherAccounts: ["income:salary"],
     change: [{ commodity: "USD", quantity: "5200.00" }],
     runningTotal: [{ commodity: "USD", quantity: "5200.00" }],
+    tags: {},
   },
   {
     fid: "c3d4e5f8",
@@ -333,6 +334,7 @@ export const mockAccountRegisterRows = [
     otherAccounts: ["expenses:transport"],
     change: [{ commodity: "USD", quantity: "-3.25" }],
     runningTotal: [{ commodity: "USD", quantity: "5196.75" }],
+    tags: { reimbursable: "" },
   },
   {
     fid: "d4e5f6g7",
@@ -342,6 +344,7 @@ export const mockAccountRegisterRows = [
     otherAccounts: ["expenses:utilities"],
     change: [{ commodity: "USD", quantity: "-95.00" }],
     runningTotal: [{ commodity: "USD", quantity: "5101.75" }],
+    tags: {},
   },
   {
     fid: "e5f6g7h9",
@@ -351,6 +354,7 @@ export const mockAccountRegisterRows = [
     otherAccounts: ["expenses:groceries"],
     change: [{ commodity: "USD", quantity: "-62.18" }],
     runningTotal: [{ commodity: "USD", quantity: "5039.57" }],
+    tags: { category: "food", reimbursable: "" },
   },
   {
     fid: "f6g7h8i9",
@@ -360,6 +364,7 @@ export const mockAccountRegisterRows = [
     otherAccounts: ["expenses:rent"],
     change: [{ commodity: "USD", quantity: "-1500.00" }],
     runningTotal: [{ commodity: "USD", quantity: "3539.57" }],
+    tags: {},
   },
 ];
 

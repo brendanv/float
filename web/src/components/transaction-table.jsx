@@ -461,7 +461,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   );
 }
 
-function TagEditor({ fid, tags, onChanged }) {
+function TagEditor({ fid, tags, onChanged, className }) {
   const [adding, setAdding] = useState(false);
   const [tagKey, setTagKey] = useState("");
   const [tagValue, setTagValue] = useState("");
@@ -515,7 +515,7 @@ function TagEditor({ fid, tags, onChanged }) {
   }
 
   return (
-    <div className="mt-3">
+    <div className={cn("mt-3", className)}>
       <div className="flex flex-wrap items-center gap-1">
         {Object.entries(tags || {}).map(([k, v]) => (
           <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
@@ -795,8 +795,17 @@ const registerColumns = [
   regHelper.display({
     id: "tags",
     header: "Tags",
-    cell: ({ row }) => {
-      const tags = row.original.tags;
+    cell: ({ row, table }) => {
+      const tx = row.original;
+      const { onStatusChange } = table.options.meta;
+      if (tx.fid) {
+        return (
+          <span onClick={(e) => e.stopPropagation()}>
+            <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} className="mt-0" />
+          </span>
+        );
+      }
+      const tags = tx.tags;
       if (!tags || Object.keys(tags).length === 0) return null;
       return (
         <span className="inline-flex flex-wrap gap-1">
@@ -1213,7 +1222,11 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
           )}
         </div>
-        {tx.tags && Object.keys(tx.tags).length > 0 && (
+        {isRegisterMode && tx.fid ? (
+          <div onClick={(e) => e.stopPropagation()}>
+            <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} className="mt-1" />
+          </div>
+        ) : (tx.tags && Object.keys(tx.tags).length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {Object.entries(tx.tags).map(([k, v]) => (
               <Badge key={k} variant="secondary" className="text-xs">
@@ -1221,7 +1234,7 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
               </Badge>
             ))}
           </div>
-        )}
+        ))}
         {row.getIsExpanded() && (
           <EditableDetailRow
             tx={tx}

@@ -1021,6 +1021,12 @@ func toProtoAccountRegisterRow(r hledger.AregisterRow) *floatv1.AccountRegisterR
 	if status == "Unmarked" {
 		status = ""
 	}
+	tags := make(map[string]string, len(r.Transaction.Tags))
+	for _, kv := range r.Transaction.Tags {
+		if !strings.HasPrefix(kv[0], hledger.HiddenMetaPrefix) {
+			tags[kv[0]] = kv[1]
+		}
+	}
 	row := &floatv1.AccountRegisterRow{
 		Fid:           r.Transaction.FID,
 		Date:          r.Transaction.Date,
@@ -1029,6 +1035,7 @@ func toProtoAccountRegisterRow(r hledger.AregisterRow) *floatv1.AccountRegisterR
 		OtherAccounts: append([]string(nil), r.OtherAccounts...),
 		Change:        change,
 		RunningTotal:  balance,
+		Tags:          tags,
 	}
 	row.Payee = r.Transaction.Payee
 	row.Note = r.Transaction.Note
