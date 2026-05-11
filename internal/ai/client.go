@@ -83,6 +83,8 @@ func (c *Client) chat(ctx context.Context, messages []ChatMessage, schemaName st
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("HTTP-Referer", "https://github.com/brendanv/float")
+	req.Header.Set("X-Title", "float")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
