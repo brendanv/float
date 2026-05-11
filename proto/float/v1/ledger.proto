@@ -643,6 +643,17 @@ message TranslateQueryResponse {
   string explanation = 2;   // plain-English description of what the query does
 }
 
+message AskQuestionRequest {
+  string question = 1; // plain-English question about finances
+}
+
+message AskQuestionResponse {
+  string hledger_args = 1;  // full hledger args used (e.g. "balance expenses date:lastmonth")
+  string answer = 2;        // AI's plain-English answer to the question
+  string raw_output = 3;    // raw hledger stdout for transparency
+  bool query_success = 4;   // whether hledger ran without error
+}
+
 // ---- Settings ----
 
 message GetAlphaVantageConfigRequest {}
@@ -753,6 +764,7 @@ service LedgerService {
   // AI
   rpc SuggestRules(SuggestRulesRequest) returns (SuggestRulesResponse);
   rpc TranslateQuery(TranslateQueryRequest) returns (TranslateQueryResponse);
+  rpc AskQuestion(AskQuestionRequest) returns (AskQuestionResponse);
 
   // Settings
   rpc GetAlphaVantageConfig(GetAlphaVantageConfigRequest) returns (GetAlphaVantageConfigResponse);

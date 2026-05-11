@@ -167,6 +167,9 @@ const (
 	// LedgerServiceTranslateQueryProcedure is the fully-qualified name of the LedgerService's
 	// TranslateQuery RPC.
 	LedgerServiceTranslateQueryProcedure = "/float.v1.LedgerService/TranslateQuery"
+	// LedgerServiceAskQuestionProcedure is the fully-qualified name of the LedgerService's AskQuestion
+	// RPC.
+	LedgerServiceAskQuestionProcedure = "/float.v1.LedgerService/AskQuestion"
 	// LedgerServiceGetAlphaVantageConfigProcedure is the fully-qualified name of the LedgerService's
 	// GetAlphaVantageConfig RPC.
 	LedgerServiceGetAlphaVantageConfigProcedure = "/float.v1.LedgerService/GetAlphaVantageConfig"
@@ -238,6 +241,7 @@ type LedgerServiceClient interface {
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
+	AskQuestion(context.Context, *connect.Request[v1.AskQuestionRequest]) (*connect.Response[v1.AskQuestionResponse], error)
 	// Settings
 	GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error)
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
@@ -535,6 +539,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("TranslateQuery")),
 			connect.WithClientOptions(opts...),
 		),
+		askQuestion: connect.NewClient[v1.AskQuestionRequest, v1.AskQuestionResponse](
+			httpClient,
+			baseURL+LedgerServiceAskQuestionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("AskQuestion")),
+			connect.WithClientOptions(opts...),
+		),
 		getAlphaVantageConfig: connect.NewClient[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse](
 			httpClient,
 			baseURL+LedgerServiceGetAlphaVantageConfigProcedure,
@@ -622,6 +632,7 @@ type ledgerServiceClient struct {
 	applyRules                   *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
 	suggestRules                 *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
 	translateQuery               *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
+	askQuestion                  *connect.Client[v1.AskQuestionRequest, v1.AskQuestionResponse]
 	getAlphaVantageConfig        *connect.Client[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse]
 	setAlphaVantageApiKey        *connect.Client[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse]
 	getAIConfig                  *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
@@ -860,6 +871,11 @@ func (c *ledgerServiceClient) TranslateQuery(ctx context.Context, req *connect.R
 	return c.translateQuery.CallUnary(ctx, req)
 }
 
+// AskQuestion calls float.v1.LedgerService.AskQuestion.
+func (c *ledgerServiceClient) AskQuestion(ctx context.Context, req *connect.Request[v1.AskQuestionRequest]) (*connect.Response[v1.AskQuestionResponse], error) {
+	return c.askQuestion.CallUnary(ctx, req)
+}
+
 // GetAlphaVantageConfig calls float.v1.LedgerService.GetAlphaVantageConfig.
 func (c *ledgerServiceClient) GetAlphaVantageConfig(ctx context.Context, req *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error) {
 	return c.getAlphaVantageConfig.CallUnary(ctx, req)
@@ -941,6 +957,7 @@ type LedgerServiceHandler interface {
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
+	AskQuestion(context.Context, *connect.Request[v1.AskQuestionRequest]) (*connect.Response[v1.AskQuestionResponse], error)
 	// Settings
 	GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error)
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
@@ -1234,6 +1251,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("TranslateQuery")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceAskQuestionHandler := connect.NewUnaryHandler(
+		LedgerServiceAskQuestionProcedure,
+		svc.AskQuestion,
+		connect.WithSchema(ledgerServiceMethods.ByName("AskQuestion")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceGetAlphaVantageConfigHandler := connect.NewUnaryHandler(
 		LedgerServiceGetAlphaVantageConfigProcedure,
 		svc.GetAlphaVantageConfig,
@@ -1364,6 +1387,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceSuggestRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceTranslateQueryProcedure:
 			ledgerServiceTranslateQueryHandler.ServeHTTP(w, r)
+		case LedgerServiceAskQuestionProcedure:
+			ledgerServiceAskQuestionHandler.ServeHTTP(w, r)
 		case LedgerServiceGetAlphaVantageConfigProcedure:
 			ledgerServiceGetAlphaVantageConfigHandler.ServeHTTP(w, r)
 		case LedgerServiceSetAlphaVantageApiKeyProcedure:
@@ -1567,6 +1592,10 @@ func (UnimplementedLedgerServiceHandler) SuggestRules(context.Context, *connect.
 
 func (UnimplementedLedgerServiceHandler) TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.TranslateQuery is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) AskQuestion(context.Context, *connect.Request[v1.AskQuestionRequest]) (*connect.Response[v1.AskQuestionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.AskQuestion is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetAlphaVantageConfig(context.Context, *connect.Request[v1.GetAlphaVantageConfigRequest]) (*connect.Response[v1.GetAlphaVantageConfigResponse], error) {

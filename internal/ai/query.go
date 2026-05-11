@@ -8,6 +8,154 @@ import (
 	"time"
 )
 
+var planQuerySchema = map[string]any{
+	"type": "object",
+	"properties": map[string]any{
+		"hledger_args": map[string]any{"type": "string", "description": "Full hledger args including command and filters"},
+	},
+	"required":             []string{"hledger_args"},
+	"additionalProperties": false,
+}
+
+var explainResultsSchema = map[string]any{
+	"type": "object",
+	"properties": map[string]any{
+		"answer": map[string]any{"type": "string", "description": "Plain-English answer to the user's question"},
+	},
+	"required":             []string{"answer"},
+	"additionalProperties": false,
+}
+
+// PlanQuery converts a natural-language finance question into a full hledger
+// command + args string (e.g. "balance expenses:food date:lastmonth").
+// Unlike TranslateQuery, this includes the hledger subcommand so the result
+// can be executed directly.
+func (c *Client) PlanQuery(ctx context.Context, question string, accounts []string, userGuidelines string) (hledgerArgs string, err error) {
+	today := time.Now().Format("2006-01-02")
+
+	guidelinesSection := ""
+	if userGuidelines != "" {
+		guidelinesSection = "## User guidelines\n\n" + userGuidelines + "\n\n"
+	}
+
+	systemPrompt := strings.TrimSpace(guidelinesSection + `
+You are a personal finance assistant. Given a plain-English finance question,
+produce the hledger command and arguments needed to answer it.
+
+Today's date: ` + today + `
+
+## hledger commands
+
+balance (or bal)  — show account balances; use for "how much", "total", "spend" questions
+register (or reg) — show transaction-level detail; use for "show me transactions", "list" questions
+print             — show full journal entries; use for inspecting individual transactions
+incomestatement (or is) — revenue vs expenses summary
+balancesheet (or bs)    — assets and liabilities
+cashflow (or cf)        — cash flow statement
+
+## hledger query filters (append after command)
+
+Date:
+  date:YYYY-MM-DD, date:YYYY-MM-DD..YYYY-MM-DD
+  date:today, date:thisweek, date:thismonth, date:lastmonth
+  date:thisquarter, date:lastquarter, date:thisyear, date:lastyear
+
+Account:
+  expenses:food        — account name substring
+  acct:REGEX           — regex match
+  ^expenses            — starts with
+
+Amount:
+  amt:>N, amt:<N, amt:>=N, amt:<=N
+
+Description/payee:
+  desc:REGEX, payee:REGEX
+
+Status:
+  status:*  (cleared)   status:!  (pending)
+
+Tags:
+  tag:NAME, tag:NAME=VALUE
+
+Negation:
+  not:FILTER
+
+Depth (for balance/balancesheet/etc):
+  --depth 2
+
+## User's accounts
+` + strings.Join(accounts, "\n") + `
+
+Return only the hledger args — no explanation, no markdown, no 'hledger' binary prefix.
+Example output: balance expenses:food date:lastmonth
+`)
+
+	content, err := c.chat(ctx, []ChatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: question},
+	}, "plan_query", planQuerySchema)
+	if err != nil {
+		return "", err
+	}
+
+	var response struct {
+		HledgerArgs string `json:"hledger_args"`
+	}
+	if err := json.Unmarshal([]byte(content), &response); err != nil {
+		return "", fmt.Errorf("ai: parse plan-query response: %w", err)
+	}
+	return response.HledgerArgs, nil
+}
+
+// ExplainResults interprets the output of an hledger command and returns a
+// plain-English answer to the user's original question.
+func (c *Client) ExplainResults(ctx context.Context, question, hledgerArgs, output string, querySuccess bool, userGuidelines string) (answer string, err error) {
+	guidelinesSection := ""
+	if userGuidelines != "" {
+		guidelinesSection = "## User guidelines\n\n" + userGuidelines + "\n\n"
+	}
+
+	var outputSection string
+	if querySuccess {
+		if strings.TrimSpace(output) == "" {
+			outputSection = "(no output — the query returned no matching data)"
+		} else {
+			outputSection = output
+		}
+	} else {
+		outputSection = "(query failed — hledger returned an error)"
+	}
+
+	systemPrompt := strings.TrimSpace(guidelinesSection + `
+You are a personal finance assistant. The user asked a question about their finances.
+An hledger query was run to answer it. Interpret the results and give a direct,
+concise plain-English answer. Focus on answering the question — don't explain
+what hledger is or describe the command that was run.
+
+If the query returned no data, say so clearly.
+If the query failed, explain that the question could not be answered.
+Use the same currency symbols that appear in the output.
+`)
+
+	userMsg := fmt.Sprintf("Question: %s\n\nCommand run: hledger %s\n\nOutput:\n%s", question, hledgerArgs, outputSection)
+
+	content, err := c.chat(ctx, []ChatMessage{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userMsg},
+	}, "explain_results", explainResultsSchema)
+	if err != nil {
+		return "", err
+	}
+
+	var response struct {
+		Answer string `json:"answer"`
+	}
+	if err := json.Unmarshal([]byte(content), &response); err != nil {
+		return "", fmt.Errorf("ai: parse explain-results response: %w", err)
+	}
+	return response.Answer, nil
+}
+
 var translateQuerySchema = map[string]any{
 	"type": "object",
 	"properties": map[string]any{

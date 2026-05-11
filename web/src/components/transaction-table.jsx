@@ -462,105 +462,78 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
 }
 
 function TagEditor({ fid, tags, onChanged, className }) {
-  const [pendingAdds, setPendingAdds] = useState([]);
-  const [pendingRemoves, setPendingRemoves] = useState(new Set());
   const [adding, setAdding] = useState(false);
   const [tagKey, setTagKey] = useState("");
   const [tagValue, setTagValue] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [removingKey, setRemovingKey] = useState(null);
   const [error, setError] = useState(null);
 
-  const isDirty = pendingAdds.length > 0 || pendingRemoves.size > 0;
+  const isBusy = working || removingKey !== null;
 
-  const displayedTags = useMemo(() => {
-    const result = {};
-    for (const [k, v] of Object.entries(tags || {})) {
-      if (!pendingRemoves.has(k)) result[k] = v;
-    }
-    for (const { key, value } of pendingAdds) {
-      result[key] = value;
-    }
-    return result;
-  }, [tags, pendingRemoves, pendingAdds]);
-
-  function handleRemoveTag(key) {
-    const isPendingAdd = pendingAdds.some((a) => a.key === key);
-    if (isPendingAdd) {
-      setPendingAdds((prev) => prev.filter((a) => a.key !== key));
-    } else {
-      setPendingRemoves((prev) => new Set([...prev, key]));
+  async function removeTag(key) {
+    setRemovingKey(key);
+    setError(null);
+    try {
+      await ledgerClient.bulkEditTransactions({
+        fids: [fid],
+        operations: [{ operation: { case: "removeTag", value: { key } } }],
+      });
+      if (onChanged) onChanged();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setRemovingKey(null);
     }
   }
 
-  function handleAddTag() {
+  async function addTag() {
     if (!tagKey.trim()) return;
-    setPendingAdds((prev) => [...prev, { key: tagKey.trim(), value: tagValue.trim() }]);
-    setTagKey("");
-    setTagValue("");
-    setAdding(false);
+    setWorking(true);
+    setError(null);
+    try {
+      await ledgerClient.bulkEditTransactions({
+        fids: [fid],
+        operations: [{ operation: { case: "addTag", value: { key: tagKey.trim(), value: tagValue.trim() } } }],
+      });
+      setTagKey("");
+      setTagValue("");
+      setAdding(false);
+      if (onChanged) onChanged();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setWorking(false);
+    }
   }
 
   function cancelAdd() {
     setAdding(false);
     setTagKey("");
     setTagValue("");
-  }
-
-  function discardChanges() {
-    setPendingAdds([]);
-    setPendingRemoves(new Set());
-    setAdding(false);
-    setTagKey("");
-    setTagValue("");
     setError(null);
-  }
-
-  async function saveChanges() {
-    setSaving(true);
-    setError(null);
-    try {
-      const operations = [
-        ...Array.from(pendingRemoves).map((key) => ({
-          operation: { case: "removeTag", value: { key } },
-        })),
-        ...pendingAdds.map(({ key, value }) => ({
-          operation: { case: "addTag", value: { key, value } },
-        })),
-      ];
-      await ledgerClient.bulkEditTransactions({ fids: [fid], operations });
-      setPendingAdds([]);
-      setPendingRemoves(new Set());
-      if (onChanged) onChanged();
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
     <div className={cn("mt-3", className)}>
       <div className="flex flex-wrap items-center gap-1">
-        {Object.entries(displayedTags).map(([k, v]) => {
-          const isPendingAdd = pendingAdds.some((a) => a.key === k);
-          return (
-            <Badge
-              key={k}
-              variant="secondary"
-              className={cn("text-xs gap-1 pr-1", isPendingAdd && "ring-1 ring-primary/50")}
-            >
-              {v ? `${k}:${v}` : k}
+        {Object.entries(tags || {}).map(([k, v]) => (
+          <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
+            {v ? `${k}:${v}` : k}
+            {removingKey === k ? (
+              <Loader2 className="size-2.5 animate-spin" />
+            ) : (
               <button
                 className="rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
-                onClick={() => handleRemoveTag(k)}
-                disabled={saving}
+                onClick={() => removeTag(k)}
+                disabled={isBusy}
                 title={`Remove tag "${k}"`}
               >
                 <X className="size-2.5" />
               </button>
-            </Badge>
-          );
-        })}
+            )}
+          </Badge>
+        ))}
         {adding ? (
           <>
             <Input
@@ -568,7 +541,7 @@ function TagEditor({ fid, tags, onChanged, className }) {
               placeholder="key"
               value={tagKey}
               onChange={(e) => setTagKey(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); if (e.key === "Escape") cancelAdd(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") cancelAdd(); }}
               autoFocus
             />
             <Input
@@ -576,10 +549,12 @@ function TagEditor({ fid, tags, onChanged, className }) {
               placeholder="value (optional)"
               value={tagValue}
               onChange={(e) => setTagValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleAddTag(); if (e.key === "Escape") cancelAdd(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") cancelAdd(); }}
             />
-            <Button size="xs" disabled={!tagKey.trim()} onClick={handleAddTag}>Add</Button>
-            <Button variant="ghost" size="xs" onClick={cancelAdd}>Cancel</Button>
+            <Button size="xs" disabled={working || !tagKey.trim()} onClick={addTag}>
+              {working ? <Loader2 className="size-3 animate-spin" /> : "Add"}
+            </Button>
+            <Button variant="ghost" size="xs" disabled={working} onClick={cancelAdd}>Cancel</Button>
           </>
         ) : (
           <Button
@@ -587,22 +562,12 @@ function TagEditor({ fid, tags, onChanged, className }) {
             size="xs"
             className="text-muted-foreground"
             onClick={() => setAdding(true)}
-            disabled={saving}
+            disabled={isBusy}
           >
             + Tag
           </Button>
         )}
       </div>
-      {isDirty && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <Button size="xs" disabled={saving} onClick={saveChanges}>
-            {saving ? <Loader2 className="size-3 animate-spin" /> : "Save changes"}
-          </Button>
-          <Button variant="ghost" size="xs" disabled={saving} onClick={discardChanges}>
-            Discard
-          </Button>
-        </div>
-      )}
       {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </div>
   );

@@ -894,6 +894,14 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "ApplyRules":
         body = { appliedCount: 3 };
         break;
+      case "AskQuestion":
+        body = {
+          hledgerArgs: "balance expenses:groceries date:lastmonth",
+          answer: "You spent $450.00 on groceries last month. This includes $287.34 at Whole Foods Market and $162.66 at other grocery stores.",
+          rawOutput: "               $450.00  expenses:groceries\n--------------------\n               $450.00",
+          querySuccess: true,
+        };
+        break;
       case "SuggestRules":
         body = {
           suggestions: [

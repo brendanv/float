@@ -248,6 +248,53 @@ func (h *Handler) TranslateQuery(ctx context.Context, req *connect.Request[float
 	}), nil
 }
 
+// AskQuestion translates a plain-English finance question into a hledger
+// command, executes it, and returns an AI-generated plain-English answer.
+func (h *Handler) AskQuestion(ctx context.Context, req *connect.Request[floatv1.AskQuestionRequest]) (*connect.Response[floatv1.AskQuestionResponse], error) {
+	if strings.TrimSpace(req.Msg.Question) == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("question must not be empty"))
+	}
+
+	aiCl, err := h.aiClient()
+	if err != nil {
+		return nil, err
+	}
+
+	accounts, err := h.hl.Accounts(ctx, false)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("fetch accounts: %w", err))
+	}
+	accountNames := make([]string, len(accounts))
+	for i, a := range accounts {
+		accountNames[i] = a.FullName
+	}
+
+	userGuidelines := ""
+	if h.cfg != nil {
+		userGuidelines = h.cfg.AI.Prompt
+	}
+
+	hledgerArgs, err := aiCl.PlanQuery(ctx, req.Msg.Question, accountNames, userGuidelines)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("AI plan query: %w", err))
+	}
+
+	stdout, _, _, runErr := h.hl.RunQuery(ctx, hledgerArgs)
+	querySuccess := runErr == nil
+
+	answer, err := aiCl.ExplainResults(ctx, req.Msg.Question, hledgerArgs, string(stdout), querySuccess, userGuidelines)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("AI explain results: %w", err))
+	}
+
+	return connect.NewResponse(&floatv1.AskQuestionResponse{
+		HledgerArgs:  hledgerArgs,
+		Answer:       answer,
+		RawOutput:    string(stdout),
+		QuerySuccess: querySuccess,
+	}), nil
+}
+
 // categoryAccount returns the category (non-asset/liability) posting account
 // for a 2-posting transaction, or empty string for multi-posting transactions.
 func categoryAccount(txn hledger.Transaction) string {
