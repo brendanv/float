@@ -519,10 +519,12 @@ message RuleInput {
 
 message AddRuleRequest {
   repeated RuleInput rules = 1;
+  repeated string apply_fids = 2; // if non-empty, atomically apply the new rule(s) to these transaction FIDs
 }
 
 message AddRuleResponse {
   repeated TransactionRule rules = 1;
+  int32 applied_count = 2; // number of transactions the new rules were applied to
 }
 
 message UpdateRuleRequest {
@@ -548,6 +550,7 @@ message DeleteRuleResponse {}
 message PreviewApplyRulesRequest {
   repeated string rule_ids = 1; // empty = all rules
   repeated string query = 2;   // optional hledger query to filter transactions
+  RuleInput rule_input = 3;    // if set, preview this unsaved rule instead of saved rules (rule_ids ignored)
 }
 
 message RuleApplicationPreview {

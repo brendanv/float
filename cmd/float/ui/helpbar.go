@@ -223,6 +223,24 @@ func (RulesPreviewKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+var (
+	keySaveAndApply = key.NewBinding(key.WithKeys("s", "enter"), key.WithHelp("s/enter", "save+apply"))
+	keySaveOnly     = key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "save only"))
+)
+
+// RulesCreationPreviewKeyMap is for the rules tab in creation dry-run preview mode.
+type RulesCreationPreviewKeyMap struct{}
+
+func (RulesCreationPreviewKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNav, keyToggle, keySelAll, keySaveAndApply, keySaveOnly, keyEsc}
+}
+func (RulesCreationPreviewKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyNav, keyToggle, keySelAll},
+		{keySaveAndApply, keySaveOnly, keyEsc},
+	}
+}
+
 
 // ImportsListKeyMap is for the imports tab in list mode.
 type ImportsListKeyMap struct{}

@@ -167,6 +167,15 @@ export function RulesPage() {
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState(null);
 
+  // Creation preview state (dry-run shown before saving a new rule).
+  const [creationPreviewOpen, setCreationPreviewOpen] = useState(false);
+  const [creationPreviewData, setCreationPreviewData] = useState(null); // {rulePayload, previews}
+  const [creationPreviewLoading, setCreationPreviewLoading] = useState(false);
+  const [creationPreviewError, setCreationPreviewError] = useState(null);
+  const [creationSelectedFids, setCreationSelectedFids] = useState(new Set());
+  const [creatingSaving, setCreatingSaving] = useState(false);
+  const [creatingSaveResult, setCreatingSaveResult] = useState(null);
+
   const form = useForm({
     defaultValues: emptyForm(),
     onSubmit: async ({ value }) => {
@@ -179,7 +188,24 @@ export function RulesPage() {
         tags: tagsFromString(value.tags),
         autoReviewed: value.autoReviewed,
       };
-      saveRuleMutation.mutate(payload);
+      if (editingId) {
+        saveRuleMutation.mutate(payload);
+        return;
+      }
+      // New rule: show a dry-run preview before saving anything.
+      setCreationPreviewError(null);
+      setCreationPreviewLoading(true);
+      setCreationPreviewData(null);
+      try {
+        const res = await ledgerClient.previewApplyRules({ ruleInput: payload });
+        setCreationPreviewData({ rulePayload: payload, previews: res.previews ?? [] });
+        setCreationSelectedFids(new Set((res.previews ?? []).map((p) => p.fid)));
+        setCreationPreviewOpen(true);
+      } catch (err) {
+        setCreationPreviewError(err);
+      } finally {
+        setCreationPreviewLoading(false);
+      }
     },
   });
 
@@ -221,10 +247,7 @@ export function RulesPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const saveRuleMutation = useMutation({
-    mutationFn: (payload) =>
-      editingId
-        ? ledgerClient.updateRule({ id: editingId, ...payload })
-        : ledgerClient.addRule({ rules: [payload] }),
+    mutationFn: (payload) => ledgerClient.updateRule({ id: editingId, ...payload }),
     onSuccess: () => {
       setEditingId(null);
       form.reset();
@@ -256,6 +279,55 @@ export function RulesPage() {
     setEditingId(null);
     form.reset();
     setFormError(null);
+  }
+
+  function toggleCreationFid(fid) {
+    setCreationSelectedFids((prev) => {
+      const next = new Set(prev);
+      if (next.has(fid)) next.delete(fid);
+      else next.add(fid);
+      return next;
+    });
+  }
+
+  async function handleCreationSaveAndApply() {
+    if (!creationPreviewData) return;
+    setCreatingSaving(true);
+    setCreationPreviewError(null);
+    try {
+      await ledgerClient.addRule({
+        rules: [creationPreviewData.rulePayload],
+        applyFids: Array.from(creationSelectedFids),
+      });
+      setCreationPreviewOpen(false);
+      setCreationPreviewData(null);
+      form.reset();
+      setFormError(null);
+      setCreatingSaveResult({ appliedCount: creationSelectedFids.size });
+      queryClient.invalidateQueries({ queryKey: queryKeys.rules() });
+    } catch (err) {
+      setCreationPreviewError(err);
+    } finally {
+      setCreatingSaving(false);
+    }
+  }
+
+  async function handleCreationSaveOnly() {
+    if (!creationPreviewData) return;
+    setCreatingSaving(true);
+    setCreationPreviewError(null);
+    try {
+      await ledgerClient.addRule({ rules: [creationPreviewData.rulePayload] });
+      setCreationPreviewOpen(false);
+      setCreationPreviewData(null);
+      form.reset();
+      setFormError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.rules() });
+    } catch (err) {
+      setCreationPreviewError(err);
+    } finally {
+      setCreatingSaving(false);
+    }
   }
 
   function handleDelete(id) {
@@ -446,9 +518,21 @@ export function RulesPage() {
               selector={(state) => state.canSubmit}
               children={(canSubmit) => (
                 <div className="flex gap-2">
-                  <Button type="submit" size="sm" disabled={!canSubmit || saveRuleMutation.isPending}>
-                    {saveRuleMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                    {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={!canSubmit || saveRuleMutation.isPending || creationPreviewLoading}
+                  >
+                    {(saveRuleMutation.isPending || creationPreviewLoading) && (
+                      <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
+                    )}
+                    {saveRuleMutation.isPending
+                      ? "Saving…"
+                      : creationPreviewLoading
+                        ? "Previewing…"
+                        : editingId
+                          ? "Update Rule"
+                          : "Add Rule"}
                   </Button>
                   {editingId && (
                     <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
@@ -460,6 +544,7 @@ export function RulesPage() {
             />
           </form>
           {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
+          {creationPreviewError && <div className="mt-3"><ErrorBanner error={creationPreviewError} /></div>}
         </CardContent>
       </Card>
 
@@ -641,6 +726,16 @@ export function RulesPage() {
               </AlertDescription>
             </Alert>
           )}
+          {creatingSaveResult !== null && (
+            <Alert className="mt-3">
+              <CircleCheck className="size-4 text-success" />
+              <AlertDescription>
+                {creatingSaveResult.appliedCount > 0
+                  ? `Rule created and applied to ${creatingSaveResult.appliedCount} transaction(s).`
+                  : "Rule created."}
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
@@ -650,6 +745,125 @@ export function RulesPage() {
         accounts={accountsData?.accounts ?? []}
         onRulesAdded={() => queryClient.invalidateQueries({ queryKey: queryKeys.rules() })}
       />
+
+      {/* Creation Preview Drawer — dry-run before saving a new rule */}
+      <Drawer open={creationPreviewOpen} onOpenChange={(open) => { if (!open && !creatingSaving) setCreationPreviewOpen(false); }} direction="bottom">
+        <DrawerContent className="max-h-[80vh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Preview: New Rule</DrawerTitle>
+            {creationPreviewData && (
+              <DrawerDescription>
+                {creationPreviewData.previews.length === 0
+                  ? "No existing transactions match this rule."
+                  : `${creationPreviewData.previews.length} existing transaction(s) match this rule. Select which to update now.`}
+              </DrawerDescription>
+            )}
+          </DrawerHeader>
+          {creationPreviewData && creationPreviewData.previews.length > 0 && (
+            <div className="overflow-y-auto px-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>
+                      <Checkbox
+                        checked={creationSelectedFids.size === creationPreviewData.previews.length}
+                        onCheckedChange={() => {
+                          if (creationSelectedFids.size === creationPreviewData.previews.length) {
+                            setCreationSelectedFids(new Set());
+                          } else {
+                            setCreationSelectedFids(new Set(creationPreviewData.previews.map((p) => p.fid)));
+                          }
+                        }}
+                      />
+                    </TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Payee</TableHead>
+                    <TableHead>Reviewed</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {creationPreviewData.previews.map((p) => (
+                    <TableRow key={p.fid}>
+                      <TableCell>
+                        <Checkbox
+                          checked={creationSelectedFids.has(p.fid)}
+                          onCheckedChange={() => toggleCreationFid(p.fid)}
+                        />
+                      </TableCell>
+                      <TableCell>{p.description}</TableCell>
+                      <TableCell className="text-xs">
+                        {p.newAccount ? (
+                          <span>
+                            <span className="text-muted-foreground/60 line-through">{p.currentAccount}</span>
+                            {" → "}
+                            <span className="text-success">{p.newAccount}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {p.newPayee ? (
+                          <span>
+                            <span className="text-muted-foreground/60 line-through">{p.currentPayee}</span>
+                            {" → "}
+                            <span className="text-success">{p.newPayee}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {p.willMarkReviewed ? (
+                          <span className="text-success">Will mark reviewed</span>
+                        ) : (
+                          <span className="text-muted-foreground/60">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <DrawerFooter>
+            {creationPreviewError && <ErrorBanner error={creationPreviewError} />}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={handleCreationSaveAndApply}
+                disabled={creatingSaving}
+              >
+                {creatingSaving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {creatingSaving
+                  ? "Saving…"
+                  : creationPreviewData?.previews.length > 0
+                    ? `Save & Apply to ${creationSelectedFids.size} Transaction(s)`
+                    : "Save Rule"}
+              </Button>
+              {creationPreviewData?.previews.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCreationSaveOnly}
+                  disabled={creatingSaving}
+                >
+                  Save Rule Only
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={creatingSaving}
+                onClick={() => setCreationPreviewOpen(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
 
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="bottom">
         <DrawerContent className="max-h-[80vh]">

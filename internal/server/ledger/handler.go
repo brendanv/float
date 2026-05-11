@@ -2128,26 +2128,61 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 		patterns[i] = r.Pattern
 	}
 
-	var newRules []rules.Rule
-	err := h.lock.Do(ctx, fmt.Sprintf("add %d rule(s): %s", len(req.Msg.Rules), strings.Join(patterns, ", ")), func() error {
+	// Mint rule IDs before acquiring the lock so we can compute matches for apply_fids.
+	newRules := make([]rules.Rule, len(req.Msg.Rules))
+	for i, r := range req.Msg.Rules {
+		newRules[i] = rules.Rule{
+			ID:           journal.MintFID(),
+			Pattern:      r.Pattern,
+			Payee:        r.Payee,
+			Account:      r.Account,
+			Tags:         r.Tags,
+			Priority:     int(r.Priority),
+			AutoReviewed: r.AutoReviewed,
+		}
+	}
+
+	// If apply_fids is set, compute matches before the lock (outside to avoid holding the lock
+	// during a potentially slow transaction fetch).
+	var matches []rules.RuleMatch
+	if len(req.Msg.ApplyFids) > 0 {
+		txns, fetchErr := h.hl.Transactions(ctx)
+		if fetchErr != nil {
+			logger.ErrorContext(ctx, "fetch transactions for apply failed", "error", fetchErr)
+			return nil, connect.NewError(connect.CodeInternal, fetchErr)
+		}
+		allMatches := rules.Preview(newRules, txns)
+		fidSet := make(map[string]bool, len(req.Msg.ApplyFids))
+		for _, fid := range req.Msg.ApplyFids {
+			fidSet[fid] = true
+		}
+		for _, m := range allMatches {
+			if fidSet[m.Transaction.FID] {
+				matches = append(matches, m)
+			}
+		}
+	}
+
+	var applied int
+	lockMsg := fmt.Sprintf("add %d rule(s): %s", len(req.Msg.Rules), strings.Join(patterns, ", "))
+	if len(matches) > 0 {
+		lockMsg = fmt.Sprintf("%s and apply to %d transaction(s)", lockMsg, len(matches))
+	}
+	err := h.lock.Do(ctx, lockMsg, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
 		}
-		newRules = make([]rules.Rule, len(req.Msg.Rules))
-		for i, r := range req.Msg.Rules {
-			newRules[i] = rules.Rule{
-				ID:           journal.MintFID(),
-				Pattern:      r.Pattern,
-				Payee:        r.Payee,
-				Account:      r.Account,
-				Tags:         r.Tags,
-				Priority:     int(r.Priority),
-				AutoReviewed: r.AutoReviewed,
-			}
-		}
 		rulesList = append(rulesList, newRules...)
-		return rules.Save(h.dataDir, rulesList)
+		if saveErr := rules.Save(h.dataDir, rulesList); saveErr != nil {
+			return saveErr
+		}
+		if len(matches) > 0 {
+			var applyErr error
+			applied, applyErr = rules.Apply(ctx, h.hl, h.dataDir, matches)
+			return applyErr
+		}
+		return nil
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "add rule failed", "error", err)
@@ -2157,7 +2192,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 	for i, r := range newRules {
 		out[i] = toProtoRule(r)
 	}
-	return connect.NewResponse(&floatv1.AddRuleResponse{Rules: out}), nil
+	return connect.NewResponse(&floatv1.AddRuleResponse{Rules: out, AppliedCount: int32(applied)}), nil
 }
 
 func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.UpdateRuleRequest]) (*connect.Response[floatv1.UpdateRuleResponse], error) {
@@ -2245,14 +2280,28 @@ func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.D
 func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[floatv1.PreviewApplyRulesRequest]) (*connect.Response[floatv1.PreviewApplyRulesResponse], error) {
 	logger := slogctx.FromContext(ctx)
 
-	rulesList, err := rules.Load(h.dataDir)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
-	// Filter to requested rules if specified.
-	if len(req.Msg.RuleIds) > 0 {
-		rulesList = filterRules(rulesList, req.Msg.RuleIds)
+	var rulesList []rules.Rule
+	if req.Msg.RuleInput != nil {
+		// Preview an unsaved rule supplied by the caller.
+		rulesList = []rules.Rule{{
+			ID:           journal.MintFID(),
+			Pattern:      req.Msg.RuleInput.Pattern,
+			Payee:        req.Msg.RuleInput.Payee,
+			Account:      req.Msg.RuleInput.Account,
+			Tags:         req.Msg.RuleInput.Tags,
+			Priority:     int(req.Msg.RuleInput.Priority),
+			AutoReviewed: req.Msg.RuleInput.AutoReviewed,
+		}}
+	} else {
+		var err error
+		rulesList, err = rules.Load(h.dataDir)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		// Filter to requested rules if specified.
+		if len(req.Msg.RuleIds) > 0 {
+			rulesList = filterRules(rulesList, req.Msg.RuleIds)
+		}
 	}
 
 	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)

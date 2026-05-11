@@ -20,9 +20,10 @@ import (
 type rulesMode int
 
 const (
-	rulesModeList    rulesMode = iota // browsing rules table (default)
-	rulesModeForm                     // add / edit form active (right panel)
-	rulesModePreview                  // full-screen apply-preview
+	rulesModeList             rulesMode = iota // browsing rules table (default)
+	rulesModeForm                              // add / edit form active (right panel)
+	rulesModePreview                           // full-screen apply-preview (existing rules)
+	rulesModeCreationPreview                   // dry-run preview before saving a new rule
 )
 
 // RulesTab is the fourth TUI tab. It mirrors the web UI's rules management
@@ -78,6 +79,9 @@ type RulesTab struct {
 	previewLoading bool
 	applyResult    string
 	previewTable   table.Model
+
+	// ─── Creation preview state ────────────────────────────────────────
+	pendingRuleInput *floatv1.RuleInput // rule waiting to be saved after dry-run
 }
 
 // ─── Constructor ────────────────────────────────────────────────────────────
@@ -306,10 +310,18 @@ func (m RulesTab) Update(msg tea.Msg) (RulesTab, tea.Cmd) {
 	case AddRuleMsg:
 		m.formSubmitting = false
 		if msg.Err != nil {
-			m.formErr = msg.Err.Error()
+			if m.mode == rulesModeCreationPreview {
+				m.previewErr = msg.Err.Error()
+			} else {
+				m.formErr = msg.Err.Error()
+			}
 			return m, nil
 		}
+		m.pendingRuleInput = nil
 		m.exitForm()
+		if msg.AppliedCount > 0 {
+			m.applyResult = fmt.Sprintf("Rule created and applied to %d transaction(s).", msg.AppliedCount)
+		}
 		m.loadState = stateLoading
 		return m, FetchRules(m.client)
 
@@ -334,8 +346,15 @@ func (m RulesTab) Update(msg tea.Msg) (RulesTab, tea.Cmd) {
 
 	case PreviewApplyRulesMsg:
 		m.previewLoading = false
+		m.formSubmitting = false // clear so creation preview mode allows interaction
 		if msg.Err != nil {
 			m.previewErr = msg.Err.Error()
+			if m.mode == rulesModeCreationPreview {
+				// On error, return to form so user can fix the issue.
+				m.mode = rulesModeForm
+				m.pendingRuleInput = nil
+				m.focusFormField()
+			}
 			return m, nil
 		}
 		m.previews = msg.Previews
@@ -384,6 +403,77 @@ func (m *RulesTab) handleSpinnerTick(msg tea.Msg) tea.Cmd {
 }
 
 func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
+	// ── Creation preview mode ───────────────────────────────────────────
+	if m.mode == rulesModeCreationPreview {
+		if m.previewLoading || m.formSubmitting {
+			return m, nil
+		}
+		switch msg.String() {
+		case "esc":
+			// Cancel — discard preview, return to form.
+			m.mode = rulesModeForm
+			m.pendingRuleInput = nil
+			m.previews = nil
+			m.selectedFIDs = make(map[string]bool)
+			m.previewErr = ""
+			m.formSubmitting = false
+			m.focusFormField()
+			return m, nil
+		case "j", "down":
+			if m.previewCursor < len(m.previews)-1 {
+				m.previewCursor++
+				m.previewTable.SetCursor(m.previewCursor)
+			}
+		case "k", "up":
+			if m.previewCursor > 0 {
+				m.previewCursor--
+				m.previewTable.SetCursor(m.previewCursor)
+			}
+		case "space":
+			if m.previewCursor < len(m.previews) {
+				fid := m.previews[m.previewCursor].Fid
+				m.selectedFIDs[fid] = !m.selectedFIDs[fid]
+				m.rebuildPreviewRows()
+			}
+		case "ctrl+a":
+			anySelected := false
+			for _, v := range m.selectedFIDs {
+				if v {
+					anySelected = true
+					break
+				}
+			}
+			for k := range m.selectedFIDs {
+				m.selectedFIDs[k] = !anySelected
+			}
+			m.rebuildPreviewRows()
+		case "s", "enter":
+			// Save rule + apply to selected transactions.
+			if m.pendingRuleInput == nil {
+				return m, nil
+			}
+			m.formSubmitting = true
+			m.previewErr = ""
+			req := &floatv1.AddRuleRequest{
+				Rules:     []*floatv1.RuleInput{m.pendingRuleInput},
+				ApplyFids: m.selectedFIDList(),
+			}
+			return m, AddRuleCmd(m.client, req)
+		case "n":
+			// Save rule only — no transaction changes.
+			if m.pendingRuleInput == nil {
+				return m, nil
+			}
+			m.formSubmitting = true
+			m.previewErr = ""
+			req := &floatv1.AddRuleRequest{
+				Rules: []*floatv1.RuleInput{m.pendingRuleInput},
+			}
+			return m, AddRuleCmd(m.client, req)
+		}
+		return m, nil
+	}
+
 	// ── Preview mode ────────────────────────────────────────────────────
 	if m.mode == rulesModePreview {
 		if m.previewLoading {
@@ -642,19 +732,22 @@ func (m RulesTab) submitForm() (RulesTab, tea.Cmd) {
 	m.formErr = ""
 
 	if m.editingID == "" {
-		req := &floatv1.AddRuleRequest{
-			Rules: []*floatv1.RuleInput{
-				{
-					Pattern:      pattern,
-					Payee:        strings.TrimSpace(m.payeeInput.Value()),
-					Account:      strings.TrimSpace(m.accountInput.Value()),
-					Tags:         tags,
-					Priority:     priority,
-					AutoReviewed: m.autoReviewed,
-				},
-			},
+		ruleInput := &floatv1.RuleInput{
+			Pattern:      pattern,
+			Payee:        strings.TrimSpace(m.payeeInput.Value()),
+			Account:      strings.TrimSpace(m.accountInput.Value()),
+			Tags:         tags,
+			Priority:     priority,
+			AutoReviewed: m.autoReviewed,
 		}
-		return m, AddRuleCmd(m.client, req)
+		m.pendingRuleInput = ruleInput
+		m.previews = nil
+		m.selectedFIDs = make(map[string]bool)
+		m.previewCursor = 0
+		m.previewErr = ""
+		m.previewLoading = true
+		m.mode = rulesModeCreationPreview
+		return m, PreviewRuleInputCmd(m.client, ruleInput)
 	}
 	req := &floatv1.UpdateRuleRequest{
 		Id:           m.editingID,
@@ -775,6 +868,8 @@ func (m RulesTab) KeyMap() help.KeyMap {
 		return RulesFormKeyMap{}
 	case rulesModePreview:
 		return RulesPreviewKeyMap{}
+	case rulesModeCreationPreview:
+		return RulesCreationPreviewKeyMap{}
 	default:
 		if m.confirmDeleteID != "" {
 			return DeleteConfirmKeyMap{}
@@ -791,6 +886,10 @@ func (m RulesTab) KeyMap() help.KeyMap {
 func (m RulesTab) View() string {
 	if m.mode == rulesModePreview {
 		return m.viewPreview()
+	}
+
+	if m.mode == rulesModeCreationPreview {
+		return m.viewCreationPreview()
 	}
 
 	if m.mode == rulesModeForm {
@@ -937,6 +1036,61 @@ func (m RulesTab) viewPreview() string {
 	nSelected := len(m.selectedFIDList())
 	statusLine := m.styles.Help.Render(fmt.Sprintf(
 		"%d of %d transaction(s) selected  •  space=toggle  ctrl+a=all/none  enter=apply  esc=back",
+		nSelected, len(m.previews),
+	))
+
+	tableView := m.styles.FocusedBorder.
+		Width(w).
+		Render(m.previewTable.View())
+
+	return lipgloss.JoinVertical(lipgloss.Left, title, statusLine, tableView)
+}
+
+// viewCreationPreview renders the dry-run preview shown before saving a new rule.
+func (m RulesTab) viewCreationPreview() string {
+	w := m.width
+	h := m.height
+
+	if m.previewLoading {
+		return lipgloss.NewStyle().
+			Width(w).Height(h).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render(m.spinner.View() + " Computing preview…")
+	}
+
+	if m.formSubmitting {
+		return lipgloss.NewStyle().
+			Width(w).Height(h).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render(m.spinner.View() + " Saving…")
+	}
+
+	var patternStr string
+	if m.pendingRuleInput != nil {
+		patternStr = m.pendingRuleInput.Pattern
+	}
+	title := lipgloss.NewStyle().Bold(true).Render("New Rule Preview: " + patternStr)
+
+	if m.previewErr != "" {
+		errLine := m.styles.Error.Render("! " + m.previewErr)
+		hint := m.styles.Help.Render("esc to go back")
+		body := lipgloss.JoinVertical(lipgloss.Left, title, "", errLine, "", hint)
+		return lipgloss.NewStyle().Width(w).Height(h).Render(body)
+	}
+
+	if len(m.previews) == 0 {
+		empty := lipgloss.JoinVertical(lipgloss.Left,
+			title, "",
+			m.styles.Help.Render("No existing transactions match this rule."),
+			"",
+			m.styles.Help.Render("s/enter=save rule  esc=cancel"),
+		)
+		return lipgloss.NewStyle().Width(w).Height(h).Render(empty)
+	}
+
+	nSelected := len(m.selectedFIDList())
+	statusLine := m.styles.Help.Render(fmt.Sprintf(
+		"%d of %d transaction(s) selected  •  space=toggle  ctrl+a=all/none  s/enter=save+apply  n=save only  esc=cancel",
 		nSelected, len(m.previews),
 	))
 

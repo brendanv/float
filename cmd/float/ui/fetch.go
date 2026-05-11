@@ -235,8 +235,9 @@ type RulesMsg struct {
 
 // AddRuleMsg carries the result of an AddRule RPC.
 type AddRuleMsg struct {
-	Rules []*floatv1.TransactionRule
-	Err   error
+	Rules        []*floatv1.TransactionRule
+	AppliedCount int32
+	Err          error
 }
 
 // UpdateRuleMsg carries the result of an UpdateRule RPC.
@@ -278,7 +279,19 @@ func AddRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddRuleR
 		if err != nil {
 			return AddRuleMsg{Err: err}
 		}
-		return AddRuleMsg{Rules: resp.Msg.Rules}
+		return AddRuleMsg{Rules: resp.Msg.Rules, AppliedCount: resp.Msg.AppliedCount}
+	}
+}
+
+func PreviewRuleInputCmd(client floatv1connect.LedgerServiceClient, ruleInput *floatv1.RuleInput) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.PreviewApplyRules(context.Background(), connect.NewRequest(&floatv1.PreviewApplyRulesRequest{
+			RuleInput: ruleInput,
+		}))
+		if err != nil {
+			return PreviewApplyRulesMsg{Err: err}
+		}
+		return PreviewApplyRulesMsg{Previews: resp.Msg.Previews}
 	}
 }
 
