@@ -509,6 +509,7 @@ export function ImportPage() {
   const [sorting, setSorting] = useState([]);
   const [ruleFilter, setRuleFilter] = useState("all");
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
   const [importError, setImportError] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -589,20 +590,27 @@ export function ImportPage() {
     if (selectedIndices.size === 0 || !csvData || !selectedProfile) return;
     setImportError(null);
     setImporting(true);
+    setImportProgress({ imported: 0, total: selectedIndices.size });
     try {
-      const res = await ledgerClient.importTransactions({
+      for await (const res of ledgerClient.importTransactions({
         candidateIndices: Array.from(selectedIndices),
         csvData,
         profileName: selectedProfile,
-      });
-      setImportResult(res);
-      setCandidates(null);
-      setCsvData(null);
-      setCsvFile(null);
+      })) {
+        if (res.payload.case === "progress") {
+          setImportProgress({ imported: res.payload.value.imported, total: res.payload.value.total });
+        } else if (res.payload.case === "result") {
+          setImportResult(res.payload.value);
+          setCandidates(null);
+          setCsvData(null);
+          setCsvFile(null);
+        }
+      }
     } catch (err) {
       setImportError(err);
     } finally {
       setImporting(false);
+      setImportProgress(null);
     }
   }
 
@@ -862,7 +870,11 @@ export function ImportPage() {
                   disabled={importing || selectedIndices.size === 0}
                 >
                   {importing && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                  {importing ? "Importing…" : `Import ${selectedIndices.size} Selected`}
+                  {importing
+                    ? importProgress && importProgress.total > 0
+                      ? `Importing ${importProgress.imported} of ${importProgress.total}…`
+                      : "Importing…"
+                    : `Import ${selectedIndices.size} Selected`}
                 </Button>
               </div>
             </div>

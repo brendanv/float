@@ -227,7 +227,7 @@ type LedgerServiceClient interface {
 	UpdateBankProfile(context.Context, *connect.Request[v1.UpdateBankProfileRequest]) (*connect.Response[v1.UpdateBankProfileResponse], error)
 	DeleteBankProfile(context.Context, *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
-	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
+	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	ListImports(context.Context, *connect.Request[v1.ListImportsRequest]) (*connect.Response[v1.ListImportsResponse], error)
 	GetImportFile(context.Context, *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error)
@@ -812,8 +812,8 @@ func (c *ledgerServiceClient) PreviewImport(ctx context.Context, req *connect.Re
 }
 
 // ImportTransactions calls float.v1.LedgerService.ImportTransactions.
-func (c *ledgerServiceClient) ImportTransactions(ctx context.Context, req *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error) {
-	return c.importTransactions.CallUnary(ctx, req)
+func (c *ledgerServiceClient) ImportTransactions(ctx context.Context, req *connect.Request[v1.ImportTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error) {
+	return c.importTransactions.CallServerStream(ctx, req)
 }
 
 // GetImportedTransactions calls float.v1.LedgerService.GetImportedTransactions.
@@ -943,7 +943,7 @@ type LedgerServiceHandler interface {
 	UpdateBankProfile(context.Context, *connect.Request[v1.UpdateBankProfileRequest]) (*connect.Response[v1.UpdateBankProfileResponse], error)
 	DeleteBankProfile(context.Context, *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
-	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error)
+	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	ListImports(context.Context, *connect.Request[v1.ListImportsRequest]) (*connect.Response[v1.ListImportsResponse], error)
 	GetImportFile(context.Context, *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error)
@@ -1179,7 +1179,7 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("PreviewImport")),
 		connect.WithHandlerOptions(opts...),
 	)
-	ledgerServiceImportTransactionsHandler := connect.NewUnaryHandler(
+	ledgerServiceImportTransactionsHandler := connect.NewServerStreamHandler(
 		LedgerServiceImportTransactionsProcedure,
 		svc.ImportTransactions,
 		connect.WithSchema(ledgerServiceMethods.ByName("ImportTransactions")),
@@ -1546,8 +1546,8 @@ func (UnimplementedLedgerServiceHandler) PreviewImport(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.PreviewImport is not implemented"))
 }
 
-func (UnimplementedLedgerServiceHandler) ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.Response[v1.ImportTransactionsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportTransactions is not implemented"))
+func (UnimplementedLedgerServiceHandler) ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportTransactions is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error) {
