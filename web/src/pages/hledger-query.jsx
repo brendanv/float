@@ -1,14 +1,15 @@
 import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Terminal, Play, AlertCircle, CheckCircle } from "lucide-react";
+import { Terminal, Play, AlertCircle, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const EXAMPLES = [
+const HLEDGER_EXAMPLES = [
   { label: "Account balances", args: "bal" },
   { label: "Balance sheet (depth 2)", args: "bs --depth 2" },
   { label: "Income statement", args: "is --monthly" },
@@ -17,7 +18,15 @@ const EXAMPLES = [
   { label: "Tags in use", args: "tags" },
 ];
 
-export function HledgerQueryPage() {
+const NL_EXAMPLES = [
+  "How much did I spend last month?",
+  "What were my top expense categories this year?",
+  "How much did I spend on dining out last quarter?",
+  "What's my current net worth?",
+  "Show me my income vs expenses for this year",
+];
+
+function HledgerTab() {
   const [args, setArgs] = useState("");
   const textareaRef = useRef(null);
 
@@ -51,64 +60,50 @@ export function HledgerQueryPage() {
   const cmdLine = data?.commandLine ?? "";
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Terminal className="size-5" />
-            hledger Query
-          </CardTitle>
-          <CardDescription>
-            Run arbitrary hledger commands against your journal. Enter arguments only — do
-            not include <code className="font-mono text-xs">hledger</code> or{" "}
-            <code className="font-mono text-xs">-f &lt;journal&gt;</code>; the server adds
-            those automatically.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="hledger-args">Arguments</Label>
-            <div className="flex gap-2">
-              <Textarea
-                id="hledger-args"
-                ref={textareaRef}
-                value={args}
-                onChange={(e) => setArgs(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="bal --depth 2 assets"
-                className="font-mono resize-none"
-                rows={2}
-              />
-              <Button
-                onClick={run}
-                disabled={isPending || !args.trim()}
-                className="self-start shrink-0"
-              >
-                <Play className="size-4" />
-                {isPending ? "Running…" : "Run"}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Press <kbd className="rounded border px-1 py-0.5 font-mono text-xs">Ctrl+Enter</kbd> to run.
-            </p>
-          </div>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="hledger-args">Arguments</Label>
+        <div className="flex gap-2">
+          <Textarea
+            id="hledger-args"
+            ref={textareaRef}
+            value={args}
+            onChange={(e) => setArgs(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="bal --depth 2 assets"
+            className="font-mono resize-none"
+            rows={2}
+          />
+          <Button
+            onClick={run}
+            disabled={isPending || !args.trim()}
+            className="self-start shrink-0"
+          >
+            <Play className="size-4" />
+            {isPending ? "Running…" : "Run"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Press <kbd className="rounded border px-1 py-0.5 font-mono text-xs">Ctrl+Enter</kbd> to run.
+          Do not include <code className="font-mono text-xs">hledger</code> or{" "}
+          <code className="font-mono text-xs">-f &lt;journal&gt;</code>.
+        </p>
+      </div>
 
-          <div className="flex flex-wrap gap-2">
-            <span className="text-xs text-muted-foreground self-center">Examples:</span>
-            {EXAMPLES.map((ex) => (
-              <Button
-                key={ex.args}
-                variant="outline"
-                size="xs"
-                className="font-mono text-xs"
-                onClick={() => applyExample(ex.args)}
-              >
-                {ex.args}
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap gap-2">
+        <span className="text-xs text-muted-foreground self-center">Examples:</span>
+        {HLEDGER_EXAMPLES.map((ex) => (
+          <Button
+            key={ex.args}
+            variant="outline"
+            size="xs"
+            className="font-mono text-xs"
+            onClick={() => applyExample(ex.args)}
+          >
+            {ex.args}
+          </Button>
+        ))}
+      </div>
 
       {error && (
         <Alert variant="destructive">
@@ -157,6 +152,176 @@ export function HledgerQueryPage() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+function NaturalLanguageTab() {
+  const [question, setQuestion] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const textareaRef = useRef(null);
+
+  const { mutate, data, isPending, error, reset } = useMutation({
+    mutationFn: (q) => ledgerClient.askQuestion({ question: q }),
+    onSuccess: () => setDetailsOpen(false),
+  });
+
+  function ask() {
+    const trimmed = question.trim();
+    if (!trimmed) return;
+    mutate(trimmed);
+  }
+
+  function handleKeyDown(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      ask();
+    }
+  }
+
+  function applyExample(q) {
+    setQuestion(q);
+    reset();
+    textareaRef.current?.focus();
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="nl-question">Question</Label>
+        <div className="flex gap-2">
+          <Textarea
+            id="nl-question"
+            ref={textareaRef}
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="How much did I spend on groceries last month?"
+            className="resize-none"
+            rows={2}
+          />
+          <Button
+            onClick={ask}
+            disabled={isPending || !question.trim()}
+            className="self-start shrink-0"
+          >
+            <Play className="size-4" />
+            {isPending ? "Running…" : "Run"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Press <kbd className="rounded border px-1 py-0.5 font-mono text-xs">Ctrl+Enter</kbd> to run.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <span className="text-xs text-muted-foreground self-center">Examples:</span>
+        {NL_EXAMPLES.map((ex) => (
+          <Button
+            key={ex}
+            variant="outline"
+            size="xs"
+            className="text-xs"
+            onClick={() => applyExample(ex)}
+          >
+            {ex}
+          </Button>
+        ))}
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error.message || String(error)}</AlertDescription>
+        </Alert>
+      )}
+
+      {data && (
+        <Card>
+          <CardContent className="flex flex-col gap-4 pt-6">
+            <p className="text-sm leading-relaxed">{data.answer}</p>
+
+            <div className="border-t pt-3">
+              <button
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setDetailsOpen((o) => !o)}
+              >
+                {detailsOpen ? (
+                  <ChevronDown className="size-3.5" />
+                ) : (
+                  <ChevronRight className="size-3.5" />
+                )}
+                Query details
+              </button>
+
+              {detailsOpen && (
+                <div className="mt-3 flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Command
+                    </p>
+                    <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs font-mono">
+                      hledger {data.hledgerArgs}
+                    </pre>
+                  </div>
+
+                  {data.rawOutput && (
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Raw output
+                      </p>
+                      <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs font-mono whitespace-pre">
+                        {data.rawOutput}
+                      </pre>
+                    </div>
+                  )}
+
+                  {!data.querySuccess && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="size-4" />
+                      <AlertDescription className="text-xs">
+                        The hledger query did not run successfully.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+export function HledgerQueryPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Terminal className="size-5" />
+            Query
+          </CardTitle>
+          <CardDescription>
+            Run queries against your journal directly or ask in natural language.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="hledger">
+            <TabsList className="mb-4">
+              <TabsTrigger value="hledger">hledger</TabsTrigger>
+              <TabsTrigger value="natural-language">Natural language</TabsTrigger>
+            </TabsList>
+            <TabsContent value="hledger">
+              <HledgerTab />
+            </TabsContent>
+            <TabsContent value="natural-language">
+              <NaturalLanguageTab />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

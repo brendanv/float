@@ -587,3 +587,47 @@ test("settings page", async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/settings.png", fullPage: true });
 });
+
+test("query page - hledger tab", async ({ page }) => {
+  await page.goto("/#/hledger-query");
+  await page.waitForSelector("textarea", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/query-hledger.png", fullPage: true });
+});
+
+test("query page - natural language tab", async ({ page }) => {
+  await page.goto("/#/hledger-query");
+  await page.waitForSelector("[role='tablist']", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.click("[role='tab']:has-text('Natural language')");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/query-natural-language.png", fullPage: true });
+});
+
+test("query page - natural language with answer", async ({ page }) => {
+  await page.goto("/#/hledger-query");
+  await page.waitForSelector("[role='tablist']", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.click("[role='tab']:has-text('Natural language')");
+  await page.waitForTimeout(300);
+  await page.fill("textarea", "How much did I spend on groceries last month?");
+  await page.click("button:has-text('Run')");
+  await page.waitForSelector("text=You spent", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/query-natural-language-answer.png", fullPage: true });
+});
+
+test("query page - natural language with details open", async ({ page }) => {
+  await page.goto("/#/hledger-query");
+  await page.waitForSelector("[role='tablist']", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.click("[role='tab']:has-text('Natural language')");
+  await page.waitForTimeout(300);
+  await page.fill("textarea", "How much did I spend on groceries last month?");
+  await page.click("button:has-text('Run')");
+  await page.waitForSelector("text=You spent", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.click("button:has-text('Query details')");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/query-natural-language-details.png", fullPage: true });
+});
