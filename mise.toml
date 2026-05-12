@@ -131,6 +131,10 @@ description = "Generate JS protobuf code from .proto files"
 depends = ["web-install"]
 run = "cd web && bunx buf generate --template buf.gen.yaml ../proto"
 
+[tasks.web-icons]
+description = "Generate PWA/iOS icon sizes from web/public/icon.png"
+run = "cd web && bun run scripts/generate-icons.js"
+
 [tasks.web-build]
 description = "Generate JS protobuf code and build web UI for production"
 depends = ["web-gen"]
