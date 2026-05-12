@@ -968,6 +968,12 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
+      case "GetStripeStatus":
+        body = { apiKeyConfigured: false, apiKeyPreview: "", connectionCount: 0 };
+        break;
+      case "ListStripeConnections":
+        body = { connections: [] };
+        break;
       case "GetAIConfig":
         body = { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6", prompt: "My accounts use kebab-case. Groceries go under expenses:food:groceries." };
         break;

@@ -588,6 +588,13 @@ test("settings page", async ({ page }) => {
   await page.screenshot({ path: "test-results/settings.png", fullPage: true });
 });
 
+test("stripe page", async ({ page }) => {
+  await page.goto("/#/stripe");
+  await page.waitForSelector("h2", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/stripe.png", fullPage: true });
+});
+
 test("query page - hledger tab", async ({ page }) => {
   await page.goto("/#/hledger-query");
   await page.waitForSelector("textarea", { timeout: 5000 }).catch(() => {});
