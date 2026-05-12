@@ -21,6 +21,7 @@ import { AccountsPage } from "./pages/accounts.jsx";
 import { PayeesPage } from "./pages/payees.jsx";
 import { PortfolioPage } from "./pages/portfolio.jsx";
 import { SettingsPage } from "./pages/settings.jsx";
+import { StripePage } from "./pages/stripe.jsx";
 import { HledgerQueryPage } from "./pages/hledger-query.jsx";
 
 const LazyTrendsPage = lazy(() =>
@@ -139,6 +140,12 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const stripeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/stripe",
+  component: StripePage,
+});
+
 const hledgerQueryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/hledger-query",
@@ -160,6 +167,7 @@ const routeTree = rootRoute.addChildren([
   payeesRoute,
   portfolioRoute,
   settingsRoute,
+  stripeRoute,
   hledgerQueryRoute,
 ]);
 

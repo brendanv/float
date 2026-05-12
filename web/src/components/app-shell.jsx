@@ -18,6 +18,7 @@ import {
   Users,
   Settings,
   Terminal,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -50,6 +51,7 @@ const NAV_FINANCES = [
   { href: "/transactions", label: "Transactions", icon: List },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/imports", label: "Import History", icon: ClockArrowUp },
+  { href: "/stripe", label: "Stripe", icon: Banknote },
   { href: "/prices", label: "Prices", icon: Tag },
   { href: "/rules", label: "Rules", icon: ListFilter },
 ];

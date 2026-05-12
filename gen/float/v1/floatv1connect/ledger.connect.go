@@ -185,6 +185,30 @@ const (
 	// LedgerServiceSetAIPromptProcedure is the fully-qualified name of the LedgerService's SetAIPrompt
 	// RPC.
 	LedgerServiceSetAIPromptProcedure = "/float.v1.LedgerService/SetAIPrompt"
+	// LedgerServiceGetStripeStatusProcedure is the fully-qualified name of the LedgerService's
+	// GetStripeStatus RPC.
+	LedgerServiceGetStripeStatusProcedure = "/float.v1.LedgerService/GetStripeStatus"
+	// LedgerServiceSetStripeApiKeyProcedure is the fully-qualified name of the LedgerService's
+	// SetStripeApiKey RPC.
+	LedgerServiceSetStripeApiKeyProcedure = "/float.v1.LedgerService/SetStripeApiKey"
+	// LedgerServiceCreateStripeSessionProcedure is the fully-qualified name of the LedgerService's
+	// CreateStripeSession RPC.
+	LedgerServiceCreateStripeSessionProcedure = "/float.v1.LedgerService/CreateStripeSession"
+	// LedgerServiceLinkStripeAccountsProcedure is the fully-qualified name of the LedgerService's
+	// LinkStripeAccounts RPC.
+	LedgerServiceLinkStripeAccountsProcedure = "/float.v1.LedgerService/LinkStripeAccounts"
+	// LedgerServiceListStripeConnectionsProcedure is the fully-qualified name of the LedgerService's
+	// ListStripeConnections RPC.
+	LedgerServiceListStripeConnectionsProcedure = "/float.v1.LedgerService/ListStripeConnections"
+	// LedgerServiceUpdateStripeConnectionProcedure is the fully-qualified name of the LedgerService's
+	// UpdateStripeConnection RPC.
+	LedgerServiceUpdateStripeConnectionProcedure = "/float.v1.LedgerService/UpdateStripeConnection"
+	// LedgerServiceDeleteStripeConnectionProcedure is the fully-qualified name of the LedgerService's
+	// DeleteStripeConnection RPC.
+	LedgerServiceDeleteStripeConnectionProcedure = "/float.v1.LedgerService/DeleteStripeConnection"
+	// LedgerServiceSyncStripeConnectionProcedure is the fully-qualified name of the LedgerService's
+	// SyncStripeConnection RPC.
+	LedgerServiceSyncStripeConnectionProcedure = "/float.v1.LedgerService/SyncStripeConnection"
 	// LedgerServiceRunHledgerQueryProcedure is the fully-qualified name of the LedgerService's
 	// RunHledgerQuery RPC.
 	LedgerServiceRunHledgerQueryProcedure = "/float.v1.LedgerService/RunHledgerQuery"
@@ -248,6 +272,15 @@ type LedgerServiceClient interface {
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
+	// Stripe Financial Connections
+	GetStripeStatus(context.Context, *connect.Request[v1.GetStripeStatusRequest]) (*connect.Response[v1.GetStripeStatusResponse], error)
+	SetStripeApiKey(context.Context, *connect.Request[v1.SetStripeApiKeyRequest]) (*connect.Response[v1.SetStripeApiKeyResponse], error)
+	CreateStripeSession(context.Context, *connect.Request[v1.CreateStripeSessionRequest]) (*connect.Response[v1.CreateStripeSessionResponse], error)
+	LinkStripeAccounts(context.Context, *connect.Request[v1.LinkStripeAccountsRequest]) (*connect.Response[v1.LinkStripeAccountsResponse], error)
+	ListStripeConnections(context.Context, *connect.Request[v1.ListStripeConnectionsRequest]) (*connect.Response[v1.ListStripeConnectionsResponse], error)
+	UpdateStripeConnection(context.Context, *connect.Request[v1.UpdateStripeConnectionRequest]) (*connect.Response[v1.UpdateStripeConnectionResponse], error)
+	DeleteStripeConnection(context.Context, *connect.Request[v1.DeleteStripeConnectionRequest]) (*connect.Response[v1.DeleteStripeConnectionResponse], error)
+	SyncStripeConnection(context.Context, *connect.Request[v1.SyncStripeConnectionRequest]) (*connect.Response[v1.SyncStripeConnectionResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 }
@@ -575,6 +608,54 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SetAIPrompt")),
 			connect.WithClientOptions(opts...),
 		),
+		getStripeStatus: connect.NewClient[v1.GetStripeStatusRequest, v1.GetStripeStatusResponse](
+			httpClient,
+			baseURL+LedgerServiceGetStripeStatusProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetStripeStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		setStripeApiKey: connect.NewClient[v1.SetStripeApiKeyRequest, v1.SetStripeApiKeyResponse](
+			httpClient,
+			baseURL+LedgerServiceSetStripeApiKeyProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetStripeApiKey")),
+			connect.WithClientOptions(opts...),
+		),
+		createStripeSession: connect.NewClient[v1.CreateStripeSessionRequest, v1.CreateStripeSessionResponse](
+			httpClient,
+			baseURL+LedgerServiceCreateStripeSessionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("CreateStripeSession")),
+			connect.WithClientOptions(opts...),
+		),
+		linkStripeAccounts: connect.NewClient[v1.LinkStripeAccountsRequest, v1.LinkStripeAccountsResponse](
+			httpClient,
+			baseURL+LedgerServiceLinkStripeAccountsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("LinkStripeAccounts")),
+			connect.WithClientOptions(opts...),
+		),
+		listStripeConnections: connect.NewClient[v1.ListStripeConnectionsRequest, v1.ListStripeConnectionsResponse](
+			httpClient,
+			baseURL+LedgerServiceListStripeConnectionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListStripeConnections")),
+			connect.WithClientOptions(opts...),
+		),
+		updateStripeConnection: connect.NewClient[v1.UpdateStripeConnectionRequest, v1.UpdateStripeConnectionResponse](
+			httpClient,
+			baseURL+LedgerServiceUpdateStripeConnectionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UpdateStripeConnection")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteStripeConnection: connect.NewClient[v1.DeleteStripeConnectionRequest, v1.DeleteStripeConnectionResponse](
+			httpClient,
+			baseURL+LedgerServiceDeleteStripeConnectionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("DeleteStripeConnection")),
+			connect.WithClientOptions(opts...),
+		),
+		syncStripeConnection: connect.NewClient[v1.SyncStripeConnectionRequest, v1.SyncStripeConnectionResponse](
+			httpClient,
+			baseURL+LedgerServiceSyncStripeConnectionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SyncStripeConnection")),
+			connect.WithClientOptions(opts...),
+		),
 		runHledgerQuery: connect.NewClient[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse](
 			httpClient,
 			baseURL+LedgerServiceRunHledgerQueryProcedure,
@@ -638,6 +719,14 @@ type ledgerServiceClient struct {
 	getAIConfig                  *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
 	setAIModel                   *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
 	setAIPrompt                  *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
+	getStripeStatus              *connect.Client[v1.GetStripeStatusRequest, v1.GetStripeStatusResponse]
+	setStripeApiKey              *connect.Client[v1.SetStripeApiKeyRequest, v1.SetStripeApiKeyResponse]
+	createStripeSession          *connect.Client[v1.CreateStripeSessionRequest, v1.CreateStripeSessionResponse]
+	linkStripeAccounts           *connect.Client[v1.LinkStripeAccountsRequest, v1.LinkStripeAccountsResponse]
+	listStripeConnections        *connect.Client[v1.ListStripeConnectionsRequest, v1.ListStripeConnectionsResponse]
+	updateStripeConnection       *connect.Client[v1.UpdateStripeConnectionRequest, v1.UpdateStripeConnectionResponse]
+	deleteStripeConnection       *connect.Client[v1.DeleteStripeConnectionRequest, v1.DeleteStripeConnectionResponse]
+	syncStripeConnection         *connect.Client[v1.SyncStripeConnectionRequest, v1.SyncStripeConnectionResponse]
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
 }
 
@@ -901,6 +990,46 @@ func (c *ledgerServiceClient) SetAIPrompt(ctx context.Context, req *connect.Requ
 	return c.setAIPrompt.CallUnary(ctx, req)
 }
 
+// GetStripeStatus calls float.v1.LedgerService.GetStripeStatus.
+func (c *ledgerServiceClient) GetStripeStatus(ctx context.Context, req *connect.Request[v1.GetStripeStatusRequest]) (*connect.Response[v1.GetStripeStatusResponse], error) {
+	return c.getStripeStatus.CallUnary(ctx, req)
+}
+
+// SetStripeApiKey calls float.v1.LedgerService.SetStripeApiKey.
+func (c *ledgerServiceClient) SetStripeApiKey(ctx context.Context, req *connect.Request[v1.SetStripeApiKeyRequest]) (*connect.Response[v1.SetStripeApiKeyResponse], error) {
+	return c.setStripeApiKey.CallUnary(ctx, req)
+}
+
+// CreateStripeSession calls float.v1.LedgerService.CreateStripeSession.
+func (c *ledgerServiceClient) CreateStripeSession(ctx context.Context, req *connect.Request[v1.CreateStripeSessionRequest]) (*connect.Response[v1.CreateStripeSessionResponse], error) {
+	return c.createStripeSession.CallUnary(ctx, req)
+}
+
+// LinkStripeAccounts calls float.v1.LedgerService.LinkStripeAccounts.
+func (c *ledgerServiceClient) LinkStripeAccounts(ctx context.Context, req *connect.Request[v1.LinkStripeAccountsRequest]) (*connect.Response[v1.LinkStripeAccountsResponse], error) {
+	return c.linkStripeAccounts.CallUnary(ctx, req)
+}
+
+// ListStripeConnections calls float.v1.LedgerService.ListStripeConnections.
+func (c *ledgerServiceClient) ListStripeConnections(ctx context.Context, req *connect.Request[v1.ListStripeConnectionsRequest]) (*connect.Response[v1.ListStripeConnectionsResponse], error) {
+	return c.listStripeConnections.CallUnary(ctx, req)
+}
+
+// UpdateStripeConnection calls float.v1.LedgerService.UpdateStripeConnection.
+func (c *ledgerServiceClient) UpdateStripeConnection(ctx context.Context, req *connect.Request[v1.UpdateStripeConnectionRequest]) (*connect.Response[v1.UpdateStripeConnectionResponse], error) {
+	return c.updateStripeConnection.CallUnary(ctx, req)
+}
+
+// DeleteStripeConnection calls float.v1.LedgerService.DeleteStripeConnection.
+func (c *ledgerServiceClient) DeleteStripeConnection(ctx context.Context, req *connect.Request[v1.DeleteStripeConnectionRequest]) (*connect.Response[v1.DeleteStripeConnectionResponse], error) {
+	return c.deleteStripeConnection.CallUnary(ctx, req)
+}
+
+// SyncStripeConnection calls float.v1.LedgerService.SyncStripeConnection.
+func (c *ledgerServiceClient) SyncStripeConnection(ctx context.Context, req *connect.Request[v1.SyncStripeConnectionRequest]) (*connect.Response[v1.SyncStripeConnectionResponse], error) {
+	return c.syncStripeConnection.CallUnary(ctx, req)
+}
+
 // RunHledgerQuery calls float.v1.LedgerService.RunHledgerQuery.
 func (c *ledgerServiceClient) RunHledgerQuery(ctx context.Context, req *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
 	return c.runHledgerQuery.CallUnary(ctx, req)
@@ -964,6 +1093,15 @@ type LedgerServiceHandler interface {
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
+	// Stripe Financial Connections
+	GetStripeStatus(context.Context, *connect.Request[v1.GetStripeStatusRequest]) (*connect.Response[v1.GetStripeStatusResponse], error)
+	SetStripeApiKey(context.Context, *connect.Request[v1.SetStripeApiKeyRequest]) (*connect.Response[v1.SetStripeApiKeyResponse], error)
+	CreateStripeSession(context.Context, *connect.Request[v1.CreateStripeSessionRequest]) (*connect.Response[v1.CreateStripeSessionResponse], error)
+	LinkStripeAccounts(context.Context, *connect.Request[v1.LinkStripeAccountsRequest]) (*connect.Response[v1.LinkStripeAccountsResponse], error)
+	ListStripeConnections(context.Context, *connect.Request[v1.ListStripeConnectionsRequest]) (*connect.Response[v1.ListStripeConnectionsResponse], error)
+	UpdateStripeConnection(context.Context, *connect.Request[v1.UpdateStripeConnectionRequest]) (*connect.Response[v1.UpdateStripeConnectionResponse], error)
+	DeleteStripeConnection(context.Context, *connect.Request[v1.DeleteStripeConnectionRequest]) (*connect.Response[v1.DeleteStripeConnectionResponse], error)
+	SyncStripeConnection(context.Context, *connect.Request[v1.SyncStripeConnectionRequest]) (*connect.Response[v1.SyncStripeConnectionResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 }
@@ -1287,6 +1425,54 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SetAIPrompt")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetStripeStatusHandler := connect.NewUnaryHandler(
+		LedgerServiceGetStripeStatusProcedure,
+		svc.GetStripeStatus,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetStripeStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceSetStripeApiKeyHandler := connect.NewUnaryHandler(
+		LedgerServiceSetStripeApiKeyProcedure,
+		svc.SetStripeApiKey,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetStripeApiKey")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceCreateStripeSessionHandler := connect.NewUnaryHandler(
+		LedgerServiceCreateStripeSessionProcedure,
+		svc.CreateStripeSession,
+		connect.WithSchema(ledgerServiceMethods.ByName("CreateStripeSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceLinkStripeAccountsHandler := connect.NewUnaryHandler(
+		LedgerServiceLinkStripeAccountsProcedure,
+		svc.LinkStripeAccounts,
+		connect.WithSchema(ledgerServiceMethods.ByName("LinkStripeAccounts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceListStripeConnectionsHandler := connect.NewUnaryHandler(
+		LedgerServiceListStripeConnectionsProcedure,
+		svc.ListStripeConnections,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListStripeConnections")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceUpdateStripeConnectionHandler := connect.NewUnaryHandler(
+		LedgerServiceUpdateStripeConnectionProcedure,
+		svc.UpdateStripeConnection,
+		connect.WithSchema(ledgerServiceMethods.ByName("UpdateStripeConnection")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceDeleteStripeConnectionHandler := connect.NewUnaryHandler(
+		LedgerServiceDeleteStripeConnectionProcedure,
+		svc.DeleteStripeConnection,
+		connect.WithSchema(ledgerServiceMethods.ByName("DeleteStripeConnection")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceSyncStripeConnectionHandler := connect.NewUnaryHandler(
+		LedgerServiceSyncStripeConnectionProcedure,
+		svc.SyncStripeConnection,
+		connect.WithSchema(ledgerServiceMethods.ByName("SyncStripeConnection")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceRunHledgerQueryHandler := connect.NewUnaryHandler(
 		LedgerServiceRunHledgerQueryProcedure,
 		svc.RunHledgerQuery,
@@ -1399,6 +1585,22 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceSetAIModelHandler.ServeHTTP(w, r)
 		case LedgerServiceSetAIPromptProcedure:
 			ledgerServiceSetAIPromptHandler.ServeHTTP(w, r)
+		case LedgerServiceGetStripeStatusProcedure:
+			ledgerServiceGetStripeStatusHandler.ServeHTTP(w, r)
+		case LedgerServiceSetStripeApiKeyProcedure:
+			ledgerServiceSetStripeApiKeyHandler.ServeHTTP(w, r)
+		case LedgerServiceCreateStripeSessionProcedure:
+			ledgerServiceCreateStripeSessionHandler.ServeHTTP(w, r)
+		case LedgerServiceLinkStripeAccountsProcedure:
+			ledgerServiceLinkStripeAccountsHandler.ServeHTTP(w, r)
+		case LedgerServiceListStripeConnectionsProcedure:
+			ledgerServiceListStripeConnectionsHandler.ServeHTTP(w, r)
+		case LedgerServiceUpdateStripeConnectionProcedure:
+			ledgerServiceUpdateStripeConnectionHandler.ServeHTTP(w, r)
+		case LedgerServiceDeleteStripeConnectionProcedure:
+			ledgerServiceDeleteStripeConnectionHandler.ServeHTTP(w, r)
+		case LedgerServiceSyncStripeConnectionProcedure:
+			ledgerServiceSyncStripeConnectionHandler.ServeHTTP(w, r)
 		case LedgerServiceRunHledgerQueryProcedure:
 			ledgerServiceRunHledgerQueryHandler.ServeHTTP(w, r)
 		default:
@@ -1616,6 +1818,38 @@ func (UnimplementedLedgerServiceHandler) SetAIModel(context.Context, *connect.Re
 
 func (UnimplementedLedgerServiceHandler) SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAIPrompt is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetStripeStatus(context.Context, *connect.Request[v1.GetStripeStatusRequest]) (*connect.Response[v1.GetStripeStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetStripeStatus is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetStripeApiKey(context.Context, *connect.Request[v1.SetStripeApiKeyRequest]) (*connect.Response[v1.SetStripeApiKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetStripeApiKey is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) CreateStripeSession(context.Context, *connect.Request[v1.CreateStripeSessionRequest]) (*connect.Response[v1.CreateStripeSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.CreateStripeSession is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) LinkStripeAccounts(context.Context, *connect.Request[v1.LinkStripeAccountsRequest]) (*connect.Response[v1.LinkStripeAccountsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.LinkStripeAccounts is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListStripeConnections(context.Context, *connect.Request[v1.ListStripeConnectionsRequest]) (*connect.Response[v1.ListStripeConnectionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListStripeConnections is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UpdateStripeConnection(context.Context, *connect.Request[v1.UpdateStripeConnectionRequest]) (*connect.Response[v1.UpdateStripeConnectionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateStripeConnection is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) DeleteStripeConnection(context.Context, *connect.Request[v1.DeleteStripeConnectionRequest]) (*connect.Response[v1.DeleteStripeConnectionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeleteStripeConnection is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SyncStripeConnection(context.Context, *connect.Request[v1.SyncStripeConnectionRequest]) (*connect.Response[v1.SyncStripeConnectionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SyncStripeConnection is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {

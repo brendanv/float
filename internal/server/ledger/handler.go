@@ -22,6 +22,7 @@ import (
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/rules"
 	"github.com/brendanv/float/internal/slogctx"
+	"github.com/brendanv/float/internal/stripeconn"
 	"github.com/brendanv/float/internal/txlock"
 )
 
@@ -37,6 +38,9 @@ type Handler struct {
 	cfg        *config.Config
 	// AIBaseURL overrides the OpenRouter API endpoint. Set in tests only.
 	AIBaseURL string
+	// StripeFactory overrides how a Stripe client is constructed from the
+	// configured API key. Set in tests only; production uses the live SDK.
+	StripeFactory func(apiKey string) (stripeconn.Stripe, error)
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config) *Handler {

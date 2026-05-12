@@ -27,6 +27,10 @@ type AlphaVantageConfig struct {
 	APIKey string `toml:"api_key"`
 }
 
+type StripeConfig struct {
+	APIKey string `toml:"api_key"`
+}
+
 type AIConfig struct {
 	Model  string `toml:"model"`  // OpenRouter model ID; empty = use default
 	Prompt string `toml:"prompt"` // User-defined guidelines prepended to AI system prompts
@@ -37,6 +41,7 @@ type Config struct {
 	Users        []User             `toml:"users"`
 	BankProfiles []BankProfile      `toml:"bank_profiles"`
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
+	Stripe       StripeConfig       `toml:"stripe"`
 	AI           AIConfig           `toml:"ai"`
 }
 

@@ -87,3 +87,11 @@ cmd/floatctl/
 |------------|-------------|
 | `show <config.toml>` | Print parsed config as JSON |
 | `validate <config.toml>` | Validate config; exit 0 if valid |
+
+### `stripe` group
+
+| Subcommand | Description |
+|------------|-------------|
+| `list <data-dir>` | List linked Stripe Financial Connections accounts |
+| `sync <data-dir> [--connection-id ID]` | Pull and import posted transactions |
+| `set-key <data-dir> <api-key>` | Write the Stripe secret key into `config.toml` (empty arg clears it) |

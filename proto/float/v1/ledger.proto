@@ -701,6 +701,95 @@ message SetAIPromptRequest {
 
 message SetAIPromptResponse {}
 
+// ---- Stripe Financial Connections ----
+
+// StripeConnection is a single Stripe Financial Connections account linked
+// to this float installation, plus the hledger-side mapping needed to import
+// its transactions.
+message StripeConnection {
+  string id = 1;                       // 8-char float id used in the stripe-connection: tag
+  string stripe_account_id = 2;        // Stripe id (fca_...)
+  string display_name = 3;
+  string institution_name = 4;
+  string last4 = 5;
+  string account_category = 6;         // cash | credit | investment | other
+  string account_subcategory = 7;
+  string currency = 8;                 // ISO-4217 uppercase
+  string hledger_account = 9;          // asset/liability account this represents
+  string default_inflow_account = 10;  // other-side default when stripe.amount > 0
+  string default_outflow_account = 11; // other-side default when stripe.amount < 0
+  string last_synced_at = 12;          // RFC3339; empty if never synced
+  int32 imported_count = 13;           // size of imported_ids
+  string created_at = 14;              // RFC3339
+}
+
+message GetStripeStatusRequest {}
+
+message GetStripeStatusResponse {
+  bool api_key_configured = 1;
+  string api_key_preview = 2;          // first 7 chars + "..." if configured
+  int32 connection_count = 3;
+}
+
+message SetStripeApiKeyRequest {
+  string api_key = 1;                  // empty clears the key
+}
+
+message SetStripeApiKeyResponse {}
+
+message CreateStripeSessionRequest {
+  string return_url = 1;               // optional, for webview integrations
+}
+
+message CreateStripeSessionResponse {
+  string client_secret = 1;            // pass to Stripe.js collectFinancialConnectionsAccounts
+}
+
+message LinkStripeAccountsRequest {
+  repeated string stripe_account_ids = 1; // returned by Stripe.js
+}
+
+message LinkStripeAccountsResponse {
+  // One entry per requested account, in input order. Newly-linked accounts
+  // appear here with empty hledger_account; existing connections are
+  // returned with their stored values.
+  repeated StripeConnection connections = 1;
+}
+
+message ListStripeConnectionsRequest {}
+
+message ListStripeConnectionsResponse {
+  repeated StripeConnection connections = 1;
+}
+
+message UpdateStripeConnectionRequest {
+  string id = 1;
+  string display_name = 2;
+  string hledger_account = 3;
+  string default_inflow_account = 4;
+  string default_outflow_account = 5;
+}
+
+message UpdateStripeConnectionResponse {
+  StripeConnection connection = 1;
+}
+
+message DeleteStripeConnectionRequest {
+  string id = 1;
+}
+
+message DeleteStripeConnectionResponse {}
+
+message SyncStripeConnectionRequest {
+  string id = 1;
+}
+
+message SyncStripeConnectionResponse {
+  int32 imported = 1;
+  int32 skipped = 2;
+  StripeConnection connection = 3;     // updated state after the sync
+}
+
 message RunHledgerQueryRequest {
   // The hledger command to run, e.g. "bal --depth 2 assets" or "print date:2024".
   // Do NOT include the hledger binary path or the -f <journal> flag — the server
@@ -784,6 +873,16 @@ service LedgerService {
   rpc GetAIConfig(GetAIConfigRequest) returns (GetAIConfigResponse);
   rpc SetAIModel(SetAIModelRequest) returns (SetAIModelResponse);
   rpc SetAIPrompt(SetAIPromptRequest) returns (SetAIPromptResponse);
+
+  // Stripe Financial Connections
+  rpc GetStripeStatus(GetStripeStatusRequest) returns (GetStripeStatusResponse);
+  rpc SetStripeApiKey(SetStripeApiKeyRequest) returns (SetStripeApiKeyResponse);
+  rpc CreateStripeSession(CreateStripeSessionRequest) returns (CreateStripeSessionResponse);
+  rpc LinkStripeAccounts(LinkStripeAccountsRequest) returns (LinkStripeAccountsResponse);
+  rpc ListStripeConnections(ListStripeConnectionsRequest) returns (ListStripeConnectionsResponse);
+  rpc UpdateStripeConnection(UpdateStripeConnectionRequest) returns (UpdateStripeConnectionResponse);
+  rpc DeleteStripeConnection(DeleteStripeConnectionRequest) returns (DeleteStripeConnectionResponse);
+  rpc SyncStripeConnection(SyncStripeConnectionRequest) returns (SyncStripeConnectionResponse);
 
   // Debug / Investigation
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);

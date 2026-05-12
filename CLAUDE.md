@@ -85,9 +85,14 @@ data/
 ├── prices.journal        # P directives for commodity prices (auto-created)
 ├── rules/                # hledger CSV rules files per bank (for import parsing)
 ├── rules.json            # float categorization rules (auto-categorization after import)
+├── stripe/connections.json # Stripe Financial Connections state (see internal/stripeconn/)
 ├── 2026/01.journal       # transactions grouped by month
-└── config.toml           # bank profiles, users
+└── config.toml           # bank profiles, users, API keys
 ```
+
+#### Stripe Financial Connections
+
+Optional integration that pulls transactions from a user's bank accounts through Stripe FC and writes them straight to the journal (tagged with `stripe-txn-id:`, `source: stripe`, `stripe-connection:`). See `internal/stripeconn/` for the import pipeline, sign convention and dedup strategy. The settings live under `[stripe]` in `config.toml`; the web UI is at `/stripe`.
 
 `internal/journal/` handles text-level file manipulation (no accounting semantics). See `internal/journal/CLAUDE.md`.
 
