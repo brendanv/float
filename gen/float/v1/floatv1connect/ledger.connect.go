@@ -161,6 +161,27 @@ const (
 	// LedgerServiceApplyRulesProcedure is the fully-qualified name of the LedgerService's ApplyRules
 	// RPC.
 	LedgerServiceApplyRulesProcedure = "/float.v1.LedgerService/ApplyRules"
+	// LedgerServiceGetStripeConfigProcedure is the fully-qualified name of the LedgerService's
+	// GetStripeConfig RPC.
+	LedgerServiceGetStripeConfigProcedure = "/float.v1.LedgerService/GetStripeConfig"
+	// LedgerServiceCreateStripeLinkSessionProcedure is the fully-qualified name of the LedgerService's
+	// CreateStripeLinkSession RPC.
+	LedgerServiceCreateStripeLinkSessionProcedure = "/float.v1.LedgerService/CreateStripeLinkSession"
+	// LedgerServiceCompleteStripeLinkingProcedure is the fully-qualified name of the LedgerService's
+	// CompleteStripeLinking RPC.
+	LedgerServiceCompleteStripeLinkingProcedure = "/float.v1.LedgerService/CompleteStripeLinking"
+	// LedgerServiceListStripeLinkedAccountsProcedure is the fully-qualified name of the LedgerService's
+	// ListStripeLinkedAccounts RPC.
+	LedgerServiceListStripeLinkedAccountsProcedure = "/float.v1.LedgerService/ListStripeLinkedAccounts"
+	// LedgerServiceUnlinkStripeAccountProcedure is the fully-qualified name of the LedgerService's
+	// UnlinkStripeAccount RPC.
+	LedgerServiceUnlinkStripeAccountProcedure = "/float.v1.LedgerService/UnlinkStripeAccount"
+	// LedgerServiceFetchStripeTransactionsProcedure is the fully-qualified name of the LedgerService's
+	// FetchStripeTransactions RPC.
+	LedgerServiceFetchStripeTransactionsProcedure = "/float.v1.LedgerService/FetchStripeTransactions"
+	// LedgerServiceImportStripeTransactionsProcedure is the fully-qualified name of the LedgerService's
+	// ImportStripeTransactions RPC.
+	LedgerServiceImportStripeTransactionsProcedure = "/float.v1.LedgerService/ImportStripeTransactions"
 	// LedgerServiceSuggestRulesProcedure is the fully-qualified name of the LedgerService's
 	// SuggestRules RPC.
 	LedgerServiceSuggestRulesProcedure = "/float.v1.LedgerService/SuggestRules"
@@ -238,6 +259,14 @@ type LedgerServiceClient interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	// Stripe Financial Connections
+	GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error)
+	CreateStripeLinkSession(context.Context, *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error)
+	CompleteStripeLinking(context.Context, *connect.Request[v1.CompleteStripeLinkingRequest]) (*connect.Response[v1.CompleteStripeLinkingResponse], error)
+	ListStripeLinkedAccounts(context.Context, *connect.Request[v1.ListStripeLinkedAccountsRequest]) (*connect.Response[v1.ListStripeLinkedAccountsResponse], error)
+	UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error)
+	FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error)
+	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -527,6 +556,48 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 			connect.WithClientOptions(opts...),
 		),
+		getStripeConfig: connect.NewClient[v1.GetStripeConfigRequest, v1.GetStripeConfigResponse](
+			httpClient,
+			baseURL+LedgerServiceGetStripeConfigProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetStripeConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		createStripeLinkSession: connect.NewClient[v1.CreateStripeLinkSessionRequest, v1.CreateStripeLinkSessionResponse](
+			httpClient,
+			baseURL+LedgerServiceCreateStripeLinkSessionProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("CreateStripeLinkSession")),
+			connect.WithClientOptions(opts...),
+		),
+		completeStripeLinking: connect.NewClient[v1.CompleteStripeLinkingRequest, v1.CompleteStripeLinkingResponse](
+			httpClient,
+			baseURL+LedgerServiceCompleteStripeLinkingProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("CompleteStripeLinking")),
+			connect.WithClientOptions(opts...),
+		),
+		listStripeLinkedAccounts: connect.NewClient[v1.ListStripeLinkedAccountsRequest, v1.ListStripeLinkedAccountsResponse](
+			httpClient,
+			baseURL+LedgerServiceListStripeLinkedAccountsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListStripeLinkedAccounts")),
+			connect.WithClientOptions(opts...),
+		),
+		unlinkStripeAccount: connect.NewClient[v1.UnlinkStripeAccountRequest, v1.UnlinkStripeAccountResponse](
+			httpClient,
+			baseURL+LedgerServiceUnlinkStripeAccountProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UnlinkStripeAccount")),
+			connect.WithClientOptions(opts...),
+		),
+		fetchStripeTransactions: connect.NewClient[v1.FetchStripeTransactionsRequest, v1.FetchStripeTransactionsResponse](
+			httpClient,
+			baseURL+LedgerServiceFetchStripeTransactionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("FetchStripeTransactions")),
+			connect.WithClientOptions(opts...),
+		),
+		importStripeTransactions: connect.NewClient[v1.ImportStripeTransactionsRequest, v1.ImportTransactionsResponse](
+			httpClient,
+			baseURL+LedgerServiceImportStripeTransactionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ImportStripeTransactions")),
+			connect.WithClientOptions(opts...),
+		),
 		suggestRules: connect.NewClient[v1.SuggestRulesRequest, v1.SuggestRulesResponse](
 			httpClient,
 			baseURL+LedgerServiceSuggestRulesProcedure,
@@ -630,6 +701,13 @@ type ledgerServiceClient struct {
 	deleteRule                   *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
 	previewApplyRules            *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
 	applyRules                   *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
+	getStripeConfig              *connect.Client[v1.GetStripeConfigRequest, v1.GetStripeConfigResponse]
+	createStripeLinkSession      *connect.Client[v1.CreateStripeLinkSessionRequest, v1.CreateStripeLinkSessionResponse]
+	completeStripeLinking        *connect.Client[v1.CompleteStripeLinkingRequest, v1.CompleteStripeLinkingResponse]
+	listStripeLinkedAccounts     *connect.Client[v1.ListStripeLinkedAccountsRequest, v1.ListStripeLinkedAccountsResponse]
+	unlinkStripeAccount          *connect.Client[v1.UnlinkStripeAccountRequest, v1.UnlinkStripeAccountResponse]
+	fetchStripeTransactions      *connect.Client[v1.FetchStripeTransactionsRequest, v1.FetchStripeTransactionsResponse]
+	importStripeTransactions     *connect.Client[v1.ImportStripeTransactionsRequest, v1.ImportTransactionsResponse]
 	suggestRules                 *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
 	translateQuery               *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
 	askQuestion                  *connect.Client[v1.AskQuestionRequest, v1.AskQuestionResponse]
@@ -861,6 +939,41 @@ func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Reque
 	return c.applyRules.CallUnary(ctx, req)
 }
 
+// GetStripeConfig calls float.v1.LedgerService.GetStripeConfig.
+func (c *ledgerServiceClient) GetStripeConfig(ctx context.Context, req *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error) {
+	return c.getStripeConfig.CallUnary(ctx, req)
+}
+
+// CreateStripeLinkSession calls float.v1.LedgerService.CreateStripeLinkSession.
+func (c *ledgerServiceClient) CreateStripeLinkSession(ctx context.Context, req *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error) {
+	return c.createStripeLinkSession.CallUnary(ctx, req)
+}
+
+// CompleteStripeLinking calls float.v1.LedgerService.CompleteStripeLinking.
+func (c *ledgerServiceClient) CompleteStripeLinking(ctx context.Context, req *connect.Request[v1.CompleteStripeLinkingRequest]) (*connect.Response[v1.CompleteStripeLinkingResponse], error) {
+	return c.completeStripeLinking.CallUnary(ctx, req)
+}
+
+// ListStripeLinkedAccounts calls float.v1.LedgerService.ListStripeLinkedAccounts.
+func (c *ledgerServiceClient) ListStripeLinkedAccounts(ctx context.Context, req *connect.Request[v1.ListStripeLinkedAccountsRequest]) (*connect.Response[v1.ListStripeLinkedAccountsResponse], error) {
+	return c.listStripeLinkedAccounts.CallUnary(ctx, req)
+}
+
+// UnlinkStripeAccount calls float.v1.LedgerService.UnlinkStripeAccount.
+func (c *ledgerServiceClient) UnlinkStripeAccount(ctx context.Context, req *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error) {
+	return c.unlinkStripeAccount.CallUnary(ctx, req)
+}
+
+// FetchStripeTransactions calls float.v1.LedgerService.FetchStripeTransactions.
+func (c *ledgerServiceClient) FetchStripeTransactions(ctx context.Context, req *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error) {
+	return c.fetchStripeTransactions.CallUnary(ctx, req)
+}
+
+// ImportStripeTransactions calls float.v1.LedgerService.ImportStripeTransactions.
+func (c *ledgerServiceClient) ImportStripeTransactions(ctx context.Context, req *connect.Request[v1.ImportStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error) {
+	return c.importStripeTransactions.CallServerStream(ctx, req)
+}
+
 // SuggestRules calls float.v1.LedgerService.SuggestRules.
 func (c *ledgerServiceClient) SuggestRules(ctx context.Context, req *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
 	return c.suggestRules.CallUnary(ctx, req)
@@ -954,6 +1067,14 @@ type LedgerServiceHandler interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	// Stripe Financial Connections
+	GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error)
+	CreateStripeLinkSession(context.Context, *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error)
+	CompleteStripeLinking(context.Context, *connect.Request[v1.CompleteStripeLinkingRequest]) (*connect.Response[v1.CompleteStripeLinkingResponse], error)
+	ListStripeLinkedAccounts(context.Context, *connect.Request[v1.ListStripeLinkedAccountsRequest]) (*connect.Response[v1.ListStripeLinkedAccountsResponse], error)
+	UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error)
+	FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error)
+	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -1239,6 +1360,48 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetStripeConfigHandler := connect.NewUnaryHandler(
+		LedgerServiceGetStripeConfigProcedure,
+		svc.GetStripeConfig,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetStripeConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceCreateStripeLinkSessionHandler := connect.NewUnaryHandler(
+		LedgerServiceCreateStripeLinkSessionProcedure,
+		svc.CreateStripeLinkSession,
+		connect.WithSchema(ledgerServiceMethods.ByName("CreateStripeLinkSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceCompleteStripeLinkingHandler := connect.NewUnaryHandler(
+		LedgerServiceCompleteStripeLinkingProcedure,
+		svc.CompleteStripeLinking,
+		connect.WithSchema(ledgerServiceMethods.ByName("CompleteStripeLinking")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceListStripeLinkedAccountsHandler := connect.NewUnaryHandler(
+		LedgerServiceListStripeLinkedAccountsProcedure,
+		svc.ListStripeLinkedAccounts,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListStripeLinkedAccounts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceUnlinkStripeAccountHandler := connect.NewUnaryHandler(
+		LedgerServiceUnlinkStripeAccountProcedure,
+		svc.UnlinkStripeAccount,
+		connect.WithSchema(ledgerServiceMethods.ByName("UnlinkStripeAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceFetchStripeTransactionsHandler := connect.NewUnaryHandler(
+		LedgerServiceFetchStripeTransactionsProcedure,
+		svc.FetchStripeTransactions,
+		connect.WithSchema(ledgerServiceMethods.ByName("FetchStripeTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceImportStripeTransactionsHandler := connect.NewServerStreamHandler(
+		LedgerServiceImportStripeTransactionsProcedure,
+		svc.ImportStripeTransactions,
+		connect.WithSchema(ledgerServiceMethods.ByName("ImportStripeTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceSuggestRulesHandler := connect.NewUnaryHandler(
 		LedgerServiceSuggestRulesProcedure,
 		svc.SuggestRules,
@@ -1383,6 +1546,20 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServicePreviewApplyRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceApplyRulesProcedure:
 			ledgerServiceApplyRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceGetStripeConfigProcedure:
+			ledgerServiceGetStripeConfigHandler.ServeHTTP(w, r)
+		case LedgerServiceCreateStripeLinkSessionProcedure:
+			ledgerServiceCreateStripeLinkSessionHandler.ServeHTTP(w, r)
+		case LedgerServiceCompleteStripeLinkingProcedure:
+			ledgerServiceCompleteStripeLinkingHandler.ServeHTTP(w, r)
+		case LedgerServiceListStripeLinkedAccountsProcedure:
+			ledgerServiceListStripeLinkedAccountsHandler.ServeHTTP(w, r)
+		case LedgerServiceUnlinkStripeAccountProcedure:
+			ledgerServiceUnlinkStripeAccountHandler.ServeHTTP(w, r)
+		case LedgerServiceFetchStripeTransactionsProcedure:
+			ledgerServiceFetchStripeTransactionsHandler.ServeHTTP(w, r)
+		case LedgerServiceImportStripeTransactionsProcedure:
+			ledgerServiceImportStripeTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceSuggestRulesProcedure:
 			ledgerServiceSuggestRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceTranslateQueryProcedure:
@@ -1584,6 +1761,34 @@ func (UnimplementedLedgerServiceHandler) PreviewApplyRules(context.Context, *con
 
 func (UnimplementedLedgerServiceHandler) ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ApplyRules is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetStripeConfig is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) CreateStripeLinkSession(context.Context, *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.CreateStripeLinkSession is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) CompleteStripeLinking(context.Context, *connect.Request[v1.CompleteStripeLinkingRequest]) (*connect.Response[v1.CompleteStripeLinkingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.CompleteStripeLinking is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListStripeLinkedAccounts(context.Context, *connect.Request[v1.ListStripeLinkedAccountsRequest]) (*connect.Response[v1.ListStripeLinkedAccountsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListStripeLinkedAccounts is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UnlinkStripeAccount is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.FetchStripeTransactions is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportStripeTransactions is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {

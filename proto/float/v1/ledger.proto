@@ -626,6 +626,69 @@ message GetPortfolioTimeseriesResponse {
   repeated PortfolioTimeseriesSnapshot snapshots = 1;
 }
 
+// ---- Stripe Financial Connections ----
+
+message StripeLinkedAccount {
+  string stripe_account_id = 1;
+  string hledger_account = 2;
+  string display_name = 3;
+  string last_fetched_at = 4; // RFC3339; empty if never fetched
+}
+
+message GetStripeConfigRequest {}
+
+message GetStripeConfigResponse {
+  bool enabled = 1;               // true if STRIPE_SECRET_KEY env var is set
+  string publishable_key = 2;     // value of STRIPE_PUBLISHABLE_KEY env var; empty if not set
+  int32 linked_account_count = 3;
+}
+
+message CreateStripeLinkSessionRequest {}
+
+message CreateStripeLinkSessionResponse {
+  string client_secret = 1; // FC session client_secret for Stripe.js
+}
+
+message LinkedAccountInput {
+  string stripe_account_id = 1;
+  string hledger_account = 2;
+  string display_name = 3;
+}
+
+message CompleteStripeLinkingRequest {
+  string session_id = 1;
+  repeated LinkedAccountInput accounts = 2;
+}
+
+message CompleteStripeLinkingResponse {
+  repeated StripeLinkedAccount linked_accounts = 1;
+}
+
+message ListStripeLinkedAccountsRequest {}
+
+message ListStripeLinkedAccountsResponse {
+  repeated StripeLinkedAccount accounts = 1;
+}
+
+message UnlinkStripeAccountRequest {
+  string stripe_account_id = 1;
+}
+
+message UnlinkStripeAccountResponse {}
+
+message FetchStripeTransactionsRequest {
+  string stripe_account_id = 1;
+}
+
+message FetchStripeTransactionsResponse {
+  repeated ImportCandidate candidates = 1;
+}
+
+message ImportStripeTransactionsRequest {
+  string stripe_account_id = 1;
+  repeated int32 candidate_indices = 2;
+}
+
 // ---- AI ----
 
 message SuggestedRule {
@@ -772,6 +835,15 @@ service LedgerService {
   rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
   rpc PreviewApplyRules(PreviewApplyRulesRequest) returns (PreviewApplyRulesResponse);
   rpc ApplyRules(ApplyRulesRequest) returns (ApplyRulesResponse);
+
+  // Stripe Financial Connections
+  rpc GetStripeConfig(GetStripeConfigRequest) returns (GetStripeConfigResponse);
+  rpc CreateStripeLinkSession(CreateStripeLinkSessionRequest) returns (CreateStripeLinkSessionResponse);
+  rpc CompleteStripeLinking(CompleteStripeLinkingRequest) returns (CompleteStripeLinkingResponse);
+  rpc ListStripeLinkedAccounts(ListStripeLinkedAccountsRequest) returns (ListStripeLinkedAccountsResponse);
+  rpc UnlinkStripeAccount(UnlinkStripeAccountRequest) returns (UnlinkStripeAccountResponse);
+  rpc FetchStripeTransactions(FetchStripeTransactionsRequest) returns (FetchStripeTransactionsResponse);
+  rpc ImportStripeTransactions(ImportStripeTransactionsRequest) returns (stream ImportTransactionsResponse);
 
   // AI
   rpc SuggestRules(SuggestRulesRequest) returns (SuggestRulesResponse);
