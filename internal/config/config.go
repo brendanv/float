@@ -32,12 +32,25 @@ type AIConfig struct {
 	Prompt string `toml:"prompt"` // User-defined guidelines prepended to AI system prompts
 }
 
+type StripeLinkedAccount struct {
+	StripeAccountID string `toml:"stripe_account_id"`
+	HledgerAccount  string `toml:"hledger_account"`
+	DisplayName     string `toml:"display_name"`
+	LastFetchedAt   string `toml:"last_fetched_at"` // RFC3339; empty if never fetched
+}
+
+type StripeConfig struct {
+	CustomerID     string                `toml:"customer_id"`
+	LinkedAccounts []StripeLinkedAccount `toml:"linked_accounts"`
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	Users        []User             `toml:"users"`
 	BankProfiles []BankProfile      `toml:"bank_profiles"`
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 	AI           AIConfig           `toml:"ai"`
+	Stripe       StripeConfig       `toml:"stripe"`
 }
 
 // Load parses config.toml at path and returns a *Config.
