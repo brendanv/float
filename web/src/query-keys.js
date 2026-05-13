@@ -20,4 +20,6 @@ export const queryKeys = {
   portfolioTimeseries:  (accountPrefix = "", begin = "") => ["portfolioTimeseries", accountPrefix, begin],
   alphaVantageConfig:   () => ["alphaVantageConfig"],
   aiConfig:             () => ["aiConfig"],
+  stripeConfig:         () => ["stripeConfig"],
+  stripeLinkedAccounts: () => ["stripeLinkedAccounts"],
 };
