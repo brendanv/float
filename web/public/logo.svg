@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 108">
+  <defs>
+    <linearGradient id="oGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5BC8F5"/>
+      <stop offset="100%" stop-color="#1E88E5"/>
+    </linearGradient>
+    <clipPath id="oClip">
+      <circle cx="135" cy="54" r="44"/>
+    </clipPath>
+  </defs>
+
+  <!-- "fl" letters -->
+  <text x="8" y="96"
+        font-family="Montserrat, 'Nunito', 'Varela Round', system-ui, sans-serif"
+        font-size="100" font-weight="700" fill="#1565C0" letter-spacing="-3">fl</text>
+
+  <!-- "o" replaced by boat emblem circle -->
+  <circle cx="135" cy="54" r="44" fill="url(#oGrad)"/>
+
+  <!-- Waves inside "o" circle -->
+  <path d="M 91,72 Q 105,62 119,72 Q 133,82 147,72 Q 161,62 175,69 L 179,71 L 179,98 L 91,98 Z"
+        fill="#0D47A1" clip-path="url(#oClip)"/>
+  <path d="M 91,78 Q 106,68 121,78 Q 136,88 151,78 Q 164,70 179,75 L 179,98 L 91,98 Z"
+        fill="#0A3880" clip-path="url(#oClip)"/>
+
+  <!-- Boat: left sail -->
+  <polygon points="108,67 135,67 122,44" fill="white" clip-path="url(#oClip)"/>
+  <!-- Boat: right sail (taller) -->
+  <polygon points="135,67 162,67 135,37" fill="white" clip-path="url(#oClip)"/>
+  <!-- Boat: hull -->
+  <polygon points="108,67 162,67 158,76 112,76" fill="white" clip-path="url(#oClip)"/>
+  <!-- Fold shadow on right sail -->
+  <polygon points="135,67 135,37 140,67" fill="rgba(180,210,245,0.35)" clip-path="url(#oClip)"/>
+  <!-- Hull shadow -->
+  <polygon points="135,67 158,67 158,76 135,76" fill="rgba(180,210,245,0.25)" clip-path="url(#oClip)"/>
+
+  <!-- "at" letters -->
+  <text x="182" y="96"
+        font-family="Montserrat, 'Nunito', 'Varela Round', system-ui, sans-serif"
+        font-size="100" font-weight="700" fill="#1565C0" letter-spacing="-3">at</text>
+</svg>

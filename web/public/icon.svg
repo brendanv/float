@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5BC8F5"/>
+      <stop offset="60%" stop-color="#1E88E5"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky/water background -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- Back wave layer -->
+  <path d="M 0,298 Q 64,252 128,298 Q 192,344 256,298 Q 320,252 384,298 Q 448,344 512,300 L 512,512 L 0,512 Z" fill="#0D47A1"/>
+
+  <!-- Front wave layer (darker, slightly higher crests) -->
+  <path d="M 0,338 Q 64,292 128,338 Q 192,384 256,338 Q 320,292 384,338 Q 448,384 512,340 L 512,512 L 0,512 Z" fill="#0A3880"/>
+
+  <!-- Paper boat: left sail (shorter, angled) -->
+  <polygon points="192,293 256,293 222,158" fill="white"/>
+
+  <!-- Paper boat: right sail (taller, main peak) -->
+  <polygon points="256,293 325,293 256,135" fill="white"/>
+
+  <!-- Paper boat: hull -->
+  <polygon points="180,293 332,293 318,322 194,322" fill="white"/>
+
+  <!-- Fold shadow on right sail -->
+  <polygon points="256,293 256,135 268,293" fill="rgba(180,210,245,0.30)"/>
+
+  <!-- Hull depth shadow -->
+  <polygon points="256,293 318,293 318,322 256,322" fill="rgba(180,210,245,0.20)"/>
+</svg>
