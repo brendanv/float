@@ -18,6 +18,10 @@ run = "go test ./..."
 description = "Run all tests with verbose output"
 run = "go test -v ./..."
 
+[tasks.test-failures]
+description = "Run tests and print only failures with their output (compact for debugging)"
+run = "go test -json ./... 2>&1 | python3 scripts/test-failures.py"
+
 [tasks.lint]
 description = "Run golangci-lint"
 run = "golangci-lint run ./..."
