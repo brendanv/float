@@ -131,15 +131,7 @@ function AppSidebar({ currentPath, onAddTransaction }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/" onClick={closeMobile} />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <img src="/icon.png" alt="" className="size-6 rounded" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">float</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  Personal Finance
-                </span>
-              </div>
+              <img src="/text_logo.png" alt="float" className="h-8 w-auto" />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
