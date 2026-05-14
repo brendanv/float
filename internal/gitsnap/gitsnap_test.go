@@ -65,6 +65,34 @@ func TestCommit_StagesAndCommits(t *testing.T) {
 	}
 }
 
+func TestCommit_MessageIsCapped(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "test.journal"), []byte("hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	longMsg := strings.Repeat("a", maxCommitMessageLen+25)
+	if err := repo.Commit(ctx, longMsg); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	snaps, err := repo.List(ctx, 10)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := len(snaps[0].Message); got != maxCommitMessageLen {
+		t.Fatalf("snapshot message len = %d, want %d", got, maxCommitMessageLen)
+	}
+	if !strings.HasSuffix(snaps[0].Message, "...") {
+		t.Fatalf("expected truncated message to end with ellipsis, got %q", snaps[0].Message)
+	}
+}
+
 func TestCommit_NothingToCommit(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()
