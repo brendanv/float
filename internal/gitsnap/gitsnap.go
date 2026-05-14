@@ -21,6 +21,8 @@ type Repo struct {
 	repo *git.Repository
 }
 
+const maxCommitMessageLen = 180
+
 type Snapshot struct {
 	Hash      string
 	Message   string
@@ -107,10 +109,21 @@ func (r *Repo) Commit(_ context.Context, msg string) error {
 	if err := wt.AddWithOptions(&git.AddOptions{All: true}); err != nil {
 		return fmt.Errorf("gitsnap: commit: add: %w", err)
 	}
-	if _, err := wt.Commit(msg, &git.CommitOptions{Author: floatSignature()}); err != nil {
+	if _, err := wt.Commit(limitCommitMessage(msg), &git.CommitOptions{Author: floatSignature()}); err != nil {
 		return fmt.Errorf("gitsnap: commit: %w", err)
 	}
 	return nil
+}
+
+func limitCommitMessage(msg string) string {
+	runes := []rune(msg)
+	if len(runes) <= maxCommitMessageLen {
+		return msg
+	}
+	if maxCommitMessageLen <= 3 {
+		return string(runes[:maxCommitMessageLen])
+	}
+	return string(runes[:maxCommitMessageLen-3]) + "..."
 }
 
 func (r *Repo) List(_ context.Context, limit int) ([]Snapshot, error) {

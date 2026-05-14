@@ -1,6 +1,7 @@
 package ledger_test
 
 import (
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -153,6 +154,38 @@ func TestAddRuleHandler(t *testing.T) {
 		}
 		if len(loaded) != 3 {
 			t.Errorf("got %d rules on disk, want 3", len(loaded))
+		}
+	})
+
+	t.Run("bulk_rule_snapshot_message_is_capped", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 65, NumTxns: 1})
+		h, snap := mustRealHandlerWithSnap(t, dir)
+
+		req := &floatv1.AddRuleRequest{
+			Rules: []*floatv1.RuleInput{
+				{Pattern: "THIS_IS_A_VERY_LONG_RULE_PATTERN_ALPHA_1234567890"},
+				{Pattern: "THIS_IS_A_VERY_LONG_RULE_PATTERN_BETA_1234567890"},
+				{Pattern: "THIS_IS_A_VERY_LONG_RULE_PATTERN_GAMMA_1234567890"},
+				{Pattern: "THIS_IS_A_VERY_LONG_RULE_PATTERN_DELTA_1234567890"},
+			},
+		}
+		if _, err := h.AddRule(t.Context(), connect.NewRequest(req)); err != nil {
+			t.Fatalf("AddRule: %v", err)
+		}
+
+		snaps, err := snap.List(t.Context(), 20)
+		if err != nil {
+			t.Fatalf("List snapshots: %v", err)
+		}
+		if len(snaps) == 0 {
+			t.Fatal("expected at least one snapshot")
+		}
+		msg := snaps[0].Message
+		if got, max := len(msg), 180; got > max {
+			t.Fatalf("snapshot message too long: got %d, want <= %d. msg=%q", got, max, msg)
+		}
+		if !strings.Contains(msg, "+") || !strings.Contains(msg, "more") {
+			t.Fatalf("expected truncated bulk message with '+N more', got %q", msg)
 		}
 	})
 

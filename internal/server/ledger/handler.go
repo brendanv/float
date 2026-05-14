@@ -2152,7 +2152,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 	}
 
 	var newRules []rules.Rule
-	err := h.lock.Do(ctx, fmt.Sprintf("add %d rule(s): %s", len(req.Msg.Rules), strings.Join(patterns, ", ")), func() error {
+	err := h.lock.Do(ctx, addRuleMessage(patterns), func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -2181,6 +2181,66 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 		out[i] = toProtoRule(r)
 	}
 	return connect.NewResponse(&floatv1.AddRuleResponse{Rules: out}), nil
+}
+
+const maxSnapshotDescriptionLen = 180
+
+func addRuleMessage(patterns []string) string {
+	prefix := fmt.Sprintf("add %d rule(s)", len(patterns))
+	if len(patterns) == 0 {
+		return prefix
+	}
+	full := prefix + ": " + strings.Join(patterns, ", ")
+	if len(full) <= maxSnapshotDescriptionLen {
+		return full
+	}
+
+	base := prefix + ": "
+	remaining := maxSnapshotDescriptionLen - len(base)
+	if remaining <= 0 {
+		return prefix
+	}
+
+	var b strings.Builder
+	used := 0
+	appended := 0
+	for i, pattern := range patterns {
+		part := pattern
+		if appended > 0 {
+			part = ", " + pattern
+		}
+		if used+len(part) > remaining {
+			left := len(patterns) - i
+			if left > 0 {
+				suffix := fmt.Sprintf(" ... +%d more", left)
+				for appended > 0 && used+len(suffix) > remaining {
+					text := b.String()
+					last := strings.LastIndex(text, ", ")
+					if last < 0 {
+						b.Reset()
+						used = 0
+						appended = 0
+						break
+					}
+					b.Reset()
+					b.WriteString(text[:last])
+					used = len(text[:last])
+					appended--
+				}
+				if used+len(suffix) <= remaining {
+					b.WriteString(suffix)
+				}
+			}
+			break
+		}
+		b.WriteString(part)
+		used += len(part)
+		appended++
+	}
+	if b.Len() == 0 {
+		return prefix
+	}
+	return base + b.String()
 }
 
 func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.UpdateRuleRequest]) (*connect.Response[floatv1.UpdateRuleResponse], error) {
