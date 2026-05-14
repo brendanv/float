@@ -1,0 +1,715 @@
+package ledger_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"connectrpc.com/connect"
+	stripelib "github.com/stripe/stripe-go/v82"
+
+	floatv1 "github.com/brendanv/float/gen/float/v1"
+	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
+	"github.com/brendanv/float/internal/config"
+	"github.com/brendanv/float/internal/hledger"
+	serverledger "github.com/brendanv/float/internal/server/ledger"
+	"github.com/brendanv/float/internal/testgen"
+	"github.com/brendanv/float/internal/txlock"
+)
+
+func mustHandlerWithConfig(t *testing.T, dir string, cfg *config.Config) *serverledger.Handler {
+	t.Helper()
+	c, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	configPath := filepath.Join(dir, "config.toml")
+	if err := config.Save(configPath, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	lock := txlock.New(dir, c)
+	return serverledger.NewHandler(c, lock, dir, configPath, nil, nil, cfg)
+}
+
+func mockStripeAPI(t *testing.T, mux *http.ServeMux) {
+	t.Helper()
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	zero := int64(0)
+	backend := stripelib.GetBackendWithConfig(stripelib.APIBackend, &stripelib.BackendConfig{
+		URL:               stripelib.String(ts.URL),
+		HTTPClient:        ts.Client(),
+		LeveledLogger:     &stripelib.LeveledLogger{Level: stripelib.LevelNull},
+		MaxNetworkRetries: &zero,
+	})
+	old := stripelib.GetBackend(stripelib.APIBackend)
+	stripelib.SetBackend(stripelib.APIBackend, backend)
+	t.Cleanup(func() { stripelib.SetBackend(stripelib.APIBackend, old) })
+}
+
+func writeStripeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func importStripeTransactions(t *testing.T, h *serverledger.Handler, req *floatv1.ImportStripeTransactionsRequest) (*floatv1.ImportTransactionsResult, error) {
+	t.Helper()
+	mux := http.NewServeMux()
+	path, handler := floatv1connect.NewLedgerServiceHandler(h)
+	mux.Handle(path, handler)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := floatv1connect.NewLedgerServiceClient(srv.Client(), srv.URL)
+	stream, err := client.ImportStripeTransactions(t.Context(), connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() { _ = stream.Close() })
+
+	var result *floatv1.ImportTransactionsResult
+	for stream.Receive() {
+		if p, ok := stream.Msg().Payload.(*floatv1.ImportTransactionsResponse_Result); ok {
+			result = p.Result
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func TestGetStripeConfig(t *testing.T) {
+	t.Run("disabled when env var not set", func(t *testing.T) {
+		t.Setenv("STRIPE_SECRET_KEY", "")
+		t.Setenv("STRIPE_PUBLISHABLE_KEY", "")
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 700, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		resp, err := h.GetStripeConfig(t.Context(), connect.NewRequest(&floatv1.GetStripeConfigRequest{}))
+		if err != nil {
+			t.Fatalf("GetStripeConfig: %v", err)
+		}
+		if resp.Msg.Enabled {
+			t.Error("Enabled = true, want false when STRIPE_SECRET_KEY is not set")
+		}
+		if resp.Msg.PublishableKey != "" {
+			t.Errorf("PublishableKey = %q, want empty", resp.Msg.PublishableKey)
+		}
+		if resp.Msg.LinkedAccountCount != 1 {
+			t.Errorf("LinkedAccountCount = %d, want 1", resp.Msg.LinkedAccountCount)
+		}
+	})
+
+	t.Run("enabled when env var is set", func(t *testing.T) {
+		t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+		t.Setenv("STRIPE_PUBLISHABLE_KEY", "pk_test_xxx")
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 701, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		resp, err := h.GetStripeConfig(t.Context(), connect.NewRequest(&floatv1.GetStripeConfigRequest{}))
+		if err != nil {
+			t.Fatalf("GetStripeConfig: %v", err)
+		}
+		if !resp.Msg.Enabled {
+			t.Error("Enabled = false, want true when STRIPE_SECRET_KEY is set")
+		}
+		if resp.Msg.PublishableKey != "pk_test_xxx" {
+			t.Errorf("PublishableKey = %q, want %q", resp.Msg.PublishableKey, "pk_test_xxx")
+		}
+		if resp.Msg.LinkedAccountCount != 0 {
+			t.Errorf("LinkedAccountCount = %d, want 0", resp.Msg.LinkedAccountCount)
+		}
+	})
+
+	t.Run("no config returns failed precondition", func(t *testing.T) {
+		c, err := hledger.New("hledger", "testdata/simple.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
+		_, err = h.GetStripeConfig(t.Context(), connect.NewRequest(&floatv1.GetStripeConfigRequest{}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Errorf("code = %v, want FailedPrecondition", connect.CodeOf(err))
+		}
+	})
+}
+
+func TestListStripeLinkedAccounts(t *testing.T) {
+	t.Run("returns accounts from config", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 710, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", DisplayName: "Chase Checking", LastFetchedAt: "2026-05-01T00:00:00Z"},
+					{StripeAccountID: "fca_xyz", HledgerAccount: "assets:savings", DisplayName: "Savings"},
+				},
+			},
+		})
+		resp, err := h.ListStripeLinkedAccounts(t.Context(), connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
+		if err != nil {
+			t.Fatalf("ListStripeLinkedAccounts: %v", err)
+		}
+		if len(resp.Msg.Accounts) != 2 {
+			t.Fatalf("got %d accounts, want 2", len(resp.Msg.Accounts))
+		}
+		got := resp.Msg.Accounts[0]
+		if got.StripeAccountId != "fca_abc" {
+			t.Errorf("StripeAccountId = %q, want %q", got.StripeAccountId, "fca_abc")
+		}
+		if got.HledgerAccount != "assets:checking" {
+			t.Errorf("HledgerAccount = %q, want %q", got.HledgerAccount, "assets:checking")
+		}
+		if got.DisplayName != "Chase Checking" {
+			t.Errorf("DisplayName = %q, want %q", got.DisplayName, "Chase Checking")
+		}
+		if got.LastFetchedAt != "2026-05-01T00:00:00Z" {
+			t.Errorf("LastFetchedAt = %q, want %q", got.LastFetchedAt, "2026-05-01T00:00:00Z")
+		}
+	})
+
+	t.Run("empty list when no accounts linked", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 711, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		resp, err := h.ListStripeLinkedAccounts(t.Context(), connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
+		if err != nil {
+			t.Fatalf("ListStripeLinkedAccounts: %v", err)
+		}
+		if len(resp.Msg.Accounts) != 0 {
+			t.Errorf("got %d accounts, want 0", len(resp.Msg.Accounts))
+		}
+	})
+}
+
+func TestUnlinkStripeAccount(t *testing.T) {
+	t.Run("missing stripe_account_id returns invalid argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 720, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		_, err := h.UnlinkStripeAccount(t.Context(), connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{StripeAccountId: ""}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("removes matching account", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 721, NumTxns: 1})
+		cfg := &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_keep", HledgerAccount: "assets:savings"},
+					{StripeAccountID: "fca_remove", HledgerAccount: "assets:checking"},
+				},
+			},
+		}
+		h := mustHandlerWithConfig(t, dir, cfg)
+
+		_, err := h.UnlinkStripeAccount(t.Context(), connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{
+			StripeAccountId: "fca_remove",
+		}))
+		if err != nil {
+			t.Fatalf("UnlinkStripeAccount: %v", err)
+		}
+
+		configPath := filepath.Join(dir, "config.toml")
+		savedCfg, err := config.Load(configPath)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if len(savedCfg.Stripe.LinkedAccounts) != 1 {
+			t.Fatalf("got %d linked accounts, want 1", len(savedCfg.Stripe.LinkedAccounts))
+		}
+		if savedCfg.Stripe.LinkedAccounts[0].StripeAccountID != "fca_keep" {
+			t.Errorf("remaining account = %q, want %q", savedCfg.Stripe.LinkedAccounts[0].StripeAccountID, "fca_keep")
+		}
+	})
+
+	t.Run("unlink nonexistent account is a no-op", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 722, NumTxns: 1})
+		cfg := &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_keep", HledgerAccount: "assets:checking"},
+				},
+			},
+		}
+		h := mustHandlerWithConfig(t, dir, cfg)
+
+		_, err := h.UnlinkStripeAccount(t.Context(), connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{
+			StripeAccountId: "fca_does_not_exist",
+		}))
+		if err != nil {
+			t.Fatalf("UnlinkStripeAccount: %v", err)
+		}
+
+		configPath := filepath.Join(dir, "config.toml")
+		savedCfg, err := config.Load(configPath)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if len(savedCfg.Stripe.LinkedAccounts) != 1 {
+			t.Errorf("got %d linked accounts, want 1", len(savedCfg.Stripe.LinkedAccounts))
+		}
+	})
+}
+
+func TestCreateStripeLinkSession(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	t.Run("creates customer and session when no customer id", func(t *testing.T) {
+		customerCreated := false
+		sessionCreated := false
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/customers", func(w http.ResponseWriter, _ *http.Request) {
+			customerCreated = true
+			writeStripeJSON(w, map[string]any{"id": "cus_new123", "object": "customer"})
+		})
+		mux.HandleFunc("/v1/financial_connections/sessions", func(w http.ResponseWriter, _ *http.Request) {
+			sessionCreated = true
+			writeStripeJSON(w, map[string]any{
+				"id":            "fcsess_new123",
+				"object":        "financial_connections.session",
+				"client_secret": "fcsess_new123_secret",
+				"livemode":      false,
+				"account_holder": map[string]any{"customer": "cus_new123", "type": "customer"},
+				"accounts": map[string]any{
+					"object": "list", "data": []any{}, "has_more": false,
+					"url": "/v1/financial_connections/accounts",
+				},
+				"permissions": []string{"transactions", "balances"},
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 730, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		resp, err := h.CreateStripeLinkSession(t.Context(), connect.NewRequest(&floatv1.CreateStripeLinkSessionRequest{}))
+		if err != nil {
+			t.Fatalf("CreateStripeLinkSession: %v", err)
+		}
+		if !customerCreated {
+			t.Error("customer was not created")
+		}
+		if !sessionCreated {
+			t.Error("session was not created")
+		}
+		if resp.Msg.ClientSecret != "fcsess_new123_secret" {
+			t.Errorf("ClientSecret = %q, want %q", resp.Msg.ClientSecret, "fcsess_new123_secret")
+		}
+
+		configPath := filepath.Join(dir, "config.toml")
+		savedCfg, err := config.Load(configPath)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if savedCfg.Stripe.CustomerID != "cus_new123" {
+			t.Errorf("saved CustomerID = %q, want %q", savedCfg.Stripe.CustomerID, "cus_new123")
+		}
+	})
+
+	t.Run("reuses existing customer id", func(t *testing.T) {
+		customerCreated := false
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/customers", func(w http.ResponseWriter, _ *http.Request) {
+			customerCreated = true
+			writeStripeJSON(w, map[string]any{"id": "cus_should_not_create", "object": "customer"})
+		})
+		mux.HandleFunc("/v1/financial_connections/sessions", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id":            "fcsess_reuse",
+				"object":        "financial_connections.session",
+				"client_secret": "fcsess_reuse_secret",
+				"livemode":      false,
+				"account_holder": map[string]any{"customer": "cus_existing", "type": "customer"},
+				"accounts": map[string]any{
+					"object": "list", "data": []any{}, "has_more": false,
+					"url": "/v1/financial_connections/accounts",
+				},
+				"permissions": []string{"transactions", "balances"},
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 731, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{CustomerID: "cus_existing"},
+		})
+		resp, err := h.CreateStripeLinkSession(t.Context(), connect.NewRequest(&floatv1.CreateStripeLinkSessionRequest{}))
+		if err != nil {
+			t.Fatalf("CreateStripeLinkSession: %v", err)
+		}
+		if customerCreated {
+			t.Error("customer should NOT have been created when CustomerID already set")
+		}
+		if resp.Msg.ClientSecret != "fcsess_reuse_secret" {
+			t.Errorf("ClientSecret = %q, want %q", resp.Msg.ClientSecret, "fcsess_reuse_secret")
+		}
+	})
+
+	t.Run("missing secret key returns failed precondition", func(t *testing.T) {
+		t.Setenv("STRIPE_SECRET_KEY", "")
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 732, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		_, err := h.CreateStripeLinkSession(t.Context(), connect.NewRequest(&floatv1.CreateStripeLinkSessionRequest{}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Errorf("code = %v, want FailedPrecondition", connect.CodeOf(err))
+		}
+	})
+}
+
+func TestCompleteStripeLinking(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	t.Run("empty accounts returns invalid argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 740, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		_, err := h.CompleteStripeLinking(t.Context(), connect.NewRequest(&floatv1.CompleteStripeLinkingRequest{
+			Accounts: []*floatv1.LinkedAccountInput{},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("missing hledger_account returns invalid argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 741, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		_, err := h.CompleteStripeLinking(t.Context(), connect.NewRequest(&floatv1.CompleteStripeLinkingRequest{
+			Accounts: []*floatv1.LinkedAccountInput{
+				{StripeAccountId: "fca_abc", HledgerAccount: ""},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("saves linked accounts and subscribes", func(t *testing.T) {
+		subscribed := []string{}
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/subscribe") {
+				parts := strings.Split(r.URL.Path, "/")
+				acctID := parts[len(parts)-2]
+				subscribed = append(subscribed, acctID)
+				writeStripeJSON(w, map[string]any{
+					"id": acctID, "object": "financial_connections.account",
+					"status": "active", "subscriptions": []string{"transactions"}, "livemode": false,
+				})
+				return
+			}
+			http.NotFound(w, r)
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 742, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+
+		resp, err := h.CompleteStripeLinking(t.Context(), connect.NewRequest(&floatv1.CompleteStripeLinkingRequest{
+			Accounts: []*floatv1.LinkedAccountInput{
+				{StripeAccountId: "fca_new1", HledgerAccount: "assets:checking", DisplayName: "Chase Checking"},
+				{StripeAccountId: "fca_new2", HledgerAccount: "assets:savings", DisplayName: "Savings"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("CompleteStripeLinking: %v", err)
+		}
+		if len(resp.Msg.LinkedAccounts) != 2 {
+			t.Fatalf("got %d linked accounts, want 2", len(resp.Msg.LinkedAccounts))
+		}
+		if len(subscribed) != 2 {
+			t.Errorf("subscribed %d accounts, want 2: %v", len(subscribed), subscribed)
+		}
+
+		configPath := filepath.Join(dir, "config.toml")
+		savedCfg, err := config.Load(configPath)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if len(savedCfg.Stripe.LinkedAccounts) != 2 {
+			t.Fatalf("saved %d linked accounts, want 2", len(savedCfg.Stripe.LinkedAccounts))
+		}
+		if savedCfg.Stripe.LinkedAccounts[0].HledgerAccount != "assets:checking" {
+			t.Errorf("account[0].HledgerAccount = %q, want %q", savedCfg.Stripe.LinkedAccounts[0].HledgerAccount, "assets:checking")
+		}
+	})
+
+	t.Run("updates existing linked account", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/subscribe") {
+				parts := strings.Split(r.URL.Path, "/")
+				acctID := parts[len(parts)-2]
+				writeStripeJSON(w, map[string]any{
+					"id": acctID, "object": "financial_connections.account",
+					"status": "active", "subscriptions": []string{"transactions"}, "livemode": false,
+				})
+				return
+			}
+			http.NotFound(w, r)
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 743, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_existing", HledgerAccount: "assets:old", DisplayName: "Old Name"},
+				},
+			},
+		})
+
+		resp, err := h.CompleteStripeLinking(t.Context(), connect.NewRequest(&floatv1.CompleteStripeLinkingRequest{
+			Accounts: []*floatv1.LinkedAccountInput{
+				{StripeAccountId: "fca_existing", HledgerAccount: "assets:checking", DisplayName: "New Name"},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("CompleteStripeLinking: %v", err)
+		}
+		if len(resp.Msg.LinkedAccounts) != 1 {
+			t.Fatalf("got %d linked accounts, want 1", len(resp.Msg.LinkedAccounts))
+		}
+		got := resp.Msg.LinkedAccounts[0]
+		if got.HledgerAccount != "assets:checking" {
+			t.Errorf("HledgerAccount = %q, want %q", got.HledgerAccount, "assets:checking")
+		}
+		if got.DisplayName != "New Name" {
+			t.Errorf("DisplayName = %q, want %q", got.DisplayName, "New Name")
+		}
+	})
+}
+
+func TestFetchStripeTransactions(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	t.Run("missing stripe_account_id returns invalid argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 750, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		_, err := h.FetchStripeTransactions(t.Context(), connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{
+			StripeAccountId: "",
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("unknown account returns not found", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{"id": "fca_abc", "object": "financial_connections.account", "status": "active", "livemode": false})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 751, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		_, err := h.FetchStripeTransactions(t.Context(), connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{
+			StripeAccountId: "fca_not_linked",
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v, want NotFound", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("returns candidates from stripe transactions", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{"id": "fca_abc", "object": "financial_connections.account", "status": "active", "livemode": false})
+		})
+		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"object": "list",
+				"data": []any{
+					map[string]any{
+						"id": "fca_txn_new1", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(9999), "currency": "usd",
+						"description": "AMAZON MARKETPLACE", "transacted_at": int64(1746835200),
+						"status": "posted", "livemode": false,
+					},
+					map[string]any{
+						"id": "fca_txn_new2", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(1500), "currency": "usd",
+						"description": "COFFEE SHOP", "transacted_at": int64(1746748800),
+						"status": "pending", "livemode": false,
+					},
+				},
+				"has_more": false, "url": "/v1/financial_connections/transactions",
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 752, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+
+		resp, err := h.FetchStripeTransactions(t.Context(), connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{
+			StripeAccountId: "fca_abc",
+		}))
+		if err != nil {
+			t.Fatalf("FetchStripeTransactions: %v", err)
+		}
+		if len(resp.Msg.Candidates) != 2 {
+			t.Fatalf("got %d candidates, want 2", len(resp.Msg.Candidates))
+		}
+		for _, c := range resp.Msg.Candidates {
+			if c.Transaction == nil {
+				t.Error("candidate has nil transaction")
+			}
+		}
+	})
+}
+
+func TestImportStripeTransactions(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	t.Run("missing stripe_account_id returns invalid argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 760, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		_, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
+			StripeAccountId:  "",
+			CandidateIndices: []int32{0},
+		})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("empty candidate_indices returns invalid argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 761, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		_, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
+			StripeAccountId:  "fca_abc",
+			CandidateIndices: []int32{},
+		})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("imports selected transactions", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"object": "list",
+				"data": []any{
+					map[string]any{
+						"id": "fca_txn_imp1", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(5000), "currency": "usd",
+						"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+						"status": "posted", "livemode": false,
+					},
+					map[string]any{
+						"id": "fca_txn_imp2", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(1200), "currency": "usd",
+						"description": "COFFEE SHOP", "transacted_at": int64(1746748800),
+						"status": "posted", "livemode": false,
+					},
+				},
+				"has_more": false, "url": "/v1/financial_connections/transactions",
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 762, NumTxns: 1})
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+		cfg := &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		}
+		h := mustHandlerWithConfig(t, dir, cfg)
+
+		result, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
+			StripeAccountId:  "fca_abc",
+			CandidateIndices: []int32{0},
+		})
+		if err != nil {
+			t.Fatalf("ImportStripeTransactions: %v", err)
+		}
+		if result.ImportedCount != 1 {
+			t.Errorf("ImportedCount = %d, want 1", result.ImportedCount)
+		}
+		if !strings.HasPrefix(result.ImportBatchId, "stripe-fca-abc/") {
+			t.Errorf("ImportBatchId = %q, expected prefix %q", result.ImportBatchId, "stripe-fca-abc/")
+		}
+
+		configPath := filepath.Join(dir, "config.toml")
+		savedCfg, err := config.Load(configPath)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if savedCfg.Stripe.LinkedAccounts[0].LastFetchedAt == "" {
+			t.Error("LastFetchedAt was not updated after import")
+		}
+	})
+}
