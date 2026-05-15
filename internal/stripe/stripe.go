@@ -82,6 +82,32 @@ func ListSessionAccounts(ctx context.Context, secretKey, sessionID string) ([]Ac
 	return accounts, nil
 }
 
+func ListAccounts(ctx context.Context, secretKey, accountID string) ([]Account, error) {
+	stripe.Key = secretKey
+	params := &stripe.FinancialConnectionsAccountListParams{}
+	if accountID != "" {
+		params.AccountHolder = &stripe.FinancialConnectionsAccountListAccountHolderParams{
+			Account: stripe.String(accountID),
+		}
+	}
+	params.Context = ctx
+	var accounts []Account
+	iter := account.List(params)
+	for iter.Next() {
+		a := iter.FinancialConnectionsAccount()
+		accounts = append(accounts, Account{
+			ID:          a.ID,
+			DisplayName: a.DisplayName,
+			Institution: a.InstitutionName,
+			Last4:       a.Last4,
+		})
+	}
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("stripe: list accounts: %w", err)
+	}
+	return accounts, nil
+}
+
 func SubscribeTransactions(ctx context.Context, secretKey, accountID string) error {
 	stripe.Key = secretKey
 	params := &stripe.FinancialConnectionsAccountSubscribeParams{
