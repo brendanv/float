@@ -27,6 +27,10 @@ Cache keys are namespaced by RPC type. Query args are sorted before joining so `
 
 **Pass-through queries** (no cache): `GetRules`, `GetSnapshots`, `ListPrices`, `GetImportBatches`, `PreviewImport`, `GetConfig`
 
+**Stripe Financial Connections** (pass-through, implemented in `stripe.go`): `GetStripeConfig`, `CreateStripeLinkSession`, `CompleteStripeLinking`, `ListStripeLinkedAccounts`, `UnlinkStripeAccount`, `FetchStripeTransactions`, `ImportStripeTransactions`
+
+Stripe RPCs read credentials from environment variables (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_ACCOUNT_ID`) and degrade gracefully when unset. `CompleteStripeLinking`, `UnlinkStripeAccount`, and `ImportStripeTransactions` are mutations that go through `txlock.Do()` to persist account mappings / `LastFetchedAt` to `config.toml`. `FetchStripeTransactions` and `ImportStripeTransactions` apply categorization rules via `internal/rules` before returning or writing candidates.
+
 ## Adding a New RPC
 
 1. Add the method to `proto/float/v1/ledger.proto` and run `mise run proto-gen`

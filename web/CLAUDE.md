@@ -58,6 +58,7 @@ src/
 | `/imports` | `ImportsHistoryPage` | Past import batches |
 | `/rules` | `RulesPage` | Auto-categorization rules editor |
 | `/snapshots` | `SnapshotsPage` | Journal snapshot management |
+| `/connections` | `ConnectionsPage` | Stripe Financial Connections: link/unlink bank accounts, fetch and import transactions |
 
 `TransactionsPage` accepts search params: `account`, `payee`, `importBatchId`.
 
