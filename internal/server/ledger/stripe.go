@@ -138,6 +138,9 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 	}
 	out := make([]*floatv1.StripeLinkedAccount, 0, len(stripeAccounts))
 	for _, sa := range stripeAccounts {
+		if sa.Status == "disconnected" {
+			continue
+		}
 		pa := &floatv1.StripeLinkedAccount{
 			StripeAccountId: sa.ID,
 			DisplayName:     sa.DisplayName,

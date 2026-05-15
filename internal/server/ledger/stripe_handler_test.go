@@ -236,6 +236,30 @@ func TestListStripeLinkedAccounts(t *testing.T) {
 		}
 	})
 
+	t.Run("disconnected accounts are excluded", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, stripeAccountListResponse([]map[string]any{
+				{"id": "fca_active", "object": "financial_connections.account", "display_name": "Active Bank", "institution_name": "Chase", "last4": "1111", "livemode": false, "status": "active"},
+				{"id": "fca_disconnected", "object": "financial_connections.account", "display_name": "Old Bank", "institution_name": "BoA", "last4": "2222", "livemode": false, "status": "disconnected"},
+			}))
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 713, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		resp, err := h.ListStripeLinkedAccounts(t.Context(), connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
+		if err != nil {
+			t.Fatalf("ListStripeLinkedAccounts: %v", err)
+		}
+		if len(resp.Msg.Accounts) != 1 {
+			t.Fatalf("got %d accounts, want 1 (disconnected should be excluded)", len(resp.Msg.Accounts))
+		}
+		if resp.Msg.Accounts[0].StripeAccountId != "fca_active" {
+			t.Errorf("StripeAccountId = %q, want %q", resp.Msg.Accounts[0].StripeAccountId, "fca_active")
+		}
+	})
+
 	t.Run("empty list when stripe returns no accounts", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/v1/financial_connections/accounts", func(w http.ResponseWriter, _ *http.Request) {

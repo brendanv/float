@@ -16,6 +16,7 @@ type Account struct {
 	DisplayName string
 	Institution string
 	Last4       string
+	Status      string // "active", "inactive", or "disconnected"
 }
 
 type Transaction struct {
@@ -100,6 +101,7 @@ func ListAccounts(ctx context.Context, secretKey, accountID string) ([]Account, 
 			DisplayName: a.DisplayName,
 			Institution: a.InstitutionName,
 			Last4:       a.Last4,
+			Status:      string(a.Status),
 		})
 	}
 	if err := iter.Err(); err != nil {
