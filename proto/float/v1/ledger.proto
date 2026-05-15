@@ -658,7 +658,7 @@ message LinkedAccountInput {
 }
 
 message CompleteStripeLinkingRequest {
-  string session_id = 1;
+  reserved 1; // session_id removed; server never used it
   repeated LinkedAccountInput accounts = 2;
 }
 
@@ -688,7 +688,7 @@ message FetchStripeTransactionsResponse {
 
 message ImportStripeTransactionsRequest {
   string stripe_account_id = 1;
-  repeated string stripe_transaction_ids = 3;
+  repeated string stripe_transaction_ids = 2;
 }
 
 // ---- AI ----

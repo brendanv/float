@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-function LinkMappingDialog({ open, sessionId, fcAccounts, accountDeclarations, onComplete, onClose }) {
+function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, onClose }) {
   const [mappings, setMappings] = useState(() =>
     Object.fromEntries(
       fcAccounts.map((a) => [
@@ -80,7 +80,7 @@ function LinkMappingDialog({ open, sessionId, fcAccounts, accountDeclarations, o
     setSaving(true);
     setError(null);
     try {
-      await onComplete(sessionId, mappings);
+      await onComplete(mappings);
     } catch (err) {
       setError(err);
       setSaving(false);
@@ -470,7 +470,7 @@ export function ConnectionsPage() {
     }
   }
 
-  async function handleCompleteLinking(sessionId, mappings) {
+  async function handleCompleteLinking(mappings) {
     const accounts = pendingSession.accounts.map((a) => ({
       stripeAccountId: a.id,
       hledgerAccount: mappings[a.id].hledgerAccount,
@@ -480,7 +480,7 @@ export function ConnectionsPage() {
         a.displayName ||
         a.id,
     }));
-    await ledgerClient.completeStripeLinking({ sessionId, accounts });
+    await ledgerClient.completeStripeLinking({ accounts });
     setPendingSession(null);
     queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() });
     queryClient.invalidateQueries({ queryKey: queryKeys.stripeConfig() });
@@ -500,10 +500,9 @@ export function ConnectionsPage() {
     unlinkMutation.mutate(stripeAccountId);
   }
 
-  async function handleConfigureComplete(_, mappings) {
+  async function handleConfigureComplete(mappings) {
     const a = pendingConfigureAccount;
     await ledgerClient.completeStripeLinking({
-      sessionId: "",
       accounts: [{
         stripeAccountId: a.id,
         hledgerAccount: mappings[a.id].hledgerAccount,
@@ -666,7 +665,6 @@ export function ConnectionsPage() {
         <LinkMappingDialog
           key={pendingSession.id}
           open={true}
-          sessionId={pendingSession.id}
           fcAccounts={pendingSession.accounts}
           accountDeclarations={declarationsData?.declarations ?? []}
           onComplete={handleCompleteLinking}
@@ -677,7 +675,6 @@ export function ConnectionsPage() {
       {pendingConfigureAccount && (
         <LinkMappingDialog
           open={true}
-          sessionId=""
           fcAccounts={[pendingConfigureAccount]}
           accountDeclarations={declarationsData?.declarations ?? []}
           onComplete={handleConfigureComplete}

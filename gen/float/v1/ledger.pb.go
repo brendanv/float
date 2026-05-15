@@ -6837,7 +6837,6 @@ func (x *LinkedAccountInput) GetDisplayName() string {
 
 type CompleteStripeLinkingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	Accounts      []*LinkedAccountInput  `protobuf:"bytes,2,rep,name=accounts,proto3" json:"accounts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6871,13 +6870,6 @@ func (x *CompleteStripeLinkingRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CompleteStripeLinkingRequest.ProtoReflect.Descriptor instead.
 func (*CompleteStripeLinkingRequest) Descriptor() ([]byte, []int) {
 	return file_float_v1_ledger_proto_rawDescGZIP(), []int{125}
-}
-
-func (x *CompleteStripeLinkingRequest) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
-	}
-	return ""
 }
 
 func (x *CompleteStripeLinkingRequest) GetAccounts() []*LinkedAccountInput {
@@ -7182,7 +7174,7 @@ func (x *FetchStripeTransactionsResponse) GetCandidates() []*ImportCandidate {
 type ImportStripeTransactionsRequest struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	StripeAccountId      string                 `protobuf:"bytes,1,opt,name=stripe_account_id,json=stripeAccountId,proto3" json:"stripe_account_id,omitempty"`
-	StripeTransactionIds []string               `protobuf:"bytes,3,rep,name=stripe_transaction_ids,json=stripeTransactionIds,proto3" json:"stripe_transaction_ids,omitempty"`
+	StripeTransactionIds []string               `protobuf:"bytes,2,rep,name=stripe_transaction_ids,json=stripeTransactionIds,proto3" json:"stripe_transaction_ids,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -8672,11 +8664,9 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x12LinkedAccountInput\x12*\n" +
 	"\x11stripe_account_id\x18\x01 \x01(\tR\x0fstripeAccountId\x12'\n" +
 	"\x0fhledger_account\x18\x02 \x01(\tR\x0ehledgerAccount\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"w\n" +
-	"\x1cCompleteStripeLinkingRequest\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\x128\n" +
-	"\baccounts\x18\x02 \x03(\v2\x1c.float.v1.LinkedAccountInputR\baccounts\"g\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"^\n" +
+	"\x1cCompleteStripeLinkingRequest\x128\n" +
+	"\baccounts\x18\x02 \x03(\v2\x1c.float.v1.LinkedAccountInputR\baccountsJ\x04\b\x01\x10\x02\"g\n" +
 	"\x1dCompleteStripeLinkingResponse\x12F\n" +
 	"\x0flinked_accounts\x18\x01 \x03(\v2\x1d.float.v1.StripeLinkedAccountR\x0elinkedAccounts\"!\n" +
 	"\x1fListStripeLinkedAccountsRequest\"]\n" +
@@ -8693,7 +8683,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"candidates\"\x83\x01\n" +
 	"\x1fImportStripeTransactionsRequest\x12*\n" +
 	"\x11stripe_account_id\x18\x01 \x01(\tR\x0fstripeAccountId\x124\n" +
-	"\x16stripe_transaction_ids\x18\x03 \x03(\tR\x14stripeTransactionIds\"\x8a\x02\n" +
+	"\x16stripe_transaction_ids\x18\x02 \x03(\tR\x14stripeTransactionIds\"\x8a\x02\n" +
 	"\rSuggestedRule\x12\x18\n" +
 	"\apattern\x18\x01 \x01(\tR\apattern\x12\x14\n" +
 	"\x05payee\x18\x02 \x01(\tR\x05payee\x12\x18\n" +
