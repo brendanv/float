@@ -487,6 +487,7 @@ message ImportSummary {
   string import_batch_id = 1; // e.g. "2026-04-17-a1b2c3d4"
   string date = 2;            // "YYYY-MM-DD" extracted from batch ID
   int32 transaction_count = 3;
+  string source = 4;          // "csv" or "stripe"
 }
 
 message ListImportsRequest {}

@@ -106,18 +106,20 @@ export function ImportsHistoryPage() {
                     <TableCell>{imp.transactionCount}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setViewingBatchId(imp.importBatchId);
-                          }}
-                        >
-                          <FileText size={13} />
-                          View file
-                        </Button>
+                        {imp.source === "csv" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewingBatchId(imp.importBatchId);
+                            }}
+                          >
+                            <FileText size={13} />
+                            View file
+                          </Button>
+                        )}
                         <span className="text-muted-foreground text-xs">View →</span>
                       </div>
                     </TableCell>

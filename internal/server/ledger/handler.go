@@ -2052,10 +2052,15 @@ func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.Li
 
 	out := make([]*floatv1.ImportSummary, len(batches))
 	for i, b := range batches {
+		source := "csv"
+		if strings.HasPrefix(b.batchID, "stripe-") {
+			source = "stripe"
+		}
 		out[i] = &floatv1.ImportSummary{
 			ImportBatchId:    b.batchID,
 			Date:             b.date,
 			TransactionCount: b.count,
+			Source:           source,
 		}
 	}
 	return connect.NewResponse(&floatv1.ListImportsResponse{Imports: out}), nil

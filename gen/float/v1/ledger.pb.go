@@ -5056,6 +5056,7 @@ type ImportSummary struct {
 	ImportBatchId    string                 `protobuf:"bytes,1,opt,name=import_batch_id,json=importBatchId,proto3" json:"import_batch_id,omitempty"` // e.g. "2026-04-17-a1b2c3d4"
 	Date             string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"`                                          // "YYYY-MM-DD" extracted from batch ID
 	TransactionCount int32                  `protobuf:"varint,3,opt,name=transaction_count,json=transactionCount,proto3" json:"transaction_count,omitempty"`
+	Source           string                 `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"` // "csv" or "stripe"
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -5109,6 +5110,13 @@ func (x *ImportSummary) GetTransactionCount() int32 {
 		return x.TransactionCount
 	}
 	return 0
+}
+
+func (x *ImportSummary) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
 }
 
 type ListImportsRequest struct {
@@ -8533,11 +8541,12 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x1eGetImportedTransactionsRequest\x12&\n" +
 	"\x0fimport_batch_id\x18\x01 \x01(\tR\rimportBatchId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06offset\x18\x03 \x01(\x05R\x06offset\"x\n" +
+	"\x06offset\x18\x03 \x01(\x05R\x06offset\"\x90\x01\n" +
 	"\rImportSummary\x12&\n" +
 	"\x0fimport_batch_id\x18\x01 \x01(\tR\rimportBatchId\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12+\n" +
-	"\x11transaction_count\x18\x03 \x01(\x05R\x10transactionCount\"\x14\n" +
+	"\x11transaction_count\x18\x03 \x01(\x05R\x10transactionCount\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\"\x14\n" +
 	"\x12ListImportsRequest\"H\n" +
 	"\x13ListImportsResponse\x121\n" +
 	"\aimports\x18\x01 \x03(\v2\x17.float.v1.ImportSummaryR\aimports\">\n" +
