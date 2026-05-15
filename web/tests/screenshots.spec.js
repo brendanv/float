@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mockLedgerApi } from "./mock-api.js";
+import { mockLedgerApi, mockStripeImportCandidates } from "./mock-api.js";
 
 test.beforeEach(async ({ page }) => {
   await mockLedgerApi(page);
@@ -630,4 +630,35 @@ test("query page - natural language with details open", async ({ page }) => {
   await page.click("button:has-text('Query details')");
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/query-natural-language-details.png", fullPage: true });
+});
+
+test("connections page - with linked accounts", async ({ page }) => {
+  await page.goto("/#/connections");
+  await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: "test-results/connections.png", fullPage: true });
+});
+
+test("connections page - disabled (no env var)", async ({ page }) => {
+  await mockLedgerApi(page, {
+    stripeEnabled: false,
+  });
+  await page.goto("/#/connections");
+  await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/connections-disabled.png", fullPage: true });
+});
+
+test("connections page - fetch transactions panel", async ({ page }) => {
+  await page.goto("/#/connections");
+  await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  const fetchBtn = page.locator("button:has-text('Fetch Transactions')").first();
+  await fetchBtn.click();
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/connections-fetch-panel.png", fullPage: true });
 });

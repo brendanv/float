@@ -18,6 +18,7 @@ import {
   Users,
   Settings,
   Terminal,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -48,6 +49,7 @@ const NAV_OVERVIEW = [
 
 const NAV_FINANCES = [
   { href: "/transactions", label: "Transactions", icon: List },
+  { href: "/connections", label: "Connections", icon: Link2 },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/imports", label: "Import History", icon: ClockArrowUp },
   { href: "/prices", label: "Prices", icon: Tag },

@@ -681,6 +681,66 @@ export const mockApplyPreviews = [
   },
 ];
 
+export const mockStripeLinkedAccounts = [
+  {
+    stripeAccountId: "fca_chase_abc123",
+    hledgerAccount: "assets:checking:chase",
+    displayName: "Chase Checking ****1234",
+    lastFetchedAt: "2026-05-10T00:00:00Z",
+  },
+  {
+    stripeAccountId: "fca_bofa_xyz789",
+    hledgerAccount: "assets:savings:bofa",
+    displayName: "Bank of America Savings ****5678",
+    lastFetchedAt: "2026-05-09T00:00:00Z",
+  },
+];
+
+export const mockStripeImportCandidates = [
+  {
+    transaction: {
+      fid: "",
+      date: "2026-05-10",
+      description: "STARBUCKS #1234",
+      postings: [
+        { account: "assets:checking:chase", amounts: [{ commodity: "USD", quantity: "-6.75" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "6.75" }] },
+      ],
+      tags: { "stripe-txn": "fca_txn_001" },
+    },
+    isDuplicate: false,
+    matchedRuleId: "ccdd3344",
+  },
+  {
+    transaction: {
+      fid: "",
+      date: "2026-05-09",
+      description: "WHOLE FOODS MARKET",
+      postings: [
+        { account: "assets:checking:chase", amounts: [{ commodity: "USD", quantity: "-87.43" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "87.43" }] },
+      ],
+      tags: { "stripe-txn": "fca_txn_002" },
+    },
+    isDuplicate: true,
+    matchedRuleId: "eeff5566",
+  },
+  {
+    transaction: {
+      fid: "",
+      date: "2026-05-08",
+      description: "ELECTRIC BILL",
+      postings: [
+        { account: "assets:checking:chase", amounts: [{ commodity: "USD", quantity: "-95.00" }] },
+        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "95.00" }] },
+      ],
+      tags: { "stripe-txn": "fca_txn_003" },
+    },
+    isDuplicate: false,
+    matchedRuleId: "",
+  },
+];
+
 function makeAmountList(quantity) {
   return { amounts: [{ commodity: "USD", quantity: String(quantity) }] };
 }
@@ -760,7 +820,7 @@ export const mockIncomeStatementTimeseries = {
   netAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2859.57")),
 };
 
-export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations, portfolioHoldings } = {}) {
+export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations, portfolioHoldings, stripeEnabled = true } = {}) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
     const method = url.split("/").pop();
@@ -964,6 +1024,29 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetPortfolioTimeseries":
         body = mockPortfolioTimeseries;
+        break;
+      case "GetStripeConfig":
+        body = stripeEnabled
+          ? { enabled: true, publishableKey: "pk_test_mock_key", linkedAccountCount: mockStripeLinkedAccounts.length }
+          : { enabled: false, publishableKey: "", linkedAccountCount: 0 };
+        break;
+      case "CreateStripeLinkSession":
+        body = { clientSecret: "fcsess_mock_secret_test" };
+        break;
+      case "CompleteStripeLinking":
+        body = { linkedAccounts: mockStripeLinkedAccounts };
+        break;
+      case "ListStripeLinkedAccounts":
+        body = { accounts: mockStripeLinkedAccounts };
+        break;
+      case "UnlinkStripeAccount":
+        body = {};
+        break;
+      case "FetchStripeTransactions":
+        body = { candidates: mockStripeImportCandidates };
+        break;
+      case "ImportStripeTransactions":
+        body = { importedCount: 2, transactions: [] };
         break;
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };

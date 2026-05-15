@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 )
@@ -32,12 +33,24 @@ type AIConfig struct {
 	Prompt string `toml:"prompt"` // User-defined guidelines prepended to AI system prompts
 }
 
+type StripeLinkedAccount struct {
+	StripeAccountID string `toml:"stripe_account_id"`
+	HledgerAccount  string `toml:"hledger_account"`
+	DisplayName     string `toml:"display_name"`
+	LastFetchedAt   string `toml:"last_fetched_at"` // RFC3339; empty if never fetched
+}
+
+type StripeConfig struct {
+	LinkedAccounts []StripeLinkedAccount `toml:"linked_accounts"`
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	Users        []User             `toml:"users"`
 	BankProfiles []BankProfile      `toml:"bank_profiles"`
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 	AI           AIConfig           `toml:"ai"`
+	Stripe       StripeConfig       `toml:"stripe"`
 }
 
 // Load parses config.toml at path and returns a *Config.
@@ -54,15 +67,26 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Save encodes cfg as TOML and writes it to path (creates or overwrites).
+// Save encodes cfg as TOML and atomically writes it to path (write to temp, then rename).
 func Save(path string, cfg *Config) error {
-	f, err := os.Create(path)
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, ".config-*.toml.tmp")
 	if err != nil {
-		return fmt.Errorf("config: create %s: %w", path, err)
+		return fmt.Errorf("config: create temp: %w", err)
 	}
-	defer func() { _ = f.Close() }()
+	tmpPath := f.Name()
 	if err := toml.NewEncoder(f).Encode(cfg); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("config: encode %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("config: close temp: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("config: rename %s -> %s: %w", tmpPath, path, err)
 	}
 	return nil
 }

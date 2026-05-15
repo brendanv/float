@@ -22,6 +22,7 @@ import { PayeesPage } from "./pages/payees.jsx";
 import { PortfolioPage } from "./pages/portfolio.jsx";
 import { SettingsPage } from "./pages/settings.jsx";
 import { HledgerQueryPage } from "./pages/hledger-query.jsx";
+import { ConnectionsPage } from "./pages/connections.jsx";
 
 const LazyTrendsPage = lazy(() =>
   import("./pages/trends.jsx").then((m) => ({ default: m.TrendsPage }))
@@ -145,6 +146,12 @@ const hledgerQueryRoute = createRoute({
   component: HledgerQueryPage,
 });
 
+const connectionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/connections",
+  component: ConnectionsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   transactionsRoute,
@@ -161,6 +168,7 @@ const routeTree = rootRoute.addChildren([
   portfolioRoute,
   settingsRoute,
   hledgerQueryRoute,
+  connectionsRoute,
 ]);
 
 export const router = createRouter({
