@@ -22,10 +22,6 @@ func stripeSecretKey() string {
 	return os.Getenv("STRIPE_SECRET_KEY")
 }
 
-func stripeAccountID() string {
-	return os.Getenv("STRIPE_ACCOUNT_ID")
-}
-
 func (h *Handler) GetStripeConfig(ctx context.Context, _ *connect.Request[floatv1.GetStripeConfigRequest]) (*connect.Response[floatv1.GetStripeConfigResponse], error) {
 	if h.cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
@@ -48,12 +44,23 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 	if secretKey == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
 	}
-	accountID := stripeAccountID()
-	if accountID == "" {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_ACCOUNT_ID is not set"))
+	customerID := h.cfg.Stripe.CustomerID
+	if customerID == "" {
+		newCustomerID, err := stripeClient.CreateCustomer(ctx, secretKey)
+		if err != nil {
+			logger.ErrorContext(ctx, "create stripe customer failed", "error", err)
+			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create Stripe customer"))
+		}
+		if err := h.lock.Do(ctx, "save stripe customer id", func() error {
+			h.cfg.Stripe.CustomerID = newCustomerID
+			return config.Save(h.configPath, h.cfg)
+		}); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to save stripe customer id: %w", err))
+		}
+		customerID = newCustomerID
 	}
 
-	clientSecret, err := stripeClient.CreateFCSession(ctx, secretKey, accountID)
+	clientSecret, err := stripeClient.CreateFCSession(ctx, secretKey, customerID)
 	if err != nil {
 		logger.ErrorContext(ctx, "create stripe fc session failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create Stripe link session"))
@@ -129,7 +136,7 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 	if secretKey == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
 	}
-	stripeAccounts, err := stripeClient.ListAccounts(ctx, secretKey, stripeAccountID())
+	stripeAccounts, err := stripeClient.ListAccounts(ctx, secretKey, h.cfg.Stripe.CustomerID)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe accounts failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe accounts"))

@@ -30,17 +30,24 @@ func newClient(secretKey string) *stripe.Client {
 	return stripe.NewClient(secretKey)
 }
 
-func CreateFCSession(ctx context.Context, secretKey, accountID string) (string, error) {
+func CreateCustomer(ctx context.Context, secretKey string) (string, error) {
+	c := newClient(secretKey)
+	customer, err := c.V1Customers.Create(ctx, &stripe.CustomerCreateParams{})
+	if err != nil {
+		return "", fmt.Errorf("stripe: create customer: %w", err)
+	}
+	return customer.ID, nil
+}
+
+func CreateFCSession(ctx context.Context, secretKey, customerID string) (string, error) {
 	c := newClient(secretKey)
 	sess, err := c.V1FinancialConnectionsSessions.Create(ctx, &stripe.FinancialConnectionsSessionCreateParams{
 		AccountHolder: &stripe.FinancialConnectionsSessionCreateAccountHolderParams{
-			Type:    stripe.String("account"),
-			Account: stripe.String(accountID),
+			Type:     stripe.String("customer"),
+			Customer: stripe.String(customerID),
 		},
 		Permissions: []*string{
-			stripe.String("payment_method"),
 			stripe.String("transactions"),
-			stripe.String("balances"),
 		},
 		Filters: &stripe.FinancialConnectionsSessionCreateFiltersParams{
 			Countries: []*string{stripe.String("US")},
@@ -82,12 +89,12 @@ func ListSessionAccounts(ctx context.Context, secretKey, sessionID string) ([]Ac
 	return accounts, nil
 }
 
-func ListAccounts(ctx context.Context, secretKey, accountID string) ([]Account, error) {
+func ListAccounts(ctx context.Context, secretKey, customerID string) ([]Account, error) {
 	c := newClient(secretKey)
 	params := &stripe.FinancialConnectionsAccountListParams{}
-	if accountID != "" {
+	if customerID != "" {
 		params.AccountHolder = &stripe.FinancialConnectionsAccountListAccountHolderParams{
-			Account: stripe.String(accountID),
+			Customer: stripe.String(customerID),
 		}
 	}
 	var accounts []Account
