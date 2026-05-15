@@ -644,7 +644,14 @@ message GetStripeConfigResponse {
   bool enabled = 1;               // true if STRIPE_SECRET_KEY env var is set
   string publishable_key = 2;     // value of STRIPE_PUBLISHABLE_KEY env var; empty if not set
   int32 linked_account_count = 3;
+  string customer_id = 4;         // Stripe customer ID from config; empty if not set
 }
+
+message SetStripeCustomerIdRequest {
+  string customer_id = 1; // new customer ID; empty string clears the value
+}
+
+message SetStripeCustomerIdResponse {}
 
 message CreateStripeLinkSessionRequest {}
 
@@ -859,6 +866,7 @@ service LedgerService {
   rpc GetAIConfig(GetAIConfigRequest) returns (GetAIConfigResponse);
   rpc SetAIModel(SetAIModelRequest) returns (SetAIModelResponse);
   rpc SetAIPrompt(SetAIPromptRequest) returns (SetAIPromptResponse);
+  rpc SetStripeCustomerId(SetStripeCustomerIdRequest) returns (SetStripeCustomerIdResponse);
 
   // Debug / Investigation
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);

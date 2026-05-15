@@ -206,6 +206,9 @@ const (
 	// LedgerServiceSetAIPromptProcedure is the fully-qualified name of the LedgerService's SetAIPrompt
 	// RPC.
 	LedgerServiceSetAIPromptProcedure = "/float.v1.LedgerService/SetAIPrompt"
+	// LedgerServiceSetStripeCustomerIdProcedure is the fully-qualified name of the LedgerService's
+	// SetStripeCustomerId RPC.
+	LedgerServiceSetStripeCustomerIdProcedure = "/float.v1.LedgerService/SetStripeCustomerId"
 	// LedgerServiceRunHledgerQueryProcedure is the fully-qualified name of the LedgerService's
 	// RunHledgerQuery RPC.
 	LedgerServiceRunHledgerQueryProcedure = "/float.v1.LedgerService/RunHledgerQuery"
@@ -277,6 +280,7 @@ type LedgerServiceClient interface {
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
+	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 }
@@ -646,6 +650,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SetAIPrompt")),
 			connect.WithClientOptions(opts...),
 		),
+		setStripeCustomerId: connect.NewClient[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse](
+			httpClient,
+			baseURL+LedgerServiceSetStripeCustomerIdProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetStripeCustomerId")),
+			connect.WithClientOptions(opts...),
+		),
 		runHledgerQuery: connect.NewClient[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse](
 			httpClient,
 			baseURL+LedgerServiceRunHledgerQueryProcedure,
@@ -716,6 +726,7 @@ type ledgerServiceClient struct {
 	getAIConfig                  *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
 	setAIModel                   *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
 	setAIPrompt                  *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
+	setStripeCustomerId          *connect.Client[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse]
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
 }
 
@@ -1014,6 +1025,11 @@ func (c *ledgerServiceClient) SetAIPrompt(ctx context.Context, req *connect.Requ
 	return c.setAIPrompt.CallUnary(ctx, req)
 }
 
+// SetStripeCustomerId calls float.v1.LedgerService.SetStripeCustomerId.
+func (c *ledgerServiceClient) SetStripeCustomerId(ctx context.Context, req *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error) {
+	return c.setStripeCustomerId.CallUnary(ctx, req)
+}
+
 // RunHledgerQuery calls float.v1.LedgerService.RunHledgerQuery.
 func (c *ledgerServiceClient) RunHledgerQuery(ctx context.Context, req *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
 	return c.runHledgerQuery.CallUnary(ctx, req)
@@ -1085,6 +1101,7 @@ type LedgerServiceHandler interface {
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
+	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 }
@@ -1450,6 +1467,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SetAIPrompt")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceSetStripeCustomerIdHandler := connect.NewUnaryHandler(
+		LedgerServiceSetStripeCustomerIdProcedure,
+		svc.SetStripeCustomerId,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetStripeCustomerId")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceRunHledgerQueryHandler := connect.NewUnaryHandler(
 		LedgerServiceRunHledgerQueryProcedure,
 		svc.RunHledgerQuery,
@@ -1576,6 +1599,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceSetAIModelHandler.ServeHTTP(w, r)
 		case LedgerServiceSetAIPromptProcedure:
 			ledgerServiceSetAIPromptHandler.ServeHTTP(w, r)
+		case LedgerServiceSetStripeCustomerIdProcedure:
+			ledgerServiceSetStripeCustomerIdHandler.ServeHTTP(w, r)
 		case LedgerServiceRunHledgerQueryProcedure:
 			ledgerServiceRunHledgerQueryHandler.ServeHTTP(w, r)
 		default:
@@ -1821,6 +1846,10 @@ func (UnimplementedLedgerServiceHandler) SetAIModel(context.Context, *connect.Re
 
 func (UnimplementedLedgerServiceHandler) SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAIPrompt is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetStripeCustomerId is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {

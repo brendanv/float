@@ -10,10 +10,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, Circle } from "lucide-react";
+import { CheckCircle, Circle, CreditCard } from "lucide-react";
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
+
+  // --- Stripe Customer ID ---
+  const { data: stripeData, isLoading: stripeLoading, error: stripeFetchError } = useQuery({
+    queryKey: queryKeys.stripeConfig(),
+    queryFn: () => ledgerClient.getStripeConfig({}),
+  });
+
+  const [customerIdInput, setCustomerIdInput] = useState("");
+  const [stripeMutationError, setStripeMutationError] = useState(null);
+  const [stripeSaved, setStripeSaved] = useState(false);
+
+  const setCustomerIdMutation = useMutation({
+    mutationFn: (customerId) => ledgerClient.setStripeCustomerId({ customerId }),
+    onSuccess: () => {
+      setCustomerIdInput("");
+      setStripeSaved(true);
+      setStripeMutationError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.stripeConfig() });
+      setTimeout(() => setStripeSaved(false), 3000);
+    },
+    onError: (err) => {
+      setStripeMutationError(err);
+      setStripeSaved(false);
+    },
+  });
+
+  function handleStripeCustomerIdSave(e) {
+    e.preventDefault();
+    setStripeMutationError(null);
+    setStripeSaved(false);
+    setCustomerIdMutation.mutate(customerIdInput.trim());
+  }
+
+  function handleStripeCustomerIdClear() {
+    if (!confirm("Clear the Stripe customer ID? This will disconnect you from any existing Stripe customer.")) return;
+    setStripeMutationError(null);
+    setStripeSaved(false);
+    setCustomerIdMutation.mutate("");
+  }
 
   // --- Alpha Vantage ---
   const { data: avData, isLoading: avLoading, error: avFetchError } = useQuery({
@@ -127,6 +166,89 @@ export function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-bold">Settings</h2>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="size-5" />
+            Stripe Customer ID
+          </CardTitle>
+          <CardDescription>
+            The Stripe customer ID used for Financial Connections. This is created automatically
+            when you first link a bank account, but you can set it manually here to use an
+            existing Stripe customer.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {stripeFetchError && <ErrorBanner error={stripeFetchError} />}
+          {stripeMutationError && <ErrorBanner error={stripeMutationError} />}
+
+          {stripeLoading && <Loading />}
+
+          {stripeData && (
+            <>
+              <div className="flex items-center gap-2 text-sm">
+                {stripeData.customerId ? (
+                  <>
+                    <CheckCircle className="size-4 text-success" />
+                    <span>Customer ID set</span>
+                    <Badge variant="secondary" className="font-mono">
+                      {stripeData.customerId}
+                    </Badge>
+                  </>
+                ) : (
+                  <>
+                    <Circle className="size-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">No customer ID set</span>
+                  </>
+                )}
+              </div>
+
+              <form onSubmit={handleStripeCustomerIdSave} className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="stripe-customer-id">
+                    {stripeData.customerId ? "Replace customer ID" : "Set customer ID"}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="stripe-customer-id"
+                      type="text"
+                      placeholder="cus_..."
+                      value={customerIdInput}
+                      onChange={(e) => setCustomerIdInput(e.target.value)}
+                      className="max-w-sm font-mono"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={!customerIdInput.trim() || setCustomerIdMutation.isPending}
+                    >
+                      {setCustomerIdMutation.isPending ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </div>
+
+                {stripeSaved && (
+                  <p className="text-sm text-success">Customer ID saved.</p>
+                )}
+              </form>
+
+              {stripeData.customerId && (
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={setCustomerIdMutation.isPending}
+                    onClick={handleStripeCustomerIdClear}
+                  >
+                    Clear customer ID
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
