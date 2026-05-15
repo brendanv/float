@@ -124,9 +124,33 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 	if h.cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
-	out := make([]*floatv1.StripeLinkedAccount, len(h.cfg.Stripe.LinkedAccounts))
-	for i, a := range h.cfg.Stripe.LinkedAccounts {
-		out[i] = configToProtoLinkedAccount(a)
+	secretKey := stripeSecretKey()
+	if secretKey == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	}
+	stripeAccounts, err := stripeClient.ListAccounts(ctx, secretKey, stripeAccountID())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	cfgMap := make(map[string]config.StripeLinkedAccount, len(h.cfg.Stripe.LinkedAccounts))
+	for _, a := range h.cfg.Stripe.LinkedAccounts {
+		cfgMap[a.StripeAccountID] = a
+	}
+	out := make([]*floatv1.StripeLinkedAccount, 0, len(stripeAccounts))
+	for _, sa := range stripeAccounts {
+		pa := &floatv1.StripeLinkedAccount{
+			StripeAccountId: sa.ID,
+			DisplayName:     sa.DisplayName,
+			InstitutionName: sa.Institution,
+		}
+		if cfg, ok := cfgMap[sa.ID]; ok {
+			pa.HledgerAccount = cfg.HledgerAccount
+			pa.LastFetchedAt = cfg.LastFetchedAt
+			if cfg.DisplayName != "" {
+				pa.DisplayName = cfg.DisplayName
+			}
+		}
+		out = append(out, pa)
 	}
 	return connect.NewResponse(&floatv1.ListStripeLinkedAccountsResponse{Accounts: out}), nil
 }

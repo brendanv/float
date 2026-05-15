@@ -149,14 +149,34 @@ func TestGetStripeConfig(t *testing.T) {
 	})
 }
 
+func stripeAccountListResponse(accounts []map[string]any) map[string]any {
+	return map[string]any{
+		"object":   "list",
+		"data":     accounts,
+		"has_more": false,
+		"url":      "/v1/financial_connections/accounts",
+	}
+}
+
 func TestListStripeLinkedAccounts(t *testing.T) {
-	t.Run("returns accounts from config", func(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	t.Run("merges stripe accounts with config overlay", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, stripeAccountListResponse([]map[string]any{
+				{"id": "fca_abc", "object": "financial_connections.account", "display_name": "Stripe Name", "institution_name": "Chase", "last4": "1234", "livemode": false, "status": "active"},
+				{"id": "fca_xyz", "object": "financial_connections.account", "display_name": "Savings Account", "institution_name": "Ally", "last4": "5678", "livemode": false, "status": "active"},
+			}))
+		})
+		mockStripeAPI(t, mux)
+
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 710, NumTxns: 1})
 		h := mustHandlerWithConfig(t, dir, &config.Config{
 			Stripe: config.StripeConfig{
 				LinkedAccounts: []config.StripeLinkedAccount{
 					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", DisplayName: "Chase Checking", LastFetchedAt: "2026-05-01T00:00:00Z"},
-					{StripeAccountID: "fca_xyz", HledgerAccount: "assets:savings", DisplayName: "Savings"},
+					{StripeAccountID: "fca_xyz", HledgerAccount: "assets:savings", DisplayName: ""},
 				},
 			},
 		})
@@ -175,15 +195,55 @@ func TestListStripeLinkedAccounts(t *testing.T) {
 			t.Errorf("HledgerAccount = %q, want %q", got.HledgerAccount, "assets:checking")
 		}
 		if got.DisplayName != "Chase Checking" {
-			t.Errorf("DisplayName = %q, want %q", got.DisplayName, "Chase Checking")
+			t.Errorf("DisplayName = %q, want %q (config name should win)", got.DisplayName, "Chase Checking")
 		}
 		if got.LastFetchedAt != "2026-05-01T00:00:00Z" {
 			t.Errorf("LastFetchedAt = %q, want %q", got.LastFetchedAt, "2026-05-01T00:00:00Z")
 		}
+		if got.InstitutionName != "Chase" {
+			t.Errorf("InstitutionName = %q, want %q", got.InstitutionName, "Chase")
+		}
+		got2 := resp.Msg.Accounts[1]
+		if got2.DisplayName != "Savings Account" {
+			t.Errorf("account[1].DisplayName = %q, want %q (stripe name when config display_name is empty)", got2.DisplayName, "Savings Account")
+		}
 	})
 
-	t.Run("empty list when no accounts linked", func(t *testing.T) {
+	t.Run("unconfigured stripe accounts appear without hledger mapping", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, stripeAccountListResponse([]map[string]any{
+				{"id": "fca_new", "object": "financial_connections.account", "display_name": "New Bank", "institution_name": "WF", "last4": "9999", "livemode": false, "status": "active"},
+			}))
+		})
+		mockStripeAPI(t, mux)
+
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 711, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{})
+		resp, err := h.ListStripeLinkedAccounts(t.Context(), connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
+		if err != nil {
+			t.Fatalf("ListStripeLinkedAccounts: %v", err)
+		}
+		if len(resp.Msg.Accounts) != 1 {
+			t.Fatalf("got %d accounts, want 1", len(resp.Msg.Accounts))
+		}
+		got := resp.Msg.Accounts[0]
+		if got.HledgerAccount != "" {
+			t.Errorf("HledgerAccount = %q, want empty for unconfigured account", got.HledgerAccount)
+		}
+		if got.InstitutionName != "WF" {
+			t.Errorf("InstitutionName = %q, want %q", got.InstitutionName, "WF")
+		}
+	})
+
+	t.Run("empty list when stripe returns no accounts", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, stripeAccountListResponse([]map[string]any{}))
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 712, NumTxns: 1})
 		h := mustHandlerWithConfig(t, dir, &config.Config{})
 		resp, err := h.ListStripeLinkedAccounts(t.Context(), connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
 		if err != nil {
