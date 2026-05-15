@@ -641,14 +641,23 @@ export function ConnectionsPage() {
                   <span className="font-mono text-xs">{account.stripeAccountId}</span>
                 </div>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="shrink-0"
-                onClick={() => setPendingConfigureAccount({ id: account.stripeAccountId, display_name: account.displayName })}
-              >
-                Configure
-              </Button>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPendingConfigureAccount({ id: account.stripeAccountId, display_name: account.displayName })}
+                >
+                  Configure
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleUnlink(account.stripeAccountId)}
+                  disabled={unlinkMutation.isPending}
+                >
+                  Disconnect
+                </Button>
+              </div>
             </div>
           </CardHeader>
         </Card>
