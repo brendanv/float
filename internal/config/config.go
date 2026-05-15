@@ -40,7 +40,6 @@ type StripeLinkedAccount struct {
 }
 
 type StripeConfig struct {
-	CustomerID     string                `toml:"customer_id"`
 	LinkedAccounts []StripeLinkedAccount `toml:"linked_accounts"`
 }
 

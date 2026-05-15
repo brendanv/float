@@ -22,6 +22,10 @@ func stripeSecretKey() string {
 	return os.Getenv("STRIPE_SECRET_KEY")
 }
 
+func stripeAccountID() string {
+	return os.Getenv("STRIPE_ACCOUNT_ID")
+}
+
 func (h *Handler) GetStripeConfig(ctx context.Context, _ *connect.Request[floatv1.GetStripeConfigRequest]) (*connect.Response[floatv1.GetStripeConfigResponse], error) {
 	if h.cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
@@ -44,26 +48,12 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 	if secretKey == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
 	}
-
-	customerID := h.cfg.Stripe.CustomerID
-	if customerID == "" {
-		var err error
-		customerID, err = stripeClient.CreateCustomer(ctx, secretKey)
-		if err != nil {
-			logger.ErrorContext(ctx, "create stripe customer failed", "error", err)
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-		err = h.lock.Do(ctx, "save stripe customer id", func() error {
-			h.cfg.Stripe.CustomerID = customerID
-			return config.Save(h.configPath, h.cfg)
-		})
-		if err != nil {
-			logger.ErrorContext(ctx, "save stripe customer id failed", "error", err)
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
+	accountID := stripeAccountID()
+	if accountID == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_ACCOUNT_ID is not set"))
 	}
 
-	clientSecret, err := stripeClient.CreateFCSession(ctx, secretKey, customerID)
+	clientSecret, err := stripeClient.CreateFCSession(ctx, secretKey, accountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "create stripe fc session failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)

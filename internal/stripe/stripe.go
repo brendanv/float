@@ -6,7 +6,6 @@ import (
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v82"
-	"github.com/stripe/stripe-go/v82/customer"
 	"github.com/stripe/stripe-go/v82/financialconnections/account"
 	"github.com/stripe/stripe-go/v82/financialconnections/session"
 	"github.com/stripe/stripe-go/v82/financialconnections/transaction"
@@ -29,25 +28,15 @@ type Transaction struct {
 	Status      string // "posted" or "pending"
 }
 
-func CreateCustomer(ctx context.Context, secretKey string) (string, error) {
-	stripe.Key = secretKey
-	params := &stripe.CustomerParams{}
-	params.Context = ctx
-	c, err := customer.New(params)
-	if err != nil {
-		return "", fmt.Errorf("stripe: create customer: %w", err)
-	}
-	return c.ID, nil
-}
-
-func CreateFCSession(ctx context.Context, secretKey, customerID string) (string, error) {
+func CreateFCSession(ctx context.Context, secretKey, accountID string) (string, error) {
 	stripe.Key = secretKey
 	params := &stripe.FinancialConnectionsSessionParams{
 		AccountHolder: &stripe.FinancialConnectionsSessionAccountHolderParams{
-			Type:     stripe.String("customer"),
-			Customer: stripe.String(customerID),
+			Type:    stripe.String("account"),
+			Account: stripe.String(accountID),
 		},
 		Permissions: []*string{
+			stripe.String("payment_method"),
 			stripe.String("transactions"),
 			stripe.String("balances"),
 		},

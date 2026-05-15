@@ -277,15 +277,11 @@ func TestUnlinkStripeAccount(t *testing.T) {
 
 func TestCreateStripeLinkSession(t *testing.T) {
 	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+	t.Setenv("STRIPE_ACCOUNT_ID", "acct_test123")
 
-	t.Run("creates customer and session when no customer id", func(t *testing.T) {
-		customerCreated := false
+	t.Run("creates session with account holder type", func(t *testing.T) {
 		sessionCreated := false
 		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/customers", func(w http.ResponseWriter, _ *http.Request) {
-			customerCreated = true
-			writeStripeJSON(w, map[string]any{"id": "cus_new123", "object": "customer"})
-		})
 		mux.HandleFunc("/v1/financial_connections/sessions", func(w http.ResponseWriter, _ *http.Request) {
 			sessionCreated = true
 			writeStripeJSON(w, map[string]any{
@@ -293,12 +289,12 @@ func TestCreateStripeLinkSession(t *testing.T) {
 				"object":        "financial_connections.session",
 				"client_secret": "fcsess_new123_secret",
 				"livemode":      false,
-				"account_holder": map[string]any{"customer": "cus_new123", "type": "customer"},
+				"account_holder": map[string]any{"type": "account"},
 				"accounts": map[string]any{
 					"object": "list", "data": []any{}, "has_more": false,
 					"url": "/v1/financial_connections/accounts",
 				},
-				"permissions": []string{"transactions", "balances"},
+				"permissions": []string{"payment_method", "transactions", "balances"},
 			})
 		})
 		mockStripeAPI(t, mux)
@@ -309,62 +305,11 @@ func TestCreateStripeLinkSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateStripeLinkSession: %v", err)
 		}
-		if !customerCreated {
-			t.Error("customer was not created")
-		}
 		if !sessionCreated {
 			t.Error("session was not created")
 		}
 		if resp.Msg.ClientSecret != "fcsess_new123_secret" {
 			t.Errorf("ClientSecret = %q, want %q", resp.Msg.ClientSecret, "fcsess_new123_secret")
-		}
-
-		configPath := filepath.Join(dir, "config.toml")
-		savedCfg, err := config.Load(configPath)
-		if err != nil {
-			t.Fatalf("load config: %v", err)
-		}
-		if savedCfg.Stripe.CustomerID != "cus_new123" {
-			t.Errorf("saved CustomerID = %q, want %q", savedCfg.Stripe.CustomerID, "cus_new123")
-		}
-	})
-
-	t.Run("reuses existing customer id", func(t *testing.T) {
-		customerCreated := false
-		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/customers", func(w http.ResponseWriter, _ *http.Request) {
-			customerCreated = true
-			writeStripeJSON(w, map[string]any{"id": "cus_should_not_create", "object": "customer"})
-		})
-		mux.HandleFunc("/v1/financial_connections/sessions", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"id":            "fcsess_reuse",
-				"object":        "financial_connections.session",
-				"client_secret": "fcsess_reuse_secret",
-				"livemode":      false,
-				"account_holder": map[string]any{"customer": "cus_existing", "type": "customer"},
-				"accounts": map[string]any{
-					"object": "list", "data": []any{}, "has_more": false,
-					"url": "/v1/financial_connections/accounts",
-				},
-				"permissions": []string{"transactions", "balances"},
-			})
-		})
-		mockStripeAPI(t, mux)
-
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 731, NumTxns: 1})
-		h := mustHandlerWithConfig(t, dir, &config.Config{
-			Stripe: config.StripeConfig{CustomerID: "cus_existing"},
-		})
-		resp, err := h.CreateStripeLinkSession(t.Context(), connect.NewRequest(&floatv1.CreateStripeLinkSessionRequest{}))
-		if err != nil {
-			t.Fatalf("CreateStripeLinkSession: %v", err)
-		}
-		if customerCreated {
-			t.Error("customer should NOT have been created when CustomerID already set")
-		}
-		if resp.Msg.ClientSecret != "fcsess_reuse_secret" {
-			t.Errorf("ClientSecret = %q, want %q", resp.Msg.ClientSecret, "fcsess_reuse_secret")
 		}
 	})
 

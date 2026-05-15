@@ -36,22 +36,6 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 }
 
-func TestCreateCustomer(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/customers", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, map[string]any{"id": "cus_test123", "object": "customer"})
-	})
-	mockStripeBackend(t, mux)
-
-	id, err := CreateCustomer(context.Background(), "sk_test_xxx")
-	if err != nil {
-		t.Fatalf("CreateCustomer: %v", err)
-	}
-	if id != "cus_test123" {
-		t.Errorf("got %q, want %q", id, "cus_test123")
-	}
-}
-
 func TestCreateFCSession(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/financial_connections/sessions", func(w http.ResponseWriter, _ *http.Request) {
@@ -61,8 +45,7 @@ func TestCreateFCSession(t *testing.T) {
 			"client_secret": "fcsess_test123_secret_xyz",
 			"livemode":      false,
 			"account_holder": map[string]any{
-				"customer": "cus_test123",
-				"type":     "customer",
+				"type": "account",
 			},
 			"accounts": map[string]any{
 				"object":   "list",
@@ -70,12 +53,12 @@ func TestCreateFCSession(t *testing.T) {
 				"has_more": false,
 				"url":      "/v1/financial_connections/accounts",
 			},
-			"permissions": []string{"transactions", "balances"},
+			"permissions": []string{"payment_method", "transactions", "balances"},
 		})
 	})
 	mockStripeBackend(t, mux)
 
-	secret, err := CreateFCSession(context.Background(), "sk_test_xxx", "cus_test123")
+	secret, err := CreateFCSession(context.Background(), "sk_test_xxx", "acct_test123")
 	if err != nil {
 		t.Fatalf("CreateFCSession: %v", err)
 	}
@@ -122,8 +105,7 @@ func TestListSessionAccounts(t *testing.T) {
 					"client_secret": "fcsess_test123_secret_xyz",
 					"livemode":      false,
 					"account_holder": map[string]any{
-						"customer": "cus_test123",
-						"type":     "customer",
+						"type": "account",
 					},
 					"accounts": map[string]any{
 						"object":   "list",
@@ -131,7 +113,7 @@ func TestListSessionAccounts(t *testing.T) {
 						"has_more": false,
 						"url":      "/v1/financial_connections/accounts",
 					},
-					"permissions": []string{"transactions", "balances"},
+					"permissions": []string{"payment_method", "transactions", "balances"},
 				})
 			})
 			mockStripeBackend(t, mux)
