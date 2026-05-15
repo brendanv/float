@@ -56,7 +56,7 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 	clientSecret, err := stripeClient.CreateFCSession(ctx, secretKey, accountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "create stripe fc session failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create Stripe link session"))
 	}
 	return connect.NewResponse(&floatv1.CreateStripeLinkSessionResponse{ClientSecret: clientSecret}), nil
 }
@@ -83,7 +83,7 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 		}
 		if err := stripeClient.SubscribeTransactions(ctx, secretKey, a.StripeAccountId); err != nil {
 			logger.ErrorContext(ctx, "subscribe transactions failed", "account", a.StripeAccountId, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, err)
+			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to subscribe to transaction updates"))
 		}
 	}
 
@@ -121,6 +121,7 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 }
 
 func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Request[floatv1.ListStripeLinkedAccountsRequest]) (*connect.Response[floatv1.ListStripeLinkedAccountsResponse], error) {
+	logger := slogctx.FromContext(ctx)
 	if h.cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
@@ -130,7 +131,8 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 	}
 	stripeAccounts, err := stripeClient.ListAccounts(ctx, secretKey, stripeAccountID())
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		logger.ErrorContext(ctx, "list stripe accounts failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe accounts"))
 	}
 	cfgMap := make(map[string]config.StripeLinkedAccount, len(h.cfg.Stripe.LinkedAccounts))
 	for _, a := range h.cfg.Stripe.LinkedAccounts {
@@ -173,11 +175,11 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 	}
 	if err := stripeClient.DisconnectAccount(ctx, secretKey, req.Msg.StripeAccountId); err != nil {
 		logger.ErrorContext(ctx, "stripe disconnect failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to disconnect Stripe account"))
 	}
 
 	err := h.lock.Do(ctx, fmt.Sprintf("unlink stripe account %s", req.Msg.StripeAccountId), func() error {
-		updated := h.cfg.Stripe.LinkedAccounts[:0]
+		updated := make([]config.StripeLinkedAccount, 0, len(h.cfg.Stripe.LinkedAccounts))
 		for _, a := range h.cfg.Stripe.LinkedAccounts {
 			if a.StripeAccountID != req.Msg.StripeAccountId {
 				updated = append(updated, a)
@@ -213,7 +215,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 
 	if err := stripeClient.RefreshTransactions(ctx, secretKey, linked.StripeAccountID); err != nil {
 		logger.ErrorContext(ctx, "refresh stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to refresh Stripe transactions"))
 	}
 
 	var since time.Time
@@ -224,13 +226,13 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, since)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
 	}
 
 	existing, err := h.hl.Transactions(ctx)
 	if err != nil {
 		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
 	}
 	fpSet := make(map[string]bool, len(existing))
 	for _, t := range existing {
@@ -240,7 +242,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
 		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
 	}
 
 	candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
@@ -248,6 +250,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		ht := stripeTransactionToHledger(st, linked.HledgerAccount)
 		candidate := &floatv1.ImportCandidate{
 			IsDuplicate: fpSet[journal.TxnFingerprint(ht)],
+			SourceId:    st.ID,
 		}
 		if r := rules.Match(rulesList, ht.Description); r != nil {
 			candidate.MatchedRuleId = r.ID
@@ -280,8 +283,8 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 	if req.Msg.StripeAccountId == "" {
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
 	}
-	if len(req.Msg.CandidateIndices) == 0 {
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("candidate_indices must not be empty"))
+	if len(req.Msg.StripeTransactionIds) == 0 {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_transaction_ids must not be empty"))
 	}
 
 	linked, err := h.findLinkedAccount(req.Msg.StripeAccountId)
@@ -297,29 +300,31 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, since)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-		return connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
 	}
 
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
 		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
 	}
 
-	selectedSet := make(map[int32]bool, len(req.Msg.CandidateIndices))
-	for _, idx := range req.Msg.CandidateIndices {
-		selectedSet[idx] = true
+	txnByID := make(map[string]stripeClient.Transaction, len(stripeTxns))
+	for _, st := range stripeTxns {
+		txnByID[st.ID] = st
 	}
 
+	selectedIDs := req.Msg.StripeTransactionIds
 	importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
-	total := int32(len(req.Msg.CandidateIndices))
+	total := int32(len(selectedIDs))
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
 
 	var importedFIDs []string
-	err = h.lock.Do(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), func() error {
-		for i, st := range stripeTxns {
-			if !selectedSet[int32(i)] {
-				continue
+	err = h.lock.Do(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(selectedIDs), importBatchID), func() error {
+		for _, txnID := range selectedIDs {
+			st, ok := txnByID[txnID]
+			if !ok {
+				return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 			}
 			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
@@ -349,7 +354,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 			if writeErr != nil {
-				return fmt.Errorf("write transaction %d: %w", i, writeErr)
+				return fmt.Errorf("write transaction %s: %w", txnID, writeErr)
 			}
 			importedFIDs = append(importedFIDs, fid)
 
@@ -375,7 +380,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "import stripe transactions failed", "error", err)
-		return connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to import Stripe transactions"))
 	}
 
 	var txnProtos []*floatv1.Transaction

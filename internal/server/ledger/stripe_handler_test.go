@@ -698,8 +698,8 @@ func TestImportStripeTransactions(t *testing.T) {
 			},
 		})
 		_, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
-			StripeAccountId:  "",
-			CandidateIndices: []int32{0},
+			StripeAccountId:      "",
+			StripeTransactionIds: []string{"fca_txn_001"},
 		})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -709,7 +709,7 @@ func TestImportStripeTransactions(t *testing.T) {
 		}
 	})
 
-	t.Run("empty candidate_indices returns invalid argument", func(t *testing.T) {
+	t.Run("empty stripe_transaction_ids returns invalid argument", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 761, NumTxns: 1})
 		h := mustHandlerWithConfig(t, dir, &config.Config{
 			Stripe: config.StripeConfig{
@@ -719,8 +719,8 @@ func TestImportStripeTransactions(t *testing.T) {
 			},
 		})
 		_, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
-			StripeAccountId:  "fca_abc",
-			CandidateIndices: []int32{},
+			StripeAccountId:      "fca_abc",
+			StripeTransactionIds: []string{},
 		})
 		if err == nil {
 			t.Fatal("expected error, got nil")
@@ -768,8 +768,8 @@ func TestImportStripeTransactions(t *testing.T) {
 		h := mustHandlerWithConfig(t, dir, cfg)
 
 		result, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
-			StripeAccountId:  "fca_abc",
-			CandidateIndices: []int32{0},
+			StripeAccountId:      "fca_abc",
+			StripeTransactionIds: []string{"fca_txn_imp1"},
 		})
 		if err != nil {
 			t.Fatalf("ImportStripeTransactions: %v", err)

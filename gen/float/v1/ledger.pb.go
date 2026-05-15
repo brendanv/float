@@ -4630,6 +4630,7 @@ type ImportCandidate struct {
 	Transaction   *Transaction           `protobuf:"bytes,1,opt,name=transaction,proto3" json:"transaction,omitempty"`                            // parsed transaction
 	IsDuplicate   bool                   `protobuf:"varint,2,opt,name=is_duplicate,json=isDuplicate,proto3" json:"is_duplicate,omitempty"`        // true if fingerprint matches existing
 	MatchedRuleId string                 `protobuf:"bytes,3,opt,name=matched_rule_id,json=matchedRuleId,proto3" json:"matched_rule_id,omitempty"` // float rule that matched (empty if none)
+	SourceId      string                 `protobuf:"bytes,4,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`                  // stable identifier from the source (e.g. Stripe transaction ID)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4681,6 +4682,13 @@ func (x *ImportCandidate) GetIsDuplicate() bool {
 func (x *ImportCandidate) GetMatchedRuleId() string {
 	if x != nil {
 		return x.MatchedRuleId
+	}
+	return ""
+}
+
+func (x *ImportCandidate) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
 	}
 	return ""
 }
@@ -7172,11 +7180,11 @@ func (x *FetchStripeTransactionsResponse) GetCandidates() []*ImportCandidate {
 }
 
 type ImportStripeTransactionsRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	StripeAccountId  string                 `protobuf:"bytes,1,opt,name=stripe_account_id,json=stripeAccountId,proto3" json:"stripe_account_id,omitempty"`
-	CandidateIndices []int32                `protobuf:"varint,2,rep,packed,name=candidate_indices,json=candidateIndices,proto3" json:"candidate_indices,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	StripeAccountId      string                 `protobuf:"bytes,1,opt,name=stripe_account_id,json=stripeAccountId,proto3" json:"stripe_account_id,omitempty"`
+	StripeTransactionIds []string               `protobuf:"bytes,3,rep,name=stripe_transaction_ids,json=stripeTransactionIds,proto3" json:"stripe_transaction_ids,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ImportStripeTransactionsRequest) Reset() {
@@ -7216,9 +7224,9 @@ func (x *ImportStripeTransactionsRequest) GetStripeAccountId() string {
 	return ""
 }
 
-func (x *ImportStripeTransactionsRequest) GetCandidateIndices() []int32 {
+func (x *ImportStripeTransactionsRequest) GetStripeTransactionIds() []string {
 	if x != nil {
-		return x.CandidateIndices
+		return x.StripeTransactionIds
 	}
 	return nil
 }
@@ -8505,11 +8513,12 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x19DeleteBankProfileResponse\"T\n" +
 	"\x14PreviewImportRequest\x12\x19\n" +
 	"\bcsv_data\x18\x01 \x01(\fR\acsvData\x12!\n" +
-	"\fprofile_name\x18\x02 \x01(\tR\vprofileName\"\x95\x01\n" +
+	"\fprofile_name\x18\x02 \x01(\tR\vprofileName\"\xb2\x01\n" +
 	"\x0fImportCandidate\x127\n" +
 	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\x12!\n" +
 	"\fis_duplicate\x18\x02 \x01(\bR\visDuplicate\x12&\n" +
-	"\x0fmatched_rule_id\x18\x03 \x01(\tR\rmatchedRuleId\"R\n" +
+	"\x0fmatched_rule_id\x18\x03 \x01(\tR\rmatchedRuleId\x12\x1b\n" +
+	"\tsource_id\x18\x04 \x01(\tR\bsourceId\"R\n" +
 	"\x15PreviewImportResponse\x129\n" +
 	"\n" +
 	"candidates\x18\x01 \x03(\v2\x19.float.v1.ImportCandidateR\n" +
@@ -8681,10 +8690,10 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x1fFetchStripeTransactionsResponse\x129\n" +
 	"\n" +
 	"candidates\x18\x01 \x03(\v2\x19.float.v1.ImportCandidateR\n" +
-	"candidates\"z\n" +
+	"candidates\"\x83\x01\n" +
 	"\x1fImportStripeTransactionsRequest\x12*\n" +
-	"\x11stripe_account_id\x18\x01 \x01(\tR\x0fstripeAccountId\x12+\n" +
-	"\x11candidate_indices\x18\x02 \x03(\x05R\x10candidateIndices\"\x8a\x02\n" +
+	"\x11stripe_account_id\x18\x01 \x01(\tR\x0fstripeAccountId\x124\n" +
+	"\x16stripe_transaction_ids\x18\x03 \x03(\tR\x14stripeTransactionIds\"\x8a\x02\n" +
 	"\rSuggestedRule\x12\x18\n" +
 	"\apattern\x18\x01 \x01(\tR\apattern\x12\x14\n" +
 	"\x05payee\x18\x02 \x01(\tR\x05payee\x12\x18\n" +

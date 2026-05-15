@@ -446,6 +446,7 @@ message ImportCandidate {
   Transaction transaction = 1; // parsed transaction
   bool is_duplicate = 2;       // true if fingerprint matches existing
   string matched_rule_id = 3;  // float rule that matched (empty if none)
+  string source_id = 4;        // stable identifier from the source (e.g. Stripe transaction ID)
 }
 
 message PreviewImportResponse {
@@ -687,7 +688,7 @@ message FetchStripeTransactionsResponse {
 
 message ImportStripeTransactionsRequest {
   string stripe_account_id = 1;
-  repeated int32 candidate_indices = 2;
+  repeated string stripe_transaction_ids = 3;
 }
 
 // ---- AI ----

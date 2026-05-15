@@ -146,7 +146,7 @@ function AccountFetchPanel({ account, onImported }) {
   const [candidates, setCandidates] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
-  const [selectedIndices, setSelectedIndices] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [sorting, setSorting] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
@@ -164,10 +164,10 @@ function AccountFetchPanel({ account, onImported }) {
       });
       setCandidates(res.candidates);
       const autoSelected = new Set();
-      res.candidates.forEach((c, i) => {
-        if (!c.isDuplicate) autoSelected.add(i);
+      res.candidates.forEach((c) => {
+        if (!c.isDuplicate && c.sourceId) autoSelected.add(c.sourceId);
       });
-      setSelectedIndices(autoSelected);
+      setSelectedIds(autoSelected);
     } catch (err) {
       setFetchError(err);
     } finally {
@@ -175,37 +175,36 @@ function AccountFetchPanel({ account, onImported }) {
     }
   }
 
-  function toggleCandidate(idx) {
-    setSelectedIndices((prev) => {
+  function toggleCandidate(sourceId) {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(sourceId)) next.delete(sourceId);
+      else next.add(sourceId);
       return next;
     });
   }
 
   function toggleAll() {
     if (!candidates) return;
-    const allNew = candidates
-      .map((c, i) => ({ c, i }))
-      .filter(({ c }) => !c.isDuplicate)
-      .map(({ i }) => i);
-    if (selectedIndices.size === allNew.length) {
-      setSelectedIndices(new Set());
+    const allNewIds = candidates
+      .filter((c) => !c.isDuplicate && c.sourceId)
+      .map((c) => c.sourceId);
+    if (selectedIds.size === allNewIds.length) {
+      setSelectedIds(new Set());
     } else {
-      setSelectedIndices(new Set(allNew));
+      setSelectedIds(new Set(allNewIds));
     }
   }
 
   async function handleImport() {
-    if (selectedIndices.size === 0) return;
+    if (selectedIds.size === 0) return;
     setImportError(null);
     setImporting(true);
-    setImportProgress({ imported: 0, total: selectedIndices.size });
+    setImportProgress({ imported: 0, total: selectedIds.size });
     try {
       for await (const res of ledgerClient.importStripeTransactions({
         stripeAccountId: account.stripeAccountId,
-        candidateIndices: Array.from(selectedIndices),
+        stripeTransactionIds: Array.from(selectedIds),
       })) {
         if (res.payload.case === "progress") {
           setImportProgress({
@@ -235,9 +234,9 @@ function AccountFetchPanel({ account, onImported }) {
         header: () => null,
         cell: ({ row }) => (
           <Checkbox
-            checked={selectedIndices.has(row.original._originalIndex)}
-            disabled={row.original.isDuplicate}
-            onCheckedChange={() => toggleCandidate(row.original._originalIndex)}
+            checked={selectedIds.has(row.original.sourceId)}
+            disabled={row.original.isDuplicate || !row.original.sourceId}
+            onCheckedChange={() => toggleCandidate(row.original.sourceId)}
           />
         ),
         enableSorting: false,
@@ -296,11 +295,11 @@ function AccountFetchPanel({ account, onImported }) {
         enableSorting: false,
       },
     ],
-    [selectedIndices]
+    [selectedIds]
   );
 
   const tableData = useMemo(
-    () => (candidates ? candidates.map((c, i) => ({ ...c, _originalIndex: i })) : []),
+    () => (candidates ?? []),
     [candidates]
   );
 
@@ -339,12 +338,12 @@ function AccountFetchPanel({ account, onImported }) {
             </span>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" onClick={toggleAll}>
-                {selectedIndices.size === newCount ? "Deselect All" : "Select All New"}
+                {selectedIds.size === newCount ? "Deselect All" : "Select All New"}
               </Button>
               <Button
                 size="sm"
                 onClick={handleImport}
-                disabled={importing || selectedIndices.size === 0}
+                disabled={importing || selectedIds.size === 0}
               >
                 {importing && (
                   <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
@@ -353,7 +352,7 @@ function AccountFetchPanel({ account, onImported }) {
                   ? importProgress && importProgress.total > 0
                     ? `Importing ${importProgress.imported} of ${importProgress.total}…`
                     : "Importing…"
-                  : `Import ${selectedIndices.size} Selected`}
+                  : `Import ${selectedIds.size} Selected`}
               </Button>
             </div>
           </div>

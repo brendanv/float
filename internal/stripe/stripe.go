@@ -6,9 +6,6 @@ import (
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v82"
-	"github.com/stripe/stripe-go/v82/financialconnections/account"
-	"github.com/stripe/stripe-go/v82/financialconnections/session"
-	"github.com/stripe/stripe-go/v82/financialconnections/transaction"
 )
 
 type Account struct {
@@ -20,19 +17,23 @@ type Account struct {
 }
 
 type Transaction struct {
-	ID          string
-	AccountID   string
-	AmountCents int64
-	Currency    string
-	Description string
+	ID           string
+	AccountID    string
+	AmountCents  int64
+	Currency     string
+	Description  string
 	TransactedAt time.Time
-	Status      string // "posted" or "pending"
+	Status       string // "posted" or "pending"
+}
+
+func newClient(secretKey string) *stripe.Client {
+	return stripe.NewClient(secretKey)
 }
 
 func CreateFCSession(ctx context.Context, secretKey, accountID string) (string, error) {
-	stripe.Key = secretKey
-	params := &stripe.FinancialConnectionsSessionParams{
-		AccountHolder: &stripe.FinancialConnectionsSessionAccountHolderParams{
+	c := newClient(secretKey)
+	sess, err := c.V1FinancialConnectionsSessions.Create(ctx, &stripe.FinancialConnectionsSessionCreateParams{
+		AccountHolder: &stripe.FinancialConnectionsSessionCreateAccountHolderParams{
 			Type:    stripe.String("account"),
 			Account: stripe.String(accountID),
 		},
@@ -41,12 +42,10 @@ func CreateFCSession(ctx context.Context, secretKey, accountID string) (string, 
 			stripe.String("transactions"),
 			stripe.String("balances"),
 		},
-		Filters: &stripe.FinancialConnectionsSessionFiltersParams{
+		Filters: &stripe.FinancialConnectionsSessionCreateFiltersParams{
 			Countries: []*string{stripe.String("US")},
 		},
-	}
-	params.Context = ctx
-	sess, err := session.New(params)
+	})
 	if err != nil {
 		return "", fmt.Errorf("stripe: create fc session: %w", err)
 	}
@@ -54,11 +53,10 @@ func CreateFCSession(ctx context.Context, secretKey, accountID string) (string, 
 }
 
 func ListSessionAccounts(ctx context.Context, secretKey, sessionID string) ([]Account, error) {
-	stripe.Key = secretKey
-	params := &stripe.FinancialConnectionsSessionParams{}
-	params.Context = ctx
+	c := newClient(secretKey)
+	params := &stripe.FinancialConnectionsSessionRetrieveParams{}
 	params.AddExpand("accounts")
-	sess, err := session.Get(sessionID, params)
+	sess, err := c.V1FinancialConnectionsSessions.Retrieve(ctx, sessionID, params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: list session accounts: %w", err)
 	}
@@ -66,7 +64,8 @@ func ListSessionAccounts(ctx context.Context, secretKey, sessionID string) ([]Ac
 	if sess.Accounts != nil {
 		for _, a := range sess.Accounts.Data {
 			acc := Account{
-				ID: a.ID,
+				ID:     a.ID,
+				Status: string(a.Status),
 			}
 			if a.DisplayName != "" {
 				acc.DisplayName = a.DisplayName
@@ -84,18 +83,18 @@ func ListSessionAccounts(ctx context.Context, secretKey, sessionID string) ([]Ac
 }
 
 func ListAccounts(ctx context.Context, secretKey, accountID string) ([]Account, error) {
-	stripe.Key = secretKey
+	c := newClient(secretKey)
 	params := &stripe.FinancialConnectionsAccountListParams{}
 	if accountID != "" {
 		params.AccountHolder = &stripe.FinancialConnectionsAccountListAccountHolderParams{
 			Account: stripe.String(accountID),
 		}
 	}
-	params.Context = ctx
 	var accounts []Account
-	iter := account.List(params)
-	for iter.Next() {
-		a := iter.FinancialConnectionsAccount()
+	for a, err := range c.V1FinancialConnectionsAccounts.List(ctx, params) {
+		if err != nil {
+			return nil, fmt.Errorf("stripe: list accounts: %w", err)
+		}
 		accounts = append(accounts, Account{
 			ID:          a.ID,
 			DisplayName: a.DisplayName,
@@ -104,19 +103,14 @@ func ListAccounts(ctx context.Context, secretKey, accountID string) ([]Account, 
 			Status:      string(a.Status),
 		})
 	}
-	if err := iter.Err(); err != nil {
-		return nil, fmt.Errorf("stripe: list accounts: %w", err)
-	}
 	return accounts, nil
 }
 
 func SubscribeTransactions(ctx context.Context, secretKey, accountID string) error {
-	stripe.Key = secretKey
-	params := &stripe.FinancialConnectionsAccountSubscribeParams{
+	c := newClient(secretKey)
+	_, err := c.V1FinancialConnectionsAccounts.Subscribe(ctx, accountID, &stripe.FinancialConnectionsAccountSubscribeParams{
 		Features: []*string{stripe.String("transactions")},
-	}
-	params.Context = ctx
-	_, err := account.Subscribe(accountID, params)
+	})
 	if err != nil {
 		return fmt.Errorf("stripe: subscribe transactions for %s: %w", accountID, err)
 	}
@@ -124,12 +118,10 @@ func SubscribeTransactions(ctx context.Context, secretKey, accountID string) err
 }
 
 func RefreshTransactions(ctx context.Context, secretKey, accountID string) error {
-	stripe.Key = secretKey
-	params := &stripe.FinancialConnectionsAccountRefreshParams{
+	c := newClient(secretKey)
+	_, err := c.V1FinancialConnectionsAccounts.Refresh(ctx, accountID, &stripe.FinancialConnectionsAccountRefreshParams{
 		Features: []*string{stripe.String("transactions")},
-	}
-	params.Context = ctx
-	_, err := account.Refresh(accountID, params)
+	})
 	if err != nil {
 		return fmt.Errorf("stripe: refresh transactions for %s: %w", accountID, err)
 	}
@@ -137,10 +129,8 @@ func RefreshTransactions(ctx context.Context, secretKey, accountID string) error
 }
 
 func DisconnectAccount(ctx context.Context, secretKey, accountID string) error {
-	stripe.Key = secretKey
-	params := &stripe.FinancialConnectionsAccountDisconnectParams{}
-	params.Context = ctx
-	_, err := account.Disconnect(accountID, params)
+	c := newClient(secretKey)
+	_, err := c.V1FinancialConnectionsAccounts.Disconnect(ctx, accountID, &stripe.FinancialConnectionsAccountDisconnectParams{})
 	if err != nil {
 		return fmt.Errorf("stripe: disconnect account %s: %w", accountID, err)
 	}
@@ -148,7 +138,7 @@ func DisconnectAccount(ctx context.Context, secretKey, accountID string) error {
 }
 
 func ListTransactions(ctx context.Context, secretKey, accountID string, since time.Time) ([]Transaction, error) {
-	stripe.Key = secretKey
+	c := newClient(secretKey)
 	params := &stripe.FinancialConnectionsTransactionListParams{
 		Account: stripe.String(accountID),
 	}
@@ -157,12 +147,12 @@ func ListTransactions(ctx context.Context, secretKey, accountID string, since ti
 			GreaterThan: since.Unix(),
 		}
 	}
-	params.Context = ctx
 
 	var txns []Transaction
-	iter := transaction.List(params)
-	for iter.Next() {
-		t := iter.FinancialConnectionsTransaction()
+	for t, err := range c.V1FinancialConnectionsTransactions.List(ctx, params) {
+		if err != nil {
+			return nil, fmt.Errorf("stripe: list transactions for %s: %w", accountID, err)
+		}
 		txns = append(txns, Transaction{
 			ID:           t.ID,
 			AccountID:    accountID,
@@ -172,9 +162,6 @@ func ListTransactions(ctx context.Context, secretKey, accountID string, since ti
 			TransactedAt: time.Unix(t.TransactedAt, 0).UTC(),
 			Status:       string(t.Status),
 		})
-	}
-	if err := iter.Err(); err != nil {
-		return nil, fmt.Errorf("stripe: list transactions for %s: %w", accountID, err)
 	}
 	return txns, nil
 }
