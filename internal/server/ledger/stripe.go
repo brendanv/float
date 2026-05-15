@@ -31,8 +31,23 @@ func (h *Handler) GetStripeConfig(ctx context.Context, _ *connect.Request[floatv
 		Enabled:            secretKey != "",
 		PublishableKey:     os.Getenv("STRIPE_PUBLISHABLE_KEY"),
 		LinkedAccountCount: int32(len(h.cfg.Stripe.LinkedAccounts)),
+		CustomerId:         h.cfg.Stripe.CustomerID,
 	}
 	return connect.NewResponse(resp), nil
+}
+
+func (h *Handler) SetStripeCustomerId(ctx context.Context, req *connect.Request[floatv1.SetStripeCustomerIdRequest]) (*connect.Response[floatv1.SetStripeCustomerIdResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	newID := strings.TrimSpace(req.Msg.CustomerId)
+	if err := h.lock.Do(ctx, "set stripe customer id", func() error {
+		h.cfg.Stripe.CustomerID = newID
+		return config.Save(h.configPath, h.cfg)
+	}); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to save stripe customer id: %w", err))
+	}
+	return connect.NewResponse(&floatv1.SetStripeCustomerIdResponse{}), nil
 }
 
 func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Request[floatv1.CreateStripeLinkSessionRequest]) (*connect.Response[floatv1.CreateStripeLinkSessionResponse], error) {

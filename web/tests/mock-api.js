@@ -1027,8 +1027,11 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetStripeConfig":
         body = stripeEnabled
-          ? { enabled: true, publishableKey: "pk_test_mock_key", linkedAccountCount: mockStripeLinkedAccounts.length }
-          : { enabled: false, publishableKey: "", linkedAccountCount: 0 };
+          ? { enabled: true, publishableKey: "pk_test_mock_key", linkedAccountCount: mockStripeLinkedAccounts.length, customerId: "cus_mock1234567890" }
+          : { enabled: false, publishableKey: "", linkedAccountCount: 0, customerId: "" };
+        break;
+      case "SetStripeCustomerId":
+        body = {};
         break;
       case "CreateStripeLinkSession":
         body = { clientSecret: "fcsess_mock_secret_test" };
