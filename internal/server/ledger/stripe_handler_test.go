@@ -257,6 +257,7 @@ func TestListStripeLinkedAccounts(t *testing.T) {
 
 func TestUnlinkStripeAccount(t *testing.T) {
 	t.Run("missing stripe_account_id returns invalid argument", func(t *testing.T) {
+		t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 720, NumTxns: 1})
 		h := mustHandlerWithConfig(t, dir, &config.Config{
 			Stripe: config.StripeConfig{
@@ -274,7 +275,37 @@ func TestUnlinkStripeAccount(t *testing.T) {
 		}
 	})
 
-	t.Run("removes matching account", func(t *testing.T) {
+	t.Run("missing STRIPE_SECRET_KEY returns failed precondition", func(t *testing.T) {
+		t.Setenv("STRIPE_SECRET_KEY", "")
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 723, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		_, err := h.UnlinkStripeAccount(t.Context(), connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{StripeAccountId: "fca_abc"}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Errorf("code = %v, want FailedPrecondition", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("removes matching account after stripe disconnect", func(t *testing.T) {
+		t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_remove/disconnect", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id":     "fca_remove",
+				"object": "financial_connections.account",
+				"status": "disconnected",
+			})
+		})
+		mockStripeAPI(t, mux)
+
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 721, NumTxns: 1})
 		cfg := &config.Config{
 			Stripe: config.StripeConfig{
@@ -306,7 +337,22 @@ func TestUnlinkStripeAccount(t *testing.T) {
 		}
 	})
 
-	t.Run("unlink nonexistent account is a no-op", func(t *testing.T) {
+	t.Run("stripe disconnect error leaves config unchanged", func(t *testing.T) {
+		t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_does_not_exist/disconnect", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{
+					"type":    "invalid_request_error",
+					"message": "No such financial connections account: fca_does_not_exist",
+					"code":    "resource_missing",
+				},
+			})
+		})
+		mockStripeAPI(t, mux)
+
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 722, NumTxns: 1})
 		cfg := &config.Config{
 			Stripe: config.StripeConfig{
@@ -320,8 +366,11 @@ func TestUnlinkStripeAccount(t *testing.T) {
 		_, err := h.UnlinkStripeAccount(t.Context(), connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{
 			StripeAccountId: "fca_does_not_exist",
 		}))
-		if err != nil {
-			t.Fatalf("UnlinkStripeAccount: %v", err)
+		if err == nil {
+			t.Fatal("expected error from stripe disconnect, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInternal {
+			t.Errorf("code = %v, want Internal", connect.CodeOf(err))
 		}
 
 		configPath := filepath.Join(dir, "config.toml")
@@ -330,7 +379,7 @@ func TestUnlinkStripeAccount(t *testing.T) {
 			t.Fatalf("load config: %v", err)
 		}
 		if len(savedCfg.Stripe.LinkedAccounts) != 1 {
-			t.Errorf("got %d linked accounts, want 1", len(savedCfg.Stripe.LinkedAccounts))
+			t.Errorf("got %d linked accounts, want 1 (config should be unchanged)", len(savedCfg.Stripe.LinkedAccounts))
 		}
 	})
 }

@@ -134,6 +134,17 @@ func RefreshTransactions(ctx context.Context, secretKey, accountID string) error
 	return nil
 }
 
+func DisconnectAccount(ctx context.Context, secretKey, accountID string) error {
+	stripe.Key = secretKey
+	params := &stripe.FinancialConnectionsAccountDisconnectParams{}
+	params.Context = ctx
+	_, err := account.Disconnect(accountID, params)
+	if err != nil {
+		return fmt.Errorf("stripe: disconnect account %s: %w", accountID, err)
+	}
+	return nil
+}
+
 func ListTransactions(ctx context.Context, secretKey, accountID string, since time.Time) ([]Transaction, error) {
 	stripe.Key = secretKey
 	params := &stripe.FinancialConnectionsTransactionListParams{

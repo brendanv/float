@@ -164,6 +164,15 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
 	}
 
+	secretKey := stripeSecretKey()
+	if secretKey == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	}
+	if err := stripeClient.DisconnectAccount(ctx, secretKey, req.Msg.StripeAccountId); err != nil {
+		logger.ErrorContext(ctx, "stripe disconnect failed", "error", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
 	err := h.lock.Do(ctx, fmt.Sprintf("unlink stripe account %s", req.Msg.StripeAccountId), func() error {
 		updated := h.cfg.Stripe.LinkedAccounts[:0]
 		for _, a := range h.cfg.Stripe.LinkedAccounts {
