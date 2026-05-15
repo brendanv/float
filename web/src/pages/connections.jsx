@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   useReactTable,
   getCoreRowModel,
@@ -416,8 +416,7 @@ export function ConnectionsPage() {
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState(null);
   const [pendingSession, setPendingSession] = useState(null);
-  const [unlinkingId, setUnlinkingId] = useState(null);
-  const [unlinkError, setUnlinkError] = useState(null);
+  const [pendingConfigureAccount, setPendingConfigureAccount] = useState(null);
 
   const {
     data: configData,
@@ -488,24 +487,33 @@ export function ConnectionsPage() {
     queryClient.invalidateQueries({ queryKey: queryKeys.stripeConfig() });
   }
 
-  async function handleUnlink(stripeAccountId) {
-    if (
-      !confirm(
-        "Unlink this account? Existing imported transactions will not be removed."
-      )
-    )
-      return;
-    setUnlinkingId(stripeAccountId);
-    setUnlinkError(null);
-    try {
-      await ledgerClient.unlinkStripeAccount({ stripeAccountId });
+  const unlinkMutation = useMutation({
+    mutationFn: (stripeAccountId) =>
+      ledgerClient.unlinkStripeAccount({ stripeAccountId }),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() });
       queryClient.invalidateQueries({ queryKey: queryKeys.stripeConfig() });
-    } catch (err) {
-      setUnlinkError(err);
-    } finally {
-      setUnlinkingId(null);
-    }
+    },
+  });
+
+  function handleUnlink(stripeAccountId) {
+    if (!confirm("Unlink this account? Existing imported transactions will not be removed.")) return;
+    unlinkMutation.mutate(stripeAccountId);
+  }
+
+  async function handleConfigureComplete(_, mappings) {
+    const a = pendingConfigureAccount;
+    await ledgerClient.completeStripeLinking({
+      sessionId: "",
+      accounts: [{
+        stripeAccountId: a.id,
+        hledgerAccount: mappings[a.id].hledgerAccount,
+        displayName: mappings[a.id].displayName || a.display_name || a.id,
+      }],
+    });
+    setPendingConfigureAccount(null);
+    queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.stripeConfig() });
   }
 
   if (configLoading) return <Loading />;
@@ -540,6 +548,8 @@ export function ConnectionsPage() {
   }
 
   const accounts = linkedData?.accounts ?? [];
+  const configuredAccounts = accounts.filter((a) => a.hledgerAccount);
+  const unconfiguredAccounts = accounts.filter((a) => !a.hledgerAccount);
 
   return (
     <div className="flex flex-col gap-6">
@@ -556,7 +566,7 @@ export function ConnectionsPage() {
       </div>
 
       {linkError && <ErrorBanner error={linkError} />}
-      {unlinkError && <ErrorBanner error={unlinkError} />}
+      {unlinkMutation.error && <ErrorBanner error={unlinkMutation.error} />}
       {linkedError && <ErrorBanner error={linkedError} />}
 
       {linkedLoading && <Loading />}
@@ -569,13 +579,17 @@ export function ConnectionsPage() {
         </Card>
       )}
 
-      {accounts.map((account) => (
+      {configuredAccounts.map((account) => (
         <Card key={account.stripeAccountId}>
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="flex flex-col gap-1">
                 <CardTitle className="text-base">{account.displayName}</CardTitle>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  {account.institutionName && (
+                    <span>{account.institutionName}</span>
+                  )}
+                  {account.institutionName && <span>·</span>}
                   <span className="font-mono">{account.hledgerAccount}</span>
                   {account.lastFetchedAt && (
                     <>
@@ -589,10 +603,10 @@ export function ConnectionsPage() {
                 variant="ghost"
                 size="sm"
                 className="text-destructive hover:text-destructive shrink-0"
-                disabled={unlinkingId === account.stripeAccountId}
+                disabled={unlinkMutation.isPending && unlinkMutation.variables === account.stripeAccountId}
                 onClick={() => handleUnlink(account.stripeAccountId)}
               >
-                {unlinkingId === account.stripeAccountId ? (
+                {unlinkMutation.isPending && unlinkMutation.variables === account.stripeAccountId ? (
                   <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
                 ) : (
                   <Link2Off data-icon="inline-start" />
@@ -614,6 +628,32 @@ export function ConnectionsPage() {
         </Card>
       ))}
 
+      {unconfiguredAccounts.map((account) => (
+        <Card key={account.stripeAccountId}>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <CardTitle className="text-base">
+                  {account.displayName || account.stripeAccountId}
+                </CardTitle>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  {account.institutionName && <span>{account.institutionName}</span>}
+                  <span className="font-mono text-xs">{account.stripeAccountId}</span>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setPendingConfigureAccount({ id: account.stripeAccountId, display_name: account.displayName })}
+              >
+                Configure
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
+      ))}
+
       {pendingSession && (
         <LinkMappingDialog
           key={pendingSession.id}
@@ -623,6 +663,17 @@ export function ConnectionsPage() {
           accountDeclarations={declarationsData?.declarations ?? []}
           onComplete={handleCompleteLinking}
           onClose={() => setPendingSession(null)}
+        />
+      )}
+
+      {pendingConfigureAccount && (
+        <LinkMappingDialog
+          open={true}
+          sessionId=""
+          fcAccounts={[pendingConfigureAccount]}
+          accountDeclarations={declarationsData?.declarations ?? []}
+          onComplete={handleConfigureComplete}
+          onClose={() => setPendingConfigureAccount(null)}
         />
       )}
     </div>
