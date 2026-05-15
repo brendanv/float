@@ -6521,6 +6521,7 @@ type StripeLinkedAccount struct {
 	HledgerAccount  string                 `protobuf:"bytes,2,opt,name=hledger_account,json=hledgerAccount,proto3" json:"hledger_account,omitempty"`
 	DisplayName     string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	LastFetchedAt   string                 `protobuf:"bytes,4,opt,name=last_fetched_at,json=lastFetchedAt,proto3" json:"last_fetched_at,omitempty"` // RFC3339; empty if never fetched
+	InstitutionName string                 `protobuf:"bytes,5,opt,name=institution_name,json=institutionName,proto3" json:"institution_name,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -6579,6 +6580,13 @@ func (x *StripeLinkedAccount) GetDisplayName() string {
 func (x *StripeLinkedAccount) GetLastFetchedAt() string {
 	if x != nil {
 		return x.LastFetchedAt
+	}
+	return ""
+}
+
+func (x *StripeLinkedAccount) GetInstitutionName() string {
+	if x != nil {
+		return x.InstitutionName
 	}
 	return ""
 }
@@ -8637,12 +8645,13 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\vtotal_value\x18\x02 \x01(\v2\x10.float.v1.AmountR\n" +
 	"totalValue\"e\n" +
 	"\x1eGetPortfolioTimeseriesResponse\x12C\n" +
-	"\tsnapshots\x18\x01 \x03(\v2%.float.v1.PortfolioTimeseriesSnapshotR\tsnapshots\"\xb5\x01\n" +
+	"\tsnapshots\x18\x01 \x03(\v2%.float.v1.PortfolioTimeseriesSnapshotR\tsnapshots\"\xe0\x01\n" +
 	"\x13StripeLinkedAccount\x12*\n" +
 	"\x11stripe_account_id\x18\x01 \x01(\tR\x0fstripeAccountId\x12'\n" +
 	"\x0fhledger_account\x18\x02 \x01(\tR\x0ehledgerAccount\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12&\n" +
-	"\x0flast_fetched_at\x18\x04 \x01(\tR\rlastFetchedAt\"\x18\n" +
+	"\x0flast_fetched_at\x18\x04 \x01(\tR\rlastFetchedAt\x12)\n" +
+	"\x10institution_name\x18\x05 \x01(\tR\x0finstitutionName\"\x18\n" +
 	"\x16GetStripeConfigRequest\"\x8e\x01\n" +
 	"\x17GetStripeConfigResponse\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12'\n" +

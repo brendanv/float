@@ -633,6 +633,7 @@ message StripeLinkedAccount {
   string hledger_account = 2;
   string display_name = 3;
   string last_fetched_at = 4; // RFC3339; empty if never fetched
+  string institution_name = 5;
 }
 
 message GetStripeConfigRequest {}
