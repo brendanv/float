@@ -182,6 +182,12 @@ const (
 	// LedgerServiceImportStripeTransactionsProcedure is the fully-qualified name of the LedgerService's
 	// ImportStripeTransactions RPC.
 	LedgerServiceImportStripeTransactionsProcedure = "/float.v1.LedgerService/ImportStripeTransactions"
+	// LedgerServiceFetchAllStripeTransactionsProcedure is the fully-qualified name of the
+	// LedgerService's FetchAllStripeTransactions RPC.
+	LedgerServiceFetchAllStripeTransactionsProcedure = "/float.v1.LedgerService/FetchAllStripeTransactions"
+	// LedgerServiceImportAllStripeTransactionsProcedure is the fully-qualified name of the
+	// LedgerService's ImportAllStripeTransactions RPC.
+	LedgerServiceImportAllStripeTransactionsProcedure = "/float.v1.LedgerService/ImportAllStripeTransactions"
 	// LedgerServiceSuggestRulesProcedure is the fully-qualified name of the LedgerService's
 	// SuggestRules RPC.
 	LedgerServiceSuggestRulesProcedure = "/float.v1.LedgerService/SuggestRules"
@@ -270,6 +276,8 @@ type LedgerServiceClient interface {
 	UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error)
 	FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error)
 	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
+	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
+	ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -602,6 +610,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ImportStripeTransactions")),
 			connect.WithClientOptions(opts...),
 		),
+		fetchAllStripeTransactions: connect.NewClient[v1.FetchAllStripeTransactionsRequest, v1.FetchAllStripeTransactionsResponse](
+			httpClient,
+			baseURL+LedgerServiceFetchAllStripeTransactionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("FetchAllStripeTransactions")),
+			connect.WithClientOptions(opts...),
+		),
+		importAllStripeTransactions: connect.NewClient[v1.ImportAllStripeTransactionsRequest, v1.ImportTransactionsResponse](
+			httpClient,
+			baseURL+LedgerServiceImportAllStripeTransactionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ImportAllStripeTransactions")),
+			connect.WithClientOptions(opts...),
+		),
 		suggestRules: connect.NewClient[v1.SuggestRulesRequest, v1.SuggestRulesResponse](
 			httpClient,
 			baseURL+LedgerServiceSuggestRulesProcedure,
@@ -718,6 +738,8 @@ type ledgerServiceClient struct {
 	unlinkStripeAccount          *connect.Client[v1.UnlinkStripeAccountRequest, v1.UnlinkStripeAccountResponse]
 	fetchStripeTransactions      *connect.Client[v1.FetchStripeTransactionsRequest, v1.FetchStripeTransactionsResponse]
 	importStripeTransactions     *connect.Client[v1.ImportStripeTransactionsRequest, v1.ImportTransactionsResponse]
+	fetchAllStripeTransactions   *connect.Client[v1.FetchAllStripeTransactionsRequest, v1.FetchAllStripeTransactionsResponse]
+	importAllStripeTransactions  *connect.Client[v1.ImportAllStripeTransactionsRequest, v1.ImportTransactionsResponse]
 	suggestRules                 *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
 	translateQuery               *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
 	askQuestion                  *connect.Client[v1.AskQuestionRequest, v1.AskQuestionResponse]
@@ -985,6 +1007,16 @@ func (c *ledgerServiceClient) ImportStripeTransactions(ctx context.Context, req 
 	return c.importStripeTransactions.CallServerStream(ctx, req)
 }
 
+// FetchAllStripeTransactions calls float.v1.LedgerService.FetchAllStripeTransactions.
+func (c *ledgerServiceClient) FetchAllStripeTransactions(ctx context.Context, req *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error) {
+	return c.fetchAllStripeTransactions.CallUnary(ctx, req)
+}
+
+// ImportAllStripeTransactions calls float.v1.LedgerService.ImportAllStripeTransactions.
+func (c *ledgerServiceClient) ImportAllStripeTransactions(ctx context.Context, req *connect.Request[v1.ImportAllStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error) {
+	return c.importAllStripeTransactions.CallServerStream(ctx, req)
+}
+
 // SuggestRules calls float.v1.LedgerService.SuggestRules.
 func (c *ledgerServiceClient) SuggestRules(ctx context.Context, req *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
 	return c.suggestRules.CallUnary(ctx, req)
@@ -1091,6 +1123,8 @@ type LedgerServiceHandler interface {
 	UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error)
 	FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error)
 	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
+	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
+	ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -1419,6 +1453,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ImportStripeTransactions")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceFetchAllStripeTransactionsHandler := connect.NewUnaryHandler(
+		LedgerServiceFetchAllStripeTransactionsProcedure,
+		svc.FetchAllStripeTransactions,
+		connect.WithSchema(ledgerServiceMethods.ByName("FetchAllStripeTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceImportAllStripeTransactionsHandler := connect.NewServerStreamHandler(
+		LedgerServiceImportAllStripeTransactionsProcedure,
+		svc.ImportAllStripeTransactions,
+		connect.WithSchema(ledgerServiceMethods.ByName("ImportAllStripeTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceSuggestRulesHandler := connect.NewUnaryHandler(
 		LedgerServiceSuggestRulesProcedure,
 		svc.SuggestRules,
@@ -1583,6 +1629,10 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceFetchStripeTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceImportStripeTransactionsProcedure:
 			ledgerServiceImportStripeTransactionsHandler.ServeHTTP(w, r)
+		case LedgerServiceFetchAllStripeTransactionsProcedure:
+			ledgerServiceFetchAllStripeTransactionsHandler.ServeHTTP(w, r)
+		case LedgerServiceImportAllStripeTransactionsProcedure:
+			ledgerServiceImportAllStripeTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceSuggestRulesProcedure:
 			ledgerServiceSuggestRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceTranslateQueryProcedure:
@@ -1814,6 +1864,14 @@ func (UnimplementedLedgerServiceHandler) FetchStripeTransactions(context.Context
 
 func (UnimplementedLedgerServiceHandler) ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportStripeTransactions is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.FetchAllStripeTransactions is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportAllStripeTransactions is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {

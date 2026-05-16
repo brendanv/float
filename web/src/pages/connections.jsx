@@ -142,12 +142,338 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
   );
 }
 
+function CandidatesTable({ candidates, selectedIds, onToggle, showAccount }) {
+  const [sorting, setSorting] = useState([]);
+
+  const columns = useMemo(
+    () => [
+      {
+        id: "select",
+        header: () => null,
+        cell: ({ row }) => (
+          <Checkbox
+            checked={selectedIds.has(row.original.sourceId)}
+            disabled={row.original.isDuplicate || !row.original.sourceId}
+            onCheckedChange={() => onToggle(row.original.sourceId)}
+          />
+        ),
+        enableSorting: false,
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorFn: (row) => row.isDuplicate,
+        cell: ({ getValue }) => (
+          <Badge variant={getValue() ? "secondary" : "default"}>
+            {getValue() ? "DUP" : "NEW"}
+          </Badge>
+        ),
+        enableSorting: false,
+      },
+      ...(showAccount
+        ? [
+            {
+              id: "account",
+              header: "Account",
+              accessorFn: (row) => row._accountName ?? "",
+              cell: ({ getValue }) => (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">{getValue()}</span>
+              ),
+            },
+          ]
+        : []),
+      {
+        id: "date",
+        header: "Date",
+        accessorFn: (row) => row.transaction?.date ?? "",
+        cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
+      },
+      {
+        id: "description",
+        header: "Description",
+        accessorFn: (row) => row.transaction?.description ?? "",
+      },
+      {
+        id: "postings",
+        header: "Postings",
+        cell: ({ row }) => (
+          <div className="text-xs">
+            {(row.original.transaction?.postings ?? []).map((p, j) => (
+              <div key={j}>
+                {p.account}
+                {p.amounts?.[0] && (
+                  <span className="ml-1 text-muted-foreground">
+                    {p.amounts[0].commodity}{p.amounts[0].quantity}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        ),
+        enableSorting: false,
+      },
+      {
+        id: "matched",
+        header: "Rule",
+        accessorFn: (row) => row.matchedRuleId ?? "",
+        cell: ({ getValue }) =>
+          getValue() ? (
+            <Tag className="size-3.5 text-primary" title="Matched a rule" />
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+        enableSorting: false,
+      },
+    ],
+    [selectedIds, onToggle, showAccount]
+  );
+
+  const table = useReactTable({
+    data: candidates,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  return (
+    <Table>
+      <TableHeader>
+        {table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id}>
+            {headerGroup.headers.map((header) => {
+              const canSort = header.column.getCanSort();
+              const sorted = header.column.getIsSorted();
+              return (
+                <TableHead key={header.id}>
+                  {canSort ? (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 hover:text-foreground"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {sorted === "asc" ? (
+                        <ArrowUp className="size-3" />
+                      ) : sorted === "desc" ? (
+                        <ArrowDown className="size-3" />
+                      ) : (
+                        <ArrowUpDown className="size-3 opacity-40" />
+                      )}
+                    </button>
+                  ) : (
+                    flexRender(header.column.columnDef.header, header.getContext())
+                  )}
+                </TableHead>
+              );
+            })}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows.map((row) => (
+          <TableRow
+            key={row.id}
+            className={cn(row.original.isDuplicate && "opacity-50")}
+          >
+            {row.getVisibleCells().map((cell) => (
+              <TableCell key={cell.id}>
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function FetchAllPanel({ configuredAccounts, onImported }) {
+  const [accountCandidates, setAccountCandidates] = useState(null);
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+  // selectedIds is a Set of sourceId strings (unique Stripe transaction IDs across all accounts)
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
+  const [importError, setImportError] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+
+  async function handleFetchAll() {
+    setFetching(true);
+    setFetchError(null);
+    setImportResult(null);
+    setAccountCandidates(null);
+    try {
+      const res = await ledgerClient.fetchAllStripeTransactions({});
+      setAccountCandidates(res.accountCandidates);
+      const autoSelected = new Set();
+      res.accountCandidates.forEach((ac) => {
+        ac.candidates.forEach((c) => {
+          if (!c.isDuplicate && c.sourceId) autoSelected.add(c.sourceId);
+        });
+      });
+      setSelectedIds(autoSelected);
+    } catch (err) {
+      setFetchError(err);
+    } finally {
+      setFetching(false);
+    }
+  }
+
+  function toggleCandidate(sourceId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sourceId)) next.delete(sourceId);
+      else next.add(sourceId);
+      return next;
+    });
+  }
+
+  const allCandidates = useMemo(() => {
+    if (!accountCandidates) return [];
+    return accountCandidates.flatMap((ac) =>
+      ac.candidates.map((c) => ({
+        ...c,
+        _accountId: ac.account?.stripeAccountId,
+        _accountName: ac.account?.displayName || ac.account?.stripeAccountId,
+      }))
+    );
+  }, [accountCandidates]);
+
+  const newCount = allCandidates.filter((c) => !c.isDuplicate).length;
+
+  function toggleAll() {
+    const allNewIds = allCandidates
+      .filter((c) => !c.isDuplicate && c.sourceId)
+      .map((c) => c.sourceId);
+    if (selectedIds.size === allNewIds.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allNewIds));
+    }
+  }
+
+  async function handleImport() {
+    if (selectedIds.size === 0) return;
+    setImportError(null);
+    setImporting(true);
+    setImportProgress({ imported: 0, total: selectedIds.size });
+
+    const selectionsByAccount = new Map();
+    allCandidates.forEach((c) => {
+      if (selectedIds.has(c.sourceId)) {
+        if (!selectionsByAccount.has(c._accountId)) {
+          selectionsByAccount.set(c._accountId, []);
+        }
+        selectionsByAccount.get(c._accountId).push(c.sourceId);
+      }
+    });
+    const selections = Array.from(selectionsByAccount.entries()).map(
+      ([stripeAccountId, stripeTransactionIds]) => ({ stripeAccountId, stripeTransactionIds })
+    );
+
+    try {
+      for await (const res of ledgerClient.importAllStripeTransactions({ selections })) {
+        if (res.payload.case === "progress") {
+          setImportProgress({
+            imported: res.payload.value.imported,
+            total: res.payload.value.total,
+          });
+        } else if (res.payload.case === "result") {
+          setImportResult(res.payload.value);
+          setAccountCandidates(null);
+          if (onImported) onImported();
+        }
+      }
+    } catch (err) {
+      setImportError(err);
+    } finally {
+      setImporting(false);
+      setImportProgress(null);
+    }
+  }
+
+  const totalCount = allCandidates.length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">Fetch All Accounts</CardTitle>
+            <CardDescription>
+              Pull new transactions from all {configuredAccounts.length} linked account{configuredAccounts.length !== 1 ? "s" : ""} at once.
+            </CardDescription>
+          </div>
+          <Button size="sm" onClick={handleFetchAll} disabled={fetching}>
+            {fetching && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+            {fetching ? "Fetching…" : "Fetch All"}
+          </Button>
+        </div>
+      </CardHeader>
+      {(fetchError || importResult || importError || accountCandidates) && (
+        <CardContent className="flex flex-col gap-3">
+          {fetchError && <ErrorBanner error={fetchError} />}
+          {importResult && (
+            <Alert>
+              <CircleCheck className="size-4 text-success" />
+              <AlertDescription>
+                Imported {importResult.importedCount} transaction(s) across {configuredAccounts.length} account{configuredAccounts.length !== 1 ? "s" : ""}.
+              </AlertDescription>
+            </Alert>
+          )}
+          {importError && <ErrorBanner error={importError} />}
+          {accountCandidates && (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {totalCount} transaction(s), {newCount} new
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={toggleAll}>
+                    {selectedIds.size === newCount ? "Deselect All" : "Select All New"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleImport}
+                    disabled={importing || selectedIds.size === 0}
+                  >
+                    {importing && (
+                      <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
+                    )}
+                    {importing
+                      ? importProgress && importProgress.total > 0
+                        ? `Importing ${importProgress.imported} of ${importProgress.total}…`
+                        : "Importing…"
+                      : `Import ${selectedIds.size} Selected`}
+                  </Button>
+                </div>
+              </div>
+              {allCandidates.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No new transactions found.</p>
+              ) : (
+                <CandidatesTable
+                  candidates={allCandidates}
+                  selectedIds={selectedIds}
+                  onToggle={toggleCandidate}
+                  showAccount={true}
+                />
+              )}
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 function AccountFetchPanel({ account, onImported }) {
   const [candidates, setCandidates] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [sorting, setSorting] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [importError, setImportError] = useState(null);
@@ -227,91 +553,6 @@ function AccountFetchPanel({ account, onImported }) {
 
   const newCount = candidates ? candidates.filter((c) => !c.isDuplicate).length : 0;
 
-  const columns = useMemo(
-    () => [
-      {
-        id: "select",
-        header: () => null,
-        cell: ({ row }) => (
-          <Checkbox
-            checked={selectedIds.has(row.original.sourceId)}
-            disabled={row.original.isDuplicate || !row.original.sourceId}
-            onCheckedChange={() => toggleCandidate(row.original.sourceId)}
-          />
-        ),
-        enableSorting: false,
-      },
-      {
-        id: "status",
-        header: "Status",
-        accessorFn: (row) => row.isDuplicate,
-        cell: ({ getValue }) => (
-          <Badge variant={getValue() ? "secondary" : "default"}>
-            {getValue() ? "DUP" : "NEW"}
-          </Badge>
-        ),
-        enableSorting: false,
-      },
-      {
-        id: "date",
-        header: "Date",
-        accessorFn: (row) => row.transaction?.date ?? "",
-        cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
-      },
-      {
-        id: "description",
-        header: "Description",
-        accessorFn: (row) => row.transaction?.description ?? "",
-      },
-      {
-        id: "postings",
-        header: "Postings",
-        cell: ({ row }) => (
-          <div className="text-xs">
-            {(row.original.transaction?.postings ?? []).map((p, j) => (
-              <div key={j}>
-                {p.account}
-                {p.amounts?.[0] && (
-                  <span className="ml-1 text-muted-foreground">
-                    {p.amounts[0].commodity}{p.amounts[0].quantity}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        ),
-        enableSorting: false,
-      },
-      {
-        id: "matched",
-        header: "Rule",
-        accessorFn: (row) => row.matchedRuleId ?? "",
-        cell: ({ getValue }) =>
-          getValue() ? (
-            <Tag className="size-3.5 text-primary" title="Matched a rule" />
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          ),
-        enableSorting: false,
-      },
-    ],
-    [selectedIds]
-  );
-
-  const tableData = useMemo(
-    () => (candidates ?? []),
-    [candidates]
-  );
-
-  const table = useReactTable({
-    data: tableData,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
   return (
     <div className="flex flex-col gap-3 pt-3 border-t">
       <div>
@@ -356,54 +597,12 @@ function AccountFetchPanel({ account, onImported }) {
               </Button>
             </div>
           </div>
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const canSort = header.column.getCanSort();
-                    const sorted = header.column.getIsSorted();
-                    return (
-                      <TableHead key={header.id}>
-                        {canSort ? (
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 hover:text-foreground"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {sorted === "asc" ? (
-                              <ArrowUp className="size-3" />
-                            ) : sorted === "desc" ? (
-                              <ArrowDown className="size-3" />
-                            ) : (
-                              <ArrowUpDown className="size-3 opacity-40" />
-                            )}
-                          </button>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={cn(row.original.isDuplicate && "opacity-50")}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <CandidatesTable
+            candidates={candidates}
+            selectedIds={selectedIds}
+            onToggle={toggleCandidate}
+            showAccount={false}
+          />
         </div>
       )}
     </div>
@@ -575,6 +774,15 @@ export function ConnectionsPage() {
             No linked accounts. Click <strong>Link Account</strong> to connect your bank.
           </CardContent>
         </Card>
+      )}
+
+      {configuredAccounts.length > 0 && (
+        <FetchAllPanel
+          configuredAccounts={configuredAccounts}
+          onImported={() =>
+            queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() })
+          }
+        />
       )}
 
       {configuredAccounts.map((account) => (

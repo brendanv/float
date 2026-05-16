@@ -662,3 +662,15 @@ test("connections page - fetch transactions panel", async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/connections-fetch-panel.png", fullPage: true });
 });
+
+test("connections page - fetch all panel", async ({ page }) => {
+  await page.goto("/#/connections");
+  await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  const fetchAllBtn = page.locator("button:has-text('Fetch All')").first();
+  await fetchAllBtn.click();
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/connections-fetch-all.png", fullPage: true });
+});
