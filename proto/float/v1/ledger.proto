@@ -645,7 +645,15 @@ message GetStripeConfigResponse {
   string publishable_key = 2;     // value of STRIPE_PUBLISHABLE_KEY env var; empty if not set
   int32 linked_account_count = 3;
   string customer_id = 4;         // Stripe customer ID from config; empty if not set
+  bool daily_import_enabled = 5;  // whether the daily auto-import background job is enabled
+  string last_daily_import_at = 6; // RFC3339; empty if the daily auto-import has never run
 }
+
+message SetStripeDailyImportEnabledRequest {
+  bool enabled = 1;
+}
+
+message SetStripeDailyImportEnabledResponse {}
 
 message SetStripeCustomerIdRequest {
   string customer_id = 1; // new customer ID; empty string clears the value
@@ -889,6 +897,7 @@ service LedgerService {
   rpc SetAIModel(SetAIModelRequest) returns (SetAIModelResponse);
   rpc SetAIPrompt(SetAIPromptRequest) returns (SetAIPromptResponse);
   rpc SetStripeCustomerId(SetStripeCustomerIdRequest) returns (SetStripeCustomerIdResponse);
+  rpc SetStripeDailyImportEnabled(SetStripeDailyImportEnabledRequest) returns (SetStripeDailyImportEnabledResponse);
 
   // Debug / Investigation
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);

@@ -1027,10 +1027,13 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetStripeConfig":
         body = stripeEnabled
-          ? { enabled: true, publishableKey: "pk_test_mock_key", linkedAccountCount: mockStripeLinkedAccounts.length, customerId: "cus_mock1234567890" }
-          : { enabled: false, publishableKey: "", linkedAccountCount: 0, customerId: "" };
+          ? { enabled: true, publishableKey: "pk_test_mock_key", linkedAccountCount: mockStripeLinkedAccounts.length, customerId: "cus_mock1234567890", dailyImportEnabled: true, lastDailyImportAt: "2026-05-15T08:30:00Z" }
+          : { enabled: false, publishableKey: "", linkedAccountCount: 0, customerId: "", dailyImportEnabled: false, lastDailyImportAt: "" };
         break;
       case "SetStripeCustomerId":
+        body = {};
+        break;
+      case "SetStripeDailyImportEnabled":
         body = {};
         break;
       case "CreateStripeLinkSession":

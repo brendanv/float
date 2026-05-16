@@ -32,8 +32,23 @@ func (h *Handler) GetStripeConfig(ctx context.Context, _ *connect.Request[floatv
 		PublishableKey:     os.Getenv("STRIPE_PUBLISHABLE_KEY"),
 		LinkedAccountCount: int32(len(h.cfg.Stripe.LinkedAccounts)),
 		CustomerId:         h.cfg.Stripe.CustomerID,
+		DailyImportEnabled: h.cfg.Stripe.DailyImportEnabled,
+		LastDailyImportAt:  h.cfg.Stripe.LastDailyImportAt,
 	}
 	return connect.NewResponse(resp), nil
+}
+
+func (h *Handler) SetStripeDailyImportEnabled(ctx context.Context, req *connect.Request[floatv1.SetStripeDailyImportEnabledRequest]) (*connect.Response[floatv1.SetStripeDailyImportEnabledResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if err := h.lock.Do(ctx, "set stripe daily import enabled", func() error {
+		h.cfg.Stripe.DailyImportEnabled = req.Msg.Enabled
+		return config.Save(h.configPath, h.cfg)
+	}); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to save stripe daily import setting: %w", err))
+	}
+	return connect.NewResponse(&floatv1.SetStripeDailyImportEnabledResponse{}), nil
 }
 
 func (h *Handler) SetStripeCustomerId(ctx context.Context, req *connect.Request[floatv1.SetStripeCustomerIdRequest]) (*connect.Response[floatv1.SetStripeCustomerIdResponse], error) {
@@ -350,29 +365,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			}
 			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
-			if r := rules.Match(rulesList, st.Description); r != nil {
-				if r.Payee != "" {
-					txInput.Description = r.Payee + " | " + txInput.Description
-				}
-				if r.Account != "" && len(txInput.Postings) == 2 {
-					for j, p := range txInput.Postings {
-						if !isAssetOrLiabilityAccount(p.Account) {
-							txInput.Postings[j].Account = r.Account
-						}
-					}
-				}
-				if len(r.Tags) > 0 {
-					if txInput.Tags == nil {
-						txInput.Tags = make(map[string]string)
-					}
-					for k, v := range r.Tags {
-						txInput.Tags[k] = v
-					}
-				}
-				if r.AutoReviewed {
-					txInput.Status = "Cleared"
-				}
-			}
+			applyRuleToInput(&txInput, rules.Match(rulesList, st.Description))
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 			if writeErr != nil {
@@ -574,29 +567,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				}
 				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
-				if r := rules.Match(rulesList, st.Description); r != nil {
-					if r.Payee != "" {
-						txInput.Description = r.Payee + " | " + txInput.Description
-					}
-					if r.Account != "" && len(txInput.Postings) == 2 {
-						for j, p := range txInput.Postings {
-							if !isAssetOrLiabilityAccount(p.Account) {
-								txInput.Postings[j].Account = r.Account
-							}
-						}
-					}
-					if len(r.Tags) > 0 {
-						if txInput.Tags == nil {
-							txInput.Tags = make(map[string]string)
-						}
-						for k, v := range r.Tags {
-							txInput.Tags[k] = v
-						}
-					}
-					if r.AutoReviewed {
-						txInput.Status = "Cleared"
-					}
-				}
+				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description))
 
 				fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 				if writeErr != nil {
@@ -726,4 +697,31 @@ func stripeTransactionToInput(t stripeClient.Transaction, hledgerAccount, import
 
 func stripeAccountSlug(accountID string) string {
 	return strings.ToLower(strings.ReplaceAll(accountID, "_", "-"))
+}
+
+func applyRuleToInput(txInput *journal.TransactionInput, r *rules.Rule) {
+	if r == nil {
+		return
+	}
+	if r.Payee != "" {
+		txInput.Description = r.Payee + " | " + txInput.Description
+	}
+	if r.Account != "" && len(txInput.Postings) == 2 {
+		for j, p := range txInput.Postings {
+			if !isAssetOrLiabilityAccount(p.Account) {
+				txInput.Postings[j].Account = r.Account
+			}
+		}
+	}
+	if len(r.Tags) > 0 {
+		if txInput.Tags == nil {
+			txInput.Tags = make(map[string]string)
+		}
+		for k, v := range r.Tags {
+			txInput.Tags[k] = v
+		}
+	}
+	if r.AutoReviewed {
+		txInput.Status = "Cleared"
+	}
 }
