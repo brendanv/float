@@ -602,3 +602,141 @@ func BackfillPricesCmd(client floatv1connect.LedgerServiceClient, req *floatv1.B
 		}
 	}
 }
+
+// StripeConfigMsg carries whether Stripe is enabled on the server.
+type StripeConfigMsg struct {
+	Enabled bool
+	Err     error
+}
+
+// StripeLinkedAccountsMsg carries the list of linked Stripe accounts.
+type StripeLinkedAccountsMsg struct {
+	Accounts []*floatv1.StripeLinkedAccount
+	Err      error
+}
+
+// StripeFetchOneMsg carries fetch candidates for a single account.
+type StripeFetchOneMsg struct {
+	Account    *floatv1.StripeLinkedAccount
+	Candidates []*floatv1.ImportCandidate
+	Err        error
+}
+
+// StripeFetchAllMsg carries fetch candidates grouped by account.
+type StripeFetchAllMsg struct {
+	Groups []*floatv1.AccountCandidates
+	Err    error
+}
+
+// StripeImportDoneMsg carries the final result of a streaming import.
+type StripeImportDoneMsg struct {
+	ImportedCount int
+	Err           error
+}
+
+// StripeUnlinkMsg carries the result of an UnlinkStripeAccount RPC.
+type StripeUnlinkMsg struct {
+	Err error
+}
+
+// StripeCompleteLinkingMsg carries the result of a CompleteStripeLinking RPC.
+type StripeCompleteLinkingMsg struct {
+	Err error
+}
+
+func FetchStripeConfig(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetStripeConfig(context.Background(), connect.NewRequest(&floatv1.GetStripeConfigRequest{}))
+		if err != nil {
+			return StripeConfigMsg{Err: err}
+		}
+		return StripeConfigMsg{Enabled: resp.Msg.Enabled}
+	}
+}
+
+func FetchStripeLinkedAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.ListStripeLinkedAccounts(context.Background(), connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
+		if err != nil {
+			return StripeLinkedAccountsMsg{Err: err}
+		}
+		return StripeLinkedAccountsMsg{Accounts: resp.Msg.Accounts}
+	}
+}
+
+func FetchStripeOneCmd(client floatv1connect.LedgerServiceClient, account *floatv1.StripeLinkedAccount) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.FetchStripeTransactions(context.Background(), connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{
+			StripeAccountId: account.StripeAccountId,
+		}))
+		if err != nil {
+			return StripeFetchOneMsg{Account: account, Err: err}
+		}
+		return StripeFetchOneMsg{Account: account, Candidates: resp.Msg.Candidates}
+	}
+}
+
+func FetchStripeAllCmd(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.FetchAllStripeTransactions(context.Background(), connect.NewRequest(&floatv1.FetchAllStripeTransactionsRequest{}))
+		if err != nil {
+			return StripeFetchAllMsg{Err: err}
+		}
+		return StripeFetchAllMsg{Groups: resp.Msg.AccountCandidates}
+	}
+}
+
+// StripeImportBatch is one Stripe-account-scoped slice of selected transactions.
+type StripeImportBatch struct {
+	StripeAccountID       string
+	StripeTransactionIDs  []string
+}
+
+// ImportStripeCmd drains the streaming import for each batch sequentially and
+// returns a single StripeImportDoneMsg with the aggregated imported count.
+func ImportStripeCmd(client floatv1connect.LedgerServiceClient, batches []StripeImportBatch) tea.Cmd {
+	return func() tea.Msg {
+		total := 0
+		for _, b := range batches {
+			if len(b.StripeTransactionIDs) == 0 {
+				continue
+			}
+			stream, err := client.ImportStripeTransactions(context.Background(), connect.NewRequest(&floatv1.ImportStripeTransactionsRequest{
+				StripeAccountId:      b.StripeAccountID,
+				StripeTransactionIds: b.StripeTransactionIDs,
+			}))
+			if err != nil {
+				return StripeImportDoneMsg{ImportedCount: total, Err: err}
+			}
+			for stream.Receive() {
+				if r, ok := stream.Msg().Payload.(*floatv1.ImportTransactionsResponse_Result); ok {
+					total += int(r.Result.ImportedCount)
+				}
+			}
+			if err := stream.Err(); err != nil {
+				_ = stream.Close()
+				return StripeImportDoneMsg{ImportedCount: total, Err: err}
+			}
+			_ = stream.Close()
+		}
+		return StripeImportDoneMsg{ImportedCount: total}
+	}
+}
+
+func UnlinkStripeCmd(client floatv1connect.LedgerServiceClient, stripeAccountID string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.UnlinkStripeAccount(context.Background(), connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{
+			StripeAccountId: stripeAccountID,
+		}))
+		return StripeUnlinkMsg{Err: err}
+	}
+}
+
+func CompleteStripeLinkingCmd(client floatv1connect.LedgerServiceClient, in *floatv1.LinkedAccountInput) tea.Cmd {
+	return func() tea.Msg {
+		_, err := client.CompleteStripeLinking(context.Background(), connect.NewRequest(&floatv1.CompleteStripeLinkingRequest{
+			Accounts: []*floatv1.LinkedAccountInput{in},
+		}))
+		return StripeCompleteLinkingMsg{Err: err}
+	}
+}

@@ -384,6 +384,53 @@ func (PayeesAssignKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keySetPayee, keyEsc}}
 }
 
+var (
+	keyFetchOne   = key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fetch"))
+	keyFetchAll   = key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "fetch all"))
+	keyUnlink     = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "unlink"))
+	keyImportSel  = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "import selected"))
+	keySelAllND   = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "select non-dup"))
+	keySelAllAll  = key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "select all"))
+	keySelNone    = key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "select none"))
+)
+
+// StripeListKeyMap is for the stripe sub-tab in account-list mode.
+type StripeListKeyMap struct{}
+
+func (StripeListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyFetchOne, keyFetchAll, keyEdit, keyUnlink, keyHelp}
+}
+func (StripeListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyEdit, keyUnlink, keyRetry},
+		{keyFetchOne, keyFetchAll},
+	}
+}
+
+// StripePreviewKeyMap is for the stripe sub-tab candidates preview.
+type StripePreviewKeyMap struct{}
+
+func (StripePreviewKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNav, keyToggle, keyImportSel, keyEsc, keyHelp}
+}
+func (StripePreviewKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyNav, keyToggle, keyImportSel, keyEsc},
+		{keySelAllND, keySelAllAll, keySelNone},
+	}
+}
+
+// StripeEditKeyMap is for the stripe sub-tab edit-mapping modal.
+type StripeEditKeyMap struct{}
+
+func (StripeEditKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNextField, keyPrevField, keySubmit, keyEsc}
+}
+func (StripeEditKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keyNextField, keyPrevField, keySubmit, keyEsc}}
+}
+
 // SettingsKeyMap is for the settings tab.
 type SettingsKeyMap struct{}
 
