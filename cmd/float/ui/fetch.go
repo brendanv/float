@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	connect "connectrpc.com/connect"
@@ -10,6 +11,12 @@ import (
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 )
+
+const rpcTimeout = 30 * time.Second
+
+func rpcContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), rpcTimeout)
+}
 
 type AccountsMsg struct {
 	Accounts []*floatv1.Account
@@ -30,7 +37,9 @@ type RetryFetchMsg struct{}
 
 func FetchAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListAccounts(context.Background(), connect.NewRequest(&floatv1.ListAccountsRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListAccounts(ctx, connect.NewRequest(&floatv1.ListAccountsRequest{}))
 		if err != nil {
 			return AccountsMsg{Err: err}
 		}
@@ -40,7 +49,9 @@ func FetchAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 func FetchBalances(client floatv1connect.LedgerServiceClient, depth int32, query []string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetBalances(context.Background(), connect.NewRequest(&floatv1.GetBalancesRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetBalances(ctx, connect.NewRequest(&floatv1.GetBalancesRequest{
 			Depth: depth,
 			Query: query,
 		}))
@@ -53,7 +64,9 @@ func FetchBalances(client floatv1connect.LedgerServiceClient, depth int32, query
 
 func FetchTransactions(client floatv1connect.LedgerServiceClient, query []string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListTransactions(ctx, connect.NewRequest(&floatv1.ListTransactionsRequest{
 			Query: query,
 		}))
 		if err != nil {
@@ -70,7 +83,9 @@ type AddTransactionMsg struct {
 
 func AddTransactionCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddTransactionRequest) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.AddTransaction(context.Background(), connect.NewRequest(req))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.AddTransaction(ctx, connect.NewRequest(req))
 		if err != nil {
 			return AddTransactionMsg{Err: err}
 		}
@@ -85,7 +100,9 @@ type UpdateTransactionMsg struct {
 
 func UpdateTransactionCmd(client floatv1connect.LedgerServiceClient, req *floatv1.UpdateTransactionRequest) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.UpdateTransaction(context.Background(), connect.NewRequest(req))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.UpdateTransaction(ctx, connect.NewRequest(req))
 		if err != nil {
 			return UpdateTransactionMsg{Err: err}
 		}
@@ -99,7 +116,9 @@ type DeleteTransactionMsg struct {
 
 func DeleteTransactionCmd(client floatv1connect.LedgerServiceClient, fid string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.DeleteTransaction(context.Background(), connect.NewRequest(&floatv1.DeleteTransactionRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.DeleteTransaction(ctx, connect.NewRequest(&floatv1.DeleteTransactionRequest{
 			Fid: fid,
 		}))
 		return DeleteTransactionMsg{Err: err}
@@ -112,7 +131,9 @@ type UpdateTransactionStatusMsg struct {
 
 func UpdateTransactionStatusCmd(client floatv1connect.LedgerServiceClient, fid, status string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.UpdateTransactionStatus(context.Background(), connect.NewRequest(&floatv1.UpdateTransactionStatusRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.UpdateTransactionStatus(ctx, connect.NewRequest(&floatv1.UpdateTransactionStatusRequest{
 			Fid:    fid,
 			Status: status,
 		}))
@@ -127,7 +148,9 @@ type InsightsMsg struct {
 
 func FetchInsights(client floatv1connect.LedgerServiceClient, periodQuery string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetBalances(context.Background(), connect.NewRequest(&floatv1.GetBalancesRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetBalances(ctx, connect.NewRequest(&floatv1.GetBalancesRequest{
 			Depth: 2,
 			Query: []string{periodQuery},
 		}))
@@ -145,7 +168,9 @@ type NetWorthMsg struct {
 
 func FetchNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetNetWorthTimeseries(context.Background(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetNetWorthTimeseries(ctx, connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
 		if err != nil {
 			return NetWorthMsg{Err: err}
 		}
@@ -163,7 +188,9 @@ type HomeNetWorthMsg struct {
 // FetchHomeNetWorth fetches the net worth timeseries for the home tab chart panel.
 func FetchHomeNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetNetWorthTimeseries(context.Background(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetNetWorthTimeseries(ctx, connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
 		if err != nil {
 			return HomeNetWorthMsg{Err: err}
 		}
@@ -193,7 +220,9 @@ type ManagerSummaryMsg struct {
 // FetchManagerAccounts fetches all accounts and returns ManagerAccountsMsg.
 func FetchManagerAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListAccounts(context.Background(), connect.NewRequest(&floatv1.ListAccountsRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListAccounts(ctx, connect.NewRequest(&floatv1.ListAccountsRequest{}))
 		if err != nil {
 			return ManagerAccountsMsg{Err: err}
 		}
@@ -204,7 +233,9 @@ func FetchManagerAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
 // FetchManagerBalances fetches depth-0 balances (all accounts) for tree display.
 func FetchManagerBalances(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetBalances(context.Background(), connect.NewRequest(&floatv1.GetBalancesRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetBalances(ctx, connect.NewRequest(&floatv1.GetBalancesRequest{
 			Depth: 0,
 		}))
 		if err != nil {
@@ -217,7 +248,9 @@ func FetchManagerBalances(client floatv1connect.LedgerServiceClient) tea.Cmd {
 // FetchManagerSummary fetches depth-1 balances (top-level account type totals) for the summary panel.
 func FetchManagerSummary(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetBalances(context.Background(), connect.NewRequest(&floatv1.GetBalancesRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetBalances(ctx, connect.NewRequest(&floatv1.GetBalancesRequest{
 			Depth: 1,
 		}))
 		if err != nil {
@@ -264,7 +297,9 @@ type ApplyRulesMsg struct {
 
 func FetchRules(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListRules(context.Background(), connect.NewRequest(&floatv1.ListRulesRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListRules(ctx, connect.NewRequest(&floatv1.ListRulesRequest{}))
 		if err != nil {
 			return RulesMsg{Err: err}
 		}
@@ -274,7 +309,9 @@ func FetchRules(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 func AddRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddRuleRequest) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.AddRule(context.Background(), connect.NewRequest(req))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.AddRule(ctx, connect.NewRequest(req))
 		if err != nil {
 			return AddRuleMsg{Err: err}
 		}
@@ -284,7 +321,9 @@ func AddRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddRuleR
 
 func UpdateRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.UpdateRuleRequest) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.UpdateRule(context.Background(), connect.NewRequest(req))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.UpdateRule(ctx, connect.NewRequest(req))
 		if err != nil {
 			return UpdateRuleMsg{Err: err}
 		}
@@ -294,14 +333,18 @@ func UpdateRuleCmd(client floatv1connect.LedgerServiceClient, req *floatv1.Updat
 
 func DeleteRuleCmd(client floatv1connect.LedgerServiceClient, id string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.DeleteRule(context.Background(), connect.NewRequest(&floatv1.DeleteRuleRequest{Id: id}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.DeleteRule(ctx, connect.NewRequest(&floatv1.DeleteRuleRequest{Id: id}))
 		return DeleteRuleMsg{Err: err}
 	}
 }
 
 func PreviewApplyRulesCmd(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.PreviewApplyRules(context.Background(), connect.NewRequest(&floatv1.PreviewApplyRulesRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.PreviewApplyRules(ctx, connect.NewRequest(&floatv1.PreviewApplyRulesRequest{}))
 		if err != nil {
 			return PreviewApplyRulesMsg{Err: err}
 		}
@@ -320,7 +363,9 @@ type AccountRegisterMsg struct {
 // FetchAccountRegister fetches the account register for the given account name.
 func FetchAccountRegister(client floatv1connect.LedgerServiceClient, account string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetAccountRegister(context.Background(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetAccountRegister(ctx, connect.NewRequest(&floatv1.GetAccountRegisterRequest{
 			Account: account,
 		}))
 		if err != nil {
@@ -343,7 +388,9 @@ type ManagerTxFetchedMsg struct {
 // FetchManagerTransaction fetches a single transaction by fid for the Manager tab edit flow.
 func FetchManagerTransaction(client floatv1connect.LedgerServiceClient, fid string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListTransactions(ctx, connect.NewRequest(&floatv1.ListTransactionsRequest{
 			Query: []string{"code:" + fid},
 		}))
 		if err != nil {
@@ -358,7 +405,9 @@ func FetchManagerTransaction(client floatv1connect.LedgerServiceClient, fid stri
 
 func ApplyRulesCmd(client floatv1connect.LedgerServiceClient, fids []string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ApplyRules(context.Background(), connect.NewRequest(&floatv1.ApplyRulesRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ApplyRules(ctx, connect.NewRequest(&floatv1.ApplyRulesRequest{
 			Fids: fids,
 		}))
 		if err != nil {
@@ -383,7 +432,9 @@ type ImportedTransactionsMsg struct {
 
 func FetchImports(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListImports(context.Background(), connect.NewRequest(&floatv1.ListImportsRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListImports(ctx, connect.NewRequest(&floatv1.ListImportsRequest{}))
 		if err != nil {
 			return ImportsMsg{Err: err}
 		}
@@ -393,7 +444,9 @@ func FetchImports(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 func FetchImportedTransactions(client floatv1connect.LedgerServiceClient, batchId string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetImportedTransactions(context.Background(), connect.NewRequest(&floatv1.GetImportedTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetImportedTransactions(ctx, connect.NewRequest(&floatv1.GetImportedTransactionsRequest{
 			ImportBatchId: batchId,
 		}))
 		if err != nil {
@@ -418,7 +471,9 @@ type TagTransactionsMsg struct {
 
 func FetchTags(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListTags(context.Background(), connect.NewRequest(&floatv1.ListTagsRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListTags(ctx, connect.NewRequest(&floatv1.ListTagsRequest{}))
 		if err != nil {
 			return TagsMsg{Err: err}
 		}
@@ -428,7 +483,9 @@ func FetchTags(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 func FetchTagTransactions(client floatv1connect.LedgerServiceClient, tag string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListTransactions(ctx, connect.NewRequest(&floatv1.ListTransactionsRequest{
 			Query: []string{"tag:" + tag},
 		}))
 		if err != nil {
@@ -453,7 +510,9 @@ type RestoreSnapshotMsg struct {
 // FetchSnapshots fetches the list of snapshots from the server.
 func FetchSnapshots(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListSnapshots(context.Background(), connect.NewRequest(&floatv1.ListSnapshotsRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListSnapshots(ctx, connect.NewRequest(&floatv1.ListSnapshotsRequest{}))
 		if err != nil {
 			return SnapshotsMsg{Err: err}
 		}
@@ -464,7 +523,9 @@ func FetchSnapshots(client floatv1connect.LedgerServiceClient) tea.Cmd {
 // RestoreSnapshotCmd issues a RestoreSnapshot RPC for the given commit hash.
 func RestoreSnapshotCmd(client floatv1connect.LedgerServiceClient, hash string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.RestoreSnapshot(context.Background(), connect.NewRequest(&floatv1.RestoreSnapshotRequest{Hash: hash}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.RestoreSnapshot(ctx, connect.NewRequest(&floatv1.RestoreSnapshotRequest{Hash: hash}))
 		return RestoreSnapshotMsg{Hash: hash, Err: err}
 	}
 }
@@ -495,7 +556,9 @@ type SetPayeeMsg struct {
 
 func FetchPayees(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListPayees(context.Background(), connect.NewRequest(&floatv1.ListPayeesRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListPayees(ctx, connect.NewRequest(&floatv1.ListPayeesRequest{}))
 		if err != nil {
 			return PayeesMsg{Err: err}
 		}
@@ -505,7 +568,9 @@ func FetchPayees(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 func FetchNoPayeeTransactions(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListTransactions(ctx, connect.NewRequest(&floatv1.ListTransactionsRequest{
 			Query: []string{"not:desc:.*[|].*"},
 		}))
 		if err != nil {
@@ -517,7 +582,9 @@ func FetchNoPayeeTransactions(client floatv1connect.LedgerServiceClient) tea.Cmd
 
 func FetchPayeeTransactions(client floatv1connect.LedgerServiceClient, payee string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListTransactions(context.Background(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListTransactions(ctx, connect.NewRequest(&floatv1.ListTransactionsRequest{
 			Query: []string{"payee:" + payee},
 		}))
 		if err != nil {
@@ -529,7 +596,9 @@ func FetchPayeeTransactions(client floatv1connect.LedgerServiceClient, payee str
 
 func BulkEditSetPayeeCmd(client floatv1connect.LedgerServiceClient, fids []string, payee string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.BulkEditTransactions(context.Background(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.BulkEditTransactions(ctx, connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
 			Fids: fids,
 			Operations: []*floatv1.BulkEditOperation{
 				{Operation: &floatv1.BulkEditOperation_SetPayee{SetPayee: &floatv1.SetPayeeOperation{Payee: payee}}},
@@ -565,7 +634,9 @@ type BackfillPricesMsg struct {
 
 func FetchPrices(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListPrices(context.Background(), connect.NewRequest(&floatv1.ListPricesRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListPrices(ctx, connect.NewRequest(&floatv1.ListPricesRequest{}))
 		if err != nil {
 			return PricesMsg{Err: err}
 		}
@@ -575,7 +646,9 @@ func FetchPrices(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 func AddPriceCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddPriceRequest) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.AddPrice(context.Background(), connect.NewRequest(req))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.AddPrice(ctx, connect.NewRequest(req))
 		if err != nil {
 			return AddPriceMsg{Err: err}
 		}
@@ -585,14 +658,18 @@ func AddPriceCmd(client floatv1connect.LedgerServiceClient, req *floatv1.AddPric
 
 func DeletePriceCmd(client floatv1connect.LedgerServiceClient, pid string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.DeletePrice(context.Background(), connect.NewRequest(&floatv1.DeletePriceRequest{Pid: pid}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.DeletePrice(ctx, connect.NewRequest(&floatv1.DeletePriceRequest{Pid: pid}))
 		return DeletePriceMsg{Err: err}
 	}
 }
 
 func BackfillPricesCmd(client floatv1connect.LedgerServiceClient, req *floatv1.BackfillPricesRequest) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.BackfillPrices(context.Background(), connect.NewRequest(req))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.BackfillPrices(ctx, connect.NewRequest(req))
 		if err != nil {
 			return BackfillPricesMsg{Err: err}
 		}
@@ -646,7 +723,9 @@ type StripeCompleteLinkingMsg struct {
 
 func FetchStripeConfig(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.GetStripeConfig(context.Background(), connect.NewRequest(&floatv1.GetStripeConfigRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetStripeConfig(ctx, connect.NewRequest(&floatv1.GetStripeConfigRequest{}))
 		if err != nil {
 			return StripeConfigMsg{Err: err}
 		}
@@ -656,7 +735,9 @@ func FetchStripeConfig(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 func FetchStripeLinkedAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.ListStripeLinkedAccounts(context.Background(), connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListStripeLinkedAccounts(ctx, connect.NewRequest(&floatv1.ListStripeLinkedAccountsRequest{}))
 		if err != nil {
 			return StripeLinkedAccountsMsg{Err: err}
 		}
@@ -666,7 +747,9 @@ func FetchStripeLinkedAccounts(client floatv1connect.LedgerServiceClient) tea.Cm
 
 func FetchStripeOneCmd(client floatv1connect.LedgerServiceClient, account *floatv1.StripeLinkedAccount) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.FetchStripeTransactions(context.Background(), connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.FetchStripeTransactions(ctx, connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{
 			StripeAccountId: account.StripeAccountId,
 		}))
 		if err != nil {
@@ -678,7 +761,9 @@ func FetchStripeOneCmd(client floatv1connect.LedgerServiceClient, account *float
 
 func FetchStripeAllCmd(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := client.FetchAllStripeTransactions(context.Background(), connect.NewRequest(&floatv1.FetchAllStripeTransactionsRequest{}))
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.FetchAllStripeTransactions(ctx, connect.NewRequest(&floatv1.FetchAllStripeTransactionsRequest{}))
 		if err != nil {
 			return StripeFetchAllMsg{Err: err}
 		}
@@ -688,20 +773,22 @@ func FetchStripeAllCmd(client floatv1connect.LedgerServiceClient) tea.Cmd {
 
 // StripeImportBatch is one Stripe-account-scoped slice of selected transactions.
 type StripeImportBatch struct {
-	StripeAccountID       string
-	StripeTransactionIDs  []string
+	StripeAccountID      string
+	StripeTransactionIDs []string
 }
 
 // ImportStripeCmd drains the streaming import for each batch sequentially and
 // returns a single StripeImportDoneMsg with the aggregated imported count.
 func ImportStripeCmd(client floatv1connect.LedgerServiceClient, batches []StripeImportBatch) tea.Cmd {
 	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
 		total := 0
 		for _, b := range batches {
 			if len(b.StripeTransactionIDs) == 0 {
 				continue
 			}
-			stream, err := client.ImportStripeTransactions(context.Background(), connect.NewRequest(&floatv1.ImportStripeTransactionsRequest{
+			stream, err := client.ImportStripeTransactions(ctx, connect.NewRequest(&floatv1.ImportStripeTransactionsRequest{
 				StripeAccountId:      b.StripeAccountID,
 				StripeTransactionIds: b.StripeTransactionIDs,
 			}))
@@ -725,7 +812,9 @@ func ImportStripeCmd(client floatv1connect.LedgerServiceClient, batches []Stripe
 
 func UnlinkStripeCmd(client floatv1connect.LedgerServiceClient, stripeAccountID string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.UnlinkStripeAccount(context.Background(), connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.UnlinkStripeAccount(ctx, connect.NewRequest(&floatv1.UnlinkStripeAccountRequest{
 			StripeAccountId: stripeAccountID,
 		}))
 		return StripeUnlinkMsg{Err: err}
@@ -734,7 +823,9 @@ func UnlinkStripeCmd(client floatv1connect.LedgerServiceClient, stripeAccountID 
 
 func CompleteStripeLinkingCmd(client floatv1connect.LedgerServiceClient, in *floatv1.LinkedAccountInput) tea.Cmd {
 	return func() tea.Msg {
-		_, err := client.CompleteStripeLinking(context.Background(), connect.NewRequest(&floatv1.CompleteStripeLinkingRequest{
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.CompleteStripeLinking(ctx, connect.NewRequest(&floatv1.CompleteStripeLinkingRequest{
 			Accounts: []*floatv1.LinkedAccountInput{in},
 		}))
 		return StripeCompleteLinkingMsg{Err: err}
