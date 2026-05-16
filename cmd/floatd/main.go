@@ -147,6 +147,8 @@ func main() {
 		go startSSHServer(ctx, *dataDir, listenAddr, cfg.Server.SSHPort)
 	}
 
+	go handler.StartDailyStripeImport(ctx)
+
 	httpSrv := &http.Server{Addr: listenAddr, Handler: h2c.NewHandler(mux, &http2.Server{})}
 	go func() {
 		<-ctx.Done()

@@ -41,8 +41,10 @@ type StripeLinkedAccount struct {
 }
 
 type StripeConfig struct {
-	CustomerID     string               `toml:"customer_id"`
-	LinkedAccounts []StripeLinkedAccount `toml:"linked_accounts"`
+	CustomerID         string                `toml:"customer_id"`
+	DailyImportEnabled bool                  `toml:"daily_import_enabled"`
+	LastDailyImportAt  string                `toml:"last_daily_import_at"` // RFC3339; empty if never run
+	LinkedAccounts     []StripeLinkedAccount `toml:"linked_accounts"`
 }
 
 type Config struct {

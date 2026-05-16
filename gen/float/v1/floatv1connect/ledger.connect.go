@@ -215,6 +215,9 @@ const (
 	// LedgerServiceSetStripeCustomerIdProcedure is the fully-qualified name of the LedgerService's
 	// SetStripeCustomerId RPC.
 	LedgerServiceSetStripeCustomerIdProcedure = "/float.v1.LedgerService/SetStripeCustomerId"
+	// LedgerServiceSetStripeDailyImportEnabledProcedure is the fully-qualified name of the
+	// LedgerService's SetStripeDailyImportEnabled RPC.
+	LedgerServiceSetStripeDailyImportEnabledProcedure = "/float.v1.LedgerService/SetStripeDailyImportEnabled"
 	// LedgerServiceRunHledgerQueryProcedure is the fully-qualified name of the LedgerService's
 	// RunHledgerQuery RPC.
 	LedgerServiceRunHledgerQueryProcedure = "/float.v1.LedgerService/RunHledgerQuery"
@@ -289,6 +292,7 @@ type LedgerServiceClient interface {
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
+	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 }
@@ -676,6 +680,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SetStripeCustomerId")),
 			connect.WithClientOptions(opts...),
 		),
+		setStripeDailyImportEnabled: connect.NewClient[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse](
+			httpClient,
+			baseURL+LedgerServiceSetStripeDailyImportEnabledProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetStripeDailyImportEnabled")),
+			connect.WithClientOptions(opts...),
+		),
 		runHledgerQuery: connect.NewClient[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse](
 			httpClient,
 			baseURL+LedgerServiceRunHledgerQueryProcedure,
@@ -749,6 +759,7 @@ type ledgerServiceClient struct {
 	setAIModel                   *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
 	setAIPrompt                  *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
 	setStripeCustomerId          *connect.Client[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse]
+	setStripeDailyImportEnabled  *connect.Client[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse]
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
 }
 
@@ -1062,6 +1073,11 @@ func (c *ledgerServiceClient) SetStripeCustomerId(ctx context.Context, req *conn
 	return c.setStripeCustomerId.CallUnary(ctx, req)
 }
 
+// SetStripeDailyImportEnabled calls float.v1.LedgerService.SetStripeDailyImportEnabled.
+func (c *ledgerServiceClient) SetStripeDailyImportEnabled(ctx context.Context, req *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error) {
+	return c.setStripeDailyImportEnabled.CallUnary(ctx, req)
+}
+
 // RunHledgerQuery calls float.v1.LedgerService.RunHledgerQuery.
 func (c *ledgerServiceClient) RunHledgerQuery(ctx context.Context, req *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
 	return c.runHledgerQuery.CallUnary(ctx, req)
@@ -1136,6 +1152,7 @@ type LedgerServiceHandler interface {
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
+	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 }
@@ -1519,6 +1536,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SetStripeCustomerId")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceSetStripeDailyImportEnabledHandler := connect.NewUnaryHandler(
+		LedgerServiceSetStripeDailyImportEnabledProcedure,
+		svc.SetStripeDailyImportEnabled,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetStripeDailyImportEnabled")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceRunHledgerQueryHandler := connect.NewUnaryHandler(
 		LedgerServiceRunHledgerQueryProcedure,
 		svc.RunHledgerQuery,
@@ -1651,6 +1674,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceSetAIPromptHandler.ServeHTTP(w, r)
 		case LedgerServiceSetStripeCustomerIdProcedure:
 			ledgerServiceSetStripeCustomerIdHandler.ServeHTTP(w, r)
+		case LedgerServiceSetStripeDailyImportEnabledProcedure:
+			ledgerServiceSetStripeDailyImportEnabledHandler.ServeHTTP(w, r)
 		case LedgerServiceRunHledgerQueryProcedure:
 			ledgerServiceRunHledgerQueryHandler.ServeHTTP(w, r)
 		default:
@@ -1908,6 +1933,10 @@ func (UnimplementedLedgerServiceHandler) SetAIPrompt(context.Context, *connect.R
 
 func (UnimplementedLedgerServiceHandler) SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetStripeCustomerId is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetStripeDailyImportEnabled is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {

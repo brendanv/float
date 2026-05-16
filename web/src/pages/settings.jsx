@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, Circle, CreditCard } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CheckCircle, Circle, CreditCard, Repeat } from "lucide-react";
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -52,6 +53,25 @@ export function SettingsPage() {
     setStripeMutationError(null);
     setStripeSaved(false);
     setCustomerIdMutation.mutate("");
+  }
+
+  // --- Stripe Daily Auto-Import ---
+  const [dailyImportError, setDailyImportError] = useState(null);
+
+  const setDailyImportMutation = useMutation({
+    mutationFn: (enabled) => ledgerClient.setStripeDailyImportEnabled({ enabled }),
+    onSuccess: () => {
+      setDailyImportError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.stripeConfig() });
+    },
+    onError: (err) => setDailyImportError(err),
+  });
+
+  const dailyImportAvailable = !!stripeData?.enabled && (stripeData?.linkedAccountCount ?? 0) > 0;
+
+  function handleDailyImportToggle(checked) {
+    setDailyImportError(null);
+    setDailyImportMutation.mutate(checked === true);
   }
 
   // --- Alpha Vantage ---
@@ -245,6 +265,69 @@ export function SettingsPage() {
                   </Button>
                 </div>
               )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Repeat className="size-5" />
+            Daily Stripe Auto-Import
+          </CardTitle>
+          <CardDescription>
+            Once per day, automatically fetch new transactions from every linked Stripe
+            account and import the non-duplicate ones — exactly as if you'd pressed
+            "Fetch All" and "Import" yourself on the Connections page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {dailyImportError && <ErrorBanner error={dailyImportError} />}
+
+          {stripeLoading && <Loading />}
+
+          {stripeData && (
+            <>
+              <Label
+                htmlFor="stripe-daily-import-enabled"
+                className="flex items-start gap-3 cursor-pointer"
+              >
+                <Checkbox
+                  id="stripe-daily-import-enabled"
+                  checked={!!stripeData.dailyImportEnabled}
+                  disabled={!dailyImportAvailable || setDailyImportMutation.isPending}
+                  onCheckedChange={handleDailyImportToggle}
+                />
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">
+                    Enable daily automatic import
+                  </span>
+                  {!stripeData.enabled && (
+                    <span className="text-xs text-muted-foreground">
+                      Requires <code className="font-mono">STRIPE_SECRET_KEY</code> to
+                      be set on the server.
+                    </span>
+                  )}
+                  {stripeData.enabled && (stripeData.linkedAccountCount ?? 0) === 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      Link at least one bank account on the{" "}
+                      <a href="#/connections" className="underline">
+                        Connections page
+                      </a>{" "}
+                      first.
+                    </span>
+                  )}
+                </div>
+              </Label>
+
+              <div className="text-xs text-muted-foreground">
+                {stripeData.lastDailyImportAt ? (
+                  <>Last automatic import: {stripeData.lastDailyImportAt}</>
+                ) : (
+                  <>Last automatic import: never</>
+                )}
+              </div>
             </>
           )}
         </CardContent>
