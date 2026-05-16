@@ -2224,7 +2224,6 @@ func addRuleMessage(patterns []string) string {
 					if last < 0 {
 						b.Reset()
 						used = 0
-						appended = 0
 						break
 					}
 					b.Reset()
