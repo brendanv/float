@@ -28,7 +28,7 @@ func mustRealHandlerWithSnap(t *testing.T, dir string) (*serverledger.Handler, *
 	}
 	lock := txlock.New(dir, c)
 	lock.SetSnap(snap)
-	return serverledger.NewHandler(c, lock, dir, "", nil, snap, nil), snap
+	return serverledger.NewHandler(c, lock, dir, "", nil, snap, nil, nil), snap
 }
 
 func TestAddRuleHandler(t *testing.T) {

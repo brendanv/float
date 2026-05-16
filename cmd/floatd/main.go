@@ -22,6 +22,7 @@ import (
 	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
+	"github.com/brendanv/float/internal/logstream"
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/txlock"
@@ -38,7 +39,9 @@ func main() {
 	if *verbose {
 		logLevel.Set(slog.LevelDebug)
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel}))
+	broadcaster := logstream.NewBroadcaster()
+	jsonHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel})
+	logger := slog.New(logstream.NewBroadcastHandler(jsonHandler, broadcaster))
 	slog.SetDefault(logger)
 
 	if *dataDir == "" {
@@ -131,7 +134,7 @@ func main() {
 	}
 
 	c := cache.New[any](lock.Generation)
-	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg)
+	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg, broadcaster)
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,

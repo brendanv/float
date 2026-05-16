@@ -32,7 +32,7 @@ func mustHandlerWithConfig(t *testing.T, dir string, cfg *config.Config) *server
 		t.Fatalf("save config: %v", err)
 	}
 	lock := txlock.New(dir, c)
-	return serverledger.NewHandler(c, lock, dir, configPath, nil, nil, cfg)
+	return serverledger.NewHandler(c, lock, dir, configPath, nil, nil, cfg, nil)
 }
 
 func mockStripeAPI(t *testing.T, mux *http.ServeMux) {
@@ -138,7 +138,7 @@ func TestGetStripeConfig(t *testing.T) {
 		if err != nil {
 			t.Skipf("hledger unavailable: %v", err)
 		}
-		h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil)
+		h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil, nil)
 		_, err = h.GetStripeConfig(t.Context(), connect.NewRequest(&floatv1.GetStripeConfigRequest{}))
 		if err == nil {
 			t.Fatal("expected error, got nil")
