@@ -20,6 +20,7 @@ import (
 	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
+	"github.com/brendanv/float/internal/logstream"
 	"github.com/brendanv/float/internal/rules"
 	"github.com/brendanv/float/internal/slogctx"
 	"github.com/brendanv/float/internal/txlock"
@@ -28,19 +29,20 @@ import (
 // Handler implements LedgerService RPCs by delegating to the hledger wrapper.
 type Handler struct {
 	floatv1connect.UnimplementedLedgerServiceHandler
-	hl         *hledger.Client
-	lock       *txlock.TxLock
-	dataDir    string
-	configPath string
-	cache      *cache.Cache[any] // nil = bypass cache
-	snap       *gitsnap.Repo
-	cfg        *config.Config
+	hl             *hledger.Client
+	lock           *txlock.TxLock
+	dataDir        string
+	configPath     string
+	cache          *cache.Cache[any] // nil = bypass cache
+	snap           *gitsnap.Repo
+	cfg            *config.Config
+	logBroadcaster *logstream.Broadcaster
 	// AIBaseURL overrides the OpenRouter API endpoint. Set in tests only.
 	AIBaseURL string
 }
 
-func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config) *Handler {
-	return &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, cfg: cfg}
+func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
+	return &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, cfg: cfg, logBroadcaster: broadcaster}
 }
 
 func (h *Handler) RunHledgerQuery(ctx context.Context, req *connect.Request[floatv1.RunHledgerQueryRequest]) (*connect.Response[floatv1.RunHledgerQueryResponse], error) {

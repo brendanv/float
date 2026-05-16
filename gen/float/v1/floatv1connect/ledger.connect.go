@@ -221,6 +221,9 @@ const (
 	// LedgerServiceRunHledgerQueryProcedure is the fully-qualified name of the LedgerService's
 	// RunHledgerQuery RPC.
 	LedgerServiceRunHledgerQueryProcedure = "/float.v1.LedgerService/RunHledgerQuery"
+	// LedgerServiceStreamLogsProcedure is the fully-qualified name of the LedgerService's StreamLogs
+	// RPC.
+	LedgerServiceStreamLogsProcedure = "/float.v1.LedgerService/StreamLogs"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -295,6 +298,7 @@ type LedgerServiceClient interface {
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
+	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest]) (*connect.ServerStreamForClient[v1.StreamLogsResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -692,6 +696,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("RunHledgerQuery")),
 			connect.WithClientOptions(opts...),
 		),
+		streamLogs: connect.NewClient[v1.StreamLogsRequest, v1.StreamLogsResponse](
+			httpClient,
+			baseURL+LedgerServiceStreamLogsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("StreamLogs")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -761,6 +771,7 @@ type ledgerServiceClient struct {
 	setStripeCustomerId          *connect.Client[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse]
 	setStripeDailyImportEnabled  *connect.Client[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse]
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
+	streamLogs                   *connect.Client[v1.StreamLogsRequest, v1.StreamLogsResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -1083,6 +1094,11 @@ func (c *ledgerServiceClient) RunHledgerQuery(ctx context.Context, req *connect.
 	return c.runHledgerQuery.CallUnary(ctx, req)
 }
 
+// StreamLogs calls float.v1.LedgerService.StreamLogs.
+func (c *ledgerServiceClient) StreamLogs(ctx context.Context, req *connect.Request[v1.StreamLogsRequest]) (*connect.ServerStreamForClient[v1.StreamLogsResponse], error) {
+	return c.streamLogs.CallServerStream(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -1155,6 +1171,7 @@ type LedgerServiceHandler interface {
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
+	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest], *connect.ServerStream[v1.StreamLogsResponse]) error
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1548,6 +1565,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("RunHledgerQuery")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceStreamLogsHandler := connect.NewServerStreamHandler(
+		LedgerServiceStreamLogsProcedure,
+		svc.StreamLogs,
+		connect.WithSchema(ledgerServiceMethods.ByName("StreamLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -1678,6 +1701,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceSetStripeDailyImportEnabledHandler.ServeHTTP(w, r)
 		case LedgerServiceRunHledgerQueryProcedure:
 			ledgerServiceRunHledgerQueryHandler.ServeHTTP(w, r)
+		case LedgerServiceStreamLogsProcedure:
+			ledgerServiceStreamLogsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1941,4 +1966,8 @@ func (UnimplementedLedgerServiceHandler) SetStripeDailyImportEnabled(context.Con
 
 func (UnimplementedLedgerServiceHandler) RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RunHledgerQuery is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest], *connect.ServerStream[v1.StreamLogsResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.StreamLogs is not implemented"))
 }

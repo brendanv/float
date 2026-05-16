@@ -824,6 +824,21 @@ message BalanceAssertion {
   Amount amount = 1; // the asserted balance, e.g. {commodity: "$", quantity: "100.00"}
 }
 
+message LogEntry {
+  string time = 1;               // RFC3339Nano timestamp
+  string level = 2;              // "DEBUG", "INFO", "WARN", "ERROR"
+  string message = 3;
+  map<string, string> attrs = 4; // flattened attrs; group keys use dot-separated paths
+}
+
+message StreamLogsRequest {
+  string min_level = 1; // optional: "DEBUG", "INFO", "WARN", "ERROR"; default "INFO"
+}
+
+message StreamLogsResponse {
+  LogEntry entry = 1;
+}
+
 service LedgerService {
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
   rpc GetAccountRegister(GetAccountRegisterRequest) returns (GetAccountRegisterResponse);
@@ -901,4 +916,5 @@ service LedgerService {
 
   // Debug / Investigation
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);
+  rpc StreamLogs(StreamLogsRequest) returns (stream StreamLogsResponse);
 }
