@@ -334,9 +334,9 @@ func TestCategoryPostingIndex(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := categoryPostingIndex(tc.txn)
+			got := CategoryPostingIndex(tc.txn)
 			if got != tc.wantIdx {
-				t.Errorf("categoryPostingIndex = %d, want %d", got, tc.wantIdx)
+				t.Errorf("CategoryPostingIndex = %d, want %d", got, tc.wantIdx)
 			}
 		})
 	}

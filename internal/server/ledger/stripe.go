@@ -291,16 +291,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		}
 		if r := rules.Match(rulesList, ht.Description); r != nil {
 			candidate.MatchedRuleId = r.ID
-			if r.Payee != "" {
-				ht.Description = r.Payee + " | " + ht.Description
-			}
-			if r.Account != "" && len(ht.Postings) == 2 {
-				for j, p := range ht.Postings {
-					if !isAssetOrLiabilityAccount(p.Account) {
-						ht.Postings[j].Account = r.Account
-					}
-				}
-			}
+			rules.ApplyPreviewToTransaction(&ht, r)
 		}
 		candidate.Transaction = toProtoTransaction(ht)
 		candidates = append(candidates, candidate)
@@ -365,7 +356,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			}
 			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
-			applyRuleToInput(&txInput, rules.Match(rulesList, st.Description))
+			rules.ApplyToInput(&txInput, rules.Match(rulesList, st.Description))
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 			if writeErr != nil {
@@ -475,16 +466,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 			}
 			if r := rules.Match(rulesList, ht.Description); r != nil {
 				candidate.MatchedRuleId = r.ID
-				if r.Payee != "" {
-					ht.Description = r.Payee + " | " + ht.Description
-				}
-				if r.Account != "" && len(ht.Postings) == 2 {
-					for j, p := range ht.Postings {
-						if !isAssetOrLiabilityAccount(p.Account) {
-							ht.Postings[j].Account = r.Account
-						}
-					}
-				}
+				rules.ApplyPreviewToTransaction(&ht, r)
 			}
 			candidate.Transaction = toProtoTransaction(ht)
 			candidates = append(candidates, candidate)
@@ -567,7 +549,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				}
 				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
-				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description))
+				rules.ApplyToInput(&txInput, rules.Match(rulesList, st.Description))
 
 				fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 				if writeErr != nil {
@@ -699,29 +681,3 @@ func stripeAccountSlug(accountID string) string {
 	return strings.ToLower(strings.ReplaceAll(accountID, "_", "-"))
 }
 
-func applyRuleToInput(txInput *journal.TransactionInput, r *rules.Rule) {
-	if r == nil {
-		return
-	}
-	if r.Payee != "" {
-		txInput.Description = r.Payee + " | " + txInput.Description
-	}
-	if r.Account != "" && len(txInput.Postings) == 2 {
-		for j, p := range txInput.Postings {
-			if !isAssetOrLiabilityAccount(p.Account) {
-				txInput.Postings[j].Account = r.Account
-			}
-		}
-	}
-	if len(r.Tags) > 0 {
-		if txInput.Tags == nil {
-			txInput.Tags = make(map[string]string)
-		}
-		for k, v := range r.Tags {
-			txInput.Tags[k] = v
-		}
-	}
-	if r.AutoReviewed {
-		txInput.Status = "Cleared"
-	}
-}

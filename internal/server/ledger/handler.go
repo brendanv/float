@@ -1746,17 +1746,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 		}
 		if r := rules.Match(rulesList, c.Description); r != nil {
 			candidate.MatchedRuleId = r.ID
-			// Apply rule transformations so the preview reflects what will actually be imported.
-			if r.Payee != "" {
-				c.Description = r.Payee + " | " + c.Description
-			}
-			if r.Account != "" && len(c.Postings) == 2 {
-				for j, p := range c.Postings {
-					if !isAssetOrLiabilityAccount(p.Account) {
-						c.Postings[j].Account = r.Account
-					}
-				}
-			}
+			rules.ApplyPreviewToTransaction(&c, r)
 		}
 		candidate.Transaction = toProtoTransaction(c)
 		out[i] = candidate
@@ -1833,31 +1823,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			}
 			txInput.FloatMeta["float-import"] = importBatchID
 
-			// Apply float rules during import.
-			if r := rules.Match(rulesList, c.Description); r != nil {
-				if r.Payee != "" {
-					note := txInput.Description
-					txInput.Description = r.Payee + " | " + note
-				}
-				if r.Account != "" && len(c.Postings) == 2 {
-					for j, p := range txInput.Postings {
-						if !isAssetOrLiabilityAccount(p.Account) {
-							txInput.Postings[j].Account = r.Account
-						}
-					}
-				}
-				if len(r.Tags) > 0 {
-					if txInput.Tags == nil {
-						txInput.Tags = make(map[string]string)
-					}
-					for k, v := range r.Tags {
-						txInput.Tags[k] = v
-					}
-				}
-				if r.AutoReviewed {
-					txInput.Status = "Cleared"
-				}
-			}
+			rules.ApplyToInput(&txInput, rules.Match(rulesList, c.Description))
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 			if writeErr != nil {
@@ -2019,15 +1985,6 @@ func (h *Handler) GetImportFile(ctx context.Context, req *connect.Request[floatv
 	}), nil
 }
 
-// isAssetOrLiabilityAccount returns true if the account name looks like an
-// asset or liability account based on common prefixes.
-func isAssetOrLiabilityAccount(account string) bool {
-	lower := strings.ToLower(account)
-	return strings.HasPrefix(lower, "assets") ||
-		strings.HasPrefix(lower, "liabilities") ||
-		strings.HasPrefix(lower, "asset:") ||
-		strings.HasPrefix(lower, "liability:")
-}
 
 // profileToSlug converts a bank profile name to a URL/path-safe slug.
 // e.g. "Chase Checking" → "chase-checking", "My Bank (US)" → "my-bank-us"
@@ -2289,7 +2246,7 @@ func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[fl
 			AddTags:       m.Changes.AddTags,
 		}
 		// Current category account.
-		if idx := categoryPostingIndex(m.Transaction); idx >= 0 {
+		if idx := rules.CategoryPostingIndex(m.Transaction); idx >= 0 {
 			p.CurrentAccount = m.Transaction.Postings[idx].Account
 		}
 		if m.Transaction.Payee != nil {
@@ -2393,19 +2350,6 @@ func bulkEditMessage(fids []string, ops []*floatv1.BulkEditOperation) string {
 	return fmt.Sprintf("bulk edit %d transactions", len(fids))
 }
 
-// categoryPostingIndex returns the index of the non-asset/liability posting
-// in a 2-posting transaction, or -1 if ambiguous.
-func categoryPostingIndex(txn hledger.Transaction) int {
-	if len(txn.Postings) != 2 {
-		return -1
-	}
-	for i, p := range txn.Postings {
-		if !isAssetOrLiabilityAccount(p.Account) {
-			return i
-		}
-	}
-	return -1
-}
 
 func protoToJournalCost(c *floatv1.Cost) *journal.CostInput {
 	if c == nil {

@@ -160,7 +160,7 @@ func buildChangeSet(rule Rule, txn hledger.Transaction) ChangeSet {
 
 	if rule.Account != "" {
 		// Only applicable to 2-posting transactions with a clear category posting.
-		if idx := categoryPostingIndex(txn); idx >= 0 {
+		if idx := CategoryPostingIndex(txn); idx >= 0 {
 			currentAccount := txn.Postings[idx].Account
 			if rule.Account != currentAccount {
 				acc := rule.Account
@@ -199,15 +199,15 @@ func hasChanges(cs ChangeSet) bool {
 	return cs.NewPayee != nil || cs.NewAccount != nil || len(cs.AddTags) > 0 || cs.MarkReviewed != nil
 }
 
-// categoryPostingIndex returns the index of the "category" posting (the
+// CategoryPostingIndex returns the index of the "category" posting (the
 // non-asset/liability posting in a 2-posting transaction), or -1 if the
 // transaction is ambiguous (3+ postings, or both postings are same type).
-func categoryPostingIndex(txn hledger.Transaction) int {
+func CategoryPostingIndex(txn hledger.Transaction) int {
 	if len(txn.Postings) != 2 {
 		return -1
 	}
 	for i, p := range txn.Postings {
-		if !isAssetOrLiabilityAccount(p.Account) {
+		if !IsAssetOrLiabilityAccount(p.Account) {
 			return i
 		}
 	}
@@ -216,15 +216,65 @@ func categoryPostingIndex(txn hledger.Transaction) int {
 
 // isCategoryPosting returns true if posting i is the category (non-asset/liability) posting.
 func isCategoryPosting(txn hledger.Transaction, idx int) bool {
-	return categoryPostingIndex(txn) == idx
+	return CategoryPostingIndex(txn) == idx
 }
 
-// isAssetOrLiabilityAccount returns true if the account name looks like an
-// asset or liability account based on its prefix.
-func isAssetOrLiabilityAccount(account string) bool {
+// IsAssetOrLiabilityAccount returns true if the account name looks like an
+// asset or liability account based on common prefixes.
+func IsAssetOrLiabilityAccount(account string) bool {
 	lower := strings.ToLower(account)
 	return strings.HasPrefix(lower, "assets") ||
 		strings.HasPrefix(lower, "liabilities") ||
 		strings.HasPrefix(lower, "asset:") ||
 		strings.HasPrefix(lower, "liability:")
+}
+
+// ApplyToInput applies a matched rule to a TransactionInput being prepared for
+// import. Modifies txInput in place. No-op if r is nil.
+func ApplyToInput(txInput *journal.TransactionInput, r *Rule) {
+	if r == nil {
+		return
+	}
+	if r.Payee != "" {
+		txInput.Description = r.Payee + " | " + txInput.Description
+	}
+	if r.Account != "" && len(txInput.Postings) == 2 {
+		for j, p := range txInput.Postings {
+			if !IsAssetOrLiabilityAccount(p.Account) {
+				txInput.Postings[j].Account = r.Account
+			}
+		}
+	}
+	if len(r.Tags) > 0 {
+		if txInput.Tags == nil {
+			txInput.Tags = make(map[string]string)
+		}
+		for k, v := range r.Tags {
+			txInput.Tags[k] = v
+		}
+	}
+	if r.AutoReviewed {
+		txInput.Status = "Cleared"
+	}
+}
+
+// ApplyPreviewToTransaction mutates a candidate hledger.Transaction to reflect
+// the payee and account changes a rule would produce on import. Used so that
+// preview responses show the transformed description and postings. Status and
+// tag changes are intentionally omitted — callers track those separately (e.g.
+// via MatchedRuleId).
+func ApplyPreviewToTransaction(txn *hledger.Transaction, r *Rule) {
+	if r == nil {
+		return
+	}
+	if r.Payee != "" {
+		txn.Description = r.Payee + " | " + txn.Description
+	}
+	if r.Account != "" && len(txn.Postings) == 2 {
+		for j, p := range txn.Postings {
+			if !IsAssetOrLiabilityAccount(p.Account) {
+				txn.Postings[j].Account = r.Account
+			}
+		}
+	}
 }
