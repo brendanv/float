@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,8 +19,8 @@ func TestModifyTags(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for non-existent fid, got nil")
 		}
-		if !strings.Contains(err.Error(), "no transaction found") {
-			t.Errorf("unexpected error message: %v", err)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound, got: %v", err)
 		}
 	})
 
@@ -536,8 +537,8 @@ func TestModifyFloatMeta(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for non-existent fid, got nil")
 		}
-		if !strings.Contains(err.Error(), "no transaction found") {
-			t.Errorf("unexpected error: %v", err)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound, got: %v", err)
 		}
 	})
 }

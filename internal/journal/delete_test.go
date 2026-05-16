@@ -1,7 +1,7 @@
 package journal
 
 import (
-	"strings"
+	"errors"
 	"testing"
 	"time"
 
@@ -20,14 +20,14 @@ func mustHledgerClient(t *testing.T, dataDir string) *hledger.Client {
 
 func TestDeleteTransaction(t *testing.T) {
 	t.Run("not_found", func(t *testing.T) {
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 1, NumTxns: 3, WithFIDs: true})
+			dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 1, NumTxns: 3, WithFIDs: true})
 		client := mustHledgerClient(t, dir)
 		err := DeleteTransaction(t.Context(), client, dir, "00000000")
 		if err == nil {
 			t.Fatal("expected error for non-existent fid, got nil")
 		}
-		if !strings.Contains(err.Error(), "no transaction found") {
-			t.Errorf("unexpected error message: %v", err)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound, got: %v", err)
 		}
 	})
 
@@ -104,8 +104,8 @@ func TestDeleteTransaction(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error on second delete, got nil")
 		}
-		if !strings.Contains(err.Error(), "no transaction found") {
-			t.Errorf("unexpected error on second delete: %v", err)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound on second delete, got: %v", err)
 		}
 	})
 }

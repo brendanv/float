@@ -75,7 +75,7 @@ func RenameAccountDeclaration(dataDir, oldName, newName string) error {
 	path := filepath.Join(dataDir, accountsRelPath)
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("journal: accounts.journal not found")
+		return fmt.Errorf("journal: accounts.journal not found: %w", ErrNotFound)
 	}
 	if err != nil {
 		return fmt.Errorf("journal: read %s: %w", accountsRelPath, err)
@@ -97,7 +97,7 @@ func RenameAccountDeclaration(dataDir, oldName, newName string) error {
 		}
 	}
 	if !found {
-		return fmt.Errorf("journal: account declaration %q not found", oldName)
+		return fmt.Errorf("journal: account declaration %q not found: %w", oldName, ErrNotFound)
 	}
 
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
@@ -110,7 +110,7 @@ func DeleteAccountDeclaration(dataDir, name string) error {
 	path := filepath.Join(dataDir, accountsRelPath)
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("journal: accounts.journal not found")
+		return fmt.Errorf("journal: accounts.journal not found: %w", ErrNotFound)
 	}
 	if err != nil {
 		return fmt.Errorf("journal: read %s: %w", accountsRelPath, err)
@@ -127,7 +127,7 @@ func DeleteAccountDeclaration(dataDir, name string) error {
 		newLines = append(newLines, line)
 	}
 	if !found {
-		return fmt.Errorf("journal: account declaration %q not found", name)
+		return fmt.Errorf("journal: account declaration %q not found: %w", name, ErrNotFound)
 	}
 
 	return os.WriteFile(path, []byte(strings.Join(newLines, "\n")), 0644)

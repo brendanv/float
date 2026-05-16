@@ -22,7 +22,7 @@ func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 	}
 	switch len(txns) {
 	case 0:
-		return hledger.Transaction{}, fmt.Errorf("journal: update: no transaction found with fid %q", fid)
+		return hledger.Transaction{}, fmt.Errorf("journal: update: no transaction found with fid %q: %w", fid, ErrNotFound)
 	case 1:
 		// expected
 	default:
@@ -47,7 +47,7 @@ func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 	if newDate != "" {
 		parsedDate, parseErr := time.Parse("2006-01-02", newDate)
 		if parseErr != nil {
-			return hledger.Transaction{}, fmt.Errorf("journal: update: invalid date %q: must be YYYY-MM-DD", newDate)
+			return hledger.Transaction{}, fmt.Errorf("journal: update: invalid date %q: must be YYYY-MM-DD: %w", newDate, ErrInvalidDate)
 		}
 		input.Date = parsedDate
 	}
