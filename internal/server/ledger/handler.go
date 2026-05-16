@@ -102,74 +102,57 @@ func balancesValuedKey(valueSpec string, depth int, query []string) string {
 	return fmt.Sprintf("balancesvalued:%s:%d:%s", valueSpec, depth, strings.Join(sorted, "|"))
 }
 
-// cachedTransactions fetches transactions from cache or hledger.
-func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
+func cachedGet[T any](ctx context.Context, c *cache.Cache[any], key string, load func(context.Context) (T, error)) (T, error) {
+	var zero T
 	if c == nil {
-		return hl.Transactions(ctx, query...)
+		return load(ctx)
 	}
-	val, err := c.Get(ctx, transactionsKey(query), func(ctx context.Context) (any, error) {
-		return hl.Transactions(ctx, query...)
+	val, err := c.Get(ctx, key, func(ctx context.Context) (any, error) {
+		return load(ctx)
 	})
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
-	return val.([]hledger.Transaction), nil
+	typed, ok := val.(T)
+	if !ok {
+		return zero, fmt.Errorf("cache value for key %q had unexpected type %T", key, val)
+	}
+	return typed, nil
+}
+
+// cachedTransactions fetches transactions from cache or hledger.
+func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
+	return cachedGet(ctx, c, transactionsKey(query), func(ctx context.Context) ([]hledger.Transaction, error) {
+		return hl.Transactions(ctx, query...)
+	})
 }
 
 // cachedBalances fetches balances from cache or hledger.
 func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
-	if c == nil {
-		return hl.Balances(ctx, depth, query...)
-	}
-	val, err := c.Get(ctx, balancesKey(depth, query), func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, balancesKey(depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
 		return hl.Balances(ctx, depth, query...)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.(*hledger.BalanceReport), nil
 }
 
 // cachedBalancesValued fetches market-valued balances from cache or hledger.
 func cachedBalancesValued(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, valueSpec string, depth int, query []string) (*hledger.BalanceReport, error) {
-	if c == nil {
-		return hl.BalancesValued(ctx, valueSpec, depth, query...)
-	}
-	val, err := c.Get(ctx, balancesValuedKey(valueSpec, depth, query), func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, balancesValuedKey(valueSpec, depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
 		return hl.BalancesValued(ctx, valueSpec, depth, query...)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.(*hledger.BalanceReport), nil
 }
 
 // cachedAregister fetches account register rows from cache or hledger.
 func cachedAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, account string, query []string) ([]hledger.AregisterRow, error) {
-	if c == nil {
-		return hl.Aregister(ctx, account, query...)
-	}
-	val, err := c.Get(ctx, accountRegisterKey(account, query), func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, accountRegisterKey(account, query), func(ctx context.Context) ([]hledger.AregisterRow, error) {
 		return hl.Aregister(ctx, account, query...)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.([]hledger.AregisterRow), nil
 }
 
 // cachedNetWorth fetches a balance sheet timeseries from cache or hledger.
 func cachedNetWorth(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, begin, end string) (*hledger.BalanceSheetTimeseries, error) {
-	if c == nil {
-		return hl.BalanceSheetTimeseries(ctx, begin, end)
-	}
-	val, err := c.Get(ctx, netWorthKey(begin, end), func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, netWorthKey(begin, end), func(ctx context.Context) (*hledger.BalanceSheetTimeseries, error) {
 		return hl.BalanceSheetTimeseries(ctx, begin, end)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.(*hledger.BalanceSheetTimeseries), nil
 }
 
 func portfolioTimeseriesKey(prefix, begin string) string {
@@ -178,72 +161,37 @@ func portfolioTimeseriesKey(prefix, begin string) string {
 
 // cachedPortfolioTimeseries fetches a portfolio value timeseries from cache or hledger.
 func cachedPortfolioTimeseries(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, prefix, begin string) (*hledger.BalanceSheetTimeseries, error) {
-	if c == nil {
-		return hl.PortfolioTimeseries(ctx, prefix, begin)
-	}
-	val, err := c.Get(ctx, portfolioTimeseriesKey(prefix, begin), func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, portfolioTimeseriesKey(prefix, begin), func(ctx context.Context) (*hledger.BalanceSheetTimeseries, error) {
 		return hl.PortfolioTimeseries(ctx, prefix, begin)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.(*hledger.BalanceSheetTimeseries), nil
 }
 
 // cachedIncomeStatement fetches an income statement timeseries from cache or hledger.
 func cachedIncomeStatement(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, begin, end string) (*hledger.IncomeStatementTimeseries, error) {
-	if c == nil {
-		return hl.IncomeStatementTimeseries(ctx, begin, end)
-	}
-	val, err := c.Get(ctx, incomeStatementKey(begin, end), func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, incomeStatementKey(begin, end), func(ctx context.Context) (*hledger.IncomeStatementTimeseries, error) {
 		return hl.IncomeStatementTimeseries(ctx, begin, end)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.(*hledger.IncomeStatementTimeseries), nil
 }
 
 // cachedTags fetches tag names from cache or hledger.
 func cachedTags(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([]string, error) {
-	if c == nil {
-		return hl.Tags(ctx)
-	}
-	val, err := c.Get(ctx, tagsKey, func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, tagsKey, func(ctx context.Context) ([]string, error) {
 		return hl.Tags(ctx)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.([]string), nil
 }
 
 // cachedPayees fetches payee names from cache or hledger.
 func cachedPayees(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([]string, error) {
-	if c == nil {
-		return hl.Payees(ctx)
-	}
-	val, err := c.Get(ctx, payeesKey, func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, payeesKey, func(ctx context.Context) ([]string, error) {
 		return hl.Payees(ctx)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.([]string), nil
 }
 
 // cachedAccounts fetches accounts from cache or hledger.
 func cachedAccounts(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([]*hledger.AccountNode, error) {
-	if c == nil {
-		return hl.Accounts(ctx, false)
-	}
-	val, err := c.Get(ctx, accountsKey, func(ctx context.Context) (any, error) {
+	return cachedGet(ctx, c, accountsKey, func(ctx context.Context) ([]*hledger.AccountNode, error) {
 		return hl.Accounts(ctx, false)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return val.([]*hledger.AccountNode), nil
 }
 
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
