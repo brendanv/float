@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,8 +108,8 @@ func TestRenameAccountDeclaration(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for non-existent account, got nil")
 		}
-		if !strings.Contains(err.Error(), "not found") {
-			t.Errorf("unexpected error: %v", err)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound, got: %v", err)
 		}
 	})
 

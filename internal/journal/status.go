@@ -25,7 +25,7 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 	}
 	switch len(txns) {
 	case 0:
-		return fmt.Errorf("journal: update-status: no transaction found with fid %q", fid)
+		return fmt.Errorf("journal: update-status: no transaction found with fid %q: %w", fid, ErrNotFound)
 	case 1:
 		// expected
 	default:

@@ -92,7 +92,7 @@ func DeletePrice(dataDir, pid string) error {
 	path := filepath.Join(dataDir, pricesRelPath)
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("journal: prices.journal not found")
+		return fmt.Errorf("journal: prices.journal not found: %w", ErrNotFound)
 	}
 	if err != nil {
 		return fmt.Errorf("journal: read %s: %w", pricesRelPath, err)
@@ -110,7 +110,7 @@ func DeletePrice(dataDir, pid string) error {
 		newLines = append(newLines, line)
 	}
 	if !found {
-		return fmt.Errorf("journal: price with pid %q not found", pid)
+		return fmt.Errorf("journal: price with pid %q not found: %w", pid, ErrNotFound)
 	}
 
 	return os.WriteFile(path, []byte(strings.Join(newLines, "\n")), 0644)

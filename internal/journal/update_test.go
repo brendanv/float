@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -16,8 +17,8 @@ func TestUpdateTransaction(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for non-existent fid, got nil")
 		}
-		if !strings.Contains(err.Error(), "no transaction found") {
-			t.Errorf("unexpected error message: %v", err)
+		if !errors.Is(err, ErrNotFound) {
+			t.Errorf("expected ErrNotFound, got: %v", err)
 		}
 	})
 
@@ -41,8 +42,8 @@ func TestUpdateTransaction(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for invalid date, got nil")
 		}
-		if !strings.Contains(err.Error(), "invalid date") {
-			t.Errorf("unexpected error message: %v", err)
+		if !errors.Is(err, ErrInvalidDate) {
+			t.Errorf("expected ErrInvalidDate, got: %v", err)
 		}
 	})
 

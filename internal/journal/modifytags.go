@@ -19,7 +19,7 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 	}
 	switch len(txns) {
 	case 0:
-		return fmt.Errorf("journal: modify-tags: no transaction found with fid %q", fid)
+		return fmt.Errorf("journal: modify-tags: no transaction found with fid %q: %w", fid, ErrNotFound)
 	case 1:
 		// expected
 	default:
@@ -54,7 +54,7 @@ func ModifyFloatMeta(ctx context.Context, client *hledger.Client, dataDir, fid s
 	}
 	switch len(txns) {
 	case 0:
-		return fmt.Errorf("journal: modify-hidden-meta: no transaction found with fid %q", fid)
+		return fmt.Errorf("journal: modify-hidden-meta: no transaction found with fid %q: %w", fid, ErrNotFound)
 	case 1:
 		// expected
 	default:

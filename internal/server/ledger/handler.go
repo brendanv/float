@@ -644,7 +644,7 @@ func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[fl
 		return journal.DeleteTransaction(ctx, h.hl, h.dataDir, fid)
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "no transaction found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "delete transaction failed", "fid", fid, "error", err)
@@ -663,7 +663,7 @@ func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.M
 		return journal.ModifyTags(ctx, h.hl, h.dataDir, fid, req.Msg.Tags)
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "no transaction found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "modify tags failed", "fid", fid, "error", err)
@@ -688,10 +688,10 @@ func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Reques
 		return e
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "no transaction found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		if strings.Contains(err.Error(), "invalid date") {
+		if errors.Is(err, journal.ErrInvalidDate) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 		logger.ErrorContext(ctx, "update transaction date failed", "fid", fid, "error", err)
@@ -817,10 +817,10 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 		return e
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "no transaction found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		if strings.Contains(err.Error(), "invalid date") {
+		if errors.Is(err, journal.ErrInvalidDate) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 		logger.ErrorContext(ctx, "update transaction failed", "fid", fid, "error", err)
@@ -856,7 +856,7 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 		return journal.UpdateTransactionStatus(ctx, h.hl, h.dataDir, fid, req.Msg.Status)
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "no transaction found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "update transaction status failed", "fid", fid, "error", err)
@@ -1090,7 +1090,7 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 		return journal.DeletePrice(h.dataDir, req.Msg.Pid)
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "delete price failed", "pid", req.Msg.Pid, "error", err)
@@ -1237,7 +1237,7 @@ func (h *Handler) DeleteAccountDeclaration(ctx context.Context, req *connect.Req
 		return journal.DeleteAccountDeclaration(h.dataDir, req.Msg.Name)
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "delete account declaration failed", "name", req.Msg.Name, "error", err)
@@ -1264,7 +1264,7 @@ func (h *Handler) RenameAccount(ctx context.Context, req *connect.Request[floatv
 	err := h.lock.Do(ctx, fmt.Sprintf("rename account: %s → %s", oldName, newName), func() error {
 		// Rename in accounts.journal if the declaration exists there.
 		if declErr := journal.RenameAccountDeclaration(h.dataDir, oldName, newName); declErr != nil {
-			if !strings.Contains(declErr.Error(), "not found") {
+			if !errors.Is(declErr, journal.ErrNotFound) {
 				return declErr
 			}
 		}
@@ -1325,7 +1325,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 				return fmt.Errorf("bulk-edit: lookup fid %q: %w", fid, err)
 			}
 			if len(txns) == 0 {
-				return fmt.Errorf("bulk-edit: no transaction found with fid %q", fid)
+				return fmt.Errorf("bulk-edit: no transaction found with fid %q: %w", fid, journal.ErrNotFound)
 			}
 			if len(txns) > 1 {
 				return fmt.Errorf("bulk-edit: fid %q matched %d transactions (corrupt journal — run audit)", fid, len(txns))
@@ -1374,7 +1374,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		return nil
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "no transaction found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "bulk edit transactions failed", "error", err)
@@ -1601,7 +1601,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 			}
 		}
 		if idx < 0 {
-			return fmt.Errorf("bank profile %q not found", req.Msg.Name)
+			return fmt.Errorf("bank profile %q: %w", req.Msg.Name, journal.ErrNotFound)
 		}
 
 		profile := h.cfg.BankProfiles[idx]
@@ -1623,7 +1623,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 		return nil
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		slogctx.FromContext(ctx).ErrorContext(ctx, "update bank profile failed", "error", err)
@@ -1656,7 +1656,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 			}
 		}
 		if idx < 0 {
-			return fmt.Errorf("bank profile %q not found", req.Msg.Name)
+			return fmt.Errorf("bank profile %q: %w", req.Msg.Name, journal.ErrNotFound)
 		}
 
 		rulesFile := h.cfg.BankProfiles[idx].RulesFile
@@ -1675,7 +1675,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 		return nil
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		slogctx.FromContext(ctx).ErrorContext(ctx, "delete bank profile failed", "error", err)
@@ -2211,12 +2211,12 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 			}
 		}
 		if !found {
-			return fmt.Errorf("rule %q not found", req.Msg.Id)
+			return fmt.Errorf("rule %q: %w", req.Msg.Id, journal.ErrNotFound)
 		}
 		return rules.Save(h.dataDir, rulesList)
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "update rule failed", "id", req.Msg.Id, "error", err)
@@ -2246,12 +2246,12 @@ func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.D
 			filtered = append(filtered, r)
 		}
 		if !found {
-			return fmt.Errorf("rule %q not found", req.Msg.Id)
+			return fmt.Errorf("rule %q: %w", req.Msg.Id, journal.ErrNotFound)
 		}
 		return rules.Save(h.dataDir, filtered)
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
 		logger.ErrorContext(ctx, "delete rule failed", "id", req.Msg.Id, "error", err)
