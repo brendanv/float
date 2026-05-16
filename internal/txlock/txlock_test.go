@@ -255,3 +255,105 @@ func TestTxLock_Do_Concurrent(t *testing.T) {
 		t.Errorf("Generation() = %d, want 2", got)
 	}
 }
+
+func TestTxLock_Do_ConfigTomlReverted(t *testing.T) {
+	// Verify that config.toml is restored when hledger check fails after fn()
+	// writes both journals and config.toml.
+	dir := setupDataDir(t)
+	l := mustTxLock(t, dir)
+
+	// Write an initial config.toml before the Do call.
+	configPath := filepath.Join(dir, "config.toml")
+	originalConfig := []byte(`[server]
+port = 8080
+`)
+	if err := os.WriteFile(configPath, originalConfig, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// fn writes an invalid journal entry AND modifies config.toml.
+	invalidTx := "2026-01-15 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n"
+	err := l.Do(t.Context(), "test", func() error {
+		// Write an invalid journal (causes hledger check to fail).
+		if err := addMonthFile(dir, "2026/01.journal", invalidTx)(); err != nil {
+			return err
+		}
+		// Also mutate config.toml (simulates e.g. saving LastFetchedAt).
+		mutated := append(originalConfig, []byte("last_fetched = \"2026-01-15\"\n")...)
+		return os.WriteFile(configPath, mutated, 0644)
+	})
+	if err == nil {
+		t.Fatal("Do() should have returned an error (hledger check expected to fail)")
+	}
+
+	// config.toml must be reverted to its pre-fn state.
+	got, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		t.Fatalf("config.toml missing after revert: %v", readErr)
+	}
+	if string(got) != string(originalConfig) {
+		t.Errorf("config.toml not reverted\ngot:\n%s\nwant:\n%s", got, originalConfig)
+	}
+	// Journal file created by fn must also be deleted.
+	if _, err := os.Stat(filepath.Join(dir, "2026/01.journal")); !os.IsNotExist(err) {
+		t.Error("2026/01.journal should have been deleted on revert")
+	}
+}
+
+func TestTxLock_Do_ConfigTomlCreatedThenReverted(t *testing.T) {
+	// Verify that a config.toml created for the first time inside fn() is
+	// deleted if fn() fails or hledger check fails.
+	dir := setupDataDir(t)
+	l := mustTxLock(t, dir)
+
+	// No config.toml exists yet.
+	configPath := filepath.Join(dir, "config.toml")
+
+	invalidTx := "2026-01-15 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n"
+	err := l.Do(t.Context(), "test", func() error {
+		if err := addMonthFile(dir, "2026/01.journal", invalidTx)(); err != nil {
+			return err
+		}
+		// Create config.toml for the first time inside fn().
+		return os.WriteFile(configPath, []byte("[server]\nport = 9090\n"), 0644)
+	})
+	if err == nil {
+		t.Fatal("Do() should have returned an error")
+	}
+
+	// config.toml must have been deleted (it didn't exist before fn() ran).
+	if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+		t.Error("config.toml created inside fn() should have been deleted on revert")
+	}
+}
+
+func TestTxLock_Do_RulesJsonReverted(t *testing.T) {
+	// Verify that rules.json is snapshotted and reverted alongside journal files.
+	dir := setupDataDir(t)
+	l := mustTxLock(t, dir)
+
+	rulesPath := filepath.Join(dir, "rules.json")
+	originalRules := []byte(`[]`)
+	if err := os.WriteFile(rulesPath, originalRules, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	invalidTx := "2026-01-15 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n"
+	err := l.Do(t.Context(), "test", func() error {
+		if err := addMonthFile(dir, "2026/01.journal", invalidTx)(); err != nil {
+			return err
+		}
+		return os.WriteFile(rulesPath, []byte(`[{"id":"abc","pattern":".*"}]`), 0644)
+	})
+	if err == nil {
+		t.Fatal("Do() should have returned an error")
+	}
+
+	got, readErr := os.ReadFile(rulesPath)
+	if readErr != nil {
+		t.Fatalf("rules.json missing after revert: %v", readErr)
+	}
+	if string(got) != string(originalRules) {
+		t.Errorf("rules.json not reverted\ngot: %s\nwant: %s", got, originalRules)
+	}
+}
