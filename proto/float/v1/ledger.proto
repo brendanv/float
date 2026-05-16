@@ -699,6 +699,26 @@ message ImportStripeTransactionsRequest {
   repeated string stripe_transaction_ids = 2;
 }
 
+message AccountCandidates {
+  StripeLinkedAccount account = 1;
+  repeated ImportCandidate candidates = 2;
+}
+
+message FetchAllStripeTransactionsRequest {}
+
+message FetchAllStripeTransactionsResponse {
+  repeated AccountCandidates account_candidates = 1;
+}
+
+message AccountTransactionSelection {
+  string stripe_account_id = 1;
+  repeated string stripe_transaction_ids = 2;
+}
+
+message ImportAllStripeTransactionsRequest {
+  repeated AccountTransactionSelection selections = 1;
+}
+
 // ---- AI ----
 
 message SuggestedRule {
@@ -854,6 +874,8 @@ service LedgerService {
   rpc UnlinkStripeAccount(UnlinkStripeAccountRequest) returns (UnlinkStripeAccountResponse);
   rpc FetchStripeTransactions(FetchStripeTransactionsRequest) returns (FetchStripeTransactionsResponse);
   rpc ImportStripeTransactions(ImportStripeTransactionsRequest) returns (stream ImportTransactionsResponse);
+  rpc FetchAllStripeTransactions(FetchAllStripeTransactionsRequest) returns (FetchAllStripeTransactionsResponse);
+  rpc ImportAllStripeTransactions(ImportAllStripeTransactionsRequest) returns (stream ImportTransactionsResponse);
 
   // AI
   rpc SuggestRules(SuggestRulesRequest) returns (SuggestRulesResponse);
