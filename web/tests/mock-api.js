@@ -1048,8 +1048,40 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "FetchStripeTransactions":
         body = { candidates: mockStripeImportCandidates };
         break;
+      case "FetchAllStripeTransactions":
+        body = {
+          accountCandidates: [
+            {
+              account: mockStripeLinkedAccounts[0],
+              candidates: mockStripeImportCandidates,
+            },
+            {
+              account: mockStripeLinkedAccounts[1],
+              candidates: [
+                {
+                  transaction: {
+                    fid: "",
+                    date: "2026-05-11",
+                    description: "DIRECT DEPOSIT PAYROLL",
+                    postings: [
+                      { account: "assets:savings:bofa", amounts: [{ commodity: "USD", quantity: "2500.00" }] },
+                      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "-2500.00" }] },
+                    ],
+                    tags: { "stripe-txn": "fca_txn_bofa_001" },
+                  },
+                  isDuplicate: false,
+                  matchedRuleId: "",
+                },
+              ],
+            },
+          ],
+        };
+        break;
       case "ImportStripeTransactions":
         body = { importedCount: 2, transactions: [] };
+        break;
+      case "ImportAllStripeTransactions":
+        body = { importedCount: 3, transactions: [] };
         break;
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
