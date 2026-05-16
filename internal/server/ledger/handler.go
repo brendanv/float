@@ -194,6 +194,23 @@ func cachedAccounts(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 	})
 }
 
+func paginate[T any](items []T, offset, limit int32) ([]T, int32, bool) {
+	total := int32(len(items))
+	if offset > 0 {
+		if int(offset) >= len(items) {
+			items = nil
+		} else {
+			items = items[offset:]
+		}
+	}
+	hasNext := false
+	if limit > 0 && int(limit) < len(items) {
+		items = items[:limit]
+		hasNext = true
+	}
+	return items, total, hasNext
+}
+
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
 	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
@@ -201,19 +218,7 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	total := int32(len(txns))
-	if req.Msg.Offset > 0 {
-		if int(req.Msg.Offset) >= len(txns) {
-			txns = nil
-		} else {
-			txns = txns[req.Msg.Offset:]
-		}
-	}
-	hasNext := false
-	if req.Msg.Limit > 0 && int(req.Msg.Limit) < len(txns) {
-		txns = txns[:req.Msg.Limit]
-		hasNext = true
-	}
+	txns, total, hasNext := paginate(txns, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.Transaction, len(txns))
 	for i, t := range txns {
 		proto[i] = toProtoTransaction(t)
@@ -232,19 +237,7 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 		logger.ErrorContext(ctx, "hledger aregister failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	total := int32(len(rows))
-	if req.Msg.Offset > 0 {
-		if int(req.Msg.Offset) >= len(rows) {
-			rows = nil
-		} else {
-			rows = rows[req.Msg.Offset:]
-		}
-	}
-	hasNext := false
-	if req.Msg.Limit > 0 && int(req.Msg.Limit) < len(rows) {
-		rows = rows[:req.Msg.Limit]
-		hasNext = true
-	}
+	rows, total, hasNext := paginate(rows, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.AccountRegisterRow, len(rows))
 	for i, r := range rows {
 		proto[i] = toProtoAccountRegisterRow(r)
@@ -1932,19 +1925,7 @@ func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Requ
 		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	total := int32(len(txns))
-	if req.Msg.Offset > 0 {
-		if int(req.Msg.Offset) >= len(txns) {
-			txns = nil
-		} else {
-			txns = txns[req.Msg.Offset:]
-		}
-	}
-	hasNext := false
-	if req.Msg.Limit > 0 && int(req.Msg.Limit) < len(txns) {
-		txns = txns[:req.Msg.Limit]
-		hasNext = true
-	}
+	txns, total, hasNext := paginate(txns, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.Transaction, len(txns))
 	for i, t := range txns {
 		proto[i] = toProtoTransaction(t)
