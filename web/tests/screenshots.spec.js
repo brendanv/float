@@ -674,3 +674,10 @@ test("connections page - fetch all panel", async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/connections-fetch-all.png", fullPage: true });
 });
+
+test("logs page", async ({ page }) => {
+  await page.goto("/#/logs?demoLogs=1");
+  await page.waitForSelector("h2", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/logs.png", fullPage: true });
+});

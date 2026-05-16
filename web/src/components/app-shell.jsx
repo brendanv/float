@@ -19,6 +19,7 @@ import {
   Settings,
   Terminal,
   Link2,
+  Logs,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -65,6 +66,7 @@ const NAV_SETTINGS = [
   { href: "/snapshots", label: "Snapshots", icon: History },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/hledger-query", label: "Query", icon: Terminal },
+  { href: "/logs", label: "Logs", icon: Logs },
 ];
 
 const ALL_NAV = [...NAV_OVERVIEW, ...NAV_FINANCES, ...NAV_SETUP, ...NAV_SETTINGS];
