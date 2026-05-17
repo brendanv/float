@@ -265,18 +265,15 @@ func TestStripeTransactionToInput(t *testing.T) {
 				t.Errorf("Status: got %q, want %q", inp.Status, tc.wantStatus)
 			}
 
-			if got := inp.Tags["stripe-txn"]; got != tc.wantStripeTag {
-				t.Errorf("Tags[stripe-txn]: got %q, want %q", got, tc.wantStripeTag)
-			}
-			if _, hasHidden := inp.Tags["float-stripe-txn"]; hasHidden {
-				t.Error("float-stripe-txn must not appear in user-visible Tags")
+			if _, hasVisible := inp.Tags["stripe-txn"]; hasVisible {
+				t.Error("stripe-txn must not appear in user-visible Tags")
 			}
 
 			if got := inp.FloatMeta["float-import"]; got != batchID {
 				t.Errorf("FloatMeta[float-import]: got %q, want %q", got, batchID)
 			}
-			if _, hasOld := inp.FloatMeta["float-stripe-txn"]; hasOld {
-				t.Error("float-stripe-txn must not appear in FloatMeta; use Tags[stripe-txn] instead")
+			if got := inp.FloatMeta["float-stripe-txn"]; got != tc.wantStripeTag {
+				t.Errorf("FloatMeta[float-stripe-txn]: got %q, want %q", got, tc.wantStripeTag)
 			}
 
 			if len(inp.Postings) != 2 {
