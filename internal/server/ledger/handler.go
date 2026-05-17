@@ -1744,7 +1744,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 		candidate := &floatv1.ImportCandidate{
 			IsDuplicate: fpSet[journal.TxnFingerprint(c)],
 		}
-		if r := rules.Match(rulesList, c.Description); r != nil {
+		if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
 			candidate.MatchedRuleId = r.ID
 			// Apply rule transformations so the preview reflects what will actually be imported.
 			if r.Payee != "" {
@@ -1834,7 +1834,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			txInput.FloatMeta["float-import"] = importBatchID
 
 			// Apply float rules during import.
-			if r := rules.Match(rulesList, c.Description); r != nil {
+			if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
 				if r.Payee != "" {
 					note := txInput.Description
 					txInput.Description = r.Payee + " | " + note
@@ -2103,6 +2103,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 				Tags:         r.Tags,
 				Priority:     int(r.Priority),
 				AutoReviewed: r.AutoReviewed,
+				MatchAccount: r.MatchAccount,
 			}
 		}
 		rulesList = append(rulesList, newRules...)
@@ -2204,6 +2205,7 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 					Tags:         req.Msg.Tags,
 					Priority:     int(req.Msg.Priority),
 					AutoReviewed: req.Msg.AutoReviewed,
+					MatchAccount: req.Msg.MatchAccount,
 				}
 				updated = rulesList[i]
 				found = true
@@ -2356,6 +2358,18 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 	return connect.NewResponse(&floatv1.ApplyRulesResponse{AppliedCount: int32(applied)}), nil
 }
 
+// sourceAccountFromPostings returns the first asset/liability account from a
+// slice of postings, or "" if none is found. Used to determine the source
+// (bank) account for rule account-scoping.
+func sourceAccountFromPostings(postings []hledger.Posting) string {
+	for _, p := range postings {
+		if isAssetOrLiabilityAccount(p.Account) {
+			return p.Account
+		}
+	}
+	return ""
+}
+
 // filterRules returns only rules whose IDs are in the given set.
 func filterRules(rulesList []rules.Rule, ids []string) []rules.Rule {
 	idSet := make(map[string]bool, len(ids))
@@ -2440,6 +2454,7 @@ func toProtoRule(r rules.Rule) *floatv1.TransactionRule {
 		Tags:         r.Tags,
 		Priority:     int32(r.Priority),
 		AutoReviewed: r.AutoReviewed,
+		MatchAccount: r.MatchAccount,
 	}
 }
 

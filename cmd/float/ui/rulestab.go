@@ -54,16 +54,17 @@ type RulesTab struct {
 	confirmDeleteID string
 
 	// ─── Form state (add / edit) ───────────────────────────────────────
-	editingID      string // non-empty = edit mode
-	formField      int    // 0=pattern 1=priority 2=payee 3=account 4=tags 5=autoReviewed
-	patternInput   textinput.Model
-	priorityInput  textinput.Model
-	payeeInput     textinput.Model
-	accountInput   textinput.Model
-	tagsInput      textinput.Model
-	autoReviewed   bool
-	formErr        string
-	formSubmitting bool
+	editingID          string // non-empty = edit mode
+	formField          int    // 0=pattern 1=priority 2=payee 3=account 4=matchAccount 5=tags 6=autoReviewed
+	patternInput       textinput.Model
+	priorityInput      textinput.Model
+	payeeInput         textinput.Model
+	accountInput       textinput.Model
+	matchAccountInput  textinput.Model
+	tagsInput          textinput.Model
+	autoReviewed       bool
+	formErr            string
+	formSubmitting     bool
 
 	// ─── Pattern tester modal ──────────────────────────────────────────
 	testInput   textinput.Model
@@ -95,6 +96,9 @@ func NewRulesTab(client floatv1connect.LedgerServiceClient, st Styles) RulesTab 
 	accountIn := textinput.New()
 	accountIn.Placeholder = "set account (optional)"
 
+	matchAccountIn := textinput.New()
+	matchAccountIn.Placeholder = "source account scope (optional, e.g. assets:checking)"
+
 	tagsIn := textinput.New()
 	tagsIn.Placeholder = "tags: key=val key2=val2 (optional)"
 
@@ -102,19 +106,20 @@ func NewRulesTab(client floatv1connect.LedgerServiceClient, st Styles) RulesTab 
 	testIn.Placeholder = "type a description to test rules…"
 
 	return RulesTab{
-		styles:       st,
-		client:       client,
-		loadState:    stateLoading,
-		spinner:      NewSpinner(),
-		rulesTable:   newRulesTable(st),
-		previewTable: newPreviewTable(st),
-		patternInput: patternIn,
-		priorityInput: priorityIn,
-		payeeInput:   payeeIn,
-		accountInput: accountIn,
-		tagsInput:    tagsIn,
-		testInput:    testIn,
-		selectedFIDs: make(map[string]bool),
+		styles:            st,
+		client:            client,
+		loadState:         stateLoading,
+		spinner:           NewSpinner(),
+		rulesTable:        newRulesTable(st),
+		previewTable:      newPreviewTable(st),
+		patternInput:      patternIn,
+		priorityInput:     priorityIn,
+		payeeInput:        payeeIn,
+		accountInput:      accountIn,
+		matchAccountInput: matchAccountIn,
+		tagsInput:         tagsIn,
+		testInput:         testIn,
+		selectedFIDs:      make(map[string]bool),
 	}
 }
 
@@ -180,6 +185,7 @@ func (m RulesTab) SetSize(w, h int) RulesTab {
 	m.priorityInput.SetWidth(m.modalInnerW)
 	m.payeeInput.SetWidth(m.modalInnerW)
 	m.accountInput.SetWidth(m.modalInnerW)
+	m.matchAccountInput.SetWidth(m.modalInnerW)
 	m.tagsInput.SetWidth(m.modalInnerW)
 	m.testInput.SetWidth(m.modalInnerW)
 
@@ -449,15 +455,15 @@ func (m RulesTab) handleKey(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 		case "shift+enter":
 			return m.submitForm()
 		case "tab", "enter":
-			m.formField = (m.formField + 1) % 6
+			m.formField = (m.formField + 1) % 7
 			m.focusFormField()
 			return m, nil
 		case "shift+tab":
-			m.formField = (m.formField + 5) % 6
+			m.formField = (m.formField + 6) % 7
 			m.focusFormField()
 			return m, nil
 		case "space":
-			if m.formField == 5 {
+			if m.formField == 6 {
 				m.autoReviewed = !m.autoReviewed
 				return m, nil
 			}
@@ -547,6 +553,7 @@ func (m *RulesTab) startAdd() {
 	m.priorityInput.SetValue("0")
 	m.payeeInput.SetValue("")
 	m.accountInput.SetValue("")
+	m.matchAccountInput.SetValue("")
 	m.tagsInput.SetValue("")
 	m.autoReviewed = false
 	m.mode = rulesModeForm
@@ -561,6 +568,7 @@ func (m *RulesTab) startEdit(r *floatv1.TransactionRule) {
 	m.priorityInput.SetValue(strconv.Itoa(int(r.Priority)))
 	m.payeeInput.SetValue(r.Payee)
 	m.accountInput.SetValue(r.Account)
+	m.matchAccountInput.SetValue(r.MatchAccount)
 	m.tagsInput.SetValue(tagsToString(r.Tags))
 	m.autoReviewed = r.AutoReviewed
 	m.mode = rulesModeForm
@@ -588,8 +596,10 @@ func (m *RulesTab) focusFormField() {
 	case 3:
 		m.accountInput.Focus()
 	case 4:
+		m.matchAccountInput.Focus()
+	case 5:
 		m.tagsInput.Focus()
-	// case 5: autoReviewed toggle — no textinput to focus
+	// case 6: autoReviewed toggle — no textinput to focus
 	}
 }
 
@@ -598,6 +608,7 @@ func (m *RulesTab) blurFormFields() {
 	m.priorityInput.Blur()
 	m.payeeInput.Blur()
 	m.accountInput.Blur()
+	m.matchAccountInput.Blur()
 	m.tagsInput.Blur()
 }
 
@@ -613,6 +624,8 @@ func (m RulesTab) updateFormField(msg tea.KeyMsg) (RulesTab, tea.Cmd) {
 	case 3:
 		m.accountInput, cmd = m.accountInput.Update(msg)
 	case 4:
+		m.matchAccountInput, cmd = m.matchAccountInput.Update(msg)
+	case 5:
 		m.tagsInput, cmd = m.tagsInput.Update(msg)
 	}
 	return m, cmd
@@ -648,6 +661,7 @@ func (m RulesTab) submitForm() (RulesTab, tea.Cmd) {
 					Pattern:      pattern,
 					Payee:        strings.TrimSpace(m.payeeInput.Value()),
 					Account:      strings.TrimSpace(m.accountInput.Value()),
+					MatchAccount: strings.TrimSpace(m.matchAccountInput.Value()),
 					Tags:         tags,
 					Priority:     priority,
 					AutoReviewed: m.autoReviewed,
@@ -661,6 +675,7 @@ func (m RulesTab) submitForm() (RulesTab, tea.Cmd) {
 		Pattern:      pattern,
 		Payee:        strings.TrimSpace(m.payeeInput.Value()),
 		Account:      strings.TrimSpace(m.accountInput.Value()),
+		MatchAccount: strings.TrimSpace(m.matchAccountInput.Value()),
 		Tags:         tags,
 		Priority:     priority,
 		AutoReviewed: m.autoReviewed,
@@ -860,8 +875,9 @@ func (m RulesTab) viewForm() string {
 		m.fieldLabel("Priority", 1) + m.priorityInput.View(),
 		m.fieldLabel("Payee", 2) + m.payeeInput.View(),
 		m.fieldLabel("Account", 3) + m.accountInput.View(),
-		m.fieldLabel("Tags", 4) + m.tagsInput.View(),
-		m.fieldLabel("AutoRev", 5) + autoRevVal,
+		m.fieldLabel("SrcAcct", 4) + m.matchAccountInput.View(),
+		m.fieldLabel("Tags", 5) + m.tagsInput.View(),
+		m.fieldLabel("AutoRev", 6) + autoRevVal,
 		"",
 	}
 

@@ -32,7 +32,7 @@ func TestMatch(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got := Match(rules, tc.description)
+			got := Match(rules, tc.description, "")
 			if tc.wantID == "" {
 				if got != nil {
 					t.Errorf("Match(%q) = %v, want nil", tc.description, got.ID)
@@ -56,9 +56,50 @@ func TestMatchPriority(t *testing.T) {
 		{ID: "low", Pattern: "coffee", Payee: "Generic Coffee", Priority: 100},
 	}
 
-	got := Match(rules, "STARBUCKS COFFEE")
+	got := Match(rules, "STARBUCKS COFFEE", "")
 	if got == nil || got.ID != "high" {
 		t.Errorf("Match = %v, want 'high'", got)
+	}
+}
+
+func TestMatchAccount(t *testing.T) {
+	rules := []Rule{
+		{ID: "scoped", Pattern: "payment", Payee: "Rent", Priority: 1, MatchAccount: "assets:checking"},
+		{ID: "unscoped", Pattern: "payment", Payee: "Generic", Priority: 2},
+	}
+
+	tests := []struct {
+		description string
+		account     string
+		wantID      string
+	}{
+		// Scoped rule wins for the matching account.
+		{"PAYMENT", "assets:checking", "scoped"},
+		// Prefix match: child account also qualifies.
+		{"PAYMENT", "assets:checking:bank1", "scoped"},
+		// Different account falls through to the unscoped rule.
+		{"PAYMENT", "assets:savings", "unscoped"},
+		// No account provided: only unscoped rule matches.
+		{"PAYMENT", "", "unscoped"},
+		// No match at all.
+		{"OTHER", "assets:checking", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description+"/"+tc.account, func(t *testing.T) {
+			got := Match(rules, tc.description, tc.account)
+			if tc.wantID == "" {
+				if got != nil {
+					t.Errorf("Match(%q, %q) = %v, want nil", tc.description, tc.account, got.ID)
+				}
+			} else {
+				if got == nil {
+					t.Errorf("Match(%q, %q) = nil, want %q", tc.description, tc.account, tc.wantID)
+				} else if got.ID != tc.wantID {
+					t.Errorf("Match(%q, %q) = %q, want %q", tc.description, tc.account, got.ID, tc.wantID)
+				}
+			}
+		})
 	}
 }
 

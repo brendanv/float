@@ -289,7 +289,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 			IsDuplicate: fpSet[journal.TxnFingerprint(ht)],
 			SourceId:    st.ID,
 		}
-		if r := rules.Match(rulesList, ht.Description); r != nil {
+		if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
 			candidate.MatchedRuleId = r.ID
 			if r.Payee != "" {
 				ht.Description = r.Payee + " | " + ht.Description
@@ -365,7 +365,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			}
 			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
-			applyRuleToInput(&txInput, rules.Match(rulesList, st.Description))
+			applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 			if writeErr != nil {
@@ -473,7 +473,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 				IsDuplicate: fpSet[journal.TxnFingerprint(ht)],
 				SourceId:    st.ID,
 			}
-			if r := rules.Match(rulesList, ht.Description); r != nil {
+			if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
 				candidate.MatchedRuleId = r.ID
 				if r.Payee != "" {
 					ht.Description = r.Payee + " | " + ht.Description
@@ -567,7 +567,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				}
 				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
-				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description))
+				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
 
 				fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 				if writeErr != nil {

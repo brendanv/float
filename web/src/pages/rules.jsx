@@ -57,7 +57,7 @@ import {
 import { cn } from "@/lib/utils";
 
 function emptyForm() {
-  return { pattern: "", payee: "", account: "", priority: "0", tags: "", autoReviewed: true };
+  return { pattern: "", payee: "", account: "", matchAccount: "", priority: "0", tags: "", autoReviewed: true };
 }
 
 function tagsFromString(str) {
@@ -124,6 +124,16 @@ const rulesColumns = [
       ),
     filterFn: "includesString",
   }),
+  columnHelper.accessor("matchAccount", {
+    header: ({ column }) => <SortHeader column={column}>Source Account</SortHeader>,
+    cell: ({ getValue }) =>
+      getValue() ? (
+        <span className="font-mono text-xs">{getValue()}</span>
+      ) : (
+        <span className="text-muted-foreground/60">all</span>
+      ),
+    filterFn: "includesString",
+  }),
   columnHelper.accessor((row) => tagsToString(row.tags), {
     id: "tags",
     header: "Tags",
@@ -175,6 +185,7 @@ export function RulesPage() {
         pattern: value.pattern,
         payee: value.payee,
         account: value.account,
+        matchAccount: value.matchAccount,
         priority: parseInt(value.priority, 10) || 0,
         tags: tagsFromString(value.tags),
         autoReviewed: value.autoReviewed,
@@ -246,6 +257,7 @@ export function RulesPage() {
     form.setFieldValue("pattern", rule.pattern);
     form.setFieldValue("payee", rule.payee);
     form.setFieldValue("account", rule.account);
+    form.setFieldValue("matchAccount", rule.matchAccount ?? "");
     form.setFieldValue("priority", String(rule.priority));
     form.setFieldValue("tags", tagsToString(rule.tags));
     form.setFieldValue("autoReviewed", rule.autoReviewed ?? false);
@@ -390,6 +402,23 @@ export function RulesPage() {
                       onChange={(v) => field.handleChange(v)}
                       accounts={accountsData?.accounts ?? []}
                       placeholder="expenses:shopping"
+                    />
+                  </div>
+                )}
+              />
+              <form.Field
+                name="matchAccount"
+                children={(field) => (
+                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
+                    <Label>
+                      Match Source Account{" "}
+                      <span className="text-xs text-muted-foreground">(optional)</span>
+                    </Label>
+                    <AccountInput
+                      value={field.state.value}
+                      onChange={(v) => field.handleChange(v)}
+                      accounts={accountsData?.accounts ?? []}
+                      placeholder="all accounts"
                     />
                   </div>
                 )}
