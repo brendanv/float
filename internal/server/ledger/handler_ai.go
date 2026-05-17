@@ -80,8 +80,7 @@ func (h *Handler) SetAIPrompt(ctx context.Context, req *connect.Request[floatv1.
 		return nil
 	})
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "set AI prompt failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "set AI prompt failed")
 	}
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated AI prompt")
@@ -108,8 +107,7 @@ func (h *Handler) SetAIModel(ctx context.Context, req *connect.Request[floatv1.S
 		return nil
 	})
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "set AI model failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "set AI model failed")
 	}
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated AI model", "model", req.Msg.Model)

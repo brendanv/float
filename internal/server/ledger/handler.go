@@ -212,11 +212,9 @@ func paginate[T any](items []T, offset, limit int32) ([]T, int32, bool) {
 }
 
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
 	txns, total, hasNext := paginate(txns, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.Transaction, len(txns))
@@ -227,15 +225,13 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 }
 
 func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[floatv1.GetAccountRegisterRequest]) (*connect.Response[floatv1.GetAccountRegisterResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	account := strings.TrimSpace(req.Msg.Account)
 	if account == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account is required"))
 	}
 	rows, err := cachedAregister(ctx, h.cache, h.hl, account, req.Msg.Query)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger aregister failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger aregister failed")
 	}
 	rows, total, hasNext := paginate(rows, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.AccountRegisterRow, len(rows))
@@ -248,7 +244,6 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 }
 
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	var report *hledger.BalanceReport
 	var err error
 	if req.Msg.Value != "" {
@@ -257,8 +252,7 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 		report, err = cachedBalances(ctx, h.cache, h.hl, int(req.Msg.Depth), req.Msg.Query)
 	}
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger balances failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger balances failed")
 	}
 	rows := make([]*floatv1.BalanceRow, len(report.Rows))
 	for i, r := range report.Rows {
@@ -295,8 +289,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	// Raw balances provide the original commodity quantities.
 	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, query)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger balances failed for portfolio", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio")
 	}
 
 	// Build symbol→latestPriceInfo from the prices journal.
@@ -488,7 +481,6 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 }
 
 func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Request[floatv1.GetPortfolioTimeseriesRequest]) (*connect.Response[floatv1.GetPortfolioTimeseriesResponse], error) {
-	logger := slogctx.FromContext(ctx)
 
 	prefix := req.Msg.AccountPrefix
 	if prefix == "" {
@@ -497,8 +489,7 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 
 	ts, err := cachedPortfolioTimeseries(ctx, h.cache, h.hl, prefix, req.Msg.Begin)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger portfolio timeseries failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger portfolio timeseries failed")
 	}
 
 	snapshots := make([]*floatv1.PortfolioTimeseriesSnapshot, len(ts.Periods))
@@ -519,11 +510,9 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 }
 
 func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	ts, err := cachedNetWorth(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger balance sheet timeseries failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger balance sheet timeseries failed")
 	}
 	snapshots := make([]*floatv1.NetWorthSnapshot, len(ts.Periods))
 	for i, date := range ts.Periods {
@@ -543,11 +532,9 @@ func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Reques
 }
 
 func (h *Handler) GetIncomeStatementTimeseries(ctx context.Context, req *connect.Request[floatv1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[floatv1.GetIncomeStatementTimeseriesResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	ts, err := cachedIncomeStatement(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger income statement timeseries failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger income statement timeseries failed")
 	}
 
 	var rows []*floatv1.IncomeStatementRow
@@ -595,11 +582,9 @@ func toProtoISRow(r hledger.ISRow, isTotal bool) *floatv1.IncomeStatementRow {
 }
 
 func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1.ListAccountsRequest]) (*connect.Response[floatv1.ListAccountsResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	nodes, err := cachedAccounts(ctx, h.cache, h.hl)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger accounts failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger accounts failed")
 	}
 	accounts := make([]*floatv1.Account, len(nodes))
 	for i, n := range nodes {
@@ -609,11 +594,9 @@ func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1
 }
 
 func (h *Handler) ListTags(ctx context.Context, req *connect.Request[floatv1.ListTagsRequest]) (*connect.Response[floatv1.ListTagsResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	all, err := cachedTags(ctx, h.cache, h.hl)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger tags failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger tags failed")
 	}
 	tags := make([]string, 0, len(all))
 	for _, t := range all {
@@ -625,17 +608,14 @@ func (h *Handler) ListTags(ctx context.Context, req *connect.Request[floatv1.Lis
 }
 
 func (h *Handler) ListPayees(ctx context.Context, req *connect.Request[floatv1.ListPayeesRequest]) (*connect.Response[floatv1.ListPayeesResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	payees, err := cachedPayees(ctx, h.cache, h.hl)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger payees failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger payees failed")
 	}
 	return connect.NewResponse(&floatv1.ListPayeesResponse{Payees: payees}), nil
 }
 
 func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[floatv1.DeleteTransactionRequest]) (*connect.Response[floatv1.DeleteTransactionResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	fid := req.Msg.Fid
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
@@ -647,14 +627,12 @@ func (h *Handler) DeleteTransaction(ctx context.Context, req *connect.Request[fl
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "delete transaction failed", "fid", fid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "delete transaction failed", "fid", fid)
 	}
 	return connect.NewResponse(&floatv1.DeleteTransactionResponse{}), nil
 }
 
 func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.ModifyTagsRequest]) (*connect.Response[floatv1.ModifyTagsResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	fid := req.Msg.Fid
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
@@ -666,14 +644,12 @@ func (h *Handler) ModifyTags(ctx context.Context, req *connect.Request[floatv1.M
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "modify tags failed", "fid", fid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "modify tags failed", "fid", fid)
 	}
 	return connect.NewResponse(&floatv1.ModifyTagsResponse{}), nil
 }
 
 func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Request[floatv1.UpdateTransactionDateRequest]) (*connect.Response[floatv1.UpdateTransactionDateResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	fid := req.Msg.Fid
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
@@ -694,8 +670,7 @@ func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Reques
 		if errors.Is(err, journal.ErrInvalidDate) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
-		logger.ErrorContext(ctx, "update transaction date failed", "fid", fid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "update transaction date failed", "fid", fid)
 	}
 	return connect.NewResponse(&floatv1.UpdateTransactionDateResponse{
 		Transaction: toProtoTransaction(updated),
@@ -703,7 +678,6 @@ func (h *Handler) UpdateTransactionDate(ctx context.Context, req *connect.Reques
 }
 
 func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[floatv1.AddTransactionRequest]) (*connect.Response[floatv1.AddTransactionResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if req.Msg.Description == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("description is required"))
 	}
@@ -758,14 +732,12 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		return e
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "add transaction failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "add transaction failed")
 	}
 
 	txns, err := h.hl.Transactions(ctx, "code:"+fid)
 	if err != nil {
-		logger.ErrorContext(ctx, "fetch new transaction failed", "fid", fid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "fetch new transaction failed", "fid", fid)
 	}
 	if len(txns) == 0 {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after add", fid))
@@ -776,7 +748,6 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 }
 
 func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[floatv1.UpdateTransactionRequest]) (*connect.Response[floatv1.UpdateTransactionResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	fid := req.Msg.Fid
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
@@ -823,8 +794,7 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 		if errors.Is(err, journal.ErrInvalidDate) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
-		logger.ErrorContext(ctx, "update transaction failed", "fid", fid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "update transaction failed", "fid", fid)
 	}
 	return connect.NewResponse(&floatv1.UpdateTransactionResponse{
 		Transaction: toProtoTransaction(updated),
@@ -832,7 +802,6 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 }
 
 func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Request[floatv1.UpdateTransactionStatusRequest]) (*connect.Response[floatv1.UpdateTransactionStatusResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	fid := req.Msg.Fid
 	if fid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fid is required"))
@@ -859,13 +828,11 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "update transaction status failed", "fid", fid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "update transaction status failed", "fid", fid)
 	}
 	txns, err := h.hl.Transactions(ctx, "code:"+fid)
 	if err != nil {
-		logger.ErrorContext(ctx, "fetch transaction after status update failed", "fid", fid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "fetch transaction after status update failed", "fid", fid)
 	}
 	if len(txns) == 0 {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after status update", fid))
@@ -1035,8 +1002,7 @@ func toProtoPriceDirective(p journal.Price) *floatv1.PriceDirective {
 func (h *Handler) ListPrices(ctx context.Context, _ *connect.Request[floatv1.ListPricesRequest]) (*connect.Response[floatv1.ListPricesResponse], error) {
 	prices, err := journal.ListPrices(h.dataDir)
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "list prices failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "list prices failed")
 	}
 	out := make([]*floatv1.PriceDirective, len(prices))
 	for i, p := range prices {
@@ -1046,7 +1012,6 @@ func (h *Handler) ListPrices(ctx context.Context, _ *connect.Request[floatv1.Lis
 }
 
 func (h *Handler) AddPrice(ctx context.Context, req *connect.Request[floatv1.AddPriceRequest]) (*connect.Response[floatv1.AddPriceResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if req.Msg.Commodity == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("commodity is required"))
 	}
@@ -1068,8 +1033,7 @@ func (h *Handler) AddPrice(ctx context.Context, req *connect.Request[floatv1.Add
 		return e
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "add price failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "add price failed")
 	}
 	price := journal.Price{
 		PID:       pid,
@@ -1082,7 +1046,6 @@ func (h *Handler) AddPrice(ctx context.Context, req *connect.Request[floatv1.Add
 }
 
 func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.DeletePriceRequest]) (*connect.Response[floatv1.DeletePriceResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if req.Msg.Pid == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pid is required"))
 	}
@@ -1093,14 +1056,12 @@ func (h *Handler) DeletePrice(ctx context.Context, req *connect.Request[floatv1.
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "delete price failed", "pid", req.Msg.Pid, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "delete price failed", "pid", req.Msg.Pid)
 	}
 	return connect.NewResponse(&floatv1.DeletePriceResponse{}), nil
 }
 
 func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[floatv1.BackfillPricesRequest]) (*connect.Response[floatv1.BackfillPricesResponse], error) {
-	logger := slogctx.FromContext(ctx)
 
 	commodity := req.Msg.Commodity
 	startDate := req.Msg.StartDate
@@ -1133,14 +1094,12 @@ func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[float
 	av := alphavantage.NewClient(h.cfg.AlphaVantage.APIKey)
 	weeklyPrices, err := av.FetchWeeklyPrices(ctx, commodity, startDate, endDate)
 	if err != nil {
-		logger.ErrorContext(ctx, "backfill prices: fetch failed", "commodity", commodity, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "backfill prices: fetch failed", "commodity", commodity)
 	}
 
 	existing, err := journal.ListPrices(h.dataDir)
 	if err != nil {
-		logger.ErrorContext(ctx, "backfill prices: list existing failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "backfill prices: list existing failed")
 	}
 	skip := make(map[string]struct{}, len(existing))
 	for _, p := range existing {
@@ -1172,8 +1131,7 @@ func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[float
 		}
 		return nil
 	}); err != nil {
-		logger.ErrorContext(ctx, "backfill prices: write failed", "commodity", commodity, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "backfill prices: write failed", "commodity", commodity)
 	}
 
 	out := make([]*floatv1.PriceDirective, len(added))
@@ -1189,13 +1147,11 @@ func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[float
 func (h *Handler) ListAccountDeclarations(ctx context.Context, _ *connect.Request[floatv1.ListAccountDeclarationsRequest]) (*connect.Response[floatv1.ListAccountDeclarationsResponse], error) {
 	decls, err := journal.ListAccountDeclarations(h.dataDir)
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "list account declarations failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "list account declarations failed")
 	}
 	unused, err := h.hl.UnusedAccounts(ctx)
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "unused accounts failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "unused accounts failed")
 	}
 	unusedSet := make(map[string]bool, len(unused))
 	for _, name := range unused {
@@ -1211,7 +1167,6 @@ func (h *Handler) ListAccountDeclarations(ctx context.Context, _ *connect.Reques
 }
 
 func (h *Handler) DeclareAccount(ctx context.Context, req *connect.Request[floatv1.DeclareAccountRequest]) (*connect.Response[floatv1.DeclareAccountResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	name := strings.TrimSpace(req.Msg.Name)
 	if name == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
@@ -1220,8 +1175,7 @@ func (h *Handler) DeclareAccount(ctx context.Context, req *connect.Request[float
 		return journal.AppendAccountDeclaration(h.dataDir, name)
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "declare account failed", "name", name, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "declare account failed", "name", name)
 	}
 	return connect.NewResponse(&floatv1.DeclareAccountResponse{
 		Declaration: toProtoAccountDeclaration(journal.AccountDeclaration{Name: name}),
@@ -1229,7 +1183,6 @@ func (h *Handler) DeclareAccount(ctx context.Context, req *connect.Request[float
 }
 
 func (h *Handler) DeleteAccountDeclaration(ctx context.Context, req *connect.Request[floatv1.DeleteAccountDeclarationRequest]) (*connect.Response[floatv1.DeleteAccountDeclarationResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if req.Msg.Name == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
@@ -1240,14 +1193,12 @@ func (h *Handler) DeleteAccountDeclaration(ctx context.Context, req *connect.Req
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "delete account declaration failed", "name", req.Msg.Name, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "delete account declaration failed", "name", req.Msg.Name)
 	}
 	return connect.NewResponse(&floatv1.DeleteAccountDeclarationResponse{}), nil
 }
 
 func (h *Handler) RenameAccount(ctx context.Context, req *connect.Request[floatv1.RenameAccountRequest]) (*connect.Response[floatv1.RenameAccountResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	oldName := strings.TrimSpace(req.Msg.OldName)
 	newName := strings.TrimSpace(req.Msg.NewName)
 	if oldName == "" {
@@ -1277,14 +1228,12 @@ func (h *Handler) RenameAccount(ctx context.Context, req *connect.Request[floatv
 		return nil
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "rename account failed", "old", oldName, "new", newName, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "rename account failed", "old", oldName, "new", newName)
 	}
 	return connect.NewResponse(&floatv1.RenameAccountResponse{PostingsRenamed: int32(renamed)}), nil
 }
 
 func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request[floatv1.BulkEditTransactionsRequest]) (*connect.Response[floatv1.BulkEditTransactionsResponse], error) {
-	logger := slogctx.FromContext(ctx)
 
 	if len(req.Msg.Fids) == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("fids must not be empty"))
@@ -1390,8 +1339,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "bulk edit transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "bulk edit transactions failed")
 	}
 
 	if deleteOp {
@@ -1402,8 +1350,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 	for _, fid := range req.Msg.Fids {
 		txns, err := h.hl.Transactions(ctx, "code:"+fid)
 		if err != nil {
-			logger.ErrorContext(ctx, "bulk edit: fetch after update failed", "fid", fid, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, err)
+			return nil, rpcErr(ctx, err, "bulk edit: fetch after update failed", "fid", fid)
 		}
 		if len(txns) == 0 {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after bulk edit", fid))
@@ -1419,8 +1366,7 @@ func (h *Handler) ListSnapshots(ctx context.Context, req *connect.Request[floatv
 	}
 	snaps, err := h.snap.List(ctx, int(req.Msg.Limit))
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "list snapshots failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "list snapshots failed")
 	}
 	out := make([]*floatv1.Snapshot, len(snaps))
 	for i, s := range snaps {
@@ -1441,8 +1387,7 @@ func (h *Handler) RestoreSnapshot(ctx context.Context, req *connect.Request[floa
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("hash is required"))
 	}
 	if err := h.snap.Restore(ctx, req.Msg.Hash); err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "restore snapshot failed", "hash", req.Msg.Hash, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "restore snapshot failed", "hash", req.Msg.Hash)
 	}
 	h.lock.BumpGeneration()
 	return connect.NewResponse(&floatv1.RestoreSnapshotResponse{}), nil
@@ -1457,8 +1402,7 @@ func (h *Handler) GetSnapshotDiff(ctx context.Context, req *connect.Request[floa
 	}
 	files, err := h.snap.Diff(ctx, req.Msg.Hash)
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "snapshot diff failed", "hash", req.Msg.Hash, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "snapshot diff failed", "hash", req.Msg.Hash)
 	}
 	out := make([]*floatv1.FileDiff, len(files))
 	for i, f := range files {
@@ -1549,8 +1493,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 		return nil
 	})
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "create bank profile failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "create bank profile failed")
 	}
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "created bank profile", "name", req.Msg.Name, "rules_file", cleaned)
@@ -1573,8 +1516,7 @@ func (h *Handler) GetBankProfileContent(ctx context.Context, req *connect.Reques
 		if os.IsNotExist(err) {
 			content = []byte{}
 		} else {
-			slogctx.FromContext(ctx).ErrorContext(ctx, "read rules file failed", "error", err)
-			return nil, connect.NewError(connect.CodeInternal, err)
+			return nil, rpcErr(ctx, err, "read rules file failed")
 		}
 	}
 	return connect.NewResponse(&floatv1.GetBankProfileContentResponse{
@@ -1643,8 +1585,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		slogctx.FromContext(ctx).ErrorContext(ctx, "update bank profile failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "update bank profile failed")
 	}
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated bank profile", "name", updated.Name)
@@ -1695,8 +1636,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		slogctx.FromContext(ctx).ErrorContext(ctx, "delete bank profile failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "delete bank profile failed")
 	}
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "deleted bank profile", "name", req.Msg.Name)
@@ -1741,8 +1681,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	// Build fingerprint set from existing transactions.
 	existing, err := h.hl.Transactions(ctx)
 	if err != nil {
-		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "fetch existing transactions failed")
 	}
 	fpSet := make(map[string]bool, len(existing))
 	for _, t := range existing {
@@ -1752,8 +1691,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	// Load float rules for second-pass categorization.
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
-		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "load rules failed")
 	}
 
 	out := make([]*floatv1.ImportCandidate, len(candidates))
@@ -1820,8 +1758,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	// Load rules for categorization during import.
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
-		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return connect.NewError(connect.CodeInternal, err)
+		return rpcErr(ctx, err, "load rules failed")
 	}
 
 	// Build selected indices set.
@@ -1906,8 +1843,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		return nil
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "import transactions failed", "error", err)
-		return connect.NewError(connect.CodeInternal, err)
+		return rpcErr(ctx, err, "import transactions failed")
 	}
 
 	// Fetch the imported transactions to return.
@@ -1932,15 +1868,13 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 }
 
 func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Request[floatv1.GetImportedTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if req.Msg.ImportBatchId == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("import_batch_id is required"))
 	}
 	query := []string{"tag:float-import=" + req.Msg.ImportBatchId}
 	txns, err := cachedTransactions(ctx, h.cache, h.hl, query)
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
 	txns, total, hasNext := paginate(txns, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.Transaction, len(txns))
@@ -1951,11 +1885,9 @@ func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Requ
 }
 
 func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.ListImportsRequest]) (*connect.Response[floatv1.ListImportsResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	txns, err := cachedTransactions(ctx, h.cache, h.hl, []string{"tag:float-import"})
 	if err != nil {
-		logger.ErrorContext(ctx, "hledger transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
 
 	// Group transactions by import batch ID, preserving newest-first order.
@@ -2081,8 +2013,7 @@ func (h *Handler) bankProfile(name string) (config.BankProfile, error) {
 func (h *Handler) ListRules(ctx context.Context, _ *connect.Request[floatv1.ListRulesRequest]) (*connect.Response[floatv1.ListRulesResponse], error) {
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "list rules failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "list rules failed")
 	}
 	out := make([]*floatv1.TransactionRule, len(rulesList))
 	for i, r := range rulesList {
@@ -2092,7 +2023,6 @@ func (h *Handler) ListRules(ctx context.Context, _ *connect.Request[floatv1.List
 }
 
 func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddRuleRequest]) (*connect.Response[floatv1.AddRuleResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if len(req.Msg.Rules) == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("at least one rule is required"))
 	}
@@ -2127,8 +2057,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 		return rules.Save(h.dataDir, rulesList)
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "add rule failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "add rule failed")
 	}
 	out := make([]*floatv1.TransactionRule, len(newRules))
 	for i, r := range newRules {
@@ -2197,7 +2126,6 @@ func addRuleMessage(patterns []string) string {
 }
 
 func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.UpdateRuleRequest]) (*connect.Response[floatv1.UpdateRuleResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if req.Msg.Id == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
@@ -2238,14 +2166,12 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "update rule failed", "id", req.Msg.Id, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "update rule failed", "id", req.Msg.Id)
 	}
 	return connect.NewResponse(&floatv1.UpdateRuleResponse{Rule: toProtoRule(updated)}), nil
 }
 
 func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.DeleteRuleRequest]) (*connect.Response[floatv1.DeleteRuleResponse], error) {
-	logger := slogctx.FromContext(ctx)
 	if req.Msg.Id == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
@@ -2273,14 +2199,12 @@ func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.D
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
-		logger.ErrorContext(ctx, "delete rule failed", "id", req.Msg.Id, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "delete rule failed", "id", req.Msg.Id)
 	}
 	return connect.NewResponse(&floatv1.DeleteRuleResponse{}), nil
 }
 
 func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[floatv1.PreviewApplyRulesRequest]) (*connect.Response[floatv1.PreviewApplyRulesResponse], error) {
-	logger := slogctx.FromContext(ctx)
 
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
@@ -2294,8 +2218,7 @@ func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[fl
 
 	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
 	if err != nil {
-		logger.ErrorContext(ctx, "fetch transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "fetch transactions failed")
 	}
 
 	matches := rules.Preview(rulesList, txns)
@@ -2329,7 +2252,6 @@ func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[fl
 }
 
 func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.ApplyRulesRequest], stream *connect.ServerStream[floatv1.ApplyRulesResponse]) error {
-	logger := slogctx.FromContext(ctx)
 
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
@@ -2341,8 +2263,7 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 
 	txns, err := h.hl.Transactions(ctx, req.Msg.Query...)
 	if err != nil {
-		logger.ErrorContext(ctx, "fetch transactions failed", "error", err)
-		return connect.NewError(connect.CodeInternal, err)
+		return rpcErr(ctx, err, "fetch transactions failed")
 	}
 
 	matches := rules.Preview(rulesList, txns)
@@ -2384,8 +2305,7 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 		return nil
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "apply rules failed", "error", err)
-		return connect.NewError(connect.CodeInternal, err)
+		return rpcErr(ctx, err, "apply rules failed")
 	}
 
 	return stream.Send(&floatv1.ApplyRulesResponse{
@@ -2537,8 +2457,7 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 		return nil
 	})
 	if err != nil {
-		slogctx.FromContext(ctx).ErrorContext(ctx, "set alphavantage api key failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "set alphavantage api key failed")
 	}
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated alphavantage api key")
