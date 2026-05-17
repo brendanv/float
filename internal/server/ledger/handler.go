@@ -860,17 +860,22 @@ func toProtoTransaction(t hledger.Transaction) *floatv1.Transaction {
 	if v, ok := t.FloatMeta["float-import"]; ok {
 		importBatchID = &v
 	}
+	var stripeTxnID *string
+	if v, ok := t.FloatMeta["float-stripe-txn"]; ok {
+		stripeTxnID = &v
+	}
 	return &floatv1.Transaction{
-		Fid:           t.FID,
-		Date:          t.Date,
-		Description:   t.Description,
-		Comment:       t.Comment,
-		Postings:      postings,
-		Status:        status,
-		Tags:          tags,
-		Payee:         t.Payee,
-		Note:          t.Note,
-		ImportBatchId: importBatchID,
+		Fid:                 t.FID,
+		Date:                t.Date,
+		Description:         t.Description,
+		Comment:             t.Comment,
+		Postings:            postings,
+		Status:              status,
+		Tags:                tags,
+		Payee:               t.Payee,
+		Note:                t.Note,
+		ImportBatchId:       importBatchID,
+		StripeTransactionId: stripeTxnID,
 	}
 }
 
@@ -935,15 +940,20 @@ func toProtoAccountRegisterRow(r hledger.AregisterRow) *floatv1.AccountRegisterR
 			tags[kv[0]] = kv[1]
 		}
 	}
+	var stripeTxnID *string
+	if v, ok := r.Transaction.FloatMeta["float-stripe-txn"]; ok {
+		stripeTxnID = &v
+	}
 	row := &floatv1.AccountRegisterRow{
-		Fid:           r.Transaction.FID,
-		Date:          r.Transaction.Date,
-		Description:   r.Transaction.Description,
-		Status:        status,
-		OtherAccounts: append([]string(nil), r.OtherAccounts...),
-		Change:        change,
-		RunningTotal:  balance,
-		Tags:          tags,
+		Fid:                 r.Transaction.FID,
+		Date:                r.Transaction.Date,
+		Description:         r.Transaction.Description,
+		Status:              status,
+		OtherAccounts:       append([]string(nil), r.OtherAccounts...),
+		Change:              change,
+		RunningTotal:        balance,
+		Tags:                tags,
+		StripeTransactionId: stripeTxnID,
 	}
 	row.Payee = r.Transaction.Payee
 	row.Note = r.Transaction.Note
