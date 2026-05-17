@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearch, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, X, ArrowLeft } from "lucide-react";
+import { Loader2, X, ArrowLeft, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { SearchControls } from "../components/search-controls.jsx";
@@ -12,6 +12,15 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -21,6 +30,7 @@ import {
 
 function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSelection }) {
   const [mode, setMode] = useState("idle"); // 'idle' | 'add-tag' | 'remove-tag' | 'set-payee'
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [tagKey, setTagKey] = useState("");
   const [tagValue, setTagValue] = useState("");
@@ -77,6 +87,23 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
     return runBulk([{ operation: { case: "setPayee", value: { payee: payee.trim() } } }]);
   }
 
+  async function bulkDelete() {
+    setWorking(true);
+    setError(null);
+    try {
+      for (const fid of fids) {
+        await ledgerClient.deleteTransaction({ fid });
+      }
+      setDeleteOpen(false);
+      cancelMode();
+      onActionComplete();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
+
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm">
       <span className="shrink-0 font-medium text-foreground/80">
@@ -126,6 +153,32 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
           >
             Set payee
           </Button>
+          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-destructive hover:text-destructive"
+                disabled={working}
+              >
+                <Trash2 className="size-3" data-icon="inline-start" /> Delete
+              </Button>
+            </DialogTrigger>
+            <DialogContent showCloseButton={false}>
+              <DialogHeader>
+                <DialogTitle>Delete selected transactions?</DialogTitle>
+                <DialogDescription>
+                  This will permanently remove {count} selected transaction{count === 1 ? "" : "s"} from the journal. This cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={working}>Cancel</Button>
+                <Button variant="destructive" onClick={bulkDelete} disabled={working}>
+                  {working ? <Loader2 className="size-3 animate-spin" /> : "Delete"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
 
