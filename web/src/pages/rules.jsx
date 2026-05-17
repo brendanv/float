@@ -228,6 +228,7 @@ export function RulesPage() {
   const [applyError, setApplyError] = useState(null);
   const [selectedFids, setSelectedFids] = useState(new Set());
   const [applying, setApplying] = useState(false);
+  const [applyProgress, setApplyProgress] = useState(null);
   const [applyResult, setApplyResult] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -316,19 +317,29 @@ export function RulesPage() {
     if (selectedFids.size === 0) return;
     setApplyError(null);
     setApplying(true);
+    setApplyProgress({ applied: 0, total: selectedFids.size });
     try {
-      const res = await ledgerClient.applyRules({
+      for await (const res of ledgerClient.applyRules({
         fids: Array.from(selectedFids),
         ruleIds: [],
         query: [],
-      });
-      setApplyResult(res.appliedCount);
-      setApplyPreviews(null);
-      setDrawerOpen(false);
+      })) {
+        if (res.payload.case === "progress") {
+          setApplyProgress({
+            applied: res.payload.value.applied,
+            total: res.payload.value.total,
+          });
+        } else if (res.payload.case === "result") {
+          setApplyResult(res.payload.value.appliedCount);
+          setApplyPreviews(null);
+          setDrawerOpen(false);
+        }
+      }
     } catch (err) {
       setApplyError(err);
     } finally {
       setApplying(false);
+      setApplyProgress(null);
     }
   }
 
@@ -769,7 +780,11 @@ export function RulesPage() {
                 disabled={applying || selectedFids.size === 0}
               >
                 {applying && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {applying ? "Applying…" : `Apply to ${selectedFids.size} Transaction(s)`}
+                {applying
+                  ? applyProgress && applyProgress.total > 0
+                    ? `Applying ${applyProgress.applied} of ${applyProgress.total}…`
+                    : "Applying…"
+                  : `Apply to ${selectedFids.size} Transaction(s)`}
               </Button>
             )}
             <DrawerClose asChild>

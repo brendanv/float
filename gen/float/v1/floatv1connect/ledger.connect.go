@@ -273,7 +273,7 @@ type LedgerServiceClient interface {
 	UpdateRule(context.Context, *connect.Request[v1.UpdateRuleRequest]) (*connect.Response[v1.UpdateRuleResponse], error)
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
-	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.ServerStreamForClient[v1.ApplyRulesResponse], error)
 	// Stripe Financial Connections
 	GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error)
 	CreateStripeLinkSession(context.Context, *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error)
@@ -990,8 +990,8 @@ func (c *ledgerServiceClient) PreviewApplyRules(ctx context.Context, req *connec
 }
 
 // ApplyRules calls float.v1.LedgerService.ApplyRules.
-func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error) {
-	return c.applyRules.CallUnary(ctx, req)
+func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Request[v1.ApplyRulesRequest]) (*connect.ServerStreamForClient[v1.ApplyRulesResponse], error) {
+	return c.applyRules.CallServerStream(ctx, req)
 }
 
 // GetStripeConfig calls float.v1.LedgerService.GetStripeConfig.
@@ -1146,7 +1146,7 @@ type LedgerServiceHandler interface {
 	UpdateRule(context.Context, *connect.Request[v1.UpdateRuleRequest]) (*connect.Response[v1.UpdateRuleResponse], error)
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
-	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error)
+	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest], *connect.ServerStream[v1.ApplyRulesResponse]) error
 	// Stripe Financial Connections
 	GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error)
 	CreateStripeLinkSession(context.Context, *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error)
@@ -1439,7 +1439,7 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("PreviewApplyRules")),
 		connect.WithHandlerOptions(opts...),
 	)
-	ledgerServiceApplyRulesHandler := connect.NewUnaryHandler(
+	ledgerServiceApplyRulesHandler := connect.NewServerStreamHandler(
 		LedgerServiceApplyRulesProcedure,
 		svc.ApplyRules,
 		connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
@@ -1884,8 +1884,8 @@ func (UnimplementedLedgerServiceHandler) PreviewApplyRules(context.Context, *con
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.PreviewApplyRules is not implemented"))
 }
 
-func (UnimplementedLedgerServiceHandler) ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.Response[v1.ApplyRulesResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ApplyRules is not implemented"))
+func (UnimplementedLedgerServiceHandler) ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest], *connect.ServerStream[v1.ApplyRulesResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ApplyRules is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error) {
