@@ -146,8 +146,7 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 		return config.Save(h.configPath, h.cfg)
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "link stripe accounts failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "link stripe accounts failed")
 	}
 
 	out := make([]*floatv1.StripeLinkedAccount, len(h.cfg.Stripe.LinkedAccounts))
@@ -226,8 +225,7 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 		return config.Save(h.configPath, h.cfg)
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "unlink stripe account failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, rpcErr(ctx, err, "unlink stripe account failed")
 	}
 	return connect.NewResponse(&floatv1.UnlinkStripeAccountResponse{}), nil
 }
