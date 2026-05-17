@@ -7,18 +7,20 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 // Rule is a categorization rule that matches transactions by description and
 // applies payee, account, and/or tag changes.
 type Rule struct {
-	ID           string            `json:"id"`            // 8-char hex (MintFID)
-	Pattern      string            `json:"pattern"`       // regex matched against description (case-insensitive)
-	Payee        string            `json:"payee"`         // set payee (empty = no change)
-	Account      string            `json:"account"`       // set category account (empty = no change)
-	Tags         map[string]string `json:"tags"`          // tags to add (empty = no change)
-	Priority     int               `json:"priority"`      // lower = higher priority, matched first
-	AutoReviewed bool              `json:"auto_reviewed"` // if true, mark transaction Cleared on import
+	ID           string            `json:"id"`             // 8-char hex (MintFID)
+	Pattern      string            `json:"pattern"`        // regex matched against description (case-insensitive)
+	Payee        string            `json:"payee"`          // set payee (empty = no change)
+	Account      string            `json:"account"`        // set category account (empty = no change)
+	Tags         map[string]string `json:"tags"`           // tags to add (empty = no change)
+	Priority     int               `json:"priority"`       // lower = higher priority, matched first
+	AutoReviewed bool              `json:"auto_reviewed"`  // if true, mark transaction Cleared on import
+	MatchAccount string            `json:"match_account"`  // if non-empty, only apply to txns whose source account has this prefix (empty = all accounts)
 }
 
 const rulesFile = "rules.json"
@@ -59,11 +61,16 @@ func Save(dataDir string, rules []Rule) error {
 }
 
 // Match iterates rules in priority order and returns the first rule whose
-// pattern matches description (case-insensitive). Returns nil if no rule matches.
-func Match(rules []Rule, description string) *Rule {
+// pattern matches description (case-insensitive) and whose MatchAccount (if
+// set) is a prefix of account. Returns nil if no rule matches.
+// account is the source account of the transaction (the asset/liability posting).
+func Match(rules []Rule, description, account string) *Rule {
 	for i := range rules {
 		r := &rules[i]
 		if r.Pattern == "" {
+			continue
+		}
+		if r.MatchAccount != "" && !strings.HasPrefix(account, r.MatchAccount) {
 			continue
 		}
 		re, err := regexp.Compile("(?i)" + r.Pattern)

@@ -515,6 +515,7 @@ message TransactionRule {
   map<string, string> tags = 5; // tags to add
   int32 priority = 6;
   bool auto_reviewed = 7;       // if true, matched transactions are marked Cleared on import
+  string match_account = 8;     // if non-empty, only apply to txns whose source account has this prefix (empty = all accounts)
 }
 
 message ListRulesRequest {}
@@ -530,6 +531,7 @@ message RuleInput {
   map<string, string> tags = 4;
   int32 priority = 5;
   bool auto_reviewed = 6;
+  string match_account = 7;     // if non-empty, only apply to txns whose source account has this prefix (empty = all accounts)
 }
 
 message AddRuleRequest {
@@ -548,6 +550,7 @@ message UpdateRuleRequest {
   map<string, string> tags = 5;
   int32 priority = 6;
   bool auto_reviewed = 7;
+  string match_account = 8;     // if non-empty, only apply to txns whose source account has this prefix (empty = all accounts)
 }
 
 message UpdateRuleResponse {

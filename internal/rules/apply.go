@@ -24,6 +24,18 @@ type RuleMatch struct {
 	Changes     ChangeSet
 }
 
+// sourceAccount returns the source (asset/liability) account of a transaction,
+// i.e. the first posting whose account name looks like an asset or liability.
+// Returns "" if no such posting is found.
+func sourceAccount(txn hledger.Transaction) string {
+	for _, p := range txn.Postings {
+		if isAssetOrLiabilityAccount(p.Account) {
+			return p.Account
+		}
+	}
+	return ""
+}
+
 // Preview checks all transactions against rules and returns proposed changes.
 // Does NOT modify anything. Only transactions that match a rule are included.
 func Preview(rules []Rule, transactions []hledger.Transaction) []RuleMatch {
@@ -32,7 +44,7 @@ func Preview(rules []Rule, transactions []hledger.Transaction) []RuleMatch {
 		if txn.FID == "" {
 			continue // skip untagged transactions — can't update them
 		}
-		rule := Match(rules, txn.Description)
+		rule := Match(rules, txn.Description, sourceAccount(txn))
 		if rule == nil {
 			continue
 		}

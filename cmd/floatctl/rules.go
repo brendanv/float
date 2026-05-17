@@ -69,8 +69,9 @@ func runRulesAdd(args []string) error {
 	payee := fset.String("payee", "", "set payee (empty = no change)")
 	account := fset.String("account", "", "set category account (empty = no change)")
 	priority := fset.Int("priority", 0, "rule priority (lower = higher priority)")
+	matchAccount := fset.String("match-account", "", "only apply to transactions from this source account prefix (empty = all accounts)")
 	fset.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: floatctl rules add <data-dir> --pattern REGEX [--payee PAYEE] [--account ACCOUNT] [--priority N]")
+		fmt.Fprintln(os.Stderr, "usage: floatctl rules add <data-dir> --pattern REGEX [--payee PAYEE] [--account ACCOUNT] [--priority N] [--match-account ACCOUNT]")
 		fset.PrintDefaults()
 	}
 	if len(args) < 1 {
@@ -99,11 +100,12 @@ func runRulesAdd(args []string) error {
 			return loadErr
 		}
 		newRule = rules.Rule{
-			ID:       journal.MintFID(),
-			Pattern:  *pattern,
-			Payee:    *payee,
-			Account:  *account,
-			Priority: *priority,
+			ID:           journal.MintFID(),
+			Pattern:      *pattern,
+			Payee:        *payee,
+			Account:      *account,
+			Priority:     *priority,
+			MatchAccount: *matchAccount,
 		}
 		rulesList = append(rulesList, newRule)
 		return rules.Save(dataDir, rulesList)
