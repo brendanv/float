@@ -67,21 +67,15 @@ func (h *Handler) RunHledgerQuery(ctx context.Context, req *connect.Request[floa
 // Query args are sorted so that ["b","a"] and ["a","b"] produce the same key.
 
 func transactionsKey(query []string) string {
-	sorted := append([]string(nil), query...)
-	sort.Strings(sorted)
-	return "transactions:" + strings.Join(sorted, "|")
+	return "transactions:" + normalizedQueryKeyPart(query)
 }
 
 func balancesKey(depth int, query []string) string {
-	sorted := append([]string(nil), query...)
-	sort.Strings(sorted)
-	return fmt.Sprintf("balances:%d:%s", depth, strings.Join(sorted, "|"))
+	return fmt.Sprintf("balances:%d:%s", depth, normalizedQueryKeyPart(query))
 }
 
 func accountRegisterKey(account string, query []string) string {
-	sorted := append([]string(nil), query...)
-	sort.Strings(sorted)
-	return fmt.Sprintf("aregister:%s:%s", account, strings.Join(sorted, "|"))
+	return fmt.Sprintf("aregister:%s:%s", account, normalizedQueryKeyPart(query))
 }
 
 const accountsKey = "accounts"
@@ -97,9 +91,13 @@ func incomeStatementKey(begin, end string) string {
 }
 
 func balancesValuedKey(valueSpec string, depth int, query []string) string {
+	return fmt.Sprintf("balancesvalued:%s:%d:%s", valueSpec, depth, normalizedQueryKeyPart(query))
+}
+
+func normalizedQueryKeyPart(query []string) string {
 	sorted := append([]string(nil), query...)
 	sort.Strings(sorted)
-	return fmt.Sprintf("balancesvalued:%s:%d:%s", valueSpec, depth, strings.Join(sorted, "|"))
+	return strings.Join(sorted, "|")
 }
 
 func cachedGet[T any](ctx context.Context, c *cache.Cache[any], key string, load func(context.Context) (T, error)) (T, error) {
