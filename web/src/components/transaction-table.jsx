@@ -754,6 +754,39 @@ const transactionColumns = [
 
 // Account register columns (register mode)
 const registerColumns = [
+  regHelper.display({
+    id: "select",
+    header: ({ table }) => {
+      const { allSelected, someSelected, toggleSelectAll } = table.options.meta;
+      return (
+        <Checkbox
+          checked={allSelected}
+          indeterminate={!allSelected && someSelected}
+          onCheckedChange={toggleSelectAll}
+          onClick={(e) => e.stopPropagation()}
+          title={allSelected ? "Deselect all" : "Select all"}
+        />
+      );
+    },
+    cell: ({ row, table }) => {
+      const { selectedFids, onSelectionChange } = table.options.meta;
+      return (
+        <span onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selectedFids?.has(row.original.fid) ?? false}
+            onCheckedChange={() => {
+              if (!row.original.fid) return;
+              const next = new Set(selectedFids);
+              if (next.has(row.original.fid)) next.delete(row.original.fid);
+              else next.add(row.original.fid);
+              onSelectionChange(next);
+            }}
+          />
+        </span>
+      );
+    },
+    meta: { headerClass: "w-6 pr-0", cellClass: "w-6 pr-0" },
+  }),
   regHelper.accessor("date", {
     id: "date",
     header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,

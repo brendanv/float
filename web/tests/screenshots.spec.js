@@ -166,6 +166,20 @@ test("transactions page - account register view", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-account-register.png", fullPage: true });
 });
 
+test("transactions page - account register bulk edit toolbar", async ({ page }) => {
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  const checkboxes = await page.locator("tbody [data-slot='checkbox']").all();
+  for (const cb of checkboxes.slice(0, 3)) {
+    await cb.click();
+  }
+  await expect(page.getByText("Mark reviewed")).toBeVisible();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/transactions-account-register-bulk-edit.png", fullPage: true });
+});
+
 test("transactions page - account register edit account", async ({ page }) => {
   await page.goto("/#/transactions?account=assets%3Achecking");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});

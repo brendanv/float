@@ -347,6 +347,7 @@ export function TransactionsPage() {
 
   const transactions = !isAccountMode ? (data?.transactions || []) : [];
   const registerRows = isAccountMode ? (data?.rows || []) : null;
+  const bulkActionTransactions = isAccountMode ? (registerRows || []) : transactions;
 
   return (
     <div className="flex flex-col gap-6">
@@ -385,10 +386,10 @@ export function TransactionsPage() {
       {error && <ErrorBanner error={error} />}
       {data && (
         <>
-          {!isAccountMode && selectedFids.size > 0 && (
+          {selectedFids.size > 0 && (
             <BulkActionBar
               selectedFids={selectedFids}
-              transactions={transactions}
+              transactions={bulkActionTransactions}
               onActionComplete={onBulkActionComplete}
               onClearSelection={() => setSelectedFids(new Set())}
             />
