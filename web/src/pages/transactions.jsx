@@ -91,9 +91,10 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
     setWorking(true);
     setError(null);
     try {
-      for (const fid of fids) {
-        await ledgerClient.deleteTransaction({ fid });
-      }
+      await ledgerClient.bulkEditTransactions({
+        fids,
+        operations: [{ operation: { case: "delete", value: {} } }],
+      });
       setDeleteOpen(false);
       cancelMode();
       onActionComplete();

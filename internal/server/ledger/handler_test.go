@@ -1760,6 +1760,70 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("delete_cannot_be_combined", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 215, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{"aa001100"},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_Delete{Delete: &floatv1.DeleteOperation{}}},
+				{Operation: &floatv1.BulkEditOperation_MarkReviewed{MarkReviewed: &floatv1.MarkReviewedOperation{Reviewed: true}}},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("delete_multiple_transactions_single_snapshot", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 216, NumTxns: 1, WithFIDs: true})
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		fid1 := appendTx(t, c, dir, baseTx("DELETE BULK 1"))
+		fid2 := appendTx(t, c, dir, baseTx("DELETE BULK 2"))
+		h, snap := mustRealHandlerWithSnap(t, dir)
+		initialSnaps, err := snap.List(t.Context(), 20)
+		if err != nil {
+			t.Fatalf("List initial snapshots: %v", err)
+		}
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid1, fid2},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_Delete{Delete: &floatv1.DeleteOperation{}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 0 {
+			t.Fatalf("expected no returned transactions after delete, got %d", len(resp.Msg.Transactions))
+		}
+
+		for _, fid := range []string{fid1, fid2} {
+			txns, err := c.Transactions(t.Context(), "code:"+fid)
+			if err != nil {
+				t.Fatalf("lookup deleted transaction %s: %v", fid, err)
+			}
+			if len(txns) != 0 {
+				t.Fatalf("transaction %s still exists after bulk delete", fid)
+			}
+		}
+
+		afterSnaps, err := snap.List(t.Context(), 20)
+		if err != nil {
+			t.Fatalf("List snapshots after bulk delete: %v", err)
+		}
+		if len(afterSnaps) != len(initialSnaps)+1 {
+			t.Errorf("snapshot count: got %d, want %d (one new commit)", len(afterSnaps), len(initialSnaps)+1)
+		}
+	})
+
 	t.Run("mark_reviewed_true", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 207, NumTxns: 1, WithFIDs: true})
 		h := mustRealHandler(t, dir)

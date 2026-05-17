@@ -332,6 +332,8 @@ message SetPayeeOperation {
 
 message ClearPayeeOperation {}
 
+message DeleteOperation {}
+
 message BulkEditOperation {
   oneof operation {
     MarkReviewedOperation mark_reviewed = 1;
@@ -339,6 +341,7 @@ message BulkEditOperation {
     RemoveTagOperation remove_tag = 3;
     SetPayeeOperation set_payee = 4;
     ClearPayeeOperation clear_payee = 5;
+    DeleteOperation delete = 6;
   }
 }
 

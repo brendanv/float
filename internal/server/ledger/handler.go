@@ -1292,6 +1292,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 	if len(req.Msg.Operations) == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("operations must not be empty"))
 	}
+	deleteOp := false
 	for i, op := range req.Msg.Operations {
 		switch v := op.Operation.(type) {
 		case *floatv1.BulkEditOperation_MarkReviewed:
@@ -1313,13 +1314,25 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 			}
 		case *floatv1.BulkEditOperation_ClearPayee:
 			// no additional validation needed
+		case *floatv1.BulkEditOperation_Delete:
+			deleteOp = true
 		default:
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: unrecognized or missing operation type", i))
 		}
 	}
+	if deleteOp && len(req.Msg.Operations) > 1 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("delete operation cannot be combined with other bulk edit operations"))
+	}
 
 	err := h.lock.Do(ctx, bulkEditMessage(req.Msg.Fids, req.Msg.Operations), func() error {
 		for _, fid := range req.Msg.Fids {
+			if deleteOp {
+				if err := journal.DeleteTransaction(ctx, h.hl, h.dataDir, fid); err != nil {
+					return fmt.Errorf("bulk-edit: fid %q: delete: %w", fid, err)
+				}
+				continue
+			}
+
 			txns, err := h.hl.Transactions(ctx, "code:"+fid)
 			if err != nil {
 				return fmt.Errorf("bulk-edit: lookup fid %q: %w", fid, err)
@@ -1379,6 +1392,10 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		}
 		logger.ErrorContext(ctx, "bulk edit transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	if deleteOp {
+		return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{}), nil
 	}
 
 	results := make([]*floatv1.Transaction, 0, len(req.Msg.Fids))
@@ -2402,6 +2419,13 @@ func bulkEditMessage(fids []string, ops []*floatv1.BulkEditOperation) string {
 			return fmt.Sprintf("set payee on transaction %s", fid)
 		case *floatv1.BulkEditOperation_ClearPayee:
 			return "clear payee on transaction " + fid
+		case *floatv1.BulkEditOperation_Delete:
+			return "delete transaction " + fid
+		}
+	}
+	if len(ops) == 1 {
+		if _, ok := ops[0].Operation.(*floatv1.BulkEditOperation_Delete); ok {
+			return fmt.Sprintf("delete %d transactions", len(fids))
 		}
 	}
 	return fmt.Sprintf("bulk edit %d transactions", len(fids))
