@@ -407,13 +407,23 @@ func ApplyRulesCmd(client floatv1connect.LedgerServiceClient, fids []string) tea
 	return func() tea.Msg {
 		ctx, cancel := rpcContext()
 		defer cancel()
-		resp, err := client.ApplyRules(ctx, connect.NewRequest(&floatv1.ApplyRulesRequest{
+		stream, err := client.ApplyRules(ctx, connect.NewRequest(&floatv1.ApplyRulesRequest{
 			Fids: fids,
 		}))
 		if err != nil {
 			return ApplyRulesMsg{Err: err}
 		}
-		return ApplyRulesMsg{AppliedCount: resp.Msg.AppliedCount}
+		defer func() { _ = stream.Close() }()
+		var applied int32
+		for stream.Receive() {
+			if r, ok := stream.Msg().Payload.(*floatv1.ApplyRulesResponse_Result); ok {
+				applied = r.Result.AppliedCount
+			}
+		}
+		if err := stream.Err(); err != nil {
+			return ApplyRulesMsg{Err: err}
+		}
+		return ApplyRulesMsg{AppliedCount: applied}
 	}
 }
 

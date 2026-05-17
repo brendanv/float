@@ -2328,12 +2328,12 @@ func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[fl
 	return connect.NewResponse(&floatv1.PreviewApplyRulesResponse{Previews: previews}), nil
 }
 
-func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.ApplyRulesRequest]) (*connect.Response[floatv1.ApplyRulesResponse], error) {
+func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.ApplyRulesRequest], stream *connect.ServerStream[floatv1.ApplyRulesResponse]) error {
 	logger := slogctx.FromContext(ctx)
 
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, err)
 	}
 	if len(req.Msg.RuleIds) > 0 {
 		rulesList = filterRules(rulesList, req.Msg.RuleIds)
@@ -2342,7 +2342,7 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 	txns, err := h.hl.Transactions(ctx, req.Msg.Query...)
 	if err != nil {
 		logger.ErrorContext(ctx, "fetch transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, err)
 	}
 
 	matches := rules.Preview(rulesList, txns)
@@ -2362,17 +2362,37 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 		matches = filtered
 	}
 
-	var applied int
+	total := int32(len(matches))
+	var applied int32
 	err = h.lock.Do(ctx, fmt.Sprintf("apply rules to %d transactions", len(matches)), func() error {
-		var applyErr error
-		applied, applyErr = rules.Apply(ctx, h.hl, h.dataDir, matches)
-		return applyErr
+		for _, m := range matches {
+			if applyErr := rules.ApplyOne(ctx, h.hl, h.dataDir, m); applyErr != nil {
+				return fmt.Errorf("apply rule %s to txn %s: %w", m.Rule.ID, m.Transaction.FID, applyErr)
+			}
+			applied++
+			if sendErr := stream.Send(&floatv1.ApplyRulesResponse{
+				Payload: &floatv1.ApplyRulesResponse_Progress{
+					Progress: &floatv1.ApplyRulesProgress{
+						Applied: applied,
+						Total:   total,
+					},
+				},
+			}); sendErr != nil {
+				return sendErr
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "apply rules failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&floatv1.ApplyRulesResponse{AppliedCount: int32(applied)}), nil
+
+	return stream.Send(&floatv1.ApplyRulesResponse{
+		Payload: &floatv1.ApplyRulesResponse_Result{
+			Result: &floatv1.ApplyRulesResult{AppliedCount: applied},
+		},
+	})
 }
 
 // sourceAccountFromPostings returns the first asset/liability account from a

@@ -593,8 +593,20 @@ message ApplyRulesRequest {
   repeated string query = 3;   // same query as preview
 }
 
-message ApplyRulesResponse {
+message ApplyRulesProgress {
+  int32 applied = 1;
+  int32 total = 2;
+}
+
+message ApplyRulesResult {
   int32 applied_count = 1;
+}
+
+message ApplyRulesResponse {
+  oneof payload {
+    ApplyRulesProgress progress = 1;
+    ApplyRulesResult result = 2;
+  }
 }
 
 message Holding {
@@ -893,7 +905,7 @@ service LedgerService {
   rpc UpdateRule(UpdateRuleRequest) returns (UpdateRuleResponse);
   rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
   rpc PreviewApplyRules(PreviewApplyRulesRequest) returns (PreviewApplyRulesResponse);
-  rpc ApplyRules(ApplyRulesRequest) returns (ApplyRulesResponse);
+  rpc ApplyRules(ApplyRulesRequest) returns (stream ApplyRulesResponse);
 
   // Stripe Financial Connections
   rpc GetStripeConfig(GetStripeConfigRequest) returns (GetStripeConfigResponse);

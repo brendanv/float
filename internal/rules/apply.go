@@ -61,6 +61,11 @@ func Preview(rules []Rule, transactions []hledger.Transaction) []RuleMatch {
 	return matches
 }
 
+// ApplyOne applies a single RuleMatch to the journal. Must be called within txlock.Do().
+func ApplyOne(ctx context.Context, client *hledger.Client, dataDir string, m RuleMatch) error {
+	return applyMatch(ctx, client, dataDir, m)
+}
+
 // Apply executes the changes from a preview. Must be called within txlock.Do().
 // Returns the number of transactions successfully modified.
 func Apply(ctx context.Context, client *hledger.Client, dataDir string, matches []RuleMatch) (int, error) {
