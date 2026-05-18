@@ -24,6 +24,7 @@ import (
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/logstream"
 	"github.com/brendanv/float/internal/middleware"
+	"github.com/brendanv/float/internal/migrate"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/txlock"
 	"github.com/brendanv/float/internal/webui"
@@ -90,6 +91,11 @@ func main() {
 		slog.Warn("gitsnap: recover uncommitted", "error", recoverErr)
 	}
 	lock.SetSnap(snap)
+
+	if err := migrate.RunAll(context.Background(), migrations, lock, snap, *dataDir, hl); err != nil {
+		slog.Error("startup migrations", "error", err)
+		os.Exit(1)
+	}
 
 	var backfillCount int
 	if err := lock.Do(context.Background(), "migrate transaction IDs", func() error {
