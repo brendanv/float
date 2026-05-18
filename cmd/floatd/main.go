@@ -104,6 +104,19 @@ func main() {
 		slog.Info("fid backfill: assigned codes to transactions", "count", backfillCount)
 	}
 
+	var stripeMigrateCount int
+	if err := lock.Do(context.Background(), "migrate stripe-txn tags to float-stripe-txn", func() error {
+		n, err := journal.MigrateStripeTxnTag(context.Background(), hl, *dataDir)
+		stripeMigrateCount = n
+		return err
+	}); err != nil {
+		slog.Error("stripe-txn tag migration", "error", err)
+		os.Exit(1)
+	}
+	if stripeMigrateCount > 0 {
+		slog.Info("stripe-txn migration: moved tags to float-stripe-txn", "count", stripeMigrateCount)
+	}
+
 	if err := lock.Do(context.Background(), "ensure commodity directive", func() error {
 		return journal.EnsureCommodityDirective(*dataDir, "USD")
 	}); err != nil {

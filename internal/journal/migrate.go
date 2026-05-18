@@ -1,10 +1,14 @@
 package journal
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/brendanv/float/internal/hledger"
 )
 
 var (
@@ -117,6 +121,57 @@ func migrateFile(path string) (int, error) {
 		if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
 			return 0, err
 		}
+	}
+	return count, nil
+}
+
+// MigrateStripeTxnTag finds all transactions that carry a user-visible
+// "stripe-txn" tag and moves the value into the hidden "float-stripe-txn"
+// metadata field, removing the old tag. Idempotent — transactions that
+// already have "float-stripe-txn" in FloatMeta and no "stripe-txn" in Tags
+// are skipped. Callers must wrap in txlock.Do().
+func MigrateStripeTxnTag(ctx context.Context, client *hledger.Client, dataDir string) (int, error) {
+	txns, err := client.Transactions(ctx, "tag:stripe-txn")
+	if err != nil {
+		return 0, fmt.Errorf("journal: migrate-stripe-txn-tag: query: %w", err)
+	}
+
+	count := 0
+	for _, t := range txns {
+		stripeTxnValue, hasOldTag := t.FloatMeta["stripe-txn"]
+		if !hasOldTag {
+			// Check user-visible tags (hledger.Transaction.Tags is [][2]string).
+			for _, tag := range t.Tags {
+				if tag[0] == "stripe-txn" {
+					stripeTxnValue = tag[1]
+					hasOldTag = true
+					break
+				}
+			}
+		}
+		if !hasOldTag {
+			continue
+		}
+
+		src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
+		input, err := InputFromTransaction(t)
+		if err != nil {
+			return count, fmt.Errorf("journal: migrate-stripe-txn-tag: fid %q: %w", t.FID, err)
+		}
+
+		delete(input.Tags, "stripe-txn")
+
+		if input.FloatMeta == nil {
+			input.FloatMeta = make(map[string]string)
+		}
+		if _, alreadyMigrated := input.FloatMeta["float-stripe-txn"]; !alreadyMigrated {
+			input.FloatMeta["float-stripe-txn"] = stripeTxnValue
+		}
+
+		if _, err := WriteTransaction(ctx, client, dataDir, input, src); err != nil {
+			return count, fmt.Errorf("journal: migrate-stripe-txn-tag: fid %q: write: %w", t.FID, err)
+		}
+		count++
 	}
 	return count, nil
 }
