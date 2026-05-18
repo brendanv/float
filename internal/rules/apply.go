@@ -62,22 +62,12 @@ func Preview(rules []Rule, transactions []hledger.Transaction) []RuleMatch {
 	return matches
 }
 
-// ApplyOne applies a single RuleMatch to the journal. Must be called within txlock.Do().
-func ApplyOne(ctx context.Context, client *hledger.Client, dataDir string, m RuleMatch) error {
-	return applyMatch(ctx, client, dataDir, m)
-}
-
 // Apply executes the changes from a preview. Must be called within txlock.Do().
 // Returns the number of transactions successfully modified.
 func Apply(ctx context.Context, client *hledger.Client, dataDir string, matches []RuleMatch) (int, error) {
-	applied := 0
-	for _, m := range matches {
-		if err := applyMatch(ctx, client, dataDir, m); err != nil {
-			return applied, fmt.Errorf("apply rule %s to txn %s: %w", m.Rule.ID, m.Transaction.FID, err)
-		}
-		applied++
-	}
-	return applied, nil
+	var applied int32
+	err := ApplyBatch(ctx, client, dataDir, matches, func(a, _ int32) { applied = a })
+	return int(applied), err
 }
 
 // ApplyBatch applies a set of RuleMatches efficiently by batching hledger format
@@ -239,83 +229,29 @@ func buildApplyInput(m RuleMatch) (journal.TransactionInput, journal.SourceLocat
 	return input, src, nil
 }
 
-// applyMatch applies the changes from a single RuleMatch to the journal in a single write.
+// applyMatch applies the changes from a single RuleMatch to the journal.
+// Re-fetches the transaction to get a current source location, then delegates
+// to buildApplyInput for the change logic. Used as a fallback for transactions
+// that lack source position metadata.
 func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m RuleMatch) error {
-	txn := m.Transaction
-	changes := m.Changes
-
-	// Re-fetch to get the current source location; prior calls in the same batch
-	// may have shifted line numbers by removing and re-appending other transactions.
-	txns, err := client.Transactions(ctx, "code:"+txn.FID)
+	txns, err := client.Transactions(ctx, "code:"+m.Transaction.FID)
 	if err != nil {
-		return fmt.Errorf("lookup fid %q: %w", txn.FID, err)
+		return fmt.Errorf("lookup fid %q: %w", m.Transaction.FID, err)
 	}
 	switch len(txns) {
 	case 0:
-		return fmt.Errorf("no transaction found with fid %q", txn.FID)
+		return fmt.Errorf("no transaction found with fid %q", m.Transaction.FID)
 	case 1:
 		// expected
 	default:
-		return fmt.Errorf("fid %q matched %d transactions (corrupt journal — run audit)", txn.FID, len(txns))
+		return fmt.Errorf("fid %q matched %d transactions (corrupt journal — run audit)", m.Transaction.FID, len(txns))
 	}
-	t := txns[0]
-	src := &journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
-
-	input, err := journal.InputFromTransaction(t)
+	fresh := RuleMatch{Rule: m.Rule, Transaction: txns[0], Changes: m.Changes}
+	input, src, err := buildApplyInput(fresh)
 	if err != nil {
 		return err
 	}
-
-	// Apply payee and/or account changes.
-	if changes.NewPayee != nil || changes.NewAccount != nil {
-		desc := t.Description
-		if changes.NewPayee != nil {
-			newPayee := *changes.NewPayee
-			if t.Note != nil {
-				if newPayee != "" {
-					desc = newPayee + " | " + *t.Note
-				} else {
-					desc = *t.Note
-				}
-			} else {
-				if newPayee != "" {
-					if idx := strings.Index(desc, "|"); idx >= 0 {
-						desc = newPayee + " |" + desc[idx+1:]
-					} else {
-						desc = newPayee + " | " + desc
-					}
-				}
-			}
-		}
-		input.Description = desc
-
-		if changes.NewAccount != nil {
-			for i := range input.Postings {
-				if isCategoryPosting(t, i) {
-					input.Postings[i].Account = *changes.NewAccount
-				}
-			}
-		}
-	}
-
-	// Merge new tags into the existing set.
-	if len(changes.AddTags) > 0 {
-		merged := make(map[string]string)
-		for k, v := range input.Tags {
-			merged[k] = v
-		}
-		for k, v := range changes.AddTags {
-			merged[k] = v
-		}
-		input.Tags = merged
-	}
-
-	// Apply reviewed status.
-	if changes.MarkReviewed != nil && *changes.MarkReviewed {
-		input.Status = "Cleared"
-	}
-
-	_, err = journal.WriteTransaction(ctx, client, dataDir, input, src)
+	_, err = journal.WriteTransaction(ctx, client, dataDir, input, &src)
 	return err
 }
 
