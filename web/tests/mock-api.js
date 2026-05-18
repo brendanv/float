@@ -49,6 +49,7 @@ export const mockTransactions = [
     payee: "Whole Foods Market",
     note: "weekly groceries",
     status: "Pending",
+    stripeTransactionId: "txn_3OxKLM2eZvKYlo2C0abc1234",
     postings: [
       { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "87.43" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-87.43" }] },
@@ -62,6 +63,7 @@ export const mockTransactions = [
     payee: "Amazon",
     note: "desk lamp",
     status: "Pending",
+    stripeTransactionId: "txn_3OxKLM2eZvKYlo2C0def5678",
     postings: [
       { account: "expenses:shopping", amounts: [{ commodity: "USD", quantity: "34.99" }] },
       { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-34.99" }] },
@@ -331,6 +333,7 @@ export const mockAccountRegisterRows = [
     date: "2026-03-22",
     description: "Metro Transit",
     status: "Cleared",
+    stripeTransactionId: "txn_3OxKLM2eZvKYlo2C0ghi9012",
     otherAccounts: ["expenses:transport"],
     change: [{ commodity: "USD", quantity: "-3.25" }],
     runningTotal: [{ commodity: "USD", quantity: "5196.75" }],

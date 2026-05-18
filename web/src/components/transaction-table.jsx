@@ -573,6 +573,25 @@ function TagEditor({ fid, tags, onChanged, className }) {
   );
 }
 
+// ── stripe indicator ───────────────────────────────────────────────────────
+
+function StripeIndicator({ id }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="inline-flex shrink-0 cursor-default items-center rounded-sm border px-1 py-0.5">
+            <svg role="img" viewBox="0 0 24 24" className="size-2.5 fill-muted-foreground" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z" />
+            </svg>
+          </span>
+        }
+      />
+      <TooltipContent>Stripe transaction: {id}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ── sort header ────────────────────────────────────────────────────────────
 
 function SortableHeader({ column, children, align = "left" }) {
@@ -666,15 +685,18 @@ const transactionColumns = [
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
       return (
-        <EditableDescriptionCell
-          fid={tx.fid}
-          description={tx.description}
-          date={tx.date}
-          postings={tx.postings}
-          payee={tx.payee}
-          note={tx.note}
-          onSaved={onStatusChange}
-        />
+        <span className="flex items-center gap-1.5">
+          <EditableDescriptionCell
+            fid={tx.fid}
+            description={tx.description}
+            date={tx.date}
+            postings={tx.postings}
+            payee={tx.payee}
+            note={tx.note}
+            onSaved={onStatusChange}
+          />
+          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+        </span>
       );
     },
   }),
@@ -813,15 +835,18 @@ const registerColumns = [
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
       return (
-        <EditableDescriptionCell
-          fid={tx.fid}
-          description={tx.description}
-          date={tx.date}
-          postings={tx.postings}
-          payee={tx.payee}
-          note={tx.note}
-          onSaved={onStatusChange}
-        />
+        <span className="flex items-center gap-1.5">
+          <EditableDescriptionCell
+            fid={tx.fid}
+            description={tx.description}
+            date={tx.date}
+            postings={tx.postings}
+            payee={tx.payee}
+            note={tx.note}
+            onSaved={onStatusChange}
+          />
+          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+        </span>
       );
     },
   }),
@@ -1230,6 +1255,7 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             {(tx.postings || []).some((p) => p.balanceAssertion) && (
               <Scale className="size-3 shrink-0 text-muted-foreground" />
             )}
+            {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
             <span className={cn(
               "whitespace-nowrap font-mono text-sm",
               isRegisterMode && changePositive && "text-success",
