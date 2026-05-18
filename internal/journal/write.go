@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -274,3 +275,63 @@ func removeTransactionAtLine(path string, headerLine int, fid string) error {
 
 // anyTagRe matches a tag:value pattern in a comment string.
 var anyTagRe = regexp.MustCompile(`[A-Za-z][A-Za-z0-9_-]*:[^\s,;]*`)
+
+// BatchReplacement is a single in-place transaction replacement within a journal file.
+type BatchReplacement struct {
+	HeaderLine int    // 1-indexed line number of the transaction header
+	FID        string // sanity-check: the FID expected at this line
+	NewText    string // formatted replacement text (ends with "\n\n")
+}
+
+// BatchReplaceTransactions applies multiple in-place transaction replacements
+// to a single journal file in one read+write cycle. Replacements are applied
+// in descending HeaderLine order so earlier replacements cannot shift the line
+// numbers of the transactions that follow them in the file.
+func BatchReplaceTransactions(path string, replacements []BatchReplacement) error {
+	if len(replacements) == 0 {
+		return nil
+	}
+
+	// Work on a copy sorted descending so each edit doesn't shift remaining positions.
+	sorted := make([]BatchReplacement, len(replacements))
+	copy(sorted, replacements)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].HeaderLine > sorted[j].HeaderLine
+	})
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("journal: batch replace: read %s: %w", path, err)
+	}
+	lines := strings.Split(string(data), "\n")
+
+	for _, r := range sorted {
+		headerIdx := r.HeaderLine - 1
+		if headerIdx < 0 || headerIdx >= len(lines) {
+			return fmt.Errorf("journal: batch replace: source line %d out of range in %s", r.HeaderLine, path)
+		}
+		if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "("+r.FID+")") {
+			return fmt.Errorf("journal: batch replace: line %d in %s does not match expected transaction header for fid %q", r.HeaderLine, path, r.FID)
+		}
+
+		endIdx := headerIdx + 1
+		for endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) != "" {
+			endIdx++
+		}
+		if endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) == "" {
+			endIdx++
+		}
+
+		replacementLines := append(strings.Split(strings.TrimRight(r.NewText, "\n"), "\n"), "")
+		newLines := make([]string, 0, len(lines)-(endIdx-headerIdx)+len(replacementLines))
+		newLines = append(newLines, lines[:headerIdx]...)
+		newLines = append(newLines, replacementLines...)
+		newLines = append(newLines, lines[endIdx:]...)
+		lines = newLines
+	}
+
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+		return fmt.Errorf("journal: batch replace: write %s: %w", path, err)
+	}
+	return nil
+}

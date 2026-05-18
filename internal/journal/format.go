@@ -149,6 +149,60 @@ func draftFormat(tx TransactionInput, fid string) string {
 	return b.String()
 }
 
+// BatchFormatViaHledger formats multiple transactions in a single hledger subprocess call.
+// Returns canonical hledger-formatted text for each transaction in the same order as inputs.
+// Each returned string ends with "\n\n" (same format as FormatViaHledger).
+func BatchFormatViaHledger(ctx context.Context, client *hledger.Client, inputs []TransactionInput, fids []string) ([]string, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+	if len(inputs) != len(fids) {
+		return nil, fmt.Errorf("journal: BatchFormatViaHledger: inputs/fids length mismatch")
+	}
+
+	var all strings.Builder
+	for i, tx := range inputs {
+		all.WriteString(draftFormat(tx, fids[i]))
+		all.WriteString("\n") // blank line between transactions
+	}
+
+	f, err := os.CreateTemp("", "float-batch-*.journal")
+	if err != nil {
+		return nil, fmt.Errorf("journal: create temp file: %w", err)
+	}
+	tmpPath := f.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if _, err := f.WriteString(all.String()); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("journal: write temp file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("journal: close temp file: %w", err)
+	}
+
+	out, err := client.PrintText(ctx, tmpPath)
+	if err != nil {
+		return nil, fmt.Errorf("journal: batch format via hledger: %w", err)
+	}
+
+	// Split output into per-transaction blocks. hledger print separates
+	// transactions with exactly one blank line; transactions never contain
+	// internal blank lines.
+	var result []string
+	for _, block := range strings.Split(strings.TrimRight(out, "\n"), "\n\n") {
+		block = strings.TrimSpace(block)
+		if block != "" {
+			result = append(result, block+"\n\n")
+		}
+	}
+
+	if len(result) != len(inputs) {
+		return nil, fmt.Errorf("journal: batch format: expected %d transactions, got %d", len(inputs), len(result))
+	}
+	return result, nil
+}
+
 // FormatViaHledger writes tx to a temp file, runs `hledger print -f <tmpfile>`,
 // and returns the canonical hledger-formatted output.
 func FormatViaHledger(ctx context.Context, client *hledger.Client, tx TransactionInput, fid string) (string, error) {
