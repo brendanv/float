@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown, Scale } from "lucide-react";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown, Scale, Zap } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -573,6 +573,24 @@ function TagEditor({ fid, tags, onChanged, className }) {
   );
 }
 
+// ── stripe indicator ───────────────────────────────────────────────────────
+
+function StripeIndicator({ id }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="inline-flex shrink-0 cursor-default items-center gap-0.5 rounded-sm border px-1 text-[10px] leading-4 text-muted-foreground">
+            <Zap className="size-2.5" />
+            stripe
+          </span>
+        }
+      />
+      <TooltipContent>Stripe transaction: {id}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ── sort header ────────────────────────────────────────────────────────────
 
 function SortableHeader({ column, children, align = "left" }) {
@@ -666,15 +684,18 @@ const transactionColumns = [
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
       return (
-        <EditableDescriptionCell
-          fid={tx.fid}
-          description={tx.description}
-          date={tx.date}
-          postings={tx.postings}
-          payee={tx.payee}
-          note={tx.note}
-          onSaved={onStatusChange}
-        />
+        <span className="flex items-center gap-1.5">
+          <EditableDescriptionCell
+            fid={tx.fid}
+            description={tx.description}
+            date={tx.date}
+            postings={tx.postings}
+            payee={tx.payee}
+            note={tx.note}
+            onSaved={onStatusChange}
+          />
+          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+        </span>
       );
     },
   }),
@@ -813,15 +834,18 @@ const registerColumns = [
       const { onStatusChange } = table.options.meta;
       const tx = row.original;
       return (
-        <EditableDescriptionCell
-          fid={tx.fid}
-          description={tx.description}
-          date={tx.date}
-          postings={tx.postings}
-          payee={tx.payee}
-          note={tx.note}
-          onSaved={onStatusChange}
-        />
+        <span className="flex items-center gap-1.5">
+          <EditableDescriptionCell
+            fid={tx.fid}
+            description={tx.description}
+            date={tx.date}
+            postings={tx.postings}
+            payee={tx.payee}
+            note={tx.note}
+            onSaved={onStatusChange}
+          />
+          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+        </span>
       );
     },
   }),
@@ -1230,6 +1254,7 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             {(tx.postings || []).some((p) => p.balanceAssertion) && (
               <Scale className="size-3 shrink-0 text-muted-foreground" />
             )}
+            {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
             <span className={cn(
               "whitespace-nowrap font-mono text-sm",
               isRegisterMode && changePositive && "text-success",
