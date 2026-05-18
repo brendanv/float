@@ -150,19 +150,20 @@ func (x *Posting) GetBalanceAssertion() *BalanceAssertion {
 }
 
 type Transaction struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`   // 8-char UUID prefix; empty if untagged
-	Date          string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"` // "YYYY-MM-DD"
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`
-	Postings      []*Posting             `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`
-	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`                                                                       // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
-	Tags          map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // non-fid tags on the transaction
-	Payee         *string                `protobuf:"bytes,8,opt,name=payee,proto3,oneof" json:"payee,omitempty"`                                                                   // part before "|" in description; nil if no "|"
-	Note          *string                `protobuf:"bytes,9,opt,name=note,proto3,oneof" json:"note,omitempty"`                                                                     // part after "|" in description; nil if no "|"
-	ImportBatchId *string                `protobuf:"bytes,10,opt,name=import_batch_id,json=importBatchId,proto3,oneof" json:"import_batch_id,omitempty"`                           // import batch ID this transaction was imported in; nil if not imported
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Fid                 string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`   // 8-char UUID prefix; empty if untagged
+	Date                string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"` // "YYYY-MM-DD"
+	Description         string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Comment             string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`
+	Postings            []*Posting             `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`
+	Status              string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`                                                                       // "", "Pending" (!), or "Cleared" (*); empty means Unmarked
+	Tags                map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // non-fid tags on the transaction
+	Payee               *string                `protobuf:"bytes,8,opt,name=payee,proto3,oneof" json:"payee,omitempty"`                                                                   // part before "|" in description; nil if no "|"
+	Note                *string                `protobuf:"bytes,9,opt,name=note,proto3,oneof" json:"note,omitempty"`                                                                     // part after "|" in description; nil if no "|"
+	ImportBatchId       *string                `protobuf:"bytes,10,opt,name=import_batch_id,json=importBatchId,proto3,oneof" json:"import_batch_id,omitempty"`                           // import batch ID this transaction was imported in; nil if not imported
+	StripeTransactionId *string                `protobuf:"bytes,11,opt,name=stripe_transaction_id,json=stripeTransactionId,proto3,oneof" json:"stripe_transaction_id,omitempty"`         // Stripe Financial Connections transaction ID; nil if not a Stripe import
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Transaction) Reset() {
@@ -261,6 +262,13 @@ func (x *Transaction) GetNote() string {
 func (x *Transaction) GetImportBatchId() string {
 	if x != nil && x.ImportBatchId != nil {
 		return *x.ImportBatchId
+	}
+	return ""
+}
+
+func (x *Transaction) GetStripeTransactionId() string {
+	if x != nil && x.StripeTransactionId != nil {
+		return *x.StripeTransactionId
 	}
 	return ""
 }
@@ -1088,19 +1096,20 @@ func (x *GetBalancesResponse) GetReport() *BalanceReport {
 // transaction touching the focused account, with a signed net change and a
 // running balance pre-computed by hledger.
 type AccountRegisterRow struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`   // 8-char UUID prefix of underlying txn; "" if untagged
-	Date          string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"` // "YYYY-MM-DD"
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	Payee         *string                `protobuf:"bytes,4,opt,name=payee,proto3,oneof" json:"payee,omitempty"`                                                                    // part before "|" in description; nil if no "|"
-	Note          *string                `protobuf:"bytes,5,opt,name=note,proto3,oneof" json:"note,omitempty"`                                                                      // part after "|" in description; nil if no "|"
-	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`                                                                        // "", "Pending", "Cleared"; empty means Unmarked
-	OtherAccounts []string               `protobuf:"bytes,7,rep,name=other_accounts,json=otherAccounts,proto3" json:"other_accounts,omitempty"`                                     // Accounts in the txn not in or under the focused account
-	Change        []*Amount              `protobuf:"bytes,8,rep,name=change,proto3" json:"change,omitempty"`                                                                        // Signed net change to the focused account for this txn
-	RunningTotal  []*Amount              `protobuf:"bytes,9,rep,name=running_total,json=runningTotal,proto3" json:"running_total,omitempty"`                                        // Running balance of the focused account after this row
-	Tags          map[string]string      `protobuf:"bytes,10,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Non-float-* tags on the transaction
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Fid                 string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`   // 8-char UUID prefix of underlying txn; "" if untagged
+	Date                string                 `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"` // "YYYY-MM-DD"
+	Description         string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Payee               *string                `protobuf:"bytes,4,opt,name=payee,proto3,oneof" json:"payee,omitempty"`                                                                    // part before "|" in description; nil if no "|"
+	Note                *string                `protobuf:"bytes,5,opt,name=note,proto3,oneof" json:"note,omitempty"`                                                                      // part after "|" in description; nil if no "|"
+	Status              string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`                                                                        // "", "Pending", "Cleared"; empty means Unmarked
+	OtherAccounts       []string               `protobuf:"bytes,7,rep,name=other_accounts,json=otherAccounts,proto3" json:"other_accounts,omitempty"`                                     // Accounts in the txn not in or under the focused account
+	Change              []*Amount              `protobuf:"bytes,8,rep,name=change,proto3" json:"change,omitempty"`                                                                        // Signed net change to the focused account for this txn
+	RunningTotal        []*Amount              `protobuf:"bytes,9,rep,name=running_total,json=runningTotal,proto3" json:"running_total,omitempty"`                                        // Running balance of the focused account after this row
+	Tags                map[string]string      `protobuf:"bytes,10,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Non-float-* tags on the transaction
+	StripeTransactionId *string                `protobuf:"bytes,11,opt,name=stripe_transaction_id,json=stripeTransactionId,proto3,oneof" json:"stripe_transaction_id,omitempty"`          // Stripe Financial Connections transaction ID; nil if not a Stripe import
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *AccountRegisterRow) Reset() {
@@ -1201,6 +1210,13 @@ func (x *AccountRegisterRow) GetTags() map[string]string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *AccountRegisterRow) GetStripeTransactionId() string {
+	if x != nil && x.StripeTransactionId != nil {
+		return *x.StripeTransactionId
+	}
+	return ""
 }
 
 type GetAccountRegisterRequest struct {
@@ -8998,7 +9014,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\aamounts\x18\x02 \x03(\v2\x10.float.v1.AmountR\aamounts\x12\x18\n" +
 	"\acomment\x18\x03 \x01(\tR\acomment\x12L\n" +
 	"\x11balance_assertion\x18\x04 \x01(\v2\x1a.float.v1.BalanceAssertionH\x00R\x10balanceAssertion\x88\x01\x01B\x14\n" +
-	"\x12_balance_assertion\"\xac\x03\n" +
+	"\x12_balance_assertion\"\xff\x03\n" +
 	"\vTransaction\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12 \n" +
@@ -9010,13 +9026,15 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x05payee\x18\b \x01(\tH\x00R\x05payee\x88\x01\x01\x12\x17\n" +
 	"\x04note\x18\t \x01(\tH\x01R\x04note\x88\x01\x01\x12+\n" +
 	"\x0fimport_batch_id\x18\n" +
-	" \x01(\tH\x02R\rimportBatchId\x88\x01\x01\x1a7\n" +
+	" \x01(\tH\x02R\rimportBatchId\x88\x01\x01\x127\n" +
+	"\x15stripe_transaction_id\x18\v \x01(\tH\x03R\x13stripeTransactionId\x88\x01\x01\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\b\n" +
 	"\x06_payeeB\a\n" +
 	"\x05_noteB\x12\n" +
-	"\x10_import_batch_id\"\x90\x01\n" +
+	"\x10_import_batch_idB\x18\n" +
+	"\x16_stripe_transaction_id\"\x90\x01\n" +
 	"\n" +
 	"BalanceRow\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12\x1b\n" +
@@ -9072,7 +9090,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x05query\x18\x02 \x03(\tR\x05query\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\tR\x05value\"F\n" +
 	"\x13GetBalancesResponse\x12/\n" +
-	"\x06report\x18\x01 \x01(\v2\x17.float.v1.BalanceReportR\x06report\"\xb8\x03\n" +
+	"\x06report\x18\x01 \x01(\v2\x17.float.v1.BalanceReportR\x06report\"\x8b\x04\n" +
 	"\x12AccountRegisterRow\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12\x12\n" +
 	"\x04date\x18\x02 \x01(\tR\x04date\x12 \n" +
@@ -9084,12 +9102,14 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x06change\x18\b \x03(\v2\x10.float.v1.AmountR\x06change\x125\n" +
 	"\rrunning_total\x18\t \x03(\v2\x10.float.v1.AmountR\frunningTotal\x12:\n" +
 	"\x04tags\x18\n" +
-	" \x03(\v2&.float.v1.AccountRegisterRow.TagsEntryR\x04tags\x1a7\n" +
+	" \x03(\v2&.float.v1.AccountRegisterRow.TagsEntryR\x04tags\x127\n" +
+	"\x15stripe_transaction_id\x18\v \x01(\tH\x02R\x13stripeTransactionId\x88\x01\x01\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\b\n" +
 	"\x06_payeeB\a\n" +
-	"\x05_note\"y\n" +
+	"\x05_noteB\x18\n" +
+	"\x16_stripe_transaction_id\"y\n" +
 	"\x19GetAccountRegisterRequest\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x14\n" +
 	"\x05query\x18\x02 \x03(\tR\x05query\x12\x14\n" +

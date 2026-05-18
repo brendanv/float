@@ -684,8 +684,10 @@ func stripeTransactionToInput(t stripeClient.Transaction, hledgerAccount, import
 		Date:        t.TransactedAt.UTC().Truncate(24 * time.Hour),
 		Description: t.Description,
 		Status:      status,
-		Tags:        map[string]string{"stripe-txn": t.ID},
-		FloatMeta:   map[string]string{"float-import": importBatchID},
+		FloatMeta: map[string]string{
+			"float-import":      importBatchID,
+			"float-stripe-txn":  t.ID,
+		},
 		Postings: []journal.PostingInput{
 			{Account: hledgerAccount, Commodity: currency, Quantity: amountStr},
 			{Account: "expenses:unknown", Commodity: currency, Quantity: counterAmountStr},

@@ -27,7 +27,8 @@ message Transaction {
   map<string, string> tags = 7; // non-fid tags on the transaction
   optional string payee = 8; // part before "|" in description; nil if no "|"
   optional string note = 9;  // part after "|" in description; nil if no "|"
-  optional string import_batch_id = 10; // import batch ID this transaction was imported in; nil if not imported
+  optional string import_batch_id = 10;       // import batch ID this transaction was imported in; nil if not imported
+  optional string stripe_transaction_id = 11; // Stripe Financial Connections transaction ID; nil if not a Stripe import
 }
 
 message BalanceRow {
@@ -127,7 +128,8 @@ message AccountRegisterRow {
   repeated string other_accounts = 7; // Accounts in the txn not in or under the focused account
   repeated Amount change = 8;         // Signed net change to the focused account for this txn
   repeated Amount running_total = 9;  // Running balance of the focused account after this row
-  map<string, string> tags = 10;      // Non-float-* tags on the transaction
+  map<string, string> tags = 10;                // Non-float-* tags on the transaction
+  optional string stripe_transaction_id = 11;   // Stripe Financial Connections transaction ID; nil if not a Stripe import
 }
 
 message GetAccountRegisterRequest {
