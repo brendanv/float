@@ -392,7 +392,7 @@ export function PayeesPage() {
       <Collapsible open={payeesOpen} onOpenChange={setPayeesOpen}>
         <Card>
           <CardHeader>
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 text-left">
+            <CollapsibleTrigger className="flex items-center gap-2 text-left">
               <CardTitle>Payees</CardTitle>
               <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", payeesOpen && "rotate-180")} />
             </CollapsibleTrigger>
