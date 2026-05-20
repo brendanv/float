@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearch, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, X, ArrowLeft, Trash2 } from "lucide-react";
+import { Check, Loader2, X, ArrowLeft, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { SearchControls } from "../components/search-controls.jsx";
@@ -9,6 +9,7 @@ import { DATE_PRESETS, PAYEE_NONE } from "../components/search-presets.js";
 import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { inlineEditKeyHandler } from "../components/inline-edit.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -187,10 +188,10 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
         <>
           <Input
             className="h-6 w-28"
-            placeholder="tag key"
+            placeholder="key"
             value={tagKey}
             onChange={(e) => setTagKey(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") bulkAddTag(); if (e.key === "Escape") cancelMode(); }}
+            onKeyDown={inlineEditKeyHandler({ onSave: bulkAddTag, onCancel: cancelMode })}
             autoFocus
           />
           <Input
@@ -198,19 +199,21 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             placeholder="value (optional)"
             value={tagValue}
             onChange={(e) => setTagValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") bulkAddTag(); if (e.key === "Escape") cancelMode(); }}
+            onKeyDown={inlineEditKeyHandler({ onSave: bulkAddTag, onCancel: cancelMode })}
           />
-          <Button size="xs" disabled={working || !tagKey.trim()} onClick={bulkAddTag}>
-            {working ? <Loader2 className="size-3 animate-spin" /> : "Apply"}
+          <Button variant="ghost" size="icon-xs" disabled={working || !tagKey.trim()} onClick={bulkAddTag} title="Apply">
+            {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
           </Button>
-          <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
+          <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
+            <X className="size-3" />
+          </Button>
         </>
       )}
 
       {mode === "remove-tag" && (
         <>
           <Select value={removeTagKey} onValueChange={setRemoveTagKey}>
-            <SelectTrigger size="sm">
+            <SelectTrigger size="sm" className="h-6 min-w-28">
               <SelectValue>{removeTagKey}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -219,10 +222,12 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
               ))}
             </SelectContent>
           </Select>
-          <Button size="xs" disabled={working || !removeTagKey} onClick={bulkRemoveTag}>
-            {working ? <Loader2 className="size-3 animate-spin" /> : "Apply"}
+          <Button variant="ghost" size="icon-xs" disabled={working || !removeTagKey} onClick={bulkRemoveTag} title="Apply">
+            {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
           </Button>
-          <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
+          <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
+            <X className="size-3" />
+          </Button>
         </>
       )}
 
@@ -233,13 +238,15 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             placeholder="payee name"
             value={payee}
             onChange={(e) => setPayee(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") bulkSetPayee(); if (e.key === "Escape") cancelMode(); }}
+            onKeyDown={inlineEditKeyHandler({ onSave: bulkSetPayee, onCancel: cancelMode })}
             autoFocus
           />
-          <Button size="xs" disabled={working || !payee.trim()} onClick={bulkSetPayee}>
-            {working ? <Loader2 className="size-3 animate-spin" /> : "Apply"}
+          <Button variant="ghost" size="icon-xs" disabled={working || !payee.trim()} onClick={bulkSetPayee} title="Apply">
+            {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
           </Button>
-          <Button variant="ghost" size="xs" disabled={working} onClick={cancelMode}>Cancel</Button>
+          <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
+            <X className="size-3" />
+          </Button>
         </>
       )}
 
