@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import {
   Pagination,
   PaginationContent,
@@ -349,55 +350,55 @@ export function PricesPage() {
           <CardTitle>Add Price</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
-            <div className="w-full flex flex-col gap-1.5 sm:w-36">
-              <Label htmlFor="price-date">Date</Label>
-              <Input
-                id="price-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="w-full flex flex-col gap-1.5 sm:w-32">
-              <Label htmlFor="price-commodity">Commodity</Label>
-              <Input
-                id="price-commodity"
-                type="text"
-                placeholder="AAPL"
-                value={commodity}
-                onChange={(e) => setCommodity(e.target.value)}
-                required
-              />
-            </div>
-            <div className="w-full flex flex-col gap-1.5 sm:w-32">
-              <Label htmlFor="price-quantity">Price</Label>
-              <Input
-                id="price-quantity"
-                type="text"
-                placeholder="178.50"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                required
-              />
-            </div>
-            <div className="w-full flex flex-col gap-1.5 sm:w-24">
-              <Label htmlFor="price-currency">Currency</Label>
-              <Input
-                id="price-currency"
-                type="text"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={addMutation.isPending}>
-              {addMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {addMutation.isPending ? "Adding…" : "Add"}
-            </Button>
-          </form>
-          {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
+          <Form onSubmit={handleSubmit}>
+            {formError && <ErrorBanner error={formError} />}
+            <FormRow cols={4}>
+              <FormField label="Date" htmlFor="price-date">
+                <Input
+                  id="price-date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Commodity" htmlFor="price-commodity">
+                <Input
+                  id="price-commodity"
+                  type="text"
+                  placeholder="AAPL"
+                  value={commodity}
+                  onChange={(e) => setCommodity(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Price" htmlFor="price-quantity">
+                <Input
+                  id="price-quantity"
+                  type="text"
+                  placeholder="178.50"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Currency" htmlFor="price-currency">
+                <Input
+                  id="price-currency"
+                  type="text"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  required
+                />
+              </FormField>
+            </FormRow>
+            <FormActions>
+              <Button type="submit" disabled={addMutation.isPending}>
+                {addMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {addMutation.isPending ? "Adding…" : "Add Price"}
+              </Button>
+            </FormActions>
+          </Form>
         </CardContent>
       </Card>
 
@@ -406,60 +407,60 @@ export function PricesPage() {
           <CardTitle>Backfill Price History</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleBackfill} className="flex flex-wrap items-end gap-3">
-            <div className="w-full flex flex-col gap-1.5 sm:w-32">
-              <Label htmlFor="backfill-commodity">Commodity</Label>
-              <Input
-                id="backfill-commodity"
-                type="text"
-                placeholder="AAPL"
-                value={backfillCommodity}
-                onChange={(e) => setBackfillCommodity(e.target.value)}
-                required
-              />
-            </div>
-            <div className="w-full flex flex-col gap-1.5 sm:w-36">
-              <Label htmlFor="backfill-start">Start Date</Label>
-              <Input
-                id="backfill-start"
-                type="date"
-                value={backfillStartDate}
-                onChange={(e) => setBackfillStartDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="w-full flex flex-col gap-1.5 sm:w-36">
-              <Label htmlFor="backfill-end">End Date</Label>
-              <Input
-                id="backfill-end"
-                type="date"
-                value={backfillEndDate}
-                onChange={(e) => setBackfillEndDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="w-full flex flex-col gap-1.5 sm:w-24">
-              <Label htmlFor="backfill-currency">Currency</Label>
-              <Input
-                id="backfill-currency"
-                type="text"
-                value={backfillCurrency}
-                onChange={(e) => setBackfillCurrency(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={backfillMutation.isPending}>
-              {backfillMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {backfillMutation.isPending ? "Fetching…" : "Backfill"}
-            </Button>
-          </form>
-          {backfillResult && (
-            <p className="mt-3 text-sm text-green-600 dark:text-green-400">
-              Added {backfillResult.added} {backfillResult.added === 1 ? "price" : "prices"}
-              {backfillResult.skipped > 0 && ` (${backfillResult.skipped} already existed)`}.
-            </p>
-          )}
-          {backfillError && <div className="mt-3"><ErrorBanner error={backfillError} /></div>}
+          <Form onSubmit={handleBackfill}>
+            {backfillError && <ErrorBanner error={backfillError} />}
+            {backfillResult && (
+              <p className="text-xs text-success">
+                Added {backfillResult.added} {backfillResult.added === 1 ? "price" : "prices"}
+                {backfillResult.skipped > 0 && ` (${backfillResult.skipped} already existed)`}.
+              </p>
+            )}
+            <FormRow cols={4}>
+              <FormField label="Commodity" htmlFor="backfill-commodity">
+                <Input
+                  id="backfill-commodity"
+                  type="text"
+                  placeholder="AAPL"
+                  value={backfillCommodity}
+                  onChange={(e) => setBackfillCommodity(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Start Date" htmlFor="backfill-start">
+                <Input
+                  id="backfill-start"
+                  type="date"
+                  value={backfillStartDate}
+                  onChange={(e) => setBackfillStartDate(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="End Date" htmlFor="backfill-end">
+                <Input
+                  id="backfill-end"
+                  type="date"
+                  value={backfillEndDate}
+                  onChange={(e) => setBackfillEndDate(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Currency" htmlFor="backfill-currency">
+                <Input
+                  id="backfill-currency"
+                  type="text"
+                  value={backfillCurrency}
+                  onChange={(e) => setBackfillCurrency(e.target.value)}
+                  required
+                />
+              </FormField>
+            </FormRow>
+            <FormActions>
+              <Button type="submit" disabled={backfillMutation.isPending}>
+                {backfillMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {backfillMutation.isPending ? "Fetching…" : "Backfill"}
+              </Button>
+            </FormActions>
+          </Form>
         </CardContent>
       </Card>
 

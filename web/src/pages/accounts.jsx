@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Loader2, ChevronRight, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import {
   Dialog,
   DialogContent,
@@ -175,26 +175,34 @@ export function AccountsPage() {
           <CardTitle>Declare Account</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
-            <div className="w-full flex flex-col gap-1.5 sm:w-72">
-              <Label htmlFor="acct-name">Account Name</Label>
-              <Input
-                id="acct-name"
-                type="text"
-                placeholder="assets:checking"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" disabled={addMutation.isPending}>
-              {addMutation.isPending && (
-                <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-              )}
-              {addMutation.isPending ? "Declaring…" : "Declare"}
-            </Button>
-          </form>
-          {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
+          <Form onSubmit={handleSubmit}>
+            {formError && <ErrorBanner error={formError} />}
+            <FormRow cols={2}>
+              <FormField
+                label="Account Name"
+                htmlFor="acct-name"
+                description="Colon-separated hierarchy, e.g. assets:bank:checking"
+              >
+                <Input
+                  id="acct-name"
+                  type="text"
+                  placeholder="assets:checking"
+                  className="font-mono"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </FormField>
+            </FormRow>
+            <FormActions>
+              <Button type="submit" disabled={addMutation.isPending}>
+                {addMutation.isPending && (
+                  <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
+                )}
+                {addMutation.isPending ? "Declaring…" : "Declare Account"}
+              </Button>
+            </FormActions>
+          </Form>
         </CardContent>
       </Card>
 
@@ -339,18 +347,16 @@ function RenameAccountDialog({ open, onOpenChange }) {
         </DialogHeader>
         {error && <ErrorBanner error={error} />}
         {step === "input" ? (
-          <form onSubmit={handleContinue} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label>Account to rename</Label>
+          <Form onSubmit={handleContinue}>
+            <FormField label="Account to rename">
               <AccountInput
                 value={oldName}
                 onChange={setOldName}
                 accounts={accountsData?.accounts || []}
                 placeholder="Select account"
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rename-new">New name</Label>
+            </FormField>
+            <FormField label="New name" htmlFor="rename-new">
               <Input
                 id="rename-new"
                 type="text"
@@ -360,14 +366,14 @@ function RenameAccountDialog({ open, onOpenChange }) {
                 required
                 className="font-mono"
               />
-            </div>
+            </FormField>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit">Continue</Button>
             </DialogFooter>
-          </form>
+          </Form>
         ) : (
           <div className="flex flex-col gap-4">
             <div className="rounded-md border bg-muted/40 p-3 text-xs">

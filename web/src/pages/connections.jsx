@@ -29,17 +29,11 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, FormField } from "@/components/ui/form";
+import { Combobox } from "@/components/ui/combobox";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -93,42 +87,35 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
         <DialogHeader>
           <DialogTitle>Map Linked Accounts</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <p className="text-sm text-muted-foreground">
+        <Form onSubmit={handleSubmit}>
+          {error && <ErrorBanner error={error} />}
+          <p className="text-xs text-muted-foreground">
             {fcAccounts.length === 1
               ? "1 account was linked. Choose the hledger account for it."
               : `${fcAccounts.length} accounts were linked. Choose the hledger account for each.`}
           </p>
           {fcAccounts.map((a) => (
             <div key={a.id} className="flex flex-col gap-3 rounded-md border p-3">
-              <span className="text-xs text-muted-foreground font-mono">{a.id}</span>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">Display Name</Label>
+              <span className="text-[10px] text-muted-foreground font-mono">{a.id}</span>
+              <FormField label="Display Name">
                 <Input
                   value={mappings[a.id]?.displayName ?? ""}
                   onChange={(e) => setMapping(a.id, "displayName", e.target.value)}
                   placeholder={a.display_name ?? a.displayName ?? a.id}
                 />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">hledger Account</Label>
-                <Select
-                  value={mappings[a.id]?.hledgerAccount || undefined}
-                  onValueChange={(v) => setMapping(a.id, "hledgerAccount", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select account…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(accountDeclarations ?? []).map((d) => (
-                      <SelectItem key={d.name} value={d.name}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              </FormField>
+              <FormField label="hledger Account">
+                <Combobox
+                  value={mappings[a.id]?.hledgerAccount || ""}
+                  onChange={(v) => setMapping(a.id, "hledgerAccount", v)}
+                  options={(accountDeclarations ?? []).map((d) => d.name)}
+                  placeholder="Select account…"
+                  searchPlaceholder="Search accounts…"
+                  emptyMessage="No matching account."
+                />
+              </FormField>
             </div>
           ))}
-          {error && <ErrorBanner error={error} />}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={saving || !allMapped}>
@@ -136,7 +123,7 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
               {saving ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

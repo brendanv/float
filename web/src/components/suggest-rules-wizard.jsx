@@ -5,7 +5,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { ErrorBanner } from "./error-banner.jsx";
 import { AccountInput } from "./posting-fields.jsx";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -139,8 +139,8 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label>Transaction source</Label>
+              {error && <ErrorBanner error={error} />}
+              <FormField label="Transaction source">
                 <Select value={sourceType} onValueChange={setSourceType}>
                   <SelectTrigger className="w-full">
                     <SelectValue>{() => SOURCE_LABELS[sourceType]}</SelectValue>
@@ -151,19 +151,17 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
                     <SelectItem value="nopayee">Transactions without payees</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </FormField>
               {sourceType === "account" && (
-                <div className="flex flex-col gap-1.5">
-                  <Label>Account</Label>
+                <FormField label="Account">
                   <AccountInput
                     value={accountName}
                     onChange={setAccountName}
                     accounts={accounts}
                     placeholder="expenses:unknown"
                   />
-                </div>
+                </FormField>
               )}
-              {error && <ErrorBanner error={error} />}
             </div>
             <DialogFooter>
               <DialogClose asChild>
