@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown, Scale } from "lucide-react";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown, Scale, Plus } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -21,12 +21,18 @@ import {
 } from "@/components/ui/dialog";
 import { formatAmounts, formatCurrency, formatDate } from "../format.js";
 import { AccountInput, PostingFields, toPostingInput } from "./posting-fields.jsx";
+import { InlineEdit, inlineEditKeyHandler, useInlineEditState } from "./inline-edit.jsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Form,
+  FormActions,
+  FormField,
+} from "@/components/ui/form";
 import {
   Table,
   TableBody,
@@ -49,7 +55,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -163,19 +168,14 @@ function StatusButton({ fid, status, onStatusChange }) {
 
 function EditableDescriptionCell({ fid, description, date, postings, payee, note, onSaved }) {
   const navigate = useNavigate();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(description);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const state = useInlineEditState(description);
 
   async function save() {
-    if (draft.trim() === description) { setEditing(false); return; }
-    setSaving(true);
-    setError(null);
-    try {
+    if (state.draft.trim() === description) { state.cancel(); return; }
+    await state.run(async () => {
       await ledgerClient.updateTransaction({
         fid,
-        description: draft.trim(),
+        description: state.draft.trim(),
         date,
         postings: postings.map((p) => toPostingInput({
           account: p.account,
@@ -184,105 +184,82 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
           cost: p.amounts?.[0]?.cost,
         })),
       });
-      setEditing(false);
       if (onSaved) onSaved();
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
-  function handleKeyDown(e) {
-    if (e.key === "Enter") { e.preventDefault(); save(); }
-    if (e.key === "Escape") { setDraft(description); setEditing(false); setError(null); }
-  }
-
-  if (editing) {
-    return (
-      <span onClick={(e) => e.stopPropagation()}>
-        {saving ? (
-          <Loader2 className="size-3 animate-spin" />
-        ) : (
-          <Input
-            className="h-6 w-full"
-            value={draft}
-            onInput={(e) => setDraft(e.target.value)}
-            onBlur={save}
-            onKeyDown={handleKeyDown}
-            autoFocus
-          />
-        )}
-        {error && <span className="mt-1 block text-xs text-destructive">{error}</span>}
-      </span>
-    );
-  }
+  const display = payee ? (
+    <>
+      <strong
+        className="cursor-pointer hover:underline"
+        onClick={(e) => { e.stopPropagation(); navigate({ to: "/transactions", search: { payee } }); }}
+        title={"Show all transactions for " + payee}
+      >{payee}</strong>
+      {note && <span className="text-muted-foreground"> · {note}</span>}
+    </>
+  ) : (
+    description
+  );
 
   return (
-    <span
-      onClick={(e) => { e.stopPropagation(); setDraft(description); setEditing(true); }}
-      className="cursor-text decoration-dotted hover:underline"
+    <InlineEdit
+      display={display}
+      canEdit={!!fid}
+      editing={state.editing}
+      onActivate={() => state.start(description)}
+      onCancel={state.cancel}
+      onSave={save}
+      saving={state.saving}
+      error={state.error}
       title="Click to edit description"
-    >
-      {payee ? (
-        <>
-          <strong
-            className="cursor-pointer hover:underline"
-            onClick={(e) => { e.stopPropagation(); navigate({ to: "/transactions", search: { payee } }); }}
-            title={"Show all transactions for " + payee}
-          >{payee}</strong>
-          {note && <span className="text-muted-foreground"> · {note}</span>}
-        </>
-      ) : (
-        description
-      )}
-    </span>
+      editor={
+        <Input
+          className="h-6 w-full"
+          value={state.draft}
+          onInput={(e) => state.setDraft(e.target.value)}
+          onKeyDown={inlineEditKeyHandler({ onSave: save, onCancel: state.cancel })}
+          autoFocus
+        />
+      }
+    />
   );
 }
 
 function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
-  const [editing, setEditing] = useState(false);
+  const state = useInlineEditState("");
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [txData, setTxData] = useState(null);
-  const [newAccount, setNewAccount] = useState("");
-  const [error, setError] = useState(null);
 
   const canEdit = !!fid && otherAccounts.length === 1;
   const displayText = otherAccounts.length === 0 ? ""
     : otherAccounts.length === 1 ? otherAccounts[0]
     : "various accounts";
 
-  async function startEdit(e) {
-    e.stopPropagation();
+  async function activate() {
     setLoading(true);
-    setError(null);
+    state.setError?.(null);
     try {
       const resp = await ledgerClient.listTransactions({ query: [`code:${fid}`], limit: 1 });
       const tx = resp.transactions?.[0];
       if (!tx) throw new Error("Transaction not found");
       setTxData(tx);
-      setNewAccount(otherAccounts[0]);
-      setEditing(true);
+      state.start(otherAccounts[0]);
     } catch (err) {
-      setError(err.message || String(err));
+      state.setError(err.message || String(err));
     } finally {
       setLoading(false);
     }
   }
 
-  async function save(e) {
-    e.stopPropagation();
-    if (!txData || !newAccount) return;
-    setSaving(true);
-    setError(null);
-    try {
+  async function save() {
+    if (!txData || !state.draft) return;
+    await state.run(async () => {
       const oldAccount = otherAccounts[0];
       const newPostings = (txData.postings || []).map((p) => {
         const a = p.amounts?.[0];
         const ba = p.balanceAssertion;
         return toPostingInput({
-          account: p.account === oldAccount ? newAccount : p.account,
+          account: p.account === oldAccount ? state.draft : p.account,
           commodity: a?.commodity ?? "",
           quantity: a?.quantity ?? "",
           cost: a?.cost,
@@ -296,56 +273,37 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
         postings: newPostings,
         status: "Cleared",
       });
-      setEditing(false);
       setTxData(null);
       if (onSaved) onSaved();
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
-  function cancel(e) {
-    e.stopPropagation();
-    setEditing(false);
+  function cancel() {
+    state.cancel();
     setTxData(null);
-    setError(null);
-  }
-
-  if (!canEdit) {
-    return <span className="text-sm text-muted-foreground">{displayText}</span>;
-  }
-
-  if (loading) {
-    return <Loader2 className="size-3 animate-spin" />;
-  }
-
-  if (editing) {
-    return (
-      <span onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
-        <span className="min-w-40 flex-1">
-          <AccountInput value={newAccount} onChange={setNewAccount} accounts={accounts} />
-        </span>
-        <Button variant="ghost" size="icon-xs" onClick={save} disabled={saving} title="Save">
-          {saving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-        </Button>
-        <Button variant="ghost" size="icon-xs" onClick={cancel} disabled={saving} title="Cancel">
-          <X className="size-3" />
-        </Button>
-        {error && <span className="ml-1 text-xs text-destructive">{error}</span>}
-      </span>
-    );
   }
 
   return (
-    <span
-      onClick={startEdit}
-      className="cursor-text text-sm text-muted-foreground decoration-dotted hover:underline"
+    <InlineEdit
+      display={displayText}
+      canEdit={canEdit}
+      editing={state.editing}
+      loading={loading}
+      onActivate={activate}
+      onCancel={cancel}
+      onSave={save}
+      saving={state.saving}
+      error={state.error}
       title="Click to change account"
-    >
-      {displayText}
-    </span>
+      displayClassName="text-sm text-muted-foreground"
+      editor={
+        <AccountInput
+          value={state.draft}
+          onChange={state.setDraft}
+          accounts={accounts}
+        />
+      }
+    />
   );
 }
 
@@ -370,11 +328,11 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const containerRef = useRef(null);
 
   const isDirty = JSON.stringify(postings) !== JSON.stringify(initialPostings);
 
-  async function save() {
+  async function handleSubmit(e) {
+    e.preventDefault();
     setSaving(true);
     setError(null);
     const trimmed = postings.map(toPostingInput);
@@ -414,49 +372,46 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="p-3"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {saving ? (
-        <Loader2 className="size-3 animate-spin" />
-      ) : (
-        <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
-      )}
-      <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onTagsChanged} />
-      {error && <p className="mt-2 whitespace-pre-wrap break-words text-xs text-destructive">{error}</p>}
-      <div className="mt-3 flex justify-between gap-2">
-        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="xs" className="text-destructive hover:text-destructive" disabled={saving || deleting}>
-              <Trash2 className="size-3" data-icon="inline-start" /> Delete
-            </Button>
-          </DialogTrigger>
-          <DialogContent showCloseButton={false}>
-            <DialogHeader>
-              <DialogTitle>Delete transaction?</DialogTitle>
-              <DialogDescription>
-                This will permanently remove &ldquo;{tx.description}&rdquo; from the journal. This cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-              <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-                {deleting ? <Loader2 className="size-3 animate-spin" /> : "Delete"}
+    <div className="p-3" onClick={(e) => e.stopPropagation()}>
+      <Form onSubmit={handleSubmit}>
+        <FormField label="Postings" error={error}>
+          <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
+        </FormField>
+        <FormField label="Tags">
+          <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onTagsChanged} />
+        </FormField>
+        <FormActions align="between">
+          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="xs" className="text-destructive hover:text-destructive" disabled={saving || deleting}>
+                <Trash2 data-icon="inline-start" /> Delete
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        <div className="flex gap-2">
-          <Button variant="outline" size="xs" onClick={cancel} disabled={!isDirty || saving || deleting}>
-            Cancel
-          </Button>
-          <Button size="xs" onClick={save} disabled={!isDirty || saving || deleting}>
-            {saving ? <Loader2 className="size-3 animate-spin" /> : "Save"}
-          </Button>
-        </div>
-      </div>
+            </DialogTrigger>
+            <DialogContent showCloseButton={false}>
+              <DialogHeader>
+                <DialogTitle>Delete transaction?</DialogTitle>
+                <DialogDescription>
+                  This will permanently remove &ldquo;{tx.description}&rdquo; from the journal. This cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+                <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? <Loader2 className="size-3 animate-spin" /> : "Delete"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+            <Button type="button" variant="outline" size="xs" onClick={cancel} disabled={!isDirty || saving || deleting}>
+              Cancel
+            </Button>
+            <Button type="submit" size="xs" disabled={!isDirty || saving || deleting}>
+              {saving ? <Loader2 className="size-3 animate-spin" /> : "Save"}
+            </Button>
+          </div>
+        </FormActions>
+      </Form>
     </div>
   );
 }
@@ -514,8 +469,10 @@ function TagEditor({ fid, tags, onChanged, className }) {
     setError(null);
   }
 
+  const onKey = inlineEditKeyHandler({ onSave: addTag, onCancel: cancelAdd });
+
   return (
-    <div className={cn("mt-3", className)}>
+    <div className={className}>
       <div className="flex flex-wrap items-center gap-1">
         {Object.entries(tags || {}).map(([k, v]) => (
           <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
@@ -524,8 +481,9 @@ function TagEditor({ fid, tags, onChanged, className }) {
               <Loader2 className="size-2.5 animate-spin" />
             ) : (
               <button
+                type="button"
                 className="rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
-                onClick={() => removeTag(k)}
+                onClick={(e) => { e.stopPropagation(); removeTag(k); }}
                 disabled={isBusy}
                 title={`Remove tag "${k}"`}
               >
@@ -535,13 +493,13 @@ function TagEditor({ fid, tags, onChanged, className }) {
           </Badge>
         ))}
         {adding ? (
-          <>
+          <span className="flex flex-wrap items-center gap-1">
             <Input
               className="h-6 w-24"
               placeholder="key"
               value={tagKey}
               onChange={(e) => setTagKey(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") cancelAdd(); }}
+              onKeyDown={onKey}
               autoFocus
             />
             <Input
@@ -549,26 +507,29 @@ function TagEditor({ fid, tags, onChanged, className }) {
               placeholder="value (optional)"
               value={tagValue}
               onChange={(e) => setTagValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") cancelAdd(); }}
+              onKeyDown={onKey}
             />
-            <Button size="xs" disabled={working || !tagKey.trim()} onClick={addTag}>
-              {working ? <Loader2 className="size-3 animate-spin" /> : "Add"}
+            <Button type="button" variant="ghost" size="icon-xs" onClick={addTag} disabled={working || !tagKey.trim()} title="Add tag">
+              {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
             </Button>
-            <Button variant="ghost" size="xs" disabled={working} onClick={cancelAdd}>Cancel</Button>
-          </>
+            <Button type="button" variant="ghost" size="icon-xs" onClick={cancelAdd} disabled={working} title="Cancel">
+              <X className="size-3" />
+            </Button>
+          </span>
         ) : (
           <Button
+            type="button"
             variant="ghost"
             size="xs"
             className="text-muted-foreground"
-            onClick={() => setAdding(true)}
+            onClick={(e) => { e.stopPropagation(); setAdding(true); }}
             disabled={isBusy}
           >
-            + Tag
+            <Plus data-icon="inline-start" /> Tag
           </Button>
         )}
       </div>
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+      {error && <p className="mt-1 text-[11px] leading-snug text-destructive">{error}</p>}
     </div>
   );
 }
@@ -619,315 +580,254 @@ function SortableHeader({ column, children, align = "left" }) {
 
 // ── column definitions ─────────────────────────────────────────────────────
 // Cell renderers read mutable state from table.options.meta to avoid stale
-// closures when useMemo deps are unchanged between renders.
+// closures when useMemo deps are unchanged between renders. The general
+// transactions table and the account-register table share one set of column
+// definitions; register-only columns are appended after the shared ones.
 
-const txHelper = createColumnHelper();
-const regHelper = createColumnHelper();
+const col = createColumnHelper();
 
-// General transactions columns (also used for focusedAccount / non-register mode)
-const transactionColumns = [
-  txHelper.display({
-    id: "select",
-    header: ({ table }) => {
-      const { allSelected, someSelected, toggleSelectAll } = table.options.meta;
-      return (
+const selectColumn = col.display({
+  id: "select",
+  header: ({ table }) => {
+    const { allSelected, someSelected, toggleSelectAll } = table.options.meta;
+    return (
+      <Checkbox
+        checked={allSelected}
+        indeterminate={!allSelected && someSelected}
+        onCheckedChange={toggleSelectAll}
+        onClick={(e) => e.stopPropagation()}
+        title={allSelected ? "Deselect all" : "Select all"}
+      />
+    );
+  },
+  cell: ({ row, table }) => {
+    const { selectedFids, onSelectionChange } = table.options.meta;
+    return (
+      <span onClick={(e) => e.stopPropagation()}>
         <Checkbox
-          checked={allSelected}
-          indeterminate={!allSelected && someSelected}
-          onCheckedChange={toggleSelectAll}
-          onClick={(e) => e.stopPropagation()}
-          title={allSelected ? "Deselect all" : "Select all"}
+          checked={selectedFids?.has(row.original.fid) ?? false}
+          onCheckedChange={() => {
+            if (!row.original.fid) return;
+            const next = new Set(selectedFids);
+            if (next.has(row.original.fid)) next.delete(row.original.fid);
+            else next.add(row.original.fid);
+            onSelectionChange(next);
+          }}
         />
-      );
-    },
-    cell: ({ row, table }) => {
-      const { selectedFids, onSelectionChange } = table.options.meta;
+      </span>
+    );
+  },
+  meta: { headerClass: "w-6 pr-0", cellClass: "w-6 pr-0" },
+});
+
+const dateColumn = col.accessor("date", {
+  id: "date",
+  header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
+  cell: ({ getValue }) => (
+    <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+      {formatDate(getValue())}
+    </span>
+  ),
+  meta: { headerClass: "w-28", cellClass: "w-28" },
+});
+
+const statusColumn = col.display({
+  id: "status",
+  header: "",
+  cell: ({ row, table }) => {
+    const { onStatusChange } = table.options.meta;
+    return <StatusButton fid={row.original.fid} status={row.original.status} onStatusChange={onStatusChange} />;
+  },
+  meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
+});
+
+const descriptionColumn = col.accessor((tx) => tx.description, {
+  id: "description",
+  header: ({ column }) => <SortableHeader column={column}>Description</SortableHeader>,
+  cell: ({ row, table }) => {
+    const { onStatusChange } = table.options.meta;
+    const tx = row.original;
+    return (
+      <span className="flex items-center gap-1.5">
+        <EditableDescriptionCell
+          fid={tx.fid}
+          description={tx.description}
+          date={tx.date}
+          postings={tx.postings}
+          payee={tx.payee}
+          note={tx.note}
+          onSaved={onStatusChange}
+        />
+        {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+      </span>
+    );
+  },
+});
+
+// Tags cell uses the same inline editor in both modes \u2014 falls back to a
+// static badge list when the row has no fid to edit.
+const tagsColumn = col.display({
+  id: "tags",
+  header: "Tags",
+  cell: ({ row, table }) => {
+    const tx = row.original;
+    const { onStatusChange } = table.options.meta;
+    if (tx.fid) {
       return (
         <span onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            checked={selectedFids?.has(row.original.fid) ?? false}
-            onCheckedChange={() => {
-              if (!row.original.fid) return;
-              const next = new Set(selectedFids);
-              if (next.has(row.original.fid)) next.delete(row.original.fid);
-              else next.add(row.original.fid);
-              onSelectionChange(next);
-            }}
-          />
+          <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} />
         </span>
       );
-    },
-    meta: { headerClass: "w-6 pr-0", cellClass: "w-6 pr-0" },
-  }),
-  txHelper.accessor("date", {
-    id: "date",
-    header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
-    cell: ({ getValue }) => (
-      <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-        {formatDate(getValue())}
+    }
+    const tags = tx.tags;
+    if (!tags || Object.keys(tags).length === 0) return null;
+    return (
+      <span className="inline-flex flex-wrap gap-1">
+        {Object.entries(tags).map(([k, v]) => (
+          <Badge key={k} variant="secondary" className="text-xs">
+            {v ? `${k}:${v}` : k}
+          </Badge>
+        ))}
       </span>
-    ),
-    meta: { headerClass: "w-28", cellClass: "w-28" },
-  }),
-  txHelper.display({
-    id: "status",
-    header: "",
-    cell: ({ row, table }) => {
-      const { onStatusChange } = table.options.meta;
-      return <StatusButton fid={row.original.fid} status={row.original.status} onStatusChange={onStatusChange} />;
-    },
-    meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
-  }),
-  txHelper.accessor((tx) => tx.description, {
-    id: "description",
-    header: ({ column }) => <SortableHeader column={column}>Description</SortableHeader>,
-    cell: ({ row, table }) => {
-      const { onStatusChange } = table.options.meta;
-      const tx = row.original;
-      return (
-        <span className="flex items-center gap-1.5">
-          <EditableDescriptionCell
-            fid={tx.fid}
-            description={tx.description}
-            date={tx.date}
-            postings={tx.postings}
-            payee={tx.payee}
-            note={tx.note}
-            onSaved={onStatusChange}
-          />
-          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
-        </span>
-      );
-    },
-  }),
-  txHelper.display({
-    id: "tags",
-    header: "Tags",
-    cell: ({ row }) => {
-      const tags = row.original.tags;
-      if (!tags || Object.keys(tags).length === 0) return null;
-      return (
-        <span className="inline-flex flex-wrap gap-1">
-          {Object.entries(tags).map(([k, v]) => (
-            <Badge key={k} variant="secondary" className="text-xs">
-              {v ? `${k}:${v}` : k}
-            </Badge>
-          ))}
-        </span>
-      );
-    },
-  }),
-  txHelper.display({
-    id: "accounts",
-    header: ({ table }) => table.options.meta.focusedAccount ? "Other accounts" : "From \u2192 To",
+    );
+  },
+});
+
+// "Accounts" column for the general transactions table: "From -> To" by
+// default, "Other accounts" when filtered to a single account.
+const accountsColumn = col.display({
+  id: "accounts",
+  header: ({ table }) => table.options.meta.focusedAccount ? "Other accounts" : "From \u2192 To",
+  cell: ({ row, table }) => {
+    const { focusedAccount } = table.options.meta;
+    const tx = row.original;
+    if (focusedAccount) {
+      const display = accountRegisterDisplay(tx, focusedAccount);
+      return <span className="text-sm text-muted-foreground">{display?.otherAccounts || ""}</span>;
+    }
+    const display = generalDisplay(tx);
+    if (!display) return null;
+    const accountText = display.from === "various accounts" && display.to === "various accounts"
+      ? "various accounts"
+      : `${display.from} \u2192 ${display.to}`;
+    return <span className="text-sm text-muted-foreground">{accountText}</span>;
+  },
+});
+
+const amountColumn = col.accessor(
+  (tx) => {
+    const postings = tx.postings || [];
+    if (postings.length === 0) return 0;
+    const pos = postings.find((p) => firstQuantity(p) > 0);
+    return pos ? firstQuantity(pos) : firstQuantity(postings[0]);
+  },
+  {
+    id: "amount",
+    header: ({ column }) => <SortableHeader column={column} align="right">Amount</SortableHeader>,
     cell: ({ row, table }) => {
       const { focusedAccount } = table.options.meta;
       const tx = row.original;
+      let amount = "";
       if (focusedAccount) {
         const display = accountRegisterDisplay(tx, focusedAccount);
-        return <span className="text-sm text-muted-foreground">{display?.otherAccounts || ""}</span>;
+        amount = display?.amount || "";
+      } else {
+        const display = generalDisplay(tx);
+        amount = display?.amount || "";
       }
-      const display = generalDisplay(tx);
-      if (!display) return null;
-      const accountText = display.from === "various accounts" && display.to === "various accounts"
-        ? "various accounts"
-        : `${display.from} \u2192 ${display.to}`;
-      return <span className="text-sm text-muted-foreground">{accountText}</span>;
+      const hasAssertion = (tx.postings || []).some((p) => p.balanceAssertion);
+      return (
+        <span className="flex items-center justify-end gap-1 whitespace-nowrap font-mono text-sm">
+          {hasAssertion && (
+            <Tooltip>
+              <TooltipTrigger render={<Scale className="size-3 shrink-0 text-muted-foreground" />} />
+              <TooltipContent>Has balance assertion</TooltipContent>
+            </Tooltip>
+          )}
+          {amount}
+        </span>
+      );
     },
-  }),
-  txHelper.accessor(
-    (tx) => {
-      const postings = tx.postings || [];
-      if (postings.length === 0) return 0;
-      const pos = postings.find((p) => firstQuantity(p) > 0);
-      return pos ? firstQuantity(pos) : firstQuantity(postings[0]);
+    meta: { headerClass: "text-right", cellClass: "text-right" },
+  },
+);
+
+// Register-only columns: editable Other accounts, signed Change, running
+// Balance.
+const otherAccountsColumn = col.display({
+  id: "otherAccounts",
+  header: "Other accounts",
+  cell: ({ row, table }) => {
+    const { accounts, onStatusChange } = table.options.meta;
+    const tx = row.original;
+    return (
+      <EditableOtherAccountCell
+        fid={tx.fid}
+        otherAccounts={tx.otherAccounts}
+        accounts={accounts}
+        onSaved={onStatusChange}
+      />
+    );
+  },
+});
+
+const changeColumn = col.accessor(
+  (row) => (row.change?.length > 0 ? parseFloat(row.change[0].quantity) || 0 : 0),
+  {
+    id: "change",
+    header: ({ column }) => <SortableHeader column={column} align="right">Change</SortableHeader>,
+    cell: ({ row }) => {
+      const cells = resolveRegisterCells(row.original);
+      return (
+        <span className={cn(
+          "block whitespace-nowrap text-right font-mono text-sm",
+          cells.changePositive && "text-success",
+          cells.changeNegative && "text-destructive",
+        )}>
+          {cells.change}
+        </span>
+      );
     },
-    {
-      id: "amount",
-      header: ({ column }) => <SortableHeader column={column} align="right">Amount</SortableHeader>,
-      cell: ({ row, table }) => {
-        const { focusedAccount } = table.options.meta;
-        const tx = row.original;
-        let amount = "";
-        if (focusedAccount) {
-          const display = accountRegisterDisplay(tx, focusedAccount);
-          amount = display?.amount || "";
-        } else {
-          const display = generalDisplay(tx);
-          amount = display?.amount || "";
-        }
-        const hasAssertion = (tx.postings || []).some((p) => p.balanceAssertion);
-        return (
-          <span className="flex items-center justify-end gap-1 whitespace-nowrap font-mono text-sm">
-            {hasAssertion && (
-              <Tooltip>
-                <TooltipTrigger render={<Scale className="size-3 shrink-0 text-muted-foreground" />} />
-                <TooltipContent>Has balance assertion</TooltipContent>
-              </Tooltip>
-            )}
-            {amount}
-          </span>
-        );
-      },
-      meta: { headerClass: "text-right", cellClass: "text-right" },
+    meta: { cellClass: "text-right" },
+  },
+);
+
+const balanceColumn = col.accessor(
+  (row) => (row.runningTotal?.length > 0 ? parseFloat(row.runningTotal[0].quantity) || 0 : 0),
+  {
+    id: "balance",
+    header: ({ column }) => <SortableHeader column={column} align="right">Balance</SortableHeader>,
+    cell: ({ row }) => {
+      const cells = resolveRegisterCells(row.original);
+      return (
+        <span className="block whitespace-nowrap text-right font-mono text-sm text-muted-foreground">
+          {cells.balance}
+        </span>
+      );
     },
-  ),
+    meta: { cellClass: "text-right" },
+  },
+);
+
+const transactionColumns = [
+  selectColumn,
+  dateColumn,
+  statusColumn,
+  descriptionColumn,
+  tagsColumn,
+  accountsColumn,
+  amountColumn,
 ];
 
-// Account register columns (register mode)
 const registerColumns = [
-  regHelper.display({
-    id: "select",
-    header: ({ table }) => {
-      const { allSelected, someSelected, toggleSelectAll } = table.options.meta;
-      return (
-        <Checkbox
-          checked={allSelected}
-          indeterminate={!allSelected && someSelected}
-          onCheckedChange={toggleSelectAll}
-          onClick={(e) => e.stopPropagation()}
-          title={allSelected ? "Deselect all" : "Select all"}
-        />
-      );
-    },
-    cell: ({ row, table }) => {
-      const { selectedFids, onSelectionChange } = table.options.meta;
-      return (
-        <span onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            checked={selectedFids?.has(row.original.fid) ?? false}
-            onCheckedChange={() => {
-              if (!row.original.fid) return;
-              const next = new Set(selectedFids);
-              if (next.has(row.original.fid)) next.delete(row.original.fid);
-              else next.add(row.original.fid);
-              onSelectionChange(next);
-            }}
-          />
-        </span>
-      );
-    },
-    meta: { headerClass: "w-6 pr-0", cellClass: "w-6 pr-0" },
-  }),
-  regHelper.accessor("date", {
-    id: "date",
-    header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
-    cell: ({ getValue }) => (
-      <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-        {formatDate(getValue())}
-      </span>
-    ),
-    meta: { headerClass: "w-28", cellClass: "w-28" },
-  }),
-  regHelper.display({
-    id: "status",
-    header: "",
-    cell: ({ row, table }) => {
-      const { onStatusChange } = table.options.meta;
-      return <StatusButton fid={row.original.fid} status={row.original.status} onStatusChange={onStatusChange} />;
-    },
-    meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
-  }),
-  regHelper.accessor((tx) => tx.description, {
-    id: "description",
-    header: ({ column }) => <SortableHeader column={column}>Description</SortableHeader>,
-    cell: ({ row, table }) => {
-      const { onStatusChange } = table.options.meta;
-      const tx = row.original;
-      return (
-        <span className="flex items-center gap-1.5">
-          <EditableDescriptionCell
-            fid={tx.fid}
-            description={tx.description}
-            date={tx.date}
-            postings={tx.postings}
-            payee={tx.payee}
-            note={tx.note}
-            onSaved={onStatusChange}
-          />
-          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
-        </span>
-      );
-    },
-  }),
-  regHelper.display({
-    id: "tags",
-    header: "Tags",
-    cell: ({ row, table }) => {
-      const tx = row.original;
-      const { onStatusChange } = table.options.meta;
-      if (tx.fid) {
-        return (
-          <span onClick={(e) => e.stopPropagation()}>
-            <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} className="mt-0" />
-          </span>
-        );
-      }
-      const tags = tx.tags;
-      if (!tags || Object.keys(tags).length === 0) return null;
-      return (
-        <span className="inline-flex flex-wrap gap-1">
-          {Object.entries(tags).map(([k, v]) => (
-            <Badge key={k} variant="secondary" className="text-xs">
-              {v ? `${k}:${v}` : k}
-            </Badge>
-          ))}
-        </span>
-      );
-    },
-  }),
-  regHelper.display({
-    id: "otherAccounts",
-    header: "Other accounts",
-    cell: ({ row, table }) => {
-      const { accounts, onStatusChange } = table.options.meta;
-      const tx = row.original;
-      return (
-        <EditableOtherAccountCell
-          fid={tx.fid}
-          otherAccounts={tx.otherAccounts}
-          accounts={accounts}
-          onSaved={onStatusChange}
-        />
-      );
-    },
-  }),
-  regHelper.accessor(
-    (row) => (row.change?.length > 0 ? parseFloat(row.change[0].quantity) || 0 : 0),
-    {
-      id: "change",
-      header: ({ column }) => <SortableHeader column={column} align="right">Change</SortableHeader>,
-      cell: ({ row }) => {
-        const cells = resolveRegisterCells(row.original);
-        return (
-          <span className={cn(
-            "block whitespace-nowrap text-right font-mono text-sm",
-            cells.changePositive && "text-success",
-            cells.changeNegative && "text-destructive",
-          )}>
-            {cells.change}
-          </span>
-        );
-      },
-      meta: { cellClass: "text-right" },
-    },
-  ),
-  regHelper.accessor(
-    (row) => (row.runningTotal?.length > 0 ? parseFloat(row.runningTotal[0].quantity) || 0 : 0),
-    {
-      id: "balance",
-      header: ({ column }) => <SortableHeader column={column} align="right">Balance</SortableHeader>,
-      cell: ({ row }) => {
-        const cells = resolveRegisterCells(row.original);
-        return (
-          <span className="block whitespace-nowrap text-right font-mono text-sm text-muted-foreground">
-            {cells.balance}
-          </span>
-        );
-      },
-      meta: { cellClass: "text-right" },
-    },
-  ),
+  selectColumn,
+  dateColumn,
+  statusColumn,
+  descriptionColumn,
+  tagsColumn,
+  otherAccountsColumn,
+  changeColumn,
+  balanceColumn,
 ];
 
 // ── main component ─────────────────────────────────────────────────────────

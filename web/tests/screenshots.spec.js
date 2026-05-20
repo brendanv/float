@@ -26,11 +26,22 @@ test("transactions page - delete confirmation", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
-  await page.click("tbody tr:first-child");
+  // Click the date cell (a stable target that won't intercept with the inline tag editor)
+  await page.click("tbody tr:first-child td:nth-child(2)");
   await page.waitForTimeout(200);
   await page.click("button:has-text('Delete')");
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-delete.png", fullPage: true });
+});
+
+test("transactions page - expanded edit row", async ({ page }) => {
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.click("tbody tr:first-child td:nth-child(2)");
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/transactions-expanded-edit.png", fullPage: true });
 });
 
 test("add transaction page", async ({ page }) => {
@@ -255,6 +266,21 @@ test("transactions page - bulk edit toolbar", async ({ page }) => {
   }
   await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/transactions-bulk-edit.png", fullPage: true });
+});
+
+test("transactions page - bulk add-tag mode", async ({ page }) => {
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  const checkboxes = await page.locator("tbody [data-slot='checkbox']").all();
+  for (const cb of checkboxes.slice(0, 2)) {
+    await cb.click();
+  }
+  await page.waitForTimeout(150);
+  await page.click("button:has-text('Add tag')");
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/transactions-bulk-add-tag.png", fullPage: true });
 });
 
 test("import page", async ({ page }) => {
