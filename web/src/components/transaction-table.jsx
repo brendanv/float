@@ -959,7 +959,7 @@ export function TransactionTable({
       </div>
 
       {/* Mobile cards */}
-      <div className="flex flex-col gap-2 sm:hidden">
+      <div className="-mx-4 flex flex-col gap-2 sm:hidden">
         {pageRows.map((row) => (
           <MobileCard
             key={row.id}
@@ -1116,8 +1116,9 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
     <Card
       size="sm"
       className={cn(
+        "ring-0",
         !isRegisterMode && "cursor-pointer",
-        isSelected && "bg-primary/5 ring-primary",
+        isSelected && "bg-primary/5 ring-1 ring-primary",
       )}
       onClick={() => { if (!isRegisterMode && tx.fid) row.toggleExpanded(); }}
     >
