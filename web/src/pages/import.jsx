@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -149,6 +151,12 @@ function CreateProfileModal({ open, onCreated, onClose }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  const { data: declarationsData } = useQuery({
+    queryKey: queryKeys.accountDeclarations(),
+    queryFn: () => ledgerClient.listAccountDeclarations({}),
+    enabled: open,
+  });
+
   useEffect(() => {
     if (!open) return;
     setName("");
@@ -211,134 +219,134 @@ function CreateProfileModal({ open, onCreated, onClose }) {
         <DialogHeader>
           <DialogTitle>Create Bank Profile</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Profile name */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="profile-name">Profile Name</Label>
-            <Input
-              id="profile-name"
-              type="text"
-              placeholder="e.g. Chase Checking"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            {rulesFilePath && (
-              <p className="text-xs text-muted-foreground font-mono">Saves to: {rulesFilePath}</p>
-            )}
-          </div>
-
-          {/* Bank account */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="account1">Bank Account</Label>
-            <Input
-              id="account1"
-              type="text"
-              placeholder="e.g. assets:checking"
-              value={account}
-              onChange={(e) => setAccount(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              The hledger account that holds money from this bank
-            </p>
-          </div>
+        <Form onSubmit={handleSubmit}>
+          {error && <ErrorBanner error={error} />}
+          <FormRow cols={2}>
+            <FormField
+              label="Profile Name"
+              htmlFor="profile-name"
+              description={rulesFilePath ? `Saves to: ${rulesFilePath}` : null}
+            >
+              <Input
+                id="profile-name"
+                type="text"
+                placeholder="e.g. Chase Checking"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField
+              label="Bank Account"
+              description="The hledger account that holds money from this bank"
+            >
+              <Combobox
+                id="account1"
+                value={account}
+                onChange={setAccount}
+                options={(declarationsData?.declarations ?? []).map((d) => d.name)}
+                placeholder="e.g. assets:checking"
+                searchPlaceholder="Search accounts…"
+                emptyMessage="No matching account."
+                allowCustomValue
+              />
+            </FormField>
+          </FormRow>
 
           {/* CSV column mapping */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-baseline justify-between">
-              <Label>CSV Column Mapping</Label>
-              <span className="text-xs text-muted-foreground">
-                paste 2–3 rows from your CSV to auto-detect columns
-              </span>
-            </div>
+          <FormField
+            label="CSV Column Mapping"
+            hint="paste 2–3 rows to auto-detect columns"
+          >
             <Textarea
               className="h-20 font-mono text-xs"
               placeholder={"Date,Description,Amount\n2026-04-01,AMAZON,-45.00\n2026-04-02,PAYROLL,2000.00"}
               value={sampleCsv}
               onChange={(e) => setSampleCsv(e.target.value)}
             />
-            {hasCsvColumns && (
-              <div className="flex flex-col gap-3 rounded-md border p-3">
-                <div className="flex flex-wrap gap-3">
-                  {parsedRows[0].map((header, idx) => (
-                    <div key={idx} className="flex flex-col gap-1">
-                      <span
-                        className="text-xs font-mono text-muted-foreground truncate max-w-28"
-                        title={header || `Col ${idx + 1}`}
-                      >
-                        {header || `Col ${idx + 1}`}
-                      </span>
-                      <Select
-                        value={columnMappings[idx]}
-                        onValueChange={(v) => {
-                          const next = [...columnMappings];
-                          next[idx] = v;
-                          setColumnMappings(next);
-                        }}
-                      >
-                        <SelectTrigger size="sm" className="w-36">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COLUMN_TYPES.map((ct) => (
-                            <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-end gap-2">
-                  <div className="flex flex-col gap-1">
-                    <Label className="text-xs">Date Format</Label>
-                    <Input
-                      className="font-mono text-xs h-8 w-36"
-                      value={dateFormat}
-                      onChange={(e) => setDateFormat(e.target.value)}
-                      placeholder="%Y-%m-%d"
-                    />
+          </FormField>
+          {hasCsvColumns && (
+            <div className="flex flex-col gap-3 rounded-md border p-3">
+              <div className="flex flex-wrap gap-3">
+                {parsedRows[0].map((header, idx) => (
+                  <div key={idx} className="flex flex-col gap-1">
+                    <span
+                      className="text-xs font-mono text-muted-foreground truncate max-w-28"
+                      title={header || `Col ${idx + 1}`}
+                    >
+                      {header || `Col ${idx + 1}`}
+                    </span>
+                    <Select
+                      value={columnMappings[idx]}
+                      onValueChange={(v) => {
+                        const next = [...columnMappings];
+                        next[idx] = v;
+                        setColumnMappings(next);
+                      }}
+                    >
+                      <SelectTrigger size="sm" className="w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COLUMN_TYPES.map((ct) => (
+                          <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                ))}
+              </div>
+              <FormRow cols={2}>
+                <FormField label="Date Format">
+                  <Input
+                    className="font-mono"
+                    value={dateFormat}
+                    onChange={(e) => setDateFormat(e.target.value)}
+                    placeholder="%Y-%m-%d"
+                  />
+                </FormField>
+                <div className="flex items-end">
                   <Button type="button" size="sm" variant="secondary" onClick={handleGenerateRules}>
                     Generate Rules
                   </Button>
                 </div>
-              </div>
-            )}
-            {!hasCsvColumns && account && (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="self-start"
-                onClick={handleGenerateRules}
-              >
-                Generate Rules from Account
-              </Button>
-            )}
-          </div>
+              </FormRow>
+            </div>
+          )}
+          {!hasCsvColumns && account && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="self-start"
+              onClick={handleGenerateRules}
+            >
+              Generate Rules from Account
+            </Button>
+          )}
 
-          {/* Raw rules textarea */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-baseline justify-between">
-              <Label htmlFor="rules-content">Rules File</Label>
+          <FormField
+            label="Rules File"
+            htmlFor="rules-content"
+            hint={
               <a
                 href="https://hledger.org/hledger.html#csv-rules-files"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-muted-foreground underline"
+                className="underline"
               >
                 hledger CSV rules docs
               </a>
-            </div>
+            }
+          >
             <Textarea
               id="rules-content"
               className="h-48 font-mono text-xs"
               value={rulesContent}
               onChange={(e) => setRulesContent(e.target.value)}
             />
-          </div>
+          </FormField>
 
-          {error && <ErrorBanner error={error} />}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={saving || !rulesFilePath}>
@@ -346,7 +354,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
               {saving ? "Creating…" : "Create Profile"}
             </Button>
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
@@ -397,9 +405,9 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
         {loading ? (
           <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="edit-profile-name">Profile Name</Label>
+          <Form onSubmit={handleSubmit}>
+            {error && <ErrorBanner error={error} />}
+            <FormField label="Profile Name" htmlFor="edit-profile-name">
               <Input
                 id="edit-profile-name"
                 type="text"
@@ -407,20 +415,19 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-baseline justify-between">
-                <Label htmlFor="edit-rules-content">Rules File Content</Label>
-                <span className="text-xs text-muted-foreground">{profile?.rulesFile}</span>
-              </div>
+            </FormField>
+            <FormField
+              label="Rules File Content"
+              htmlFor="edit-rules-content"
+              hint={profile?.rulesFile}
+            >
               <Textarea
                 id="edit-rules-content"
                 className="h-64 font-mono text-xs"
                 value={rulesContent}
                 onChange={(e) => setRulesContent(e.target.value)}
               />
-            </div>
-            {error && <ErrorBanner error={error} />}
+            </FormField>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={saving}>
@@ -428,7 +435,7 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
                 {saving ? "Saving…" : "Save Changes"}
               </Button>
             </DialogFooter>
-          </form>
+          </Form>
         )}
       </DialogContent>
     </Dialog>
@@ -715,108 +722,110 @@ export function ImportPage() {
           <CardTitle>Upload CSV</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handlePreview} className="flex flex-wrap items-end gap-3">
-            <div className="flex w-full flex-col gap-1.5 sm:w-56">
-              <Label>Bank Profile</Label>
-              <div className="flex items-center gap-2">
-                {profilesLoading ? (
-                  <Select disabled value="">
-                    <SelectTrigger size="sm" className="flex-1">
-                      <SelectValue>Loading…</SelectValue>
-                    </SelectTrigger>
-                  </Select>
-                ) : (
-                  <Select
-                    value={selectedProfile || undefined}
-                    onValueChange={setSelectedProfile}
-                  >
-                    <SelectTrigger size="sm" className="flex-1">
-                      <SelectValue placeholder="Select profile…">
-                        {selectedProfile || "Select profile…"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(profilesData?.profiles ?? []).map((p) => (
-                        <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setShowCreateModal(true)}
-                      >
-                        <Plus />
-                      </Button>
-                    }
-                  />
-                  <TooltipContent>Create new bank profile</TooltipContent>
-                </Tooltip>
-                {selectedProfile && (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => setEditingProfile(
-                              profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
-                            )}
-                          >
-                            <Pencil />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>Edit bank profile</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => setDeletingProfile(
-                              profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
-                            )}
-                          >
-                            <Trash2 />
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>Delete bank profile</TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="flex w-full flex-1 flex-col gap-1.5 sm:w-auto">
-              <Label htmlFor="csv-file">CSV File</Label>
-              <Input
-                id="csv-file"
-                type="file"
-                accept=".csv,text/csv"
-                onChange={(e) => setCsvFile(e.target.files[0] || null)}
-                required
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={previewing || !csvFile || !selectedProfile}
-            >
-              {previewing && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {previewing ? "Previewing…" : "Preview"}
-            </Button>
-          </form>
-          {previewError && <div className="mt-3"><ErrorBanner error={previewError} /></div>}
-          {profilesError && <div className="mt-3"><ErrorBanner error={profilesError} /></div>}
+          <Form onSubmit={handlePreview}>
+            {previewError && <ErrorBanner error={previewError} />}
+            {profilesError && <ErrorBanner error={profilesError} />}
+            <FormRow cols={2}>
+              <FormField label="Bank Profile">
+                <div className="flex items-center gap-1">
+                  {profilesLoading ? (
+                    <Select disabled value="">
+                      <SelectTrigger size="sm" className="flex-1">
+                        <SelectValue>Loading…</SelectValue>
+                      </SelectTrigger>
+                    </Select>
+                  ) : (
+                    <Select
+                      value={selectedProfile || undefined}
+                      onValueChange={setSelectedProfile}
+                    >
+                      <SelectTrigger size="sm" className="flex-1">
+                        <SelectValue placeholder="Select profile…">
+                          {selectedProfile || "Select profile…"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(profilesData?.profiles ?? []).map((p) => (
+                          <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setShowCreateModal(true)}
+                        >
+                          <Plus />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Create new bank profile</TooltipContent>
+                  </Tooltip>
+                  {selectedProfile && (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => setEditingProfile(
+                                profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                              )}
+                            >
+                              <Pencil />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Edit bank profile</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => setDeletingProfile(
+                                profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                              )}
+                            >
+                              <Trash2 />
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Delete bank profile</TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+              </FormField>
+              <FormField label="CSV File" htmlFor="csv-file">
+                <Input
+                  id="csv-file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => setCsvFile(e.target.files[0] || null)}
+                  required
+                />
+              </FormField>
+            </FormRow>
+            <FormActions>
+              <Button
+                type="submit"
+                disabled={previewing || !csvFile || !selectedProfile}
+              >
+                {previewing && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {previewing ? "Previewing…" : "Preview"}
+              </Button>
+            </FormActions>
+          </Form>
         </CardContent>
       </Card>
 

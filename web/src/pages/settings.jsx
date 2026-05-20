@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Form, FormField, FormActions } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -224,11 +225,11 @@ export function SettingsPage() {
                 )}
               </div>
 
-              <form onSubmit={handleStripeCustomerIdSave} className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="stripe-customer-id">
-                    {stripeData.customerId ? "Replace customer ID" : "Set customer ID"}
-                  </Label>
+              <Form onSubmit={handleStripeCustomerIdSave}>
+                <FormField
+                  label={stripeData.customerId ? "Replace customer ID" : "Set customer ID"}
+                  htmlFor="stripe-customer-id"
+                >
                   <div className="flex gap-2">
                     <Input
                       id="stripe-customer-id"
@@ -245,12 +246,11 @@ export function SettingsPage() {
                       {setCustomerIdMutation.isPending ? "Saving…" : "Save"}
                     </Button>
                   </div>
-                </div>
-
+                </FormField>
                 {stripeSaved && (
-                  <p className="text-sm text-success">Customer ID saved.</p>
+                  <p className="text-xs text-success">Customer ID saved.</p>
                 )}
-              </form>
+              </Form>
 
               {stripeData.customerId && (
                 <div>
@@ -374,11 +374,11 @@ export function SettingsPage() {
                 )}
               </div>
 
-              <form onSubmit={handleAvSave} className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="api-key">
-                    {avData.apiKeyConfigured ? "Replace API key" : "Set API key"}
-                  </Label>
+              <Form onSubmit={handleAvSave}>
+                <FormField
+                  label={avData.apiKeyConfigured ? "Replace API key" : "Set API key"}
+                  htmlFor="api-key"
+                >
                   <div className="flex gap-2">
                     <Input
                       id="api-key"
@@ -395,12 +395,11 @@ export function SettingsPage() {
                       {setKeyMutation.isPending ? "Saving…" : "Save"}
                     </Button>
                   </div>
-                </div>
-
+                </FormField>
                 {avSaved && (
-                  <p className="text-sm text-success">API key saved.</p>
+                  <p className="text-xs text-success">API key saved.</p>
                 )}
-              </form>
+              </Form>
 
               {avData.apiKeyConfigured && (
                 <div>
@@ -456,11 +455,11 @@ export function SettingsPage() {
                 )}
               </div>
 
-              <form onSubmit={handleAiSave} className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="ai-model">
-                    {aiData.model ? "Replace model" : "Set model"}
-                  </Label>
+              <Form onSubmit={handleAiSave}>
+                <FormField
+                  label={aiData.model ? "Replace model" : "Set model"}
+                  htmlFor="ai-model"
+                >
                   <div className="flex gap-2">
                     <Input
                       id="ai-model"
@@ -477,12 +476,11 @@ export function SettingsPage() {
                       {setModelMutation.isPending ? "Saving…" : "Save"}
                     </Button>
                   </div>
-                </div>
-
+                </FormField>
                 {aiSaved && (
-                  <p className="text-sm text-success">Model saved.</p>
+                  <p className="text-xs text-success">Model saved.</p>
                 )}
-              </form>
+              </Form>
 
               {aiData.model && (
                 <div>
@@ -517,27 +515,25 @@ export function SettingsPage() {
           {aiLoading && <Loading />}
 
           {aiData && promptInput !== null && (
-            <form onSubmit={handlePromptSave} className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="ai-prompt">Guidelines</Label>
+            <Form onSubmit={handlePromptSave}>
+              <FormField label="Guidelines" htmlFor="ai-prompt">
                 <Textarea
                   id="ai-prompt"
                   placeholder="e.g. My accounts use kebab-case. Groceries go under expenses:food:groceries. Always prefer specific accounts over broad ones."
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
-                  className="min-h-32 font-mono text-sm"
+                  className="min-h-32 font-mono text-xs"
                 />
-              </div>
-
-              <div className="flex items-center gap-3">
+              </FormField>
+              <FormActions align="start">
                 <Button type="submit" disabled={setPromptMutation.isPending}>
                   {setPromptMutation.isPending ? "Saving…" : "Save guidelines"}
                 </Button>
                 {promptSaved && (
-                  <p className="text-sm text-success">Guidelines saved.</p>
+                  <p className="text-xs text-success">Guidelines saved.</p>
                 )}
-              </div>
-            </form>
+              </FormActions>
+            </Form>
           )}
         </CardContent>
       </Card>

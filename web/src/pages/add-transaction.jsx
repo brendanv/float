@@ -8,8 +8,8 @@ import { PostingFields, toPostingInput } from "../components/posting-fields.jsx"
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 
 function todayStr() {
   const d = new Date();
@@ -85,44 +85,46 @@ export function AddTransactionPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-xl font-bold">Add Transaction</h2>
-      <Card className="max-w-lg">
+      <h2 className="text-2xl font-bold">Add Transaction</h2>
+      <Card className="max-w-2xl">
         <CardContent>
-          {error && <div className="mb-4"><ErrorBanner error={error} /></div>}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                type="text"
-                placeholder="e.g. Grocery store"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Postings</Label>
+          <Form onSubmit={handleSubmit}>
+            {error && <ErrorBanner error={error} />}
+            <FormRow cols={2}>
+              <FormField label="Date" htmlFor="date">
+                <Input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Description" htmlFor="description">
+                <Input
+                  id="description"
+                  type="text"
+                  placeholder="e.g. Grocery store"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  required
+                />
+              </FormField>
+            </FormRow>
+            <FormField label="Postings">
               <PostingFields
                 postings={postings}
                 onChange={setPostings}
                 accounts={accountsData?.accounts || []}
               />
-            </div>
-            <Button type="submit" disabled={submitting} className="w-full">
-              {submitting ? <Loader2 className="size-4 animate-spin" /> : "Add Transaction"}
-            </Button>
-          </form>
+            </FormField>
+            <FormActions>
+              <Button type="submit" disabled={submitting}>
+                {submitting && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {submitting ? "Adding…" : "Add Transaction"}
+              </Button>
+            </FormActions>
+          </Form>
         </CardContent>
       </Card>
     </div>

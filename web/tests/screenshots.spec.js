@@ -327,9 +327,9 @@ test("import page - create profile modal with CSV wizard", async ({ page }) => {
   await page.locator(".lucide-plus").click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // Fill in profile name and bank account
+  // Fill in profile name (Bank Account is now a Combobox — skip filling it
+  // here; we just want to see the CSV mapping UI appear).
   await page.fill('input[placeholder="e.g. Chase Checking"]', "Chase Checking");
-  await page.fill('input[placeholder="e.g. assets:checking"]', "assets:checking");
   // Paste a sample CSV to trigger column mapping UI
   await page.fill('textarea[placeholder*="Date,Description,Amount"]',
     "Date,Description,Amount\n2026-04-01,AMAZON.COM,-45.00\n2026-04-02,PAYROLL DIRECT DEPOSIT,2000.00"
@@ -411,22 +411,23 @@ test("rules page - account typeahead", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // AccountInput renders as button[role="combobox"]; clicking it opens the popover
-  await page.locator('button[role="combobox"]').click();
+  // AccountInput renders as button[role="combobox"]; click the first one
+  // (Set Category Account)
+  await page.locator('button[role="combobox"]').first().click();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "test-results/rules-account-typeahead.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
+  await page.screenshot({ path: "test-results/rules-account-typeahead.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 360 } });
 });
 
 test("rules page - account typeahead filtered", async ({ page }) => {
   await page.goto("/#/rules");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // Open the popover then type into the CommandInput inside it
-  await page.locator('button[role="combobox"]').click();
+  // Open the first popover then type into the CommandInput inside it
+  await page.locator('button[role="combobox"]').first().click();
   await page.waitForTimeout(200);
   await page.fill('input[placeholder="Search expenses:shopping..."]', "exp");
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "test-results/rules-account-typeahead-filtered.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
+  await page.screenshot({ path: "test-results/rules-account-typeahead-filtered.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 360 } });
 });
 
 test("rules page - apply preview drawer", async ({ page }) => {

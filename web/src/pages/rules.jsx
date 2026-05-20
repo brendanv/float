@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -355,22 +356,29 @@ export function RulesPage() {
           <CardTitle>{editingId ? "Edit Rule" : "Add Rule"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form
+          <Form
             onSubmit={(e) => {
               e.preventDefault();
               e.stopPropagation();
               form.handleSubmit();
             }}
-            className="flex flex-col gap-3"
           >
+            {formError && <ErrorBanner error={formError} />}
             <form.Field
               name="pattern"
               validators={{
                 onChange: ({ value }) => (!value ? "Pattern is required" : undefined),
               }}
               children={(field) => (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="rule-pattern">Pattern (regex)</Label>
+                <FormField
+                  label="Pattern (regex)"
+                  htmlFor="rule-pattern"
+                  error={
+                    field.state.meta.isTouched && !field.state.meta.isValid
+                      ? field.state.meta.errors.join(", ")
+                      : null
+                  }
+                >
                   <Input
                     id="rule-pattern"
                     type="text"
@@ -380,18 +388,14 @@ export function RulesPage() {
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
                   />
-                  {field.state.meta.isTouched && !field.state.meta.isValid && (
-                    <p className="text-xs text-destructive">{field.state.meta.errors.join(", ")}</p>
-                  )}
-                </div>
+                </FormField>
               )}
             />
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <FormRow cols={3}>
               <form.Field
                 name="payee"
                 children={(field) => (
-                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
-                    <Label htmlFor="rule-payee">Set Payee</Label>
+                  <FormField label="Set Payee" htmlFor="rule-payee">
                     <Input
                       id="rule-payee"
                       type="text"
@@ -400,47 +404,41 @@ export function RulesPage() {
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
                     />
-                  </div>
+                  </FormField>
                 )}
               />
               <form.Field
                 name="account"
                 children={(field) => (
-                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
-                    <Label>Set Category Account</Label>
+                  <FormField label="Set Category Account">
                     <AccountInput
                       value={field.state.value}
                       onChange={(v) => field.handleChange(v)}
                       accounts={accountsData?.accounts ?? []}
                       placeholder="expenses:shopping"
                     />
-                  </div>
+                  </FormField>
                 )}
               />
               <form.Field
                 name="matchAccount"
                 children={(field) => (
-                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
-                    <Label>
-                      Match Source Account{" "}
-                      <span className="text-xs text-muted-foreground">(optional)</span>
-                    </Label>
+                  <FormField label="Match Source Account" hint="optional">
                     <AccountInput
                       value={field.state.value}
                       onChange={(v) => field.handleChange(v)}
                       accounts={accountsData?.accounts ?? []}
                       placeholder="all accounts"
                     />
-                  </div>
+                  </FormField>
                 )}
               />
+            </FormRow>
+            <FormRow cols={2}>
               <form.Field
                 name="tags"
                 children={(field) => (
-                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-40">
-                    <Label htmlFor="rule-tags">
-                      Add Tags <span className="text-xs text-muted-foreground">key=val, key2</span>
-                    </Label>
+                  <FormField label="Add Tags" htmlFor="rule-tags" hint="key=val, key2">
                     <Input
                       id="rule-tags"
                       type="text"
@@ -450,14 +448,13 @@ export function RulesPage() {
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
                     />
-                  </div>
+                  </FormField>
                 )}
               />
               <form.Field
                 name="priority"
                 children={(field) => (
-                  <div className="flex flex-1 flex-col gap-1.5 min-w-0 sm:min-w-24 sm:flex-none">
-                    <Label htmlFor="rule-priority">Priority</Label>
+                  <FormField label="Priority" htmlFor="rule-priority">
                     <Input
                       id="rule-priority"
                       type="number"
@@ -465,10 +462,10 @@ export function RulesPage() {
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
                     />
-                  </div>
+                  </FormField>
                 )}
               />
-            </div>
+            </FormRow>
             <form.Field
               name="autoReviewed"
               children={(field) => (
@@ -485,21 +482,20 @@ export function RulesPage() {
             <form.Subscribe
               selector={(state) => state.canSubmit}
               children={(canSubmit) => (
-                <div className="flex gap-2">
-                  <Button type="submit" size="sm" disabled={!canSubmit || saveRuleMutation.isPending}>
-                    {saveRuleMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                    {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
-                  </Button>
+                <FormActions align={editingId ? "between" : "end"}>
                   {editingId && (
                     <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
                       Cancel
                     </Button>
                   )}
-                </div>
+                  <Button type="submit" size="sm" disabled={!canSubmit || saveRuleMutation.isPending}>
+                    {saveRuleMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                    {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
+                  </Button>
+                </FormActions>
               )}
             />
-          </form>
-          {formError && <div className="mt-3"><ErrorBanner error={formError} /></div>}
+          </Form>
         </CardContent>
       </Card>
 

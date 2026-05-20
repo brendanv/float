@@ -6,8 +6,8 @@ import { queryKeys } from "../query-keys.js";
 import { PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { ErrorBanner } from "./error-banner.jsx";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import {
   Dialog,
   DialogContent,
@@ -63,41 +63,43 @@ function AddTransactionForm({ onSuccess }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Form onSubmit={handleSubmit}>
       {error && <ErrorBanner error={error} />}
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="txn-date">Date</Label>
-        <Input
-          id="txn-date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          required
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="txn-description">Description</Label>
-        <Input
-          id="txn-description"
-          type="text"
-          placeholder="e.g. Grocery store"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          required
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Postings</Label>
+      <FormRow cols={2}>
+        <FormField label="Date" htmlFor="txn-date" className="sm:col-span-1">
+          <Input
+            id="txn-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </FormField>
+        <FormField label="Description" htmlFor="txn-description" className="sm:col-span-1">
+          <Input
+            id="txn-description"
+            type="text"
+            placeholder="e.g. Grocery store"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+          />
+        </FormField>
+      </FormRow>
+      <FormField label="Postings">
         <PostingFields
           postings={postings}
           onChange={setPostings}
           accounts={accountsData?.accounts || []}
         />
-      </div>
-      <Button type="submit" disabled={submitting} className="w-full">
-        {submitting ? <Loader2 className="size-4 animate-spin" /> : "Add Transaction"}
-      </Button>
-    </form>
+      </FormField>
+      <FormActions>
+        <Button type="submit" disabled={submitting}>
+          {submitting && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+          {submitting ? "Adding…" : "Add Transaction"}
+        </Button>
+      </FormActions>
+    </Form>
   );
 }
 
