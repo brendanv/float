@@ -2294,23 +2294,17 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 	total := int32(len(matches))
 	var applied int32
 	err = h.lock.Do(ctx, fmt.Sprintf("apply rules to %d transactions", len(matches)), func() error {
-		for _, m := range matches {
-			if applyErr := rules.ApplyOne(ctx, h.hl, h.dataDir, m); applyErr != nil {
-				return fmt.Errorf("apply rule %s to txn %s: %w", m.Rule.ID, m.Transaction.FID, applyErr)
-			}
-			applied++
-			if sendErr := stream.Send(&floatv1.ApplyRulesResponse{
+		return rules.ApplyBatch(ctx, h.hl, h.dataDir, matches, func(a, _ int32) {
+			applied = a
+			_ = stream.Send(&floatv1.ApplyRulesResponse{
 				Payload: &floatv1.ApplyRulesResponse_Progress{
 					Progress: &floatv1.ApplyRulesProgress{
 						Applied: applied,
 						Total:   total,
 					},
 				},
-			}); sendErr != nil {
-				return sendErr
-			}
-		}
-		return nil
+			})
+		})
 	})
 	if err != nil {
 		return rpcErr(ctx, err, "apply rules failed")

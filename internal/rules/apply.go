@@ -7,6 +7,7 @@ import (
 
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
+	"github.com/brendanv/float/internal/slogctx"
 )
 
 // ChangeSet describes the changes a rule would apply to a transaction.
@@ -61,52 +62,124 @@ func Preview(rules []Rule, transactions []hledger.Transaction) []RuleMatch {
 	return matches
 }
 
-// ApplyOne applies a single RuleMatch to the journal. Must be called within txlock.Do().
-func ApplyOne(ctx context.Context, client *hledger.Client, dataDir string, m RuleMatch) error {
-	return applyMatch(ctx, client, dataDir, m)
-}
-
 // Apply executes the changes from a preview. Must be called within txlock.Do().
 // Returns the number of transactions successfully modified.
 func Apply(ctx context.Context, client *hledger.Client, dataDir string, matches []RuleMatch) (int, error) {
-	applied := 0
-	for _, m := range matches {
-		if err := applyMatch(ctx, client, dataDir, m); err != nil {
-			return applied, fmt.Errorf("apply rule %s to txn %s: %w", m.Rule.ID, m.Transaction.FID, err)
-		}
-		applied++
-	}
-	return applied, nil
+	var applied int32
+	err := ApplyBatch(ctx, client, dataDir, matches, func(a, _ int32) { applied = a })
+	return int(applied), err
 }
 
-// applyMatch applies the changes from a single RuleMatch to the journal in a single write.
-func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m RuleMatch) error {
-	txn := m.Transaction
+// ApplyBatch applies a set of RuleMatches efficiently by batching hledger format
+// calls and grouping file writes. Must be called within txlock.Do().
+// onProgress is called after each file group is written with cumulative counts.
+func ApplyBatch(ctx context.Context, client *hledger.Client, dataDir string, matches []RuleMatch, onProgress func(applied, total int32)) error {
+	if len(matches) == 0 {
+		return nil
+	}
+	total := int32(len(matches))
+
+	// Build all inputs from existing transaction data — no per-transaction re-fetch.
+	type pending struct {
+		input journal.TransactionInput
+		src   journal.SourceLocation
+		fid   string
+	}
+	items := make([]pending, len(matches))
+	for i, m := range matches {
+		if len(m.Transaction.SourcePos) == 0 || m.Transaction.SourcePos[0].File == "" {
+			// Fall back to the slow path for transactions without source info.
+			if err := applyMatch(ctx, client, dataDir, m); err != nil {
+				return fmt.Errorf("apply rule %s to txn %s: %w", m.Rule.ID, m.Transaction.FID, err)
+			}
+			if onProgress != nil {
+				onProgress(int32(i+1), total)
+			}
+			continue
+		}
+		inp, src, err := buildApplyInput(m)
+		if err != nil {
+			return fmt.Errorf("build input for txn %s: %w", m.Transaction.FID, err)
+		}
+		items[i] = pending{input: inp, src: src, fid: m.Transaction.FID}
+	}
+
+	// Collect the items that need batch formatting (those with a source file).
+	var batchInputs []journal.TransactionInput
+	var batchFIDs []string
+	var batchIdx []int // index into items
+	for i, it := range items {
+		if it.fid != "" {
+			batchInputs = append(batchInputs, it.input)
+			batchFIDs = append(batchFIDs, it.fid)
+			batchIdx = append(batchIdx, i)
+		}
+	}
+
+	if len(batchInputs) == 0 {
+		return nil
+	}
+
+	// One hledger subprocess for all formatting.
+	texts, err := journal.BatchFormatViaHledger(ctx, client, batchInputs, batchFIDs)
+	if err != nil {
+		return fmt.Errorf("batch format: %w", err)
+	}
+
+	// Group replacements by source file.
+	type replacement struct {
+		src  journal.SourceLocation
+		fid  string
+		text string
+	}
+	byFile := make(map[string][]replacement)
+	for i, bi := range batchIdx {
+		it := items[bi]
+		byFile[it.src.File] = append(byFile[it.src.File], replacement{
+			src:  it.src,
+			fid:  it.fid,
+			text: texts[i],
+		})
+	}
+
+	// Apply all replacements per file in one read+write cycle.
+	var applied int32
+	for file, reps := range byFile {
+		brs := make([]journal.BatchReplacement, len(reps))
+		for i, r := range reps {
+			brs[i] = journal.BatchReplacement{
+				HeaderLine: r.src.Line,
+				FID:        r.fid,
+				NewText:    r.text,
+			}
+		}
+		if err := journal.BatchReplaceTransactions(file, brs); err != nil {
+			return fmt.Errorf("batch replace in %s: %w", file, err)
+		}
+		applied += int32(len(reps))
+		slogctx.FromContext(ctx).Info("rules: batch replaced transactions", "file", file, "count", len(reps))
+		if onProgress != nil {
+			onProgress(applied, total)
+		}
+	}
+	return nil
+}
+
+// buildApplyInput constructs a TransactionInput and SourceLocation from a
+// RuleMatch using the data already in m.Transaction. No hledger call is made.
+// The caller is responsible for processing matches in descending source-line
+// order within each file so that prior writes do not shift later positions.
+func buildApplyInput(m RuleMatch) (journal.TransactionInput, journal.SourceLocation, error) {
+	t := m.Transaction
 	changes := m.Changes
 
-	// Re-fetch to get the current source location; prior calls in the same batch
-	// may have shifted line numbers by removing and re-appending other transactions.
-	txns, err := client.Transactions(ctx, "code:"+txn.FID)
-	if err != nil {
-		return fmt.Errorf("lookup fid %q: %w", txn.FID, err)
-	}
-	switch len(txns) {
-	case 0:
-		return fmt.Errorf("no transaction found with fid %q", txn.FID)
-	case 1:
-		// expected
-	default:
-		return fmt.Errorf("fid %q matched %d transactions (corrupt journal — run audit)", txn.FID, len(txns))
-	}
-	t := txns[0]
-	src := &journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
+	src := journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
 	input, err := journal.InputFromTransaction(t)
 	if err != nil {
-		return err
+		return journal.TransactionInput{}, journal.SourceLocation{}, err
 	}
 
-	// Apply payee and/or account changes.
 	if changes.NewPayee != nil || changes.NewAccount != nil {
 		desc := t.Description
 		if changes.NewPayee != nil {
@@ -138,7 +211,6 @@ func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m R
 		}
 	}
 
-	// Merge new tags into the existing set.
 	if len(changes.AddTags) > 0 {
 		merged := make(map[string]string)
 		for k, v := range input.Tags {
@@ -150,12 +222,36 @@ func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m R
 		input.Tags = merged
 	}
 
-	// Apply reviewed status.
 	if changes.MarkReviewed != nil && *changes.MarkReviewed {
 		input.Status = "Cleared"
 	}
 
-	_, err = journal.WriteTransaction(ctx, client, dataDir, input, src)
+	return input, src, nil
+}
+
+// applyMatch applies the changes from a single RuleMatch to the journal.
+// Re-fetches the transaction to get a current source location, then delegates
+// to buildApplyInput for the change logic. Used as a fallback for transactions
+// that lack source position metadata.
+func applyMatch(ctx context.Context, client *hledger.Client, dataDir string, m RuleMatch) error {
+	txns, err := client.Transactions(ctx, "code:"+m.Transaction.FID)
+	if err != nil {
+		return fmt.Errorf("lookup fid %q: %w", m.Transaction.FID, err)
+	}
+	switch len(txns) {
+	case 0:
+		return fmt.Errorf("no transaction found with fid %q", m.Transaction.FID)
+	case 1:
+		// expected
+	default:
+		return fmt.Errorf("fid %q matched %d transactions (corrupt journal — run audit)", m.Transaction.FID, len(txns))
+	}
+	fresh := RuleMatch{Rule: m.Rule, Transaction: txns[0], Changes: m.Changes}
+	input, src, err := buildApplyInput(fresh)
+	if err != nil {
+		return err
+	}
+	_, err = journal.WriteTransaction(ctx, client, dataDir, input, &src)
 	return err
 }
 
