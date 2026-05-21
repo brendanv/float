@@ -167,6 +167,20 @@ func cachedPortfolioTimeseries(ctx context.Context, c *cache.Cache[any], hl *hle
 	})
 }
 
+func portfolioCostBasisKey(accounts []string, begin string) string {
+	sorted := make([]string, len(accounts))
+	copy(sorted, accounts)
+	sort.Strings(sorted)
+	return fmt.Sprintf("portfoliocostbasis:%s:%s", strings.Join(sorted, "|"), begin)
+}
+
+// cachedPortfolioCostBasis fetches a portfolio cost-basis timeseries from cache or hledger.
+func cachedPortfolioCostBasis(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, accounts []string, begin string) (*hledger.BalanceSheetTimeseries, error) {
+	return cachedGet(ctx, c, portfolioCostBasisKey(accounts, begin), func(ctx context.Context) (*hledger.BalanceSheetTimeseries, error) {
+		return hl.PortfolioCostBasisTimeseries(ctx, accounts, begin)
+	})
+}
+
 // cachedIncomeStatement fetches an income statement timeseries from cache or hledger.
 func cachedIncomeStatement(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, begin, end string) (*hledger.IncomeStatementTimeseries, error) {
 	return cachedGet(ctx, c, incomeStatementKey(begin, end), func(ctx context.Context) (*hledger.IncomeStatementTimeseries, error) {
@@ -515,6 +529,28 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 		return nil, rpcErr(ctx, err, "hledger portfolio timeseries failed")
 	}
 
+	cb, err := cachedPortfolioCostBasis(ctx, h.cache, h.hl, investmentAccounts, req.Msg.Begin)
+	if err != nil {
+		// Cost basis is best-effort: log and continue without it.
+		cb = nil
+	}
+
+	// Build a date→cost-basis index for easy lookup.
+	cbByDate := map[string]*floatv1.Amount{}
+	if cb != nil {
+		for i, date := range cb.Periods {
+			for _, sub := range cb.Subreports {
+				if sub.Name == "Assets" && len(sub.Totals[i]) > 0 {
+					a := sub.Totals[i][0]
+					cbByDate[date] = &floatv1.Amount{
+						Commodity: a.Commodity,
+						Quantity:  fmt.Sprintf("%.2f", a.Quantity.FloatingPoint),
+					}
+				}
+			}
+		}
+	}
+
 	snapshots := make([]*floatv1.PortfolioTimeseriesSnapshot, len(ts.Periods))
 	for i, date := range ts.Periods {
 		snap := &floatv1.PortfolioTimeseriesSnapshot{Date: date}
@@ -527,6 +563,7 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 				}
 			}
 		}
+		snap.CostBasis = cbByDate[date]
 		snapshots[i] = snap
 	}
 	return connect.NewResponse(&floatv1.GetPortfolioTimeseriesResponse{Snapshots: snapshots}), nil

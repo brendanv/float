@@ -268,6 +268,30 @@ func (c *Client) PortfolioTimeseries(ctx context.Context, accounts []string, beg
 	return parseBalanceSheetTimeseries(stdout)
 }
 
+// PortfolioCostBasisTimeseries runs `hledger bs --monthly --historical --layout=bare
+// --infer-market-prices --value=then,USD -O json -f <journal> [accounts...] [date:begin..]`
+// using --value=then to price each transaction at market rates at transaction time,
+// giving the historical cost basis of the portfolio.
+// accounts must be non-empty; begin is an optional "YYYY-MM-DD" string.
+func (c *Client) PortfolioCostBasisTimeseries(ctx context.Context, accounts []string, begin string) (*BalanceSheetTimeseries, error) {
+	args := []string{
+		"bs", "-O", "json", "-f", c.journal,
+		"--monthly", "--historical", "--layout=bare",
+		"--infer-market-prices", "--value=then,USD",
+	}
+	args = append(args, accounts...)
+	if begin != "" {
+		args = append(args, "date:"+begin+"..")
+	}
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bs (cost basis): %w", err))
+	}
+
+	return parseBalanceSheetTimeseries(stdout)
+}
+
 // BalanceSheetTimeseries runs `hledger bs --monthly --historical --layout=bare
 // --infer-market-prices --value=end,USD -O json -f <journal> [date:begin..end]`
 // and returns per-period asset and liability totals.
