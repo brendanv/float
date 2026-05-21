@@ -1089,6 +1089,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "ImportAllStripeTransactions":
         body = { importedCount: 3, transactions: [] };
         break;
+      case "UpdateStripeAccountLastFetchedAt":
+        body = {};
+        break;
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
