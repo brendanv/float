@@ -196,6 +196,38 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 	return connect.NewResponse(&floatv1.ListStripeLinkedAccountsResponse{Accounts: out}), nil
 }
 
+func (h *Handler) UpdateStripeAccountLastFetchedAt(ctx context.Context, req *connect.Request[floatv1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[floatv1.UpdateStripeAccountLastFetchedAtResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if req.Msg.StripeAccountId == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
+	}
+	if req.Msg.LastFetchedAt != "" {
+		if _, err := time.Parse(time.RFC3339, req.Msg.LastFetchedAt); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("last_fetched_at must be RFC3339: %w", err))
+		}
+	}
+	found := false
+	err := h.lock.Do(ctx, fmt.Sprintf("update stripe account last fetched at %s", req.Msg.StripeAccountId), func() error {
+		for i, a := range h.cfg.Stripe.LinkedAccounts {
+			if a.StripeAccountID == req.Msg.StripeAccountId {
+				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = req.Msg.LastFetchedAt
+				found = true
+				return config.Save(h.configPath, h.cfg)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to update last fetched at: %w", err))
+	}
+	if !found {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("account %s not found", req.Msg.StripeAccountId))
+	}
+	return connect.NewResponse(&floatv1.UpdateStripeAccountLastFetchedAtResponse{}), nil
+}
+
 func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[floatv1.UnlinkStripeAccountRequest]) (*connect.Response[floatv1.UnlinkStripeAccountResponse], error) {
 	logger := slogctx.FromContext(ctx)
 	if h.cfg == nil {

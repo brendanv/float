@@ -15,6 +15,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Calendar,
 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
@@ -596,12 +597,106 @@ function AccountFetchPanel({ account, onImported }) {
   );
 }
 
+function UpdateFetchDateDialog({ account, open, onClose, onUpdated }) {
+  const [dateValue, setDateValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  function handleOpenChange(v) {
+    if (!v) {
+      setDateValue("");
+      setError(null);
+      onClose();
+    }
+  }
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      // Convert local date to RFC3339 UTC midnight
+      const lastFetchedAt = dateValue ? new Date(dateValue + "T00:00:00").toISOString() : "";
+      await ledgerClient.updateStripeAccountLastFetchedAt({
+        stripeAccountId: account.stripeAccountId,
+        lastFetchedAt,
+      });
+      onUpdated();
+      onClose();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleClear() {
+    setSaving(true);
+    setError(null);
+    try {
+      await ledgerClient.updateStripeAccountLastFetchedAt({
+        stripeAccountId: account.stripeAccountId,
+        lastFetchedAt: "",
+      });
+      onUpdated();
+      onClose();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Update Fetch Date</DialogTitle>
+        </DialogHeader>
+        <Form onSubmit={handleSave}>
+          {error && <ErrorBanner error={error} />}
+          <p className="text-sm text-muted-foreground">
+            Set or clear the last fetched date for <strong>{account.displayName}</strong>.
+            The next fetch will retrieve transactions starting from this date.
+            Clear it to fetch all available history.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Fetch from date</label>
+            <Input
+              type="date"
+              value={dateValue}
+              onChange={(e) => setDateValue(e.target.value)}
+              placeholder="Leave empty to fetch all history"
+            />
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClear}
+              disabled={saving}
+              className="text-destructive hover:text-destructive"
+            >
+              Clear (fetch all history)
+            </Button>
+            <Button type="submit" disabled={saving || !dateValue}>
+              {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+              {saving ? "Saving…" : "Set date"}
+            </Button>
+          </DialogFooter>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ConnectionsPage() {
   const queryClient = useQueryClient();
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState(null);
   const [pendingSession, setPendingSession] = useState(null);
   const [pendingConfigureAccount, setPendingConfigureAccount] = useState(null);
+  const [updateFetchDateAccount, setUpdateFetchDateAccount] = useState(null);
 
   const {
     data: configData,
@@ -784,12 +879,19 @@ export function ConnectionsPage() {
                   )}
                   {account.institutionName && <span>·</span>}
                   <span className="font-mono">{account.hledgerAccount}</span>
-                  {account.lastFetchedAt && (
-                    <>
-                      <span>·</span>
-                      <span>Last fetched {account.lastFetchedAt}</span>
-                    </>
-                  )}
+                  <span>·</span>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 hover:text-foreground transition-colors"
+                    title="Update last fetched date"
+                    onClick={() => setUpdateFetchDateAccount(account)}
+                  >
+                    <Calendar className="size-3" />
+                    {account.lastFetchedAt
+                      ? <>Last fetched {account.lastFetchedAt}</>
+                      : <>Set fetch date</>
+                    }
+                  </button>
                 </div>
               </div>
               <Button
@@ -874,6 +976,15 @@ export function ConnectionsPage() {
           accountDeclarations={declarationsData?.declarations ?? []}
           onComplete={handleConfigureComplete}
           onClose={() => setPendingConfigureAccount(null)}
+        />
+      )}
+
+      {updateFetchDateAccount && (
+        <UpdateFetchDateDialog
+          account={updateFetchDateAccount}
+          open={true}
+          onClose={() => setUpdateFetchDateAccount(null)}
+          onUpdated={() => queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() })}
         />
       )}
     </div>

@@ -188,6 +188,9 @@ const (
 	// LedgerServiceImportAllStripeTransactionsProcedure is the fully-qualified name of the
 	// LedgerService's ImportAllStripeTransactions RPC.
 	LedgerServiceImportAllStripeTransactionsProcedure = "/float.v1.LedgerService/ImportAllStripeTransactions"
+	// LedgerServiceUpdateStripeAccountLastFetchedAtProcedure is the fully-qualified name of the
+	// LedgerService's UpdateStripeAccountLastFetchedAt RPC.
+	LedgerServiceUpdateStripeAccountLastFetchedAtProcedure = "/float.v1.LedgerService/UpdateStripeAccountLastFetchedAt"
 	// LedgerServiceSuggestRulesProcedure is the fully-qualified name of the LedgerService's
 	// SuggestRules RPC.
 	LedgerServiceSuggestRulesProcedure = "/float.v1.LedgerService/SuggestRules"
@@ -284,6 +287,7 @@ type LedgerServiceClient interface {
 	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
 	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
 	ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
+	UpdateStripeAccountLastFetchedAt(context.Context, *connect.Request[v1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[v1.UpdateStripeAccountLastFetchedAtResponse], error)
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -630,6 +634,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ImportAllStripeTransactions")),
 			connect.WithClientOptions(opts...),
 		),
+		updateStripeAccountLastFetchedAt: connect.NewClient[v1.UpdateStripeAccountLastFetchedAtRequest, v1.UpdateStripeAccountLastFetchedAtResponse](
+			httpClient,
+			baseURL+LedgerServiceUpdateStripeAccountLastFetchedAtProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UpdateStripeAccountLastFetchedAt")),
+			connect.WithClientOptions(opts...),
+		),
 		suggestRules: connect.NewClient[v1.SuggestRulesRequest, v1.SuggestRulesResponse](
 			httpClient,
 			baseURL+LedgerServiceSuggestRulesProcedure,
@@ -707,71 +717,72 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // ledgerServiceClient implements LedgerServiceClient.
 type ledgerServiceClient struct {
-	listTransactions             *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
-	getAccountRegister           *connect.Client[v1.GetAccountRegisterRequest, v1.GetAccountRegisterResponse]
-	getBalances                  *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
-	listAccounts                 *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	listTags                     *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
-	listPayees                   *connect.Client[v1.ListPayeesRequest, v1.ListPayeesResponse]
-	deleteTransaction            *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
-	modifyTags                   *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
-	updateTransactionDate        *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
-	updateTransaction            *connect.Client[v1.UpdateTransactionRequest, v1.UpdateTransactionResponse]
-	addTransaction               *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
-	updateTransactionStatus      *connect.Client[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse]
-	getNetWorthTimeseries        *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
-	getPortfolioHoldings         *connect.Client[v1.GetPortfolioHoldingsRequest, v1.GetPortfolioHoldingsResponse]
-	getPortfolioTimeseries       *connect.Client[v1.GetPortfolioTimeseriesRequest, v1.GetPortfolioTimeseriesResponse]
-	listPrices                   *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
-	addPrice                     *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
-	deletePrice                  *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
-	backfillPrices               *connect.Client[v1.BackfillPricesRequest, v1.BackfillPricesResponse]
-	listAccountDeclarations      *connect.Client[v1.ListAccountDeclarationsRequest, v1.ListAccountDeclarationsResponse]
-	declareAccount               *connect.Client[v1.DeclareAccountRequest, v1.DeclareAccountResponse]
-	deleteAccountDeclaration     *connect.Client[v1.DeleteAccountDeclarationRequest, v1.DeleteAccountDeclarationResponse]
-	renameAccount                *connect.Client[v1.RenameAccountRequest, v1.RenameAccountResponse]
-	bulkEditTransactions         *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
-	listSnapshots                *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
-	restoreSnapshot              *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
-	getSnapshotDiff              *connect.Client[v1.GetSnapshotDiffRequest, v1.GetSnapshotDiffResponse]
-	getIncomeStatementTimeseries *connect.Client[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse]
-	listBankProfiles             *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
-	createBankProfile            *connect.Client[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse]
-	getBankProfileContent        *connect.Client[v1.GetBankProfileContentRequest, v1.GetBankProfileContentResponse]
-	updateBankProfile            *connect.Client[v1.UpdateBankProfileRequest, v1.UpdateBankProfileResponse]
-	deleteBankProfile            *connect.Client[v1.DeleteBankProfileRequest, v1.DeleteBankProfileResponse]
-	previewImport                *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
-	importTransactions           *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
-	getImportedTransactions      *connect.Client[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse]
-	listImports                  *connect.Client[v1.ListImportsRequest, v1.ListImportsResponse]
-	getImportFile                *connect.Client[v1.GetImportFileRequest, v1.GetImportFileResponse]
-	listRules                    *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
-	addRule                      *connect.Client[v1.AddRuleRequest, v1.AddRuleResponse]
-	updateRule                   *connect.Client[v1.UpdateRuleRequest, v1.UpdateRuleResponse]
-	deleteRule                   *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
-	previewApplyRules            *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
-	applyRules                   *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
-	getStripeConfig              *connect.Client[v1.GetStripeConfigRequest, v1.GetStripeConfigResponse]
-	createStripeLinkSession      *connect.Client[v1.CreateStripeLinkSessionRequest, v1.CreateStripeLinkSessionResponse]
-	completeStripeLinking        *connect.Client[v1.CompleteStripeLinkingRequest, v1.CompleteStripeLinkingResponse]
-	listStripeLinkedAccounts     *connect.Client[v1.ListStripeLinkedAccountsRequest, v1.ListStripeLinkedAccountsResponse]
-	unlinkStripeAccount          *connect.Client[v1.UnlinkStripeAccountRequest, v1.UnlinkStripeAccountResponse]
-	fetchStripeTransactions      *connect.Client[v1.FetchStripeTransactionsRequest, v1.FetchStripeTransactionsResponse]
-	importStripeTransactions     *connect.Client[v1.ImportStripeTransactionsRequest, v1.ImportTransactionsResponse]
-	fetchAllStripeTransactions   *connect.Client[v1.FetchAllStripeTransactionsRequest, v1.FetchAllStripeTransactionsResponse]
-	importAllStripeTransactions  *connect.Client[v1.ImportAllStripeTransactionsRequest, v1.ImportTransactionsResponse]
-	suggestRules                 *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
-	translateQuery               *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
-	askQuestion                  *connect.Client[v1.AskQuestionRequest, v1.AskQuestionResponse]
-	getAlphaVantageConfig        *connect.Client[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse]
-	setAlphaVantageApiKey        *connect.Client[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse]
-	getAIConfig                  *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
-	setAIModel                   *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
-	setAIPrompt                  *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
-	setStripeCustomerId          *connect.Client[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse]
-	setStripeDailyImportEnabled  *connect.Client[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse]
-	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
-	streamLogs                   *connect.Client[v1.StreamLogsRequest, v1.StreamLogsResponse]
+	listTransactions                 *connect.Client[v1.ListTransactionsRequest, v1.ListTransactionsResponse]
+	getAccountRegister               *connect.Client[v1.GetAccountRegisterRequest, v1.GetAccountRegisterResponse]
+	getBalances                      *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
+	listAccounts                     *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	listTags                         *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
+	listPayees                       *connect.Client[v1.ListPayeesRequest, v1.ListPayeesResponse]
+	deleteTransaction                *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
+	modifyTags                       *connect.Client[v1.ModifyTagsRequest, v1.ModifyTagsResponse]
+	updateTransactionDate            *connect.Client[v1.UpdateTransactionDateRequest, v1.UpdateTransactionDateResponse]
+	updateTransaction                *connect.Client[v1.UpdateTransactionRequest, v1.UpdateTransactionResponse]
+	addTransaction                   *connect.Client[v1.AddTransactionRequest, v1.AddTransactionResponse]
+	updateTransactionStatus          *connect.Client[v1.UpdateTransactionStatusRequest, v1.UpdateTransactionStatusResponse]
+	getNetWorthTimeseries            *connect.Client[v1.GetNetWorthTimeseriesRequest, v1.GetNetWorthTimeseriesResponse]
+	getPortfolioHoldings             *connect.Client[v1.GetPortfolioHoldingsRequest, v1.GetPortfolioHoldingsResponse]
+	getPortfolioTimeseries           *connect.Client[v1.GetPortfolioTimeseriesRequest, v1.GetPortfolioTimeseriesResponse]
+	listPrices                       *connect.Client[v1.ListPricesRequest, v1.ListPricesResponse]
+	addPrice                         *connect.Client[v1.AddPriceRequest, v1.AddPriceResponse]
+	deletePrice                      *connect.Client[v1.DeletePriceRequest, v1.DeletePriceResponse]
+	backfillPrices                   *connect.Client[v1.BackfillPricesRequest, v1.BackfillPricesResponse]
+	listAccountDeclarations          *connect.Client[v1.ListAccountDeclarationsRequest, v1.ListAccountDeclarationsResponse]
+	declareAccount                   *connect.Client[v1.DeclareAccountRequest, v1.DeclareAccountResponse]
+	deleteAccountDeclaration         *connect.Client[v1.DeleteAccountDeclarationRequest, v1.DeleteAccountDeclarationResponse]
+	renameAccount                    *connect.Client[v1.RenameAccountRequest, v1.RenameAccountResponse]
+	bulkEditTransactions             *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
+	listSnapshots                    *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
+	restoreSnapshot                  *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
+	getSnapshotDiff                  *connect.Client[v1.GetSnapshotDiffRequest, v1.GetSnapshotDiffResponse]
+	getIncomeStatementTimeseries     *connect.Client[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse]
+	listBankProfiles                 *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
+	createBankProfile                *connect.Client[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse]
+	getBankProfileContent            *connect.Client[v1.GetBankProfileContentRequest, v1.GetBankProfileContentResponse]
+	updateBankProfile                *connect.Client[v1.UpdateBankProfileRequest, v1.UpdateBankProfileResponse]
+	deleteBankProfile                *connect.Client[v1.DeleteBankProfileRequest, v1.DeleteBankProfileResponse]
+	previewImport                    *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
+	importTransactions               *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
+	getImportedTransactions          *connect.Client[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse]
+	listImports                      *connect.Client[v1.ListImportsRequest, v1.ListImportsResponse]
+	getImportFile                    *connect.Client[v1.GetImportFileRequest, v1.GetImportFileResponse]
+	listRules                        *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
+	addRule                          *connect.Client[v1.AddRuleRequest, v1.AddRuleResponse]
+	updateRule                       *connect.Client[v1.UpdateRuleRequest, v1.UpdateRuleResponse]
+	deleteRule                       *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
+	previewApplyRules                *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
+	applyRules                       *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
+	getStripeConfig                  *connect.Client[v1.GetStripeConfigRequest, v1.GetStripeConfigResponse]
+	createStripeLinkSession          *connect.Client[v1.CreateStripeLinkSessionRequest, v1.CreateStripeLinkSessionResponse]
+	completeStripeLinking            *connect.Client[v1.CompleteStripeLinkingRequest, v1.CompleteStripeLinkingResponse]
+	listStripeLinkedAccounts         *connect.Client[v1.ListStripeLinkedAccountsRequest, v1.ListStripeLinkedAccountsResponse]
+	unlinkStripeAccount              *connect.Client[v1.UnlinkStripeAccountRequest, v1.UnlinkStripeAccountResponse]
+	fetchStripeTransactions          *connect.Client[v1.FetchStripeTransactionsRequest, v1.FetchStripeTransactionsResponse]
+	importStripeTransactions         *connect.Client[v1.ImportStripeTransactionsRequest, v1.ImportTransactionsResponse]
+	fetchAllStripeTransactions       *connect.Client[v1.FetchAllStripeTransactionsRequest, v1.FetchAllStripeTransactionsResponse]
+	importAllStripeTransactions      *connect.Client[v1.ImportAllStripeTransactionsRequest, v1.ImportTransactionsResponse]
+	updateStripeAccountLastFetchedAt *connect.Client[v1.UpdateStripeAccountLastFetchedAtRequest, v1.UpdateStripeAccountLastFetchedAtResponse]
+	suggestRules                     *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
+	translateQuery                   *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
+	askQuestion                      *connect.Client[v1.AskQuestionRequest, v1.AskQuestionResponse]
+	getAlphaVantageConfig            *connect.Client[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse]
+	setAlphaVantageApiKey            *connect.Client[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse]
+	getAIConfig                      *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
+	setAIModel                       *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
+	setAIPrompt                      *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
+	setStripeCustomerId              *connect.Client[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse]
+	setStripeDailyImportEnabled      *connect.Client[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse]
+	runHledgerQuery                  *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
+	streamLogs                       *connect.Client[v1.StreamLogsRequest, v1.StreamLogsResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -1039,6 +1050,11 @@ func (c *ledgerServiceClient) ImportAllStripeTransactions(ctx context.Context, r
 	return c.importAllStripeTransactions.CallServerStream(ctx, req)
 }
 
+// UpdateStripeAccountLastFetchedAt calls float.v1.LedgerService.UpdateStripeAccountLastFetchedAt.
+func (c *ledgerServiceClient) UpdateStripeAccountLastFetchedAt(ctx context.Context, req *connect.Request[v1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[v1.UpdateStripeAccountLastFetchedAtResponse], error) {
+	return c.updateStripeAccountLastFetchedAt.CallUnary(ctx, req)
+}
+
 // SuggestRules calls float.v1.LedgerService.SuggestRules.
 func (c *ledgerServiceClient) SuggestRules(ctx context.Context, req *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
 	return c.suggestRules.CallUnary(ctx, req)
@@ -1157,6 +1173,7 @@ type LedgerServiceHandler interface {
 	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
 	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
 	ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
+	UpdateStripeAccountLastFetchedAt(context.Context, *connect.Request[v1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[v1.UpdateStripeAccountLastFetchedAtResponse], error)
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -1499,6 +1516,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ImportAllStripeTransactions")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceUpdateStripeAccountLastFetchedAtHandler := connect.NewUnaryHandler(
+		LedgerServiceUpdateStripeAccountLastFetchedAtProcedure,
+		svc.UpdateStripeAccountLastFetchedAt,
+		connect.WithSchema(ledgerServiceMethods.ByName("UpdateStripeAccountLastFetchedAt")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceSuggestRulesHandler := connect.NewUnaryHandler(
 		LedgerServiceSuggestRulesProcedure,
 		svc.SuggestRules,
@@ -1679,6 +1702,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceFetchAllStripeTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceImportAllStripeTransactionsProcedure:
 			ledgerServiceImportAllStripeTransactionsHandler.ServeHTTP(w, r)
+		case LedgerServiceUpdateStripeAccountLastFetchedAtProcedure:
+			ledgerServiceUpdateStripeAccountLastFetchedAtHandler.ServeHTTP(w, r)
 		case LedgerServiceSuggestRulesProcedure:
 			ledgerServiceSuggestRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceTranslateQueryProcedure:
@@ -1922,6 +1947,10 @@ func (UnimplementedLedgerServiceHandler) FetchAllStripeTransactions(context.Cont
 
 func (UnimplementedLedgerServiceHandler) ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportAllStripeTransactions is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UpdateStripeAccountLastFetchedAt(context.Context, *connect.Request[v1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[v1.UpdateStripeAccountLastFetchedAtResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateStripeAccountLastFetchedAt is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
