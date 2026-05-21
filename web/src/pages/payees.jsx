@@ -9,13 +9,15 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { Loader2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon, Sparkles } from "lucide-react";
+import { Loader2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon, Sparkles, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   Table,
   TableBody,
@@ -155,6 +157,8 @@ export function PayeesPage() {
   });
 
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [payeesOpen, setPayeesOpen] = useState(true);
+  const [descOpen, setDescOpen] = useState(true);
 
   // ── Payees table ──────────────────────────────────────────────────────────
 
@@ -385,91 +389,29 @@ export function PayeesPage() {
   return (
     <div className="flex flex-col gap-8">
       {/* Section 1: Explicit payees */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Payees</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Input
-            placeholder="Filter payees…"
-            value={payeeFilter}
-            onChange={(e) => payeeTable.setGlobalFilter(e.target.value)}
-            className="max-w-sm"
-          />
-          {payeeTable.getFilteredRowModel().rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payees found.</p>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  {payeeTable.getHeaderGroups().map((hg) => (
-                    <TableRow key={hg.id}>
-                      {hg.headers.map((header) => (
-                        <TableHead
-                          key={header.id}
-                          className={header.column.columnDef.meta?.headerClass}
-                        >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {payeeTable.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <TablePagination table={payeeTable} />
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Section 2: Common descriptions without payees */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle>Common descriptions without a payee</CardTitle>
-            {descRows.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
-                <Sparkles data-icon="inline-start" className="size-3.5" />
-                Suggest Rules
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {descRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              All transactions have a payee assigned.
-            </p>
-          ) : (
-            <>
+      <Collapsible open={payeesOpen} onOpenChange={setPayeesOpen}>
+        <Card>
+          <CardHeader>
+            <CollapsibleTrigger className="flex items-center gap-2 text-left">
+              <CardTitle>Payees</CardTitle>
+              <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", payeesOpen && "rotate-180")} />
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="flex flex-col gap-4">
               <Input
-                placeholder="Filter descriptions…"
-                value={descFilter}
-                onChange={(e) => descTable.setGlobalFilter(e.target.value)}
+                placeholder="Filter payees…"
+                value={payeeFilter}
+                onChange={(e) => payeeTable.setGlobalFilter(e.target.value)}
                 className="max-w-sm"
               />
-              {descTable.getFilteredRowModel().rows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No descriptions match your filter.
-                </p>
+              {payeeTable.getFilteredRowModel().rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No payees found.</p>
               ) : (
                 <>
                   <Table>
                     <TableHeader>
-                      {descTable.getHeaderGroups().map((hg) => (
+                      {payeeTable.getHeaderGroups().map((hg) => (
                         <TableRow key={hg.id}>
                           {hg.headers.map((header) => (
                             <TableHead
@@ -478,17 +420,14 @@ export function PayeesPage() {
                             >
                               {header.isPlaceholder
                                 ? null
-                                : flexRender(
-                                    header.column.columnDef.header,
-                                    header.getContext(),
-                                  )}
+                                : flexRender(header.column.columnDef.header, header.getContext())}
                             </TableHead>
                           ))}
                         </TableRow>
                       ))}
                     </TableHeader>
                     <TableBody>
-                      {descTable.getRowModel().rows.map((row) => (
+                      {payeeTable.getRowModel().rows.map((row) => (
                         <TableRow key={row.id}>
                           {row.getVisibleCells().map((cell) => (
                             <TableCell key={cell.id}>
@@ -499,13 +438,92 @@ export function PayeesPage() {
                       ))}
                     </TableBody>
                   </Table>
-                  <TablePagination table={descTable} />
+                  <TablePagination table={payeeTable} />
                 </>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Section 2: Common descriptions without payees */}
+      <Collapsible open={descOpen} onOpenChange={setDescOpen}>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <CollapsibleTrigger className="flex items-center gap-2 text-left">
+                <CardTitle>Common descriptions without a payee</CardTitle>
+                <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", descOpen && "rotate-180")} />
+              </CollapsibleTrigger>
+              {descRows.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
+                  <Sparkles data-icon="inline-start" className="size-3.5" />
+                  Suggest Rules
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="flex flex-col gap-4">
+              {descRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  All transactions have a payee assigned.
+                </p>
+              ) : (
+                <>
+                  <Input
+                    placeholder="Filter descriptions…"
+                    value={descFilter}
+                    onChange={(e) => descTable.setGlobalFilter(e.target.value)}
+                    className="max-w-sm"
+                  />
+                  {descTable.getFilteredRowModel().rows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No descriptions match your filter.
+                    </p>
+                  ) : (
+                    <>
+                      <Table>
+                        <TableHeader>
+                          {descTable.getHeaderGroups().map((hg) => (
+                            <TableRow key={hg.id}>
+                              {hg.headers.map((header) => (
+                                <TableHead
+                                  key={header.id}
+                                  className={header.column.columnDef.meta?.headerClass}
+                                >
+                                  {header.isPlaceholder
+                                    ? null
+                                    : flexRender(
+                                        header.column.columnDef.header,
+                                        header.getContext(),
+                                      )}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableHeader>
+                        <TableBody>
+                          {descTable.getRowModel().rows.map((row) => (
+                            <TableRow key={row.id}>
+                              {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id}>
+                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      <TablePagination table={descTable} />
+                    </>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <SuggestRulesWizard
         open={wizardOpen}
