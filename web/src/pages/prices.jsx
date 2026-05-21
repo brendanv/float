@@ -356,6 +356,20 @@ export function PricesPage() {
     queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
   }
 
+  function handlePrefill() {
+    const prices = pricesData?.prices;
+    if (!prices?.length) return;
+    const commodities = [...new Set(prices.map((p) => p.commodity))].sort();
+    setBackfillCommodities(commodities.join(", "));
+    const maxDate = prices.reduce((max, p) => (p.date > max ? p.date : max), "");
+    if (maxDate) {
+      const next = new Date(maxDate);
+      next.setDate(next.getDate() + 1);
+      setBackfillStartDate(next.toISOString().slice(0, 10));
+    }
+    setBackfillEndDate(today());
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <h2 className="text-2xl font-bold">Commodity Prices</h2>
@@ -480,6 +494,14 @@ export function PricesPage() {
               </FormField>
             </FormRow>
             <FormActions>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrefill}
+                disabled={!pricesData?.prices?.length}
+              >
+                Prefill from existing
+              </Button>
               <Button type="submit" disabled={backfillPending}>
                 {backfillPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                 {backfillPending
