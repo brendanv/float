@@ -282,12 +282,14 @@ export function PricesPage() {
   const [currency, setCurrency] = useState("USD");
   const [formError, setFormError] = useState(null);
 
-  const [backfillCommodity, setBackfillCommodity] = useState("");
+  const [backfillCommodities, setBackfillCommodities] = useState("");
   const [backfillStartDate, setBackfillStartDate] = useState(oneYearAgo);
   const [backfillEndDate, setBackfillEndDate] = useState(today);
   const [backfillCurrency, setBackfillCurrency] = useState("USD");
-  const [backfillResult, setBackfillResult] = useState(null);
+  const [backfillResults, setBackfillResults] = useState(null);
   const [backfillError, setBackfillError] = useState(null);
+  const [backfillPending, setBackfillPending] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState(null);
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.addPrice(vars),
@@ -306,19 +308,6 @@ export function PricesPage() {
     onError: (err) => setFormError(err),
   });
 
-  const backfillMutation = useMutation({
-    mutationFn: (vars) => ledgerClient.backfillPrices(vars),
-    onSuccess: (data) => {
-      setBackfillResult({ added: data.prices?.length ?? 0, skipped: data.skippedCount ?? 0 });
-      setBackfillError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
-    },
-    onError: (err) => {
-      setBackfillResult(null);
-      setBackfillError(err);
-    },
-  });
-
   function handleSubmit(e) {
     e.preventDefault();
     setFormError(null);
@@ -329,16 +318,56 @@ export function PricesPage() {
     deleteMutation.mutate({ pid });
   }
 
-  function handleBackfill(e) {
+  async function handleBackfill(e) {
     e.preventDefault();
-    setBackfillResult(null);
+    const commodities = backfillCommodities
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (commodities.length === 0) return;
+
+    setBackfillPending(true);
+    setBackfillResults(null);
     setBackfillError(null);
-    backfillMutation.mutate({
-      commodity: backfillCommodity.trim(),
-      startDate: backfillStartDate,
-      endDate: backfillEndDate,
-      currency: backfillCurrency.trim(),
-    });
+    setBackfillProgress({ current: 0, total: commodities.length });
+
+    const results = [];
+    let firstError = null;
+    for (let i = 0; i < commodities.length; i++) {
+      setBackfillProgress({ current: i + 1, total: commodities.length });
+      try {
+        const data = await ledgerClient.backfillPrices({
+          commodity: commodities[i],
+          startDate: backfillStartDate,
+          endDate: backfillEndDate,
+          currency: backfillCurrency.trim(),
+        });
+        results.push({ commodity: commodities[i], added: data.prices?.length ?? 0, skipped: data.skippedCount ?? 0 });
+      } catch (err) {
+        if (!firstError) firstError = err;
+        results.push({ commodity: commodities[i], error: err });
+      }
+    }
+
+    setBackfillPending(false);
+    setBackfillProgress(null);
+    setBackfillResults(results);
+    setBackfillError(firstError);
+    queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
+  }
+
+  function handlePrefill() {
+    const prices = pricesData?.prices;
+    if (!prices?.length) return;
+    const commodities = [...new Set(prices.map((p) => p.commodity))].sort();
+    setBackfillCommodities(commodities.join(", "));
+    const maxDate = prices.reduce((max, p) => (p.date > max ? p.date : max), "");
+    if (maxDate) {
+      const next = new Date(maxDate);
+      next.setDate(next.getDate() + 1);
+      setBackfillStartDate(next.toISOString().slice(0, 10));
+    }
+    setBackfillEndDate(today());
   }
 
   return (
@@ -409,20 +438,30 @@ export function PricesPage() {
         <CardContent>
           <Form onSubmit={handleBackfill}>
             {backfillError && <ErrorBanner error={backfillError} />}
-            {backfillResult && (
-              <p className="text-xs text-success">
-                Added {backfillResult.added} {backfillResult.added === 1 ? "price" : "prices"}
-                {backfillResult.skipped > 0 && ` (${backfillResult.skipped} already existed)`}.
-              </p>
+            {backfillResults && (
+              <div className="flex flex-col gap-1">
+                {backfillResults.map((r) =>
+                  r.error ? (
+                    <p key={r.commodity} className="text-xs text-destructive">
+                      {r.commodity}: {r.error.message ?? String(r.error)}
+                    </p>
+                  ) : (
+                    <p key={r.commodity} className="text-xs text-success">
+                      {r.commodity}: added {r.added} {r.added === 1 ? "price" : "prices"}
+                      {r.skipped > 0 && ` (${r.skipped} already existed)`}.
+                    </p>
+                  ),
+                )}
+              </div>
             )}
             <FormRow cols={4}>
-              <FormField label="Commodity" htmlFor="backfill-commodity">
+              <FormField label="Commodity / Commodities" htmlFor="backfill-commodities">
                 <Input
-                  id="backfill-commodity"
+                  id="backfill-commodities"
                   type="text"
-                  placeholder="AAPL"
-                  value={backfillCommodity}
-                  onChange={(e) => setBackfillCommodity(e.target.value)}
+                  placeholder="AAPL or AAPL, MSFT, GOOG"
+                  value={backfillCommodities}
+                  onChange={(e) => setBackfillCommodities(e.target.value)}
                   required
                 />
               </FormField>
@@ -455,9 +494,19 @@ export function PricesPage() {
               </FormField>
             </FormRow>
             <FormActions>
-              <Button type="submit" disabled={backfillMutation.isPending}>
-                {backfillMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {backfillMutation.isPending ? "Fetching…" : "Backfill"}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrefill}
+                disabled={!pricesData?.prices?.length}
+              >
+                Prefill from existing
+              </Button>
+              <Button type="submit" disabled={backfillPending}>
+                {backfillPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {backfillPending
+                  ? `Fetching ${backfillProgress?.current}/${backfillProgress?.total}…`
+                  : "Backfill"}
               </Button>
             </FormActions>
           </Form>
