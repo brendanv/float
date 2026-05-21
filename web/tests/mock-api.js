@@ -500,9 +500,9 @@ export const mockPortfolioHoldings = {
 
 export const mockPortfolioTimeseries = {
   snapshots: [
-    { date: "2026-01-01", totalValue: { commodity: "USD", quantity: "1785.00" } },
-    { date: "2026-02-01", totalValue: { commodity: "USD", quantity: "3650.00" } },
-    { date: "2026-03-01", totalValue: { commodity: "USD", quantity: "3778.75" } },
+    { date: "2026-01-01", totalValue: { commodity: "USD", quantity: "1785.00" }, costBasis: { commodity: "USD", quantity: "1750.00" } },
+    { date: "2026-02-01", totalValue: { commodity: "USD", quantity: "3650.00" }, costBasis: { commodity: "USD", quantity: "3750.00" } },
+    { date: "2026-03-01", totalValue: { commodity: "USD", quantity: "3778.75" }, costBasis: { commodity: "USD", quantity: "3750.00" } },
   ],
 };
 

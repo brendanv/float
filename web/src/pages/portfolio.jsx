@@ -165,6 +165,11 @@ function PortfolioChart({ snapshots }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
+  const hasCostBasis = useMemo(
+    () => snapshots?.some((s) => s.costBasis),
+    [snapshots]
+  );
+
   useEffect(() => {
     if (!canvasRef.current || !snapshots || snapshots.length < 2) return;
 
@@ -172,35 +177,52 @@ function PortfolioChart({ snapshots }) {
     const valueData = snapshots.map((s) =>
       s.totalValue ? parseFloat(s.totalValue.quantity) : null
     );
+    const costData = snapshots.map((s) =>
+      s.costBasis ? parseFloat(s.costBasis.quantity) : null
+    );
 
     if (chartRef.current) chartRef.current.destroy();
 
+    const datasets = [
+      {
+        label: "Market Value",
+        data: valueData,
+        borderColor: "rgba(99,102,241,1)",
+        backgroundColor: "rgba(99,102,241,0.1)",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        spanGaps: true,
+      },
+    ];
+
+    if (hasCostBasis) {
+      datasets.push({
+        label: "Cost Basis",
+        data: costData,
+        borderColor: "rgba(251,146,60,1)",
+        backgroundColor: "rgba(251,146,60,0.05)",
+        fill: false,
+        tension: 0.3,
+        pointRadius: 3,
+        borderDash: [5, 3],
+        spanGaps: true,
+      });
+    }
+
     chartRef.current = new Chart(canvasRef.current, {
       type: "line",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: "Portfolio Value",
-            data: valueData,
-            borderColor: "rgba(99,102,241,1)",
-            backgroundColor: "rgba(99,102,241,0.1)",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 3,
-            spanGaps: true,
-          },
-        ],
-      },
+      data: { labels, datasets },
       options: {
         responsive: true,
         maintainAspectRatio: true,
         interaction: { mode: "index", intersect: false },
         plugins: {
-          legend: { display: false },
+          legend: { display: hasCostBasis },
           tooltip: {
             callbacks: {
-              label: (ctx) => ` Portfolio Value: ${formatCurrency(ctx.parsed.y?.toString(), "USD")}`,
+              label: (ctx) =>
+                ` ${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y?.toString(), "USD")}`,
             },
           },
         },
@@ -221,7 +243,7 @@ function PortfolioChart({ snapshots }) {
         chartRef.current = null;
       }
     };
-  }, [snapshots]);
+  }, [snapshots, hasCostBasis]);
 
   if (!snapshots || snapshots.length < 2) return null;
 

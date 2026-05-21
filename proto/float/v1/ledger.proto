@@ -642,6 +642,7 @@ message GetPortfolioTimeseriesRequest {
 message PortfolioTimeseriesSnapshot {
   string date = 1;
   Amount total_value = 2; // total portfolio value at this period; null if no prices
+  Amount cost_basis = 3;  // total cost basis (--value=then,USD) at this period; null if unavailable
 }
 
 message GetPortfolioTimeseriesResponse {
