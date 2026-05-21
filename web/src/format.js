@@ -1,3 +1,22 @@
+const ACCOUNT_TYPE_ABBREV = {
+  assets: "a",
+  expenses: "e",
+  liabilities: "l",
+  revenues: "r",
+  income: "i",
+  equity: "eq",
+};
+
+export function condenseAccountName(name) {
+  if (!name) return name;
+  const colon = name.indexOf(":");
+  if (colon === -1) return name;
+  const prefix = name.slice(0, colon).toLowerCase();
+  const abbrev = ACCOUNT_TYPE_ABBREV[prefix];
+  if (!abbrev) return name;
+  return abbrev + name.slice(colon);
+}
+
 const CURRENCY_SYMBOLS = {
   "$": "$", // legacy compatibility until $ → USD migration
   USD: "$", EUR: "€", GBP: "£", JPY: "¥", CAD: "CA$", AUD: "A$",

@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { formatAmounts, formatCurrency, formatDate } from "../format.js";
+import { formatAmounts, formatCurrency, formatDate, condenseAccountName } from "../format.js";
 import { AccountInput, PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { InlineEdit, inlineEditKeyHandler, useInlineEditState } from "./inline-edit.jsx";
 import { useNavigate } from "@tanstack/react-router";
@@ -703,13 +703,13 @@ const accountsColumn = col.display({
     const tx = row.original;
     if (focusedAccount) {
       const display = accountRegisterDisplay(tx, focusedAccount);
-      return <span className="text-sm text-muted-foreground">{display?.otherAccounts || ""}</span>;
+      return <span className="text-sm text-muted-foreground">{condenseAccountName(display?.otherAccounts) || ""}</span>;
     }
     const display = generalDisplay(tx);
     if (!display) return null;
     const accountText = display.from === "various accounts" && display.to === "various accounts"
       ? "various accounts"
-      : `${display.from} \u2192 ${display.to}`;
+      : `${condenseAccountName(display.from)} \u2192 ${condenseAccountName(display.to)}`;
     return <span className="text-sm text-muted-foreground">{accountText}</span>;
   },
 });
@@ -1098,14 +1098,14 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
     changeNegative = cells.changeNegative;
   } else if (focusedAccount) {
     const display = accountRegisterDisplay(tx, focusedAccount);
-    accountCell = display?.otherAccounts || "";
+    accountCell = condenseAccountName(display?.otherAccounts) || "";
     amountCell = display?.amount || "";
   } else {
     const display = generalDisplay(tx);
     if (display) {
       accountCell = display.from === "various accounts" && display.to === "various accounts"
         ? "various accounts"
-        : `${display.from} \u2192 ${display.to}`;
+        : `${condenseAccountName(display.from)} \u2192 ${condenseAccountName(display.to)}`;
       amountCell = display.amount;
     }
   }

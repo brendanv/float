@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { condenseAccountName } from "../format.js";
 import { Check, X, Search, CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile.js";
 import { Button } from "@/components/ui/button";
@@ -281,7 +282,7 @@ function AccountCombobox({ value, onChange, accounts }) {
               value ? "font-semibold" : "",
             )}
           >
-            <span className="truncate">{value || "All accounts"}</span>
+            <span className="truncate">{condenseAccountName(value) || "All accounts"}</span>
             <span className="text-xs opacity-40">▾</span>
           </button>
         }
@@ -306,7 +307,7 @@ function AccountCombobox({ value, onChange, accounts }) {
                   onSelect={() => { onChange(a.fullName); setOpen(false); }}
                   data-checked={value === a.fullName ? "true" : undefined}
                 >
-                  {a.fullName}
+                  {condenseAccountName(a.fullName)}
                 </CommandItem>
               ))}
             </CommandGroup>

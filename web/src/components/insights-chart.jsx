@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { cn } from "@/lib/utils";
-import { formatAmounts } from "../format.js";
+import { formatAmounts, condenseAccountName } from "../format.js";
 
 function parseAmount(amounts) {
   if (!amounts || amounts.length === 0) return 0;
@@ -25,7 +25,7 @@ function BarChart({ rows, colorClass }) {
               className="w-2/5 flex-none truncate pr-1 text-right text-xs text-muted-foreground"
               title={row.fullName}
             >
-              {row.displayName || row.fullName}
+              {condenseAccountName(row.displayName || row.fullName)}
             </span>
             <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
               <div

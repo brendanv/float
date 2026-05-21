@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { formatAmounts } from "../format.js";
+import { formatAmounts, condenseAccountName } from "../format.js";
 
 const TYPE_ORDER = ["A", "L", "E", "R", "X"];
 const TYPE_LABELS = {
@@ -50,7 +50,7 @@ export function AccountList({ accounts, balanceRows }) {
                         search={{ account: acct.fullName }}
                         className="text-sm hover:underline"
                       >
-                        {acct.fullName}
+                        {condenseAccountName(acct.fullName)}
                       </Link>
                     </TableCell>
                     <TableCell className="py-1.5 text-right font-mono text-sm">
