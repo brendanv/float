@@ -152,11 +152,22 @@ export function TrendsPage() {
     queryFn: () => ledgerClient.getNetWorthTimeseries({ begin, end }),
   });
 
+  const { data: balancesData } = useQuery({
+    queryKey: queryKeys.balances({ depth: 1, value: "now,USD" }),
+    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD" }),
+  });
+
   const snapshots = timeseriesData?.snapshots || [];
-  const latest = snapshots[snapshots.length - 1];
   const prev = snapshots[snapshots.length - 2];
 
-  const currentNetWorth = latest ? parseAmount(latest.netWorth) : null;
+  // Use live current-price balances for current net worth (matches home page)
+  const balanceRows = balancesData?.report?.rows || [];
+  const assetsRow = balanceRows.find((r) => r.fullName === "assets");
+  const liabilitiesRow = balanceRows.find((r) => r.fullName === "liabilities");
+  const currentNetWorth = assetsRow
+    ? parseFloat(assetsRow?.amounts?.[0]?.quantity || 0) + parseFloat(liabilitiesRow?.amounts?.[0]?.quantity || 0)
+    : null;
+
   const prevNetWorth = prev ? parseAmount(prev.netWorth) : null;
   const monthChange = currentNetWorth !== null && prevNetWorth !== null ? currentNetWorth - prevNetWorth : null;
 

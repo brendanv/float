@@ -269,14 +269,14 @@ func (c *Client) PortfolioTimeseries(ctx context.Context, accounts []string, beg
 }
 
 // BalanceSheetTimeseries runs `hledger bs --monthly --historical --layout=bare
-// --infer-market-prices --value=then -O json -f <journal> [date:begin..end]`
+// --infer-market-prices --value=end,USD -O json -f <journal> [date:begin..end]`
 // and returns per-period asset and liability totals.
 // begin and end are optional "YYYY-MM-DD" strings; pass "" to omit.
 func (c *Client) BalanceSheetTimeseries(ctx context.Context, begin, end string) (*BalanceSheetTimeseries, error) {
 	args := []string{
 		"bs", "-O", "json", "-f", c.journal,
 		"--monthly", "--historical", "--layout=bare",
-		"--infer-market-prices", "--value=then",
+		"--infer-market-prices", "--value=end,USD",
 	}
 	if begin != "" || end != "" {
 		args = append(args, "date:"+begin+".."+end)
