@@ -245,19 +245,17 @@ func (c *Client) BalancesCost(ctx context.Context, depth int, query ...string) (
 }
 
 // PortfolioTimeseries runs `hledger bs --monthly --historical --layout=bare
-// --infer-market-prices --value=then,USD -O json -f <journal> [prefix] [date:begin..]`
-// filtered to the given account prefix.
-// The Assets subreport total gives total investment value per period.
-// prefix and begin are optional strings; pass "" to omit.
-func (c *Client) PortfolioTimeseries(ctx context.Context, prefix, begin string) (*BalanceSheetTimeseries, error) {
+// --infer-market-prices --value=end,USD -O json -f <journal> [accounts...] [date:begin..]`
+// for the given investment account names (not prefixes — pass leaf account names that hold
+// non-currency commodities so that pure-cash accounts are excluded from the total).
+// accounts must be non-empty; begin is an optional "YYYY-MM-DD" string.
+func (c *Client) PortfolioTimeseries(ctx context.Context, accounts []string, begin string) (*BalanceSheetTimeseries, error) {
 	args := []string{
 		"bs", "-O", "json", "-f", c.journal,
 		"--monthly", "--historical", "--layout=bare",
-		"--infer-market-prices", "--value=then,USD",
+		"--infer-market-prices", "--value=end,USD",
 	}
-	if prefix != "" {
-		args = append(args, prefix)
-	}
+	args = append(args, accounts...)
 	if begin != "" {
 		args = append(args, "date:"+begin+"..")
 	}

@@ -272,7 +272,7 @@ func TestBalancesCost(t *testing.T) {
 func TestPortfolioTimeseries(t *testing.T) {
 	c := mustClient(t, "investments.journal")
 
-	ts, err := c.PortfolioTimeseries(t.Context(), "assets:investments", "")
+	ts, err := c.PortfolioTimeseries(t.Context(), []string{"assets:investments"}, "")
 	if err != nil {
 		t.Fatalf("PortfolioTimeseries: %v", err)
 	}
@@ -294,8 +294,8 @@ func TestPortfolioTimeseries(t *testing.T) {
 		return
 	}
 
-	// Last period should include both AAPL and MSFT valued at then-prices.
-	// With --value=then,USD and P directives at 2026-04-26, the last period
+	// Last period should include both AAPL and MSFT valued at period-end prices.
+	// With --value=end,USD and P directives at 2026-04-26, the last period
 	// after both purchases will show total investment value > 0.
 	last := len(ts.Periods) - 1
 	if len(assetsSub.Totals[last]) == 0 {
