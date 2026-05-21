@@ -153,14 +153,17 @@ func cachedNetWorth(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 	})
 }
 
-func portfolioTimeseriesKey(prefix, begin string) string {
-	return fmt.Sprintf("portfoliotimeseries:%s:%s", prefix, begin)
+func portfolioTimeseriesKey(accounts []string, begin string) string {
+	sorted := make([]string, len(accounts))
+	copy(sorted, accounts)
+	sort.Strings(sorted)
+	return fmt.Sprintf("portfoliotimeseries:%s:%s", strings.Join(sorted, "|"), begin)
 }
 
 // cachedPortfolioTimeseries fetches a portfolio value timeseries from cache or hledger.
-func cachedPortfolioTimeseries(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, prefix, begin string) (*hledger.BalanceSheetTimeseries, error) {
-	return cachedGet(ctx, c, portfolioTimeseriesKey(prefix, begin), func(ctx context.Context) (*hledger.BalanceSheetTimeseries, error) {
-		return hl.PortfolioTimeseries(ctx, prefix, begin)
+func cachedPortfolioTimeseries(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, accounts []string, begin string) (*hledger.BalanceSheetTimeseries, error) {
+	return cachedGet(ctx, c, portfolioTimeseriesKey(accounts, begin), func(ctx context.Context) (*hledger.BalanceSheetTimeseries, error) {
+		return hl.PortfolioTimeseries(ctx, accounts, begin)
 	})
 }
 
@@ -485,7 +488,29 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 		prefix = "assets"
 	}
 
-	ts, err := cachedPortfolioTimeseries(ctx, h.cache, h.hl, prefix, req.Msg.Begin)
+	// Determine which accounts under the prefix actually hold non-currency
+	// commodities (equities, funds, etc.). This mirrors the GetPortfolioHoldings
+	// filter so that cash accounts like checking/savings are excluded from the
+	// chart total, matching what the Total Value card shows.
+	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, []string{prefix})
+	if err != nil {
+		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio timeseries")
+	}
+	seen := make(map[string]bool)
+	var investmentAccounts []string
+	for _, row := range raw.Rows {
+		for _, amt := range row.Amounts {
+			if !currencySymbols[amt.Commodity] && !seen[row.FullName] {
+				investmentAccounts = append(investmentAccounts, row.FullName)
+				seen[row.FullName] = true
+			}
+		}
+	}
+	if len(investmentAccounts) == 0 {
+		return connect.NewResponse(&floatv1.GetPortfolioTimeseriesResponse{}), nil
+	}
+
+	ts, err := cachedPortfolioTimeseries(ctx, h.cache, h.hl, investmentAccounts, req.Msg.Begin)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger portfolio timeseries failed")
 	}
