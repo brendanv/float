@@ -747,6 +747,13 @@ message ImportAllStripeTransactionsRequest {
   repeated AccountTransactionSelection selections = 1;
 }
 
+message UpdateStripeAccountLastFetchedAtRequest {
+  string stripe_account_id = 1;
+  string last_fetched_at = 2; // RFC3339; empty string clears the value (fetch all history on next run)
+}
+
+message UpdateStripeAccountLastFetchedAtResponse {}
+
 // ---- AI ----
 
 message SuggestedRule {
@@ -919,6 +926,7 @@ service LedgerService {
   rpc ImportStripeTransactions(ImportStripeTransactionsRequest) returns (stream ImportTransactionsResponse);
   rpc FetchAllStripeTransactions(FetchAllStripeTransactionsRequest) returns (FetchAllStripeTransactionsResponse);
   rpc ImportAllStripeTransactions(ImportAllStripeTransactionsRequest) returns (stream ImportTransactionsResponse);
+  rpc UpdateStripeAccountLastFetchedAt(UpdateStripeAccountLastFetchedAtRequest) returns (UpdateStripeAccountLastFetchedAtResponse);
 
   // AI
   rpc SuggestRules(SuggestRulesRequest) returns (SuggestRulesResponse);
