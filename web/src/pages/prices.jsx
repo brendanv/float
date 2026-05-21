@@ -289,6 +289,15 @@ export function PricesPage() {
   const [backfillResult, setBackfillResult] = useState(null);
   const [backfillError, setBackfillError] = useState(null);
 
+  const [bulkCommodities, setBulkCommodities] = useState("");
+  const [bulkStartDate, setBulkStartDate] = useState(oneYearAgo);
+  const [bulkEndDate, setBulkEndDate] = useState(today);
+  const [bulkCurrency, setBulkCurrency] = useState("USD");
+  const [bulkResults, setBulkResults] = useState(null);
+  const [bulkError, setBulkError] = useState(null);
+  const [bulkPending, setBulkPending] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(null);
+
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.addPrice(vars),
     onSuccess: () => {
@@ -339,6 +348,44 @@ export function PricesPage() {
       endDate: backfillEndDate,
       currency: backfillCurrency.trim(),
     });
+  }
+
+  async function handleBulkBackfill(e) {
+    e.preventDefault();
+    const commodities = bulkCommodities
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (commodities.length === 0) return;
+
+    setBulkPending(true);
+    setBulkResults(null);
+    setBulkError(null);
+    setBulkProgress({ current: 0, total: commodities.length });
+
+    const results = [];
+    let firstError = null;
+    for (let i = 0; i < commodities.length; i++) {
+      setBulkProgress({ current: i + 1, total: commodities.length });
+      try {
+        const data = await ledgerClient.backfillPrices({
+          commodity: commodities[i],
+          startDate: bulkStartDate,
+          endDate: bulkEndDate,
+          currency: bulkCurrency.trim(),
+        });
+        results.push({ commodity: commodities[i], added: data.prices?.length ?? 0, skipped: data.skippedCount ?? 0 });
+      } catch (err) {
+        if (!firstError) firstError = err;
+        results.push({ commodity: commodities[i], error: err });
+      }
+    }
+
+    setBulkPending(false);
+    setBulkProgress(null);
+    setBulkResults(results);
+    setBulkError(firstError);
+    queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
   }
 
   return (
@@ -458,6 +505,80 @@ export function PricesPage() {
               <Button type="submit" disabled={backfillMutation.isPending}>
                 {backfillMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
                 {backfillMutation.isPending ? "Fetching…" : "Backfill"}
+              </Button>
+            </FormActions>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bulk Backfill Price History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form onSubmit={handleBulkBackfill}>
+            {bulkError && <ErrorBanner error={bulkError} />}
+            {bulkResults && (
+              <div className="flex flex-col gap-1">
+                {bulkResults.map((r) =>
+                  r.error ? (
+                    <p key={r.commodity} className="text-xs text-destructive">
+                      {r.commodity}: {r.error.message ?? String(r.error)}
+                    </p>
+                  ) : (
+                    <p key={r.commodity} className="text-xs text-success">
+                      {r.commodity}: added {r.added} {r.added === 1 ? "price" : "prices"}
+                      {r.skipped > 0 && ` (${r.skipped} already existed)`}.
+                    </p>
+                  ),
+                )}
+              </div>
+            )}
+            <FormRow cols={4}>
+              <FormField label="Commodities" htmlFor="bulk-commodities">
+                <Input
+                  id="bulk-commodities"
+                  type="text"
+                  placeholder="AAPL, MSFT, GOOG"
+                  value={bulkCommodities}
+                  onChange={(e) => setBulkCommodities(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Start Date" htmlFor="bulk-start">
+                <Input
+                  id="bulk-start"
+                  type="date"
+                  value={bulkStartDate}
+                  onChange={(e) => setBulkStartDate(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="End Date" htmlFor="bulk-end">
+                <Input
+                  id="bulk-end"
+                  type="date"
+                  value={bulkEndDate}
+                  onChange={(e) => setBulkEndDate(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Currency" htmlFor="bulk-currency">
+                <Input
+                  id="bulk-currency"
+                  type="text"
+                  value={bulkCurrency}
+                  onChange={(e) => setBulkCurrency(e.target.value)}
+                  required
+                />
+              </FormField>
+            </FormRow>
+            <FormActions>
+              <Button type="submit" disabled={bulkPending}>
+                {bulkPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+                {bulkPending
+                  ? `Fetching ${bulkProgress?.current}/${bulkProgress?.total}…`
+                  : "Bulk Backfill"}
               </Button>
             </FormActions>
           </Form>
