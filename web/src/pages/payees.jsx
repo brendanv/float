@@ -9,13 +9,17 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { Loader2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon, Sparkles, ChevronDown } from "lucide-react";
+import { ExternalLink, Sparkles, ChevronDown, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { EmptyState } from "../components/empty-state.jsx";
+import { TableSortHeader } from "../components/table-sort-header.jsx";
+import { TablePagination } from "../components/table-pagination.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
@@ -31,104 +35,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-function SortHeader({ column, children }) {
-  const sorted = column.getIsSorted();
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="-ml-3 h-8 gap-1"
-      onClick={column.getToggleSortingHandler()}
-    >
-      {children}
-      {sorted === "asc" ? (
-        <ArrowUp className="size-3.5" />
-      ) : sorted === "desc" ? (
-        <ArrowDown className="size-3.5" />
-      ) : (
-        <ArrowUpDown className="size-3.5 opacity-40" />
-      )}
-    </Button>
-  );
-}
-
-function TablePagination({ table }) {
-  const { pageIndex, pageSize } = table.getState().pagination;
-  const total = table.getFilteredRowModel().rows.length;
-  if (total === 0) return null;
-  const from = pageIndex * pageSize + 1;
-  const to = Math.min((pageIndex + 1) * pageSize, total);
-  return (
-    <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
-        <Select
-          value={String(pageSize)}
-          onValueChange={(val) => {
-            table.setPageSize(Number(val));
-            table.setPageIndex(0);
-          }}
-        >
-          <SelectTrigger className="h-8 w-16">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="10">10</SelectItem>
-            <SelectItem value="25">25</SelectItem>
-            <SelectItem value="50">50</SelectItem>
-            <SelectItem value="100">100</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="whitespace-nowrap text-sm text-muted-foreground">
-          {from}–{to} of {total}
-        </span>
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <Button
-                aria-label="Go to previous page"
-                size="icon"
-                variant="ghost"
-                className="size-8"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-              >
-                <ChevronLeftIcon className="size-4" />
-              </Button>
-            </PaginationItem>
-            <PaginationItem>
-              <Button
-                aria-label="Go to next page"
-                size="icon"
-                variant="ghost"
-                className="size-8"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-              >
-                <ChevronRightIcon className="size-4" />
-              </Button>
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-    </div>
-  );
-}
 
 export function PayeesPage() {
   const navigate = useNavigate();
@@ -177,7 +83,7 @@ export function PayeesPage() {
       {
         id: "name",
         accessorKey: "name",
-        header: ({ column }) => <SortHeader column={column}>Payee</SortHeader>,
+        header: ({ column }) => <TableSortHeader column={column}>Payee</TableSortHeader>,
         cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
       },
       {
@@ -297,13 +203,13 @@ export function PayeesPage() {
       {
         id: "description",
         accessorKey: "description",
-        header: ({ column }) => <SortHeader column={column}>Description</SortHeader>,
+        header: ({ column }) => <TableSortHeader column={column}>Description</TableSortHeader>,
         cell: ({ getValue }) => <span className="font-mono text-sm">{getValue()}</span>,
       },
       {
         id: "count",
         accessorKey: "count",
-        header: ({ column }) => <SortHeader column={column}>Count</SortHeader>,
+        header: ({ column }) => <TableSortHeader column={column}>Count</TableSortHeader>,
         cell: ({ getValue }) => <Badge variant="secondary">{getValue()}</Badge>,
         meta: { headerClass: "w-28" },
       },
@@ -329,10 +235,11 @@ export function PayeesPage() {
                 />
                 <Button
                   size="xs"
-                  disabled={settingPayee || !newPayee.trim()}
+                  disabled={!newPayee.trim()}
+                  isLoading={settingPayee}
                   onClick={() => confirmSetPayee(fids)}
                 >
-                  {settingPayee ? <Loader2 className="size-3 animate-spin" /> : "Set"}
+                  Set
                 </Button>
                 <Button
                   variant="ghost"
@@ -400,6 +307,7 @@ export function PayeesPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <PageHeader title="Payees" />
       {/* Section 1: Explicit payees */}
       <Collapsible open={payeesOpen} onOpenChange={setPayeesOpen}>
         <Card>
@@ -478,9 +386,10 @@ export function PayeesPage() {
           <CollapsibleContent>
             <CardContent className="flex flex-col gap-4">
               {descRows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  All transactions have a payee assigned.
-                </p>
+                <EmptyState
+                  icon={Users}
+                  title="All transactions have a payee assigned"
+                />
               ) : (
                 <>
                   <div className="flex flex-wrap items-center gap-4">

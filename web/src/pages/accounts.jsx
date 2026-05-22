@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { BookOpen } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { EmptyState } from "../components/empty-state.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronRight, ChevronDown, Pencil } from "lucide-react";
+import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
@@ -77,17 +80,13 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName
         <span className="font-mono text-sm flex-1">{label}</span>
         {declaredNames.has(name) && !decl?.hasPostings && (
           <Button
-            variant="ghost"
+            variant="destructive-ghost"
             size="xs"
-            className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity mr-1"
-            disabled={deletingName === name}
+            className="opacity-0 group-hover:opacity-100 transition-opacity mr-1"
+            isLoading={deletingName === name}
             onClick={() => onDelete(name)}
           >
-            {deletingName === name ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              "Delete"
-            )}
+            Delete
           </Button>
         )}
       </div>
@@ -130,17 +129,12 @@ function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNa
             </CollapsibleTrigger>
             {canDelete && (
               <Button
-                variant="ghost"
+                variant="destructive-ghost"
                 size="xs"
-                className="text-destructive text-xs h-6"
-                disabled={deletingName === root}
+                isLoading={deletingName === root}
                 onClick={() => onDelete(root)}
               >
-                {deletingName === root ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  "Delete"
-                )}
+                Delete
               </Button>
             )}
           </div>
@@ -225,13 +219,12 @@ export function AccountsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">Account Declarations</h2>
+      <PageHeader title="Account Declarations">
         <Button variant="outline" onClick={() => { setFormError(null); setRenameOpen(true); }}>
           <Pencil data-icon="inline-start" className="size-3.5" />
           Rename Account
         </Button>
-      </div>
+      </PageHeader>
 
       <Card>
         <CardHeader>
@@ -258,11 +251,12 @@ export function AccountsPage() {
               </FormField>
             </FormRow>
             <FormActions>
-              <Button type="submit" disabled={addMutation.isPending}>
-                {addMutation.isPending && (
-                  <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-                )}
-                {addMutation.isPending ? "Declaring…" : "Declare Account"}
+              <Button
+                type="submit"
+                isLoading={addMutation.isPending}
+                loadingText="Declaring…"
+              >
+                Declare Account
               </Button>
             </FormActions>
           </Form>
@@ -274,7 +268,11 @@ export function AccountsPage() {
       {data && declarations.length === 0 && (
         <Card>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No account declarations yet.</p>
+            <EmptyState
+              icon={BookOpen}
+              title="No account declarations yet"
+              description="Declare accounts to get type-aware classification (assets, liabilities, income, expenses, equity)."
+            />
           </CardContent>
         </Card>
       )}
@@ -367,7 +365,7 @@ function RenameAccountDialog({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" showCloseButton>
+      <DialogContent size="sm" showCloseButton>
         <DialogHeader>
           <DialogTitle>Rename Account</DialogTitle>
           <DialogDescription>
@@ -429,13 +427,11 @@ function RenameAccountDialog({ open, onOpenChange }) {
               </Button>
               <Button
                 type="button"
-                disabled={renameMutation.isPending}
+                isLoading={renameMutation.isPending}
+                loadingText="Renaming…"
                 onClick={handleConfirm}
               >
-                {renameMutation.isPending && (
-                  <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-                )}
-                {renameMutation.isPending ? "Renaming…" : "Confirm Rename"}
+                Confirm Rename
               </Button>
             </DialogFooter>
           </div>

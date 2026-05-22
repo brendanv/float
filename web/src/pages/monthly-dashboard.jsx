@@ -7,6 +7,7 @@ import { DATE_PRESETS } from "../components/search-presets.js";
 import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -132,15 +133,14 @@ export function MonthlyDashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">Monthly Dashboard</h1>
+      <PageHeader title="Monthly Dashboard">
         <DateRangePicker
           dateFrom={dateFrom}
           dateTo={dateTo}
           onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
           align="end"
         />
-      </div>
+      </PageHeader>
 
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}

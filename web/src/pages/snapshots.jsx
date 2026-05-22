@@ -2,8 +2,11 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { History } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { EmptyState } from "../components/empty-state.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -13,7 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -84,7 +86,7 @@ function SnapshotDiffDialog({ hash, open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] max-w-5xl sm:max-w-5xl" showCloseButton>
+      <DialogContent size="xl" showCloseButton>
         <DialogHeader>
           <DialogTitle className="font-mono text-sm">
             Diff {hash?.slice(0, 12)}
@@ -140,7 +142,7 @@ export function SnapshotsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Snapshots</h2>
+      <PageHeader title="Snapshots" />
 
       <Card>
         <CardHeader>
@@ -179,12 +181,12 @@ export function SnapshotsPage() {
                           <Button
                             variant="ghost"
                             size="xs"
-                            className="text-warning"
-                            disabled={restoring === s.hash}
+                            className="text-warning hover:text-warning"
+                            isLoading={restoring === s.hash}
+                            loadingText="Restoring…"
                             onClick={() => handleRestore(s.hash)}
                           >
-                            {restoring === s.hash && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                            {restoring === s.hash ? "Restoring…" : "Restore"}
+                            Restore
                           </Button>
                         </div>
                       </TableCell>
@@ -193,7 +195,11 @@ export function SnapshotsPage() {
                 </TableBody>
               </Table>
             ) : (
-              <p className="text-sm text-muted-foreground">No snapshots yet.</p>
+              <EmptyState
+                icon={History}
+                title="No snapshots yet"
+                description="Snapshots are created automatically every time you write to the journal."
+              />
             )
           )}
         </CardContent>

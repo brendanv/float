@@ -4,6 +4,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -186,7 +187,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Settings</h2>
+      <PageHeader title="Settings" />
 
       <Card>
         <CardHeader>
@@ -241,9 +242,11 @@ export function SettingsPage() {
                     />
                     <Button
                       type="submit"
-                      disabled={!customerIdInput.trim() || setCustomerIdMutation.isPending}
+                      disabled={!customerIdInput.trim()}
+                      isLoading={setCustomerIdMutation.isPending}
+                      loadingText="Saving…"
                     >
-                      {setCustomerIdMutation.isPending ? "Saving…" : "Save"}
+                      Save
                     </Button>
                   </div>
                 </FormField>
@@ -255,9 +258,8 @@ export function SettingsPage() {
               {stripeData.customerId && (
                 <div>
                   <Button
-                    variant="ghost"
+                    variant="destructive-ghost"
                     size="sm"
-                    className="text-destructive hover:text-destructive"
                     disabled={setCustomerIdMutation.isPending}
                     onClick={handleStripeCustomerIdClear}
                   >
@@ -390,9 +392,11 @@ export function SettingsPage() {
                     />
                     <Button
                       type="submit"
-                      disabled={!apiKey || setKeyMutation.isPending}
+                      disabled={!apiKey}
+                      isLoading={setKeyMutation.isPending}
+                      loadingText="Saving…"
                     >
-                      {setKeyMutation.isPending ? "Saving…" : "Save"}
+                      Save
                     </Button>
                   </div>
                 </FormField>
@@ -404,9 +408,8 @@ export function SettingsPage() {
               {avData.apiKeyConfigured && (
                 <div>
                   <Button
-                    variant="ghost"
+                    variant="destructive-ghost"
                     size="sm"
-                    className="text-destructive hover:text-destructive"
                     disabled={setKeyMutation.isPending}
                     onClick={handleAvClear}
                   >
@@ -471,9 +474,11 @@ export function SettingsPage() {
                     />
                     <Button
                       type="submit"
-                      disabled={!modelInput.trim() || setModelMutation.isPending}
+                      disabled={!modelInput.trim()}
+                      isLoading={setModelMutation.isPending}
+                      loadingText="Saving…"
                     >
-                      {setModelMutation.isPending ? "Saving…" : "Save"}
+                      Save
                     </Button>
                   </div>
                 </FormField>
@@ -485,9 +490,8 @@ export function SettingsPage() {
               {aiData.model && (
                 <div>
                   <Button
-                    variant="ghost"
+                    variant="destructive-ghost"
                     size="sm"
-                    className="text-destructive hover:text-destructive"
                     disabled={setModelMutation.isPending}
                     onClick={handleAiReset}
                   >
@@ -526,8 +530,12 @@ export function SettingsPage() {
                 />
               </FormField>
               <FormActions align="start">
-                <Button type="submit" disabled={setPromptMutation.isPending}>
-                  {setPromptMutation.isPending ? "Saving…" : "Save guidelines"}
+                <Button
+                  type="submit"
+                  isLoading={setPromptMutation.isPending}
+                  loadingText="Saving…"
+                >
+                  Save guidelines
                 </Button>
                 {promptSaved && (
                   <p className="text-xs text-success">Guidelines saved.</p>

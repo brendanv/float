@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, CircleCheck } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { PostingFields, toPostingInput } from "./posting-fields.jsx";
@@ -94,9 +94,8 @@ function AddTransactionForm({ onSuccess }) {
         />
       </FormField>
       <FormActions>
-        <Button type="submit" disabled={submitting}>
-          {submitting && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-          {submitting ? "Adding…" : "Add Transaction"}
+        <Button type="submit" isLoading={submitting} loadingText="Adding…">
+          Add Transaction
         </Button>
       </FormActions>
     </Form>
@@ -118,7 +117,7 @@ export function AddTransactionModal({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg" showCloseButton>
+      <DialogContent size="md" showCloseButton>
         <DialogHeader>
           <DialogTitle>Add Transaction</DialogTitle>
         </DialogHeader>

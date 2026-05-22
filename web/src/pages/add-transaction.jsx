@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, CircleCheck } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { PostingFields, toPostingInput } from "../components/posting-fields.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -85,7 +86,7 @@ export function AddTransactionPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Add Transaction</h2>
+      <PageHeader title="Add Transaction" />
       <Card className="max-w-2xl">
         <CardContent>
           <Form onSubmit={handleSubmit}>
@@ -119,9 +120,8 @@ export function AddTransactionPage() {
               />
             </FormField>
             <FormActions>
-              <Button type="submit" disabled={submitting}>
-                {submitting && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {submitting ? "Adding…" : "Add Transaction"}
+              <Button type="submit" isLoading={submitting} loadingText="Adding…">
+                Add Transaction
               </Button>
             </FormActions>
           </Form>

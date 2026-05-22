@@ -7,11 +7,13 @@ import {
   getFilteredRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { Plus, CircleCheck, Pencil, Trash2, Tag, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, CircleCheck, Pencil, Trash2, Tag } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -215,7 +217,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg" className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Bank Profile</DialogTitle>
         </DialogHeader>
@@ -349,9 +351,13 @@ function CreateProfileModal({ open, onCreated, onClose }) {
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={saving || !rulesFilePath}>
-              {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {saving ? "Creating…" : "Create Profile"}
+            <Button
+              type="submit"
+              disabled={!rulesFilePath}
+              isLoading={saving}
+              loadingText="Creating…"
+            >
+              Create Profile
             </Button>
           </DialogFooter>
         </Form>
@@ -398,7 +404,7 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Edit Bank Profile</DialogTitle>
         </DialogHeader>
@@ -430,9 +436,8 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
             </FormField>
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {saving ? "Saving…" : "Save Changes"}
+              <Button type="submit" isLoading={saving} loadingText="Saving…">
+                Save Changes
               </Button>
             </DialogFooter>
           </Form>
@@ -488,9 +493,13 @@ function DeleteProfileDialog({ profile, open, onDeleted, onClose }) {
         </div>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-            {deleting && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-            {deleting ? "Deleting…" : "Delete Profile"}
+          <Button
+            variant="destructive"
+            onClick={handleDelete}
+            isLoading={deleting}
+            loadingText="Deleting…"
+          >
+            Delete Profile
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -714,7 +723,7 @@ export function ImportPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Import Transactions</h2>
+      <PageHeader title="Import Transactions" />
 
       {/* Upload form */}
       <Card>
@@ -819,10 +828,11 @@ export function ImportPage() {
             <FormActions>
               <Button
                 type="submit"
-                disabled={previewing || !csvFile || !selectedProfile}
+                disabled={!csvFile || !selectedProfile}
+                isLoading={previewing}
+                loadingText="Previewing…"
               >
-                {previewing && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {previewing ? "Previewing…" : "Preview"}
+                Preview
               </Button>
             </FormActions>
           </Form>
@@ -876,14 +886,15 @@ export function ImportPage() {
                 <Button
                   size="sm"
                   onClick={handleImport}
-                  disabled={importing || selectedIndices.size === 0}
-                >
-                  {importing && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                  {importing
-                    ? importProgress && importProgress.total > 0
+                  disabled={selectedIndices.size === 0}
+                  isLoading={importing}
+                  loadingText={
+                    importProgress && importProgress.total > 0
                       ? `Importing ${importProgress.imported} of ${importProgress.total}…`
                       : "Importing…"
-                    : `Import ${selectedIndices.size} Selected`}
+                  }
+                >
+                  Import {selectedIndices.size} Selected
                 </Button>
               </div>
             </div>
@@ -895,24 +906,12 @@ export function ImportPage() {
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => {
                       const canSort = header.column.getCanSort();
-                      const sorted = header.column.getIsSorted();
                       return (
                         <TableHead key={header.id}>
                           {canSort ? (
-                            <button
-                              type="button"
-                              className="flex items-center gap-1 hover:text-foreground"
-                              onClick={header.column.getToggleSortingHandler()}
-                            >
+                            <TableSortHeader column={header.column}>
                               {flexRender(header.column.columnDef.header, header.getContext())}
-                              {sorted === "asc" ? (
-                                <ArrowUp className="size-3" />
-                              ) : sorted === "desc" ? (
-                                <ArrowDown className="size-3" />
-                              ) : (
-                                <ArrowUpDown className="size-3 opacity-40" />
-                              )}
-                            </button>
+                            </TableSortHeader>
                           ) : (
                             flexRender(header.column.columnDef.header, header.getContext())
                           )}

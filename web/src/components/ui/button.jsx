@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils"
 
@@ -17,6 +18,8 @@ const buttonVariants = cva(
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+        "destructive-ghost":
+          "text-destructive hover:bg-destructive/10 hover:text-destructive aria-expanded:bg-destructive/10 aria-expanded:text-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
@@ -42,13 +45,27 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  isLoading = false,
+  loadingText,
+  disabled,
+  children,
   ...props
 }) {
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      {...props} />
+      disabled={disabled || isLoading}
+      {...props}
+    >
+      {isLoading && (
+        <Loader2
+          data-icon={loadingText !== undefined ? "inline-start" : undefined}
+          className="size-3.5 animate-spin"
+        />
+      )}
+      {isLoading ? loadingText : children}
+    </ButtonPrimitive>
   );
 }
 

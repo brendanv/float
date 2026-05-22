@@ -9,11 +9,15 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Tag } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { EmptyState } from "../components/empty-state.jsx";
+import { TableSortHeader } from "../components/table-sort-header.jsx";
+import { TablePagination } from "../components/table-pagination.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -27,19 +31,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -51,35 +42,12 @@ function oneYearAgo() {
   return d.toISOString().slice(0, 10);
 }
 
-function SortableHeader({ column, children, align = "left" }) {
-  const sorted = column.getIsSorted();
-  return (
-    <button
-      className={cn(
-        "inline-flex cursor-pointer select-none items-center gap-1 rounded px-1 -mx-1 py-0.5 transition-colors hover:text-foreground",
-        align === "right" && "ml-auto flex-row-reverse",
-        sorted ? "text-foreground" : "text-muted-foreground",
-      )}
-      onClick={() => column.toggleSorting(sorted === "asc")}
-    >
-      {children}
-      {sorted === "asc" ? (
-        <ArrowUp className="size-3 shrink-0" />
-      ) : sorted === "desc" ? (
-        <ArrowDown className="size-3 shrink-0" />
-      ) : (
-        <ArrowUpDown className="size-3 shrink-0 opacity-40" />
-      )}
-    </button>
-  );
-}
-
 const colHelper = createColumnHelper();
 
 const priceColumns = [
   colHelper.accessor("date", {
     id: "date",
-    header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
+    header: ({ column }) => <TableSortHeader column={column}>Date</TableSortHeader>,
     cell: ({ getValue }) => <span className="font-mono">{getValue()}</span>,
     sortingFn: "alphanumeric",
     filterFn: "includesString",
@@ -94,7 +62,7 @@ const priceColumns = [
     (row) => parseFloat(row.price?.quantity ?? "0"),
     {
       id: "price",
-      header: ({ column }) => <SortableHeader column={column} align="right">Price</SortableHeader>,
+      header: ({ column }) => <TableSortHeader column={column} align="right">Price</TableSortHeader>,
       cell: ({ row }) => (
         <span className="block text-right font-mono">
           {row.original.price?.quantity} {row.original.price?.commodity}
@@ -112,9 +80,8 @@ const priceColumns = [
       if (!p.pid) return null;
       return (
         <Button
-          variant="ghost"
+          variant="destructive-ghost"
           size="xs"
-          className="text-destructive"
           onClick={() => onDelete(p.pid)}
         >
           Delete
@@ -146,11 +113,6 @@ function PriceHistoryTable({ prices, onDelete }) {
     getFilteredRowModel: getFilteredRowModel(),
     meta: { onDelete },
   });
-
-  const { pageIndex } = table.getState().pagination;
-  const total = table.getFilteredRowModel().rows.length;
-  const rangeStart = total === 0 ? 0 : pageIndex * pagination.pageSize + 1;
-  const rangeEnd = Math.min((pageIndex + 1) * pagination.pageSize, total);
 
   return (
     <div className="flex flex-col gap-3">
@@ -207,63 +169,7 @@ function PriceHistoryTable({ prices, onDelete }) {
         </TableBody>
       </Table>
 
-      {total > 0 && (
-        <div className="flex w-full flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
-            <Select
-              value={String(pagination.pageSize)}
-              onValueChange={(val) => {
-                table.setPageSize(Number(val));
-                setPagination((p) => ({ ...p, pageIndex: 0 }));
-              }}
-            >
-              <SelectTrigger className="h-8 w-16">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-sm text-muted-foreground">
-              {rangeStart}–{rangeEnd} of {total}
-            </span>
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <Button
-                    aria-label="Go to previous page"
-                    size="icon"
-                    variant="ghost"
-                    className="size-8"
-                    onClick={() => table.previousPage()}
-                    disabled={!table.getCanPreviousPage()}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                </PaginationItem>
-                <PaginationItem>
-                  <Button
-                    aria-label="Go to next page"
-                    size="icon"
-                    variant="ghost"
-                    className="size-8"
-                    onClick={() => table.nextPage()}
-                    disabled={!table.getCanNextPage()}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        </div>
-      )}
+      <TablePagination table={table} />
     </div>
   );
 }
@@ -372,7 +278,7 @@ export function PricesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Commodity Prices</h2>
+      <PageHeader title="Commodity Prices" />
 
       <Card>
         <CardHeader>
@@ -422,9 +328,12 @@ export function PricesPage() {
               </FormField>
             </FormRow>
             <FormActions>
-              <Button type="submit" disabled={addMutation.isPending}>
-                {addMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {addMutation.isPending ? "Adding…" : "Add Price"}
+              <Button
+                type="submit"
+                isLoading={addMutation.isPending}
+                loadingText="Adding…"
+              >
+                Add Price
               </Button>
             </FormActions>
           </Form>
@@ -502,11 +411,16 @@ export function PricesPage() {
               >
                 Prefill from existing
               </Button>
-              <Button type="submit" disabled={backfillPending}>
-                {backfillPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {backfillPending
-                  ? `Fetching ${backfillProgress?.current}/${backfillProgress?.total}…`
-                  : "Backfill"}
+              <Button
+                type="submit"
+                isLoading={backfillPending}
+                loadingText={
+                  backfillProgress
+                    ? `Fetching ${backfillProgress.current}/${backfillProgress.total}…`
+                    : "Backfilling…"
+                }
+              >
+                Backfill
               </Button>
             </FormActions>
           </Form>
@@ -524,7 +438,11 @@ export function PricesPage() {
             pricesData.prices?.length > 0 ? (
               <PriceHistoryTable prices={pricesData.prices} onDelete={handleDelete} />
             ) : (
-              <p className="text-sm text-muted-foreground">No prices recorded yet.</p>
+              <EmptyState
+                icon={Tag}
+                title="No prices recorded yet"
+                description="Add a price above or backfill from AlphaVantage."
+              />
             )
           )}
         </CardContent>

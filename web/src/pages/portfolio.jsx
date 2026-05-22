@@ -15,6 +15,7 @@ import { queryKeys } from "../query-keys.js";
 import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -453,8 +454,7 @@ export function PortfolioPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <h2 className="text-2xl font-bold">Investment Portfolio</h2>
+      <PageHeader title="Investment Portfolio">
         <div className="flex items-end gap-2">
           <Label htmlFor="account-prefix" className="whitespace-nowrap text-xs text-muted-foreground">
             Account prefix
@@ -467,7 +467,7 @@ export function PortfolioPage() {
             onChange={(e) => setAccountPrefix(e.target.value)}
           />
         </div>
-      </div>
+      </PageHeader>
 
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}

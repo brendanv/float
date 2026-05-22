@@ -11,18 +11,16 @@ import {
   Link2Off,
   CircleCheck,
   Clock,
-  Loader2,
   RefreshCw,
   Tag,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
   Calendar,
 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { TableSortHeader } from "../components/table-sort-header.jsx";
 import {
   Card,
   CardContent,
@@ -121,9 +119,13 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
           ))}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={saving || !allMapped}>
-              {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {saving ? "Saving…" : "Save"}
+            <Button
+              type="submit"
+              disabled={!allMapped}
+              isLoading={saving}
+              loadingText="Saving…"
+            >
+              Save
             </Button>
           </DialogFooter>
         </Form>
@@ -234,24 +236,12 @@ function CandidatesTable({ candidates, selectedIds, onToggle, showAccount }) {
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => {
               const canSort = header.column.getCanSort();
-              const sorted = header.column.getIsSorted();
               return (
                 <TableHead key={header.id}>
                   {canSort ? (
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 hover:text-foreground"
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
+                    <TableSortHeader column={header.column}>
                       {flexRender(header.column.columnDef.header, header.getContext())}
-                      {sorted === "asc" ? (
-                        <ArrowUp className="size-3" />
-                      ) : sorted === "desc" ? (
-                        <ArrowDown className="size-3" />
-                      ) : (
-                        <ArrowUpDown className="size-3 opacity-40" />
-                      )}
-                    </button>
+                    </TableSortHeader>
                   ) : (
                     flexRender(header.column.columnDef.header, header.getContext())
                   )}
@@ -463,17 +453,25 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleRefreshAll} disabled={refreshing || fetching}>
-              {refreshing ? (
-                <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-              ) : (
-                <RefreshCw data-icon="inline-start" className="size-3.5" />
-              )}
-              {refreshing ? "Refreshing…" : "Refresh & Fetch All"}
+            <Button
+              size="sm"
+              onClick={handleRefreshAll}
+              disabled={fetching}
+              isLoading={refreshing}
+              loadingText="Refreshing…"
+            >
+              <RefreshCw data-icon="inline-start" className="size-3.5" />
+              Refresh & Fetch All
             </Button>
-            <Button size="sm" variant="secondary" onClick={handleFetchAll} disabled={fetching || refreshing}>
-              {fetching && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {fetching ? "Fetching…" : "Fetch All"}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleFetchAll}
+              disabled={refreshing}
+              isLoading={fetching}
+              loadingText="Fetching…"
+            >
+              Fetch All
             </Button>
           </div>
         </div>
@@ -537,16 +535,15 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
                   <Button
                     size="sm"
                     onClick={handleImport}
-                    disabled={importing || selectedIds.size === 0}
-                  >
-                    {importing && (
-                      <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-                    )}
-                    {importing
-                      ? importProgress && importProgress.total > 0
+                    disabled={selectedIds.size === 0}
+                    isLoading={importing}
+                    loadingText={
+                      importProgress && importProgress.total > 0
                         ? `Importing ${importProgress.imported} of ${importProgress.total}…`
                         : "Importing…"
-                      : `Import ${selectedIds.size} Selected`}
+                    }
+                  >
+                    Import {selectedIds.size} Selected
                   </Button>
                 </div>
               </div>
@@ -700,21 +697,29 @@ function AccountFetchPanel({ account, onImported }) {
   return (
     <div className="flex flex-col gap-3 pt-3 border-t">
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={handleRefresh} disabled={refreshing || fetching}>
-          {refreshing ? (
-            <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-          ) : (
-            <RefreshCw data-icon="inline-start" className="size-3.5" />
-          )}
-          {refreshing
-            ? refreshStatus
+        <Button
+          size="sm"
+          onClick={handleRefresh}
+          disabled={fetching}
+          isLoading={refreshing}
+          loadingText={
+            refreshStatus
               ? `Refreshing… (${refreshStatus.elapsedSeconds}s, attempt ${refreshStatus.attempt})`
               : "Refreshing…"
-            : "Refresh & Fetch"}
+          }
+        >
+          <RefreshCw data-icon="inline-start" className="size-3.5" />
+          Refresh & Fetch
         </Button>
-        <Button size="sm" variant="secondary" onClick={handleFetch} disabled={fetching || refreshing}>
-          {fetching && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-          {fetching ? "Fetching…" : "Fetch Transactions"}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleFetch}
+          disabled={refreshing}
+          isLoading={fetching}
+          loadingText="Fetching…"
+        >
+          Fetch Transactions
         </Button>
       </div>
       {refreshError && <ErrorBanner error={refreshError} />}
@@ -750,16 +755,15 @@ function AccountFetchPanel({ account, onImported }) {
               <Button
                 size="sm"
                 onClick={handleImport}
-                disabled={importing || selectedIds.size === 0}
-              >
-                {importing && (
-                  <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-                )}
-                {importing
-                  ? importProgress && importProgress.total > 0
+                disabled={selectedIds.size === 0}
+                isLoading={importing}
+                loadingText={
+                  importProgress && importProgress.total > 0
                     ? `Importing ${importProgress.imported} of ${importProgress.total}…`
                     : "Importing…"
-                  : `Import ${selectedIds.size} Selected`}
+                }
+              >
+                Import {selectedIds.size} Selected
               </Button>
             </div>
           </div>
@@ -857,9 +861,13 @@ function UpdateFetchDateDialog({ account, open, onClose, onUpdated }) {
             >
               Clear (fetch all history)
             </Button>
-            <Button type="submit" disabled={saving || !dateValue}>
-              {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-              {saving ? "Saving…" : "Set date"}
+            <Button
+              type="submit"
+              disabled={!dateValue}
+              isLoading={saving}
+              loadingText="Saving…"
+            >
+              Set date
             </Button>
           </DialogFooter>
         </Form>
@@ -979,7 +987,7 @@ export function ConnectionsPage() {
   if (!configData?.enabled) {
     return (
       <div className="flex flex-col gap-6">
-        <h2 className="text-2xl font-bold">Connections</h2>
+        <PageHeader title="Connections" />
         <Card>
           <CardHeader>
             <CardTitle>Stripe Integration Not Enabled</CardTitle>
@@ -1010,17 +1018,16 @@ export function ConnectionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Connections</h2>
-        <Button onClick={handleLinkAccount} disabled={linking}>
-          {linking ? (
-            <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-          ) : (
-            <Link2 data-icon="inline-start" />
-          )}
-          {linking ? "Connecting…" : "Link Account"}
+      <PageHeader title="Connections">
+        <Button
+          onClick={handleLinkAccount}
+          isLoading={linking}
+          loadingText="Connecting…"
+        >
+          <Link2 data-icon="inline-start" />
+          Link Account
         </Button>
-      </div>
+      </PageHeader>
 
       {linkError && <ErrorBanner error={linkError} />}
       {unlinkMutation.error && <ErrorBanner error={unlinkMutation.error} />}
@@ -1073,17 +1080,14 @@ export function ConnectionsPage() {
                 </div>
               </div>
               <Button
-                variant="ghost"
+                variant="destructive-ghost"
                 size="sm"
-                className="text-destructive hover:text-destructive shrink-0"
-                disabled={unlinkMutation.isPending && unlinkMutation.variables === account.stripeAccountId}
+                className="shrink-0"
+                isLoading={unlinkMutation.isPending && unlinkMutation.variables === account.stripeAccountId}
+                loadingText="Unlink"
                 onClick={() => handleUnlink(account.stripeAccountId)}
               >
-                {unlinkMutation.isPending && unlinkMutation.variables === account.stripeAccountId ? (
-                  <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
-                ) : (
-                  <Link2Off data-icon="inline-start" />
-                )}
+                <Link2Off data-icon="inline-start" />
                 Unlink
               </Button>
             </div>

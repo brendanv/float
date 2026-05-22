@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollText, Trash2, CircleAlert } from "lucide-react";
+import { PageHeader } from "../components/page-header.jsx";
 
 const LEVELS = ["DEBUG", "INFO", "WARN", "ERROR"];
 
@@ -91,12 +92,10 @@ export function LogsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-2xl font-bold">Logs</h2>
-        <p className="text-sm text-muted-foreground">
-          Live server logs via gRPC stream. The connection closes automatically when you leave this page.
-        </p>
-      </div>
+      <PageHeader
+        title="Logs"
+        description="Live server logs via gRPC stream. The connection closes automatically when you leave this page."
+      />
 
       <Card>
         <CardHeader className="pb-3">

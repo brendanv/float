@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, ArrowUpDown, Scale, Plus } from "lucide-react";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, Scale, Plus } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import {
 import { formatAmounts, formatCurrency, formatDate } from "../format.js";
 import { AccountInput, PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { InlineEdit, inlineEditKeyHandler, useInlineEditState } from "./inline-edit.jsx";
+import { TableSortHeader } from "./table-sort-header.jsx";
 import { useNavigate } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -174,14 +175,10 @@ function StatusButton({ fid, status, onStatusChange }) {
             variant="ghost"
             size="icon-xs"
             onClick={handleClick}
-            disabled={updating}
+            isLoading={updating}
             className="rounded-full"
           >
-            {updating ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <Check className={isReviewed ? "text-success" : "text-muted-foreground/40"} />
-            )}
+            <Check className={isReviewed ? "text-success" : "text-muted-foreground/40"} />
           </Button>
         }
       />
@@ -468,7 +465,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
         <FormActions align="between">
           <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="xs" className="text-destructive hover:text-destructive" disabled={saving || deleting}>
+              <Button variant="destructive-ghost" size="xs" disabled={saving || deleting}>
                 <Trash2 data-icon="inline-start" /> Delete
               </Button>
             </DialogTrigger>
@@ -481,8 +478,8 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
               </DialogHeader>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-                <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-                  {deleting ? <Loader2 className="size-3 animate-spin" /> : "Delete"}
+                <Button variant="destructive" onClick={handleDelete} isLoading={deleting}>
+                  Delete
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -491,8 +488,8 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
             <Button type="button" variant="outline" size="xs" onClick={cancel} disabled={!isDirty || saving || deleting}>
               Cancel
             </Button>
-            <Button type="submit" size="xs" disabled={!isDirty || saving || deleting}>
-              {saving ? <Loader2 className="size-3 animate-spin" /> : "Save"}
+            <Button type="submit" size="xs" disabled={!isDirty || deleting} isLoading={saving}>
+              Save
             </Button>
           </div>
         </FormActions>
@@ -594,8 +591,8 @@ function TagEditor({ fid, tags, onChanged, className }) {
               onChange={(e) => setTagValue(e.target.value)}
               onKeyDown={onKey}
             />
-            <Button type="button" variant="ghost" size="icon-xs" onClick={addTag} disabled={working || !tagKey.trim()} title="Add tag">
-              {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+            <Button type="button" variant="ghost" size="icon-xs" onClick={addTag} disabled={!tagKey.trim()} isLoading={working} title="Add tag">
+              <Check className="size-3" />
             </Button>
             <Button type="button" variant="ghost" size="icon-xs" onClick={cancelAdd} disabled={working} title="Cancel">
               <X className="size-3" />
@@ -635,31 +632,6 @@ function StripeIndicator({ id }) {
       />
       <TooltipContent>Stripe transaction: {id}</TooltipContent>
     </Tooltip>
-  );
-}
-
-// ── sort header ────────────────────────────────────────────────────────────
-
-function SortableHeader({ column, children, align = "left" }) {
-  const sorted = column.getIsSorted();
-  return (
-    <button
-      className={cn(
-        "inline-flex cursor-pointer select-none items-center gap-1 rounded px-1 -mx-1 py-0.5 transition-colors hover:text-foreground",
-        align === "right" && "ml-auto flex-row-reverse",
-        sorted ? "text-foreground" : "text-muted-foreground",
-      )}
-      onClick={() => column.toggleSorting(sorted === "asc")}
-    >
-      {children}
-      {sorted === "asc" ? (
-        <ArrowUp className="size-3 shrink-0" />
-      ) : sorted === "desc" ? (
-        <ArrowDown className="size-3 shrink-0" />
-      ) : (
-        <ArrowUpDown className="size-3 shrink-0 opacity-40" />
-      )}
-    </button>
   );
 }
 
@@ -707,7 +679,7 @@ const selectColumn = col.display({
 
 const dateColumn = col.accessor("date", {
   id: "date",
-  header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
+  header: ({ column }) => <TableSortHeader column={column}>Date</TableSortHeader>,
   cell: ({ getValue }) => (
     <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
       {formatDate(getValue())}
@@ -728,7 +700,7 @@ const statusColumn = col.display({
 
 const descriptionColumn = col.accessor((tx) => tx.description, {
   id: "description",
-  header: ({ column }) => <SortableHeader column={column}>Description</SortableHeader>,
+  header: ({ column }) => <TableSortHeader column={column}>Description</TableSortHeader>,
   cell: ({ row, table }) => {
     const { onStatusChange } = table.options.meta;
     const tx = row.original;
@@ -786,7 +758,7 @@ const tagsColumn = col.display({
 // remains sortable.
 const fromColumn = col.accessor((tx) => accountSplit(tx).from || "", {
   id: "from",
-  header: ({ column }) => <SortableHeader column={column}>From</SortableHeader>,
+  header: ({ column }) => <TableSortHeader column={column}>From</TableSortHeader>,
   cell: ({ row, table }) => {
     const { accounts, onStatusChange } = table.options.meta;
     return (
@@ -802,7 +774,7 @@ const fromColumn = col.accessor((tx) => accountSplit(tx).from || "", {
 
 const toColumn = col.accessor((tx) => accountSplit(tx).to || "", {
   id: "to",
-  header: ({ column }) => <SortableHeader column={column}>To</SortableHeader>,
+  header: ({ column }) => <TableSortHeader column={column}>To</TableSortHeader>,
   cell: ({ row, table }) => {
     const { accounts, onStatusChange } = table.options.meta;
     return (
@@ -825,7 +797,7 @@ const amountColumn = col.accessor(
   },
   {
     id: "amount",
-    header: ({ column }) => <SortableHeader column={column} align="right">Amount</SortableHeader>,
+    header: ({ column }) => <TableSortHeader column={column} align="right">Amount</TableSortHeader>,
     cell: ({ row, table }) => {
       const { focusedAccount } = table.options.meta;
       const tx = row.original;
@@ -877,7 +849,7 @@ const changeColumn = col.accessor(
   (row) => (row.change?.length > 0 ? parseFloat(row.change[0].quantity) || 0 : 0),
   {
     id: "change",
-    header: ({ column }) => <SortableHeader column={column} align="right">Change</SortableHeader>,
+    header: ({ column }) => <TableSortHeader column={column} align="right">Change</TableSortHeader>,
     cell: ({ row }) => {
       const cells = resolveRegisterCells(row.original);
       return (
@@ -898,7 +870,7 @@ const balanceColumn = col.accessor(
   (row) => (row.runningTotal?.length > 0 ? parseFloat(row.runningTotal[0].quantity) || 0 : 0),
   {
     id: "balance",
-    header: ({ column }) => <SortableHeader column={column} align="right">Balance</SortableHeader>,
+    header: ({ column }) => <TableSortHeader column={column} align="right">Balance</TableSortHeader>,
     cell: ({ row }) => {
       const cells = resolveRegisterCells(row.original);
       return (

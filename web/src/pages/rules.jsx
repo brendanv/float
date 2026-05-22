@@ -10,13 +10,17 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { CircleCheck, Loader2, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeftIcon, ChevronRightIcon, Sparkles } from "lucide-react";
+import { CircleCheck, ListFilter, Sparkles } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
 import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { EmptyState } from "../components/empty-state.jsx";
+import { TableSortHeader } from "../components/table-sort-header.jsx";
+import { TablePagination } from "../components/table-pagination.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,18 +47,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 function emptyForm() {
@@ -77,25 +69,11 @@ function tagsToString(tags) {
     .join(", ");
 }
 
-function SortHeader({ column, children }) {
-  const sorted = column.getIsSorted();
-  const Icon = sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
-  return (
-    <button
-      className="flex items-center gap-1 hover:text-foreground"
-      onClick={column.getToggleSortingHandler()}
-    >
-      {children}
-      <Icon className="size-3.5" />
-    </button>
-  );
-}
-
 const columnHelper = createColumnHelper();
 
 const rulesColumns = [
   columnHelper.accessor("priority", {
-    header: ({ column }) => <SortHeader column={column}>P</SortHeader>,
+    header: ({ column }) => <TableSortHeader column={column}>P</TableSortHeader>,
     cell: ({ getValue }) => (
       <Badge variant="secondary" className="font-mono">{getValue()}</Badge>
     ),
@@ -103,20 +81,20 @@ const rulesColumns = [
     meta: { headerClass: "w-10 text-center" },
   }),
   columnHelper.accessor("pattern", {
-    header: ({ column }) => <SortHeader column={column}>Pattern</SortHeader>,
+    header: ({ column }) => <TableSortHeader column={column}>Pattern</TableSortHeader>,
     cell: ({ getValue }) => (
       <span className="max-w-xs truncate font-mono text-xs" title={getValue()}>{getValue()}</span>
     ),
     filterFn: "includesString",
   }),
   columnHelper.accessor("payee", {
-    header: ({ column }) => <SortHeader column={column}>Payee</SortHeader>,
+    header: ({ column }) => <TableSortHeader column={column}>Payee</TableSortHeader>,
     cell: ({ getValue }) =>
       getValue() || <span className="text-muted-foreground/60">—</span>,
     filterFn: "includesString",
   }),
   columnHelper.accessor("account", {
-    header: ({ column }) => <SortHeader column={column}>Account</SortHeader>,
+    header: ({ column }) => <TableSortHeader column={column}>Account</TableSortHeader>,
     cell: ({ getValue }) =>
       getValue() ? (
         <span className="font-mono text-xs">{getValue()}</span>
@@ -126,7 +104,7 @@ const rulesColumns = [
     filterFn: "includesString",
   }),
   columnHelper.accessor("matchAccount", {
-    header: ({ column }) => <SortHeader column={column}>Source Account</SortHeader>,
+    header: ({ column }) => <TableSortHeader column={column}>Source Account</TableSortHeader>,
     cell: ({ getValue }) =>
       getValue() ? (
         <span className="font-mono text-xs">{getValue()}</span>
@@ -348,7 +326,7 @@ export function RulesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Categorization Rules</h2>
+      <PageHeader title="Categorization Rules" />
 
       {/* Card 1: Rule Editor */}
       <Card>
@@ -488,9 +466,14 @@ export function RulesPage() {
                       Cancel
                     </Button>
                   )}
-                  <Button type="submit" size="sm" disabled={!canSubmit || saveRuleMutation.isPending}>
-                    {saveRuleMutation.isPending && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                    {saveRuleMutation.isPending ? "Saving…" : editingId ? "Update Rule" : "Add Rule"}
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={!canSubmit}
+                    isLoading={saveRuleMutation.isPending}
+                    loadingText="Saving…"
+                  >
+                    {editingId ? "Update Rule" : "Add Rule"}
                   </Button>
                 </FormActions>
               )}
@@ -524,10 +507,10 @@ export function RulesPage() {
                 variant="outline"
                 size="sm"
                 onClick={handlePreviewApply}
-                disabled={applyLoading}
+                isLoading={applyLoading}
+                loadingText="Previewing…"
               >
-                {applyLoading && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {applyLoading ? "Previewing…" : "Preview Changes"}
+                Preview Changes
               </Button>
             </div>
           </div>
@@ -536,7 +519,11 @@ export function RulesPage() {
           {rulesLoading && <Loading />}
           {rulesError && <ErrorBanner error={rulesError} />}
           {rulesData && rules.length === 0 && (
-            <p className="text-muted-foreground">No rules yet. Add one above.</p>
+            <EmptyState
+              icon={ListFilter}
+              title="No rules yet"
+              description="Add one above to start automatically categorizing transactions during import."
+            />
           )}
           {rulesData && rules.length > 0 && (
             <>
@@ -565,9 +552,8 @@ export function RulesPage() {
                                 Edit
                               </Button>
                               <Button
-                                variant="ghost"
+                                variant="destructive-ghost"
                                 size="xs"
-                                className="text-destructive"
                                 onClick={() => handleDelete(row.original.id)}
                               >
                                 Delete
@@ -584,69 +570,7 @@ export function RulesPage() {
                   ))}
                 </TableBody>
               </Table>
-              {table.getFilteredRowModel().rows.length > 0 && (
-                <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
-                    <Select
-                      value={String(table.getState().pagination.pageSize)}
-                      onValueChange={(val) => {
-                        table.setPageSize(Number(val));
-                        setPagination((p) => ({ ...p, pageIndex: 0 }));
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-16">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="whitespace-nowrap text-sm text-muted-foreground">
-                      {(() => {
-                        const { pageIndex, pageSize } = table.getState().pagination;
-                        const total = table.getFilteredRowModel().rows.length;
-                        const from = pageIndex * pageSize + 1;
-                        const to = Math.min((pageIndex + 1) * pageSize, total);
-                        return `${from}–${to} of ${total}`;
-                      })()}
-                    </span>
-                    <Pagination>
-                      <PaginationContent>
-                        <PaginationItem>
-                          <Button
-                            aria-label="Go to previous page"
-                            size="icon"
-                            variant="ghost"
-                            className="size-8"
-                            onClick={() => table.previousPage()}
-                            disabled={!table.getCanPreviousPage()}
-                          >
-                            <ChevronLeftIcon className="size-4" />
-                          </Button>
-                        </PaginationItem>
-                        <PaginationItem>
-                          <Button
-                            aria-label="Go to next page"
-                            size="icon"
-                            variant="ghost"
-                            className="size-8"
-                            onClick={() => table.nextPage()}
-                            disabled={!table.getCanNextPage()}
-                          >
-                            <ChevronRightIcon className="size-4" />
-                          </Button>
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
-                  </div>
-                </div>
-              )}
+              <TablePagination table={table} pageSizeOptions={[5, 10, 25, 50]} />
             </>
           )}
           <Separator className="my-4" />
@@ -773,14 +697,15 @@ export function RulesPage() {
               <Button
                 size="sm"
                 onClick={handleApply}
-                disabled={applying || selectedFids.size === 0}
-              >
-                {applying && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {applying
-                  ? applyProgress && applyProgress.total > 0
+                disabled={selectedFids.size === 0}
+                isLoading={applying}
+                loadingText={
+                  applyProgress && applyProgress.total > 0
                     ? `Applying ${applyProgress.applied} of ${applyProgress.total}…`
                     : "Applying…"
-                  : `Apply to ${selectedFids.size} Transaction(s)`}
+                }
+              >
+                Apply to {selectedFids.size} Transaction(s)
               </Button>
             )}
             <DrawerClose asChild>

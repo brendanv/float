@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Terminal, Play, AlertCircle, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { Play, AlertCircle, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { ledgerClient } from "../client.js";
+import { PageHeader } from "../components/page-header.jsx";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,11 +77,13 @@ function HledgerTab() {
           />
           <Button
             onClick={run}
-            disabled={isPending || !args.trim()}
+            disabled={!args.trim()}
+            isLoading={isPending}
+            loadingText="Running…"
             className="self-start shrink-0"
           >
             <Play className="size-4" />
-            {isPending ? "Running…" : "Run"}
+            Run
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -202,11 +205,13 @@ function NaturalLanguageTab() {
           />
           <Button
             onClick={ask}
-            disabled={isPending || !question.trim()}
+            disabled={!question.trim()}
+            isLoading={isPending}
+            loadingText="Running…"
             className="self-start shrink-0"
           >
             <Play className="size-4" />
-            {isPending ? "Running…" : "Run"}
+            Run
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -297,16 +302,11 @@ function NaturalLanguageTab() {
 export function HledgerQueryPage() {
   return (
     <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Query"
+        description="Run queries against your journal directly or ask in natural language."
+      />
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Terminal className="size-5" />
-            Query
-          </CardTitle>
-          <CardDescription>
-            Run queries against your journal directly or ask in natural language.
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           <Tabs defaultValue="hledger">
             <TabsList className="mb-4">

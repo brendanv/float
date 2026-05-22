@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { ErrorBanner } from "./error-banner.jsx";
@@ -167,9 +166,14 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
               <DialogClose asChild>
                 <Button variant="outline" size="sm" disabled={loading}>Cancel</Button>
               </DialogClose>
-              <Button size="sm" onClick={handleAnalyze} disabled={loading || !canAnalyze}>
-                {loading && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                {loading ? "Analyzing…" : "Analyze"}
+              <Button
+                size="sm"
+                onClick={handleAnalyze}
+                disabled={!canAnalyze}
+                isLoading={loading}
+                loadingText="Analyzing…"
+              >
+                Analyze
               </Button>
             </DialogFooter>
           </>
@@ -256,9 +260,14 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
                 <Button variant="outline" size="sm" disabled={saving}>Cancel</Button>
               </DialogClose>
               {suggestions.length > 0 && (
-                <Button size="sm" onClick={handleSave} disabled={saving || selected.size === 0}>
-                  {saving && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-                  {saving ? "Adding…" : `Add ${selected.size} Rule(s)`}
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={selected.size === 0}
+                  isLoading={saving}
+                  loadingText="Adding…"
+                >
+                  Add {selected.size} Rule(s)
                 </Button>
               )}
             </DialogFooter>

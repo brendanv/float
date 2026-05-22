@@ -6,6 +6,8 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { EmptyState } from "../components/empty-state.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -36,7 +38,7 @@ function ImportFileDialog({ importBatchId, open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] max-w-5xl sm:max-w-5xl" showCloseButton>
+      <DialogContent size="xl" showCloseButton>
         <DialogHeader>
           <DialogTitle className="font-mono text-sm">
             {data?.filename ?? importBatchId + ".csv"}
@@ -69,7 +71,7 @@ export function ImportsHistoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-2xl font-bold">Import History</h2>
+      <PageHeader title="Import History" />
 
       <Card>
         <CardHeader>
@@ -79,10 +81,11 @@ export function ImportsHistoryPage() {
           {isLoading && <Loading />}
           {error && <ErrorBanner error={error} />}
           {!isLoading && !error && imports.length === 0 && (
-            <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-              <PackageOpen size={32} />
-              <p className="text-sm">No imports yet. Use the Import page to bring in transactions.</p>
-            </div>
+            <EmptyState
+              icon={PackageOpen}
+              title="No imports yet"
+              description="Use the Import page to bring in transactions."
+            />
           )}
           {imports.length > 0 && (
             <Table>

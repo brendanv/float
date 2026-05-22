@@ -6,6 +6,7 @@ import { queryKeys } from "../query-keys.js";
 import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { PageHeader } from "../components/page-header.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -276,8 +277,7 @@ export function TrendsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Trends</h2>
+      <PageHeader title="Trends">
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <Button
@@ -290,7 +290,7 @@ export function TrendsPage() {
             </Button>
           ))}
         </div>
-      </div>
+      </PageHeader>
 
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}

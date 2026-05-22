@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSearch, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, X, ArrowLeft, Trash2 } from "lucide-react";
+import { Check, X, ArrowLeft, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { SearchControls } from "../components/search-controls.jsx";
@@ -158,9 +158,8 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
           <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <DialogTrigger asChild>
               <Button
-                variant="ghost"
+                variant="destructive-ghost"
                 size="xs"
-                className="text-destructive hover:text-destructive"
                 disabled={working}
               >
                 <Trash2 className="size-3" data-icon="inline-start" /> Delete
@@ -175,8 +174,8 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
               </DialogHeader>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={working}>Cancel</Button>
-                <Button variant="destructive" onClick={bulkDelete} disabled={working}>
-                  {working ? <Loader2 className="size-3 animate-spin" /> : "Delete"}
+                <Button variant="destructive" onClick={bulkDelete} isLoading={working}>
+                  Delete
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -201,8 +200,8 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             onChange={(e) => setTagValue(e.target.value)}
             onKeyDown={inlineEditKeyHandler({ onSave: bulkAddTag, onCancel: cancelMode })}
           />
-          <Button variant="ghost" size="icon-xs" disabled={working || !tagKey.trim()} onClick={bulkAddTag} title="Apply">
-            {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+          <Button variant="ghost" size="icon-xs" disabled={!tagKey.trim()} isLoading={working} onClick={bulkAddTag} title="Apply">
+            <Check className="size-3" />
           </Button>
           <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
             <X className="size-3" />
@@ -222,8 +221,8 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
               ))}
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="icon-xs" disabled={working || !removeTagKey} onClick={bulkRemoveTag} title="Apply">
-            {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+          <Button variant="ghost" size="icon-xs" disabled={!removeTagKey} isLoading={working} onClick={bulkRemoveTag} title="Apply">
+            <Check className="size-3" />
           </Button>
           <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
             <X className="size-3" />
@@ -241,8 +240,8 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             onKeyDown={inlineEditKeyHandler({ onSave: bulkSetPayee, onCancel: cancelMode })}
             autoFocus
           />
-          <Button variant="ghost" size="icon-xs" disabled={working || !payee.trim()} onClick={bulkSetPayee} title="Apply">
-            {working ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+          <Button variant="ghost" size="icon-xs" disabled={!payee.trim()} isLoading={working} onClick={bulkSetPayee} title="Apply">
+            <Check className="size-3" />
           </Button>
           <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
             <X className="size-3" />
