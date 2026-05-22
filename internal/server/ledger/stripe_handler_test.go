@@ -792,6 +792,15 @@ func TestImportStripeTransactions(t *testing.T) {
 
 	t.Run("imports selected transactions", func(t *testing.T) {
 		mux := http.NewServeMux()
+		// GetTransactionRefreshID (called after ListTransactions) issues a GET to the account endpoint.
+		// Return an account without a transaction_refresh field so WaitForRefresh / GetTransactionRefreshID
+		// return ("", nil) immediately — which is the correct behaviour for tests that don't simulate a refresh.
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id": "fca_abc", "object": "financial_connections.account",
+				"status": "active", "livemode": false,
+			})
+		})
 		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
 			writeStripeJSON(w, map[string]any{
 				"object": "list",

@@ -34,10 +34,11 @@ type AIConfig struct {
 }
 
 type StripeLinkedAccount struct {
-	StripeAccountID string `toml:"stripe_account_id"`
-	HledgerAccount  string `toml:"hledger_account"`
-	DisplayName     string `toml:"display_name"`
-	LastFetchedAt   string `toml:"last_fetched_at"` // RFC3339; empty if never fetched
+	StripeAccountID          string `toml:"stripe_account_id"`
+	HledgerAccount           string `toml:"hledger_account"`
+	DisplayName              string `toml:"display_name"`
+	LastFetchedAt            string `toml:"last_fetched_at"`             // RFC3339; empty if never fetched
+	LastTransactionRefreshID string `toml:"last_transaction_refresh_id"` // Stripe refresh ID used for next ListTransactions filter; empty if never fetched
 }
 
 type StripeConfig struct {
