@@ -1,14 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Chart,
-  ArcElement,
-  DoughnutController,
-  Tooltip,
-  Legend,
-} from "chart.js";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
 import {
   useReactTable,
   getCoreRowModel,
@@ -41,8 +34,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-
-Chart.register(ArcElement, DoughnutController, Tooltip, Legend);
 
 const CHART_COLORS = [
   "#6366f1", "#22d3ee", "#f59e0b", "#34d399", "#f43f5e",
@@ -95,64 +86,81 @@ function SortableHeader({ column, children, className }) {
 }
 
 function AllocationChart({ holdings }) {
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
-
-  useEffect(() => {
-    const valued = holdings.filter((h) => h.currentValue);
-    if (!canvasRef.current || valued.length === 0) return;
-
-    if (chartRef.current) chartRef.current.destroy();
-
-    chartRef.current = new Chart(canvasRef.current, {
-      type: "doughnut",
-      data: {
-        labels: valued.map((h) => h.symbol),
-        datasets: [
-          {
-            data: valued.map((h) => parseFloat(h.currentValue.quantity)),
-            backgroundColor: valued.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
-            borderWidth: 2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: { position: "right" },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const h = valued[ctx.dataIndex];
-                const pct = h.portfolioPct?.toFixed(1) ?? "0.0";
-                return ` ${formatCurrency(h.currentValue.quantity, h.currentValue.commodity)} (${pct}%)`;
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-        chartRef.current = null;
-      }
-    };
-  }, [holdings]);
-
   const valued = holdings.filter((h) => h.currentValue);
   if (valued.length === 0) return null;
+
+  const chartData = valued.map((h) => ({
+    symbol: h.symbol,
+    value: parseFloat(h.currentValue.quantity),
+    commodity: h.currentValue.commodity,
+    portfolioPct: h.portfolioPct,
+  }));
+
+  const chartConfig = Object.fromEntries(
+    valued.map((h, i) => [h.symbol, { label: h.symbol, color: CHART_COLORS[i % CHART_COLORS.length] }])
+  );
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Allocation</CardTitle>
       </CardHeader>
-      <CardContent className="flex justify-center">
-        <div className="portfolio-chart w-full max-w-sm">
-          <canvas ref={canvasRef} />
+      <CardContent>
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          <ChartContainer config={chartConfig} className="mx-auto h-52 w-52 flex-shrink-0">
+            <PieChart>
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    hideLabel
+                    formatter={(value, name) => {
+                      const h = valued.find((h) => h.symbol === name);
+                      const pct = h?.portfolioPct?.toFixed(1) ?? "0.0";
+                      return (
+                        <>
+                          <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: chartConfig[name]?.color }} />
+                          <div className="flex flex-1 justify-between items-center gap-2 leading-none">
+                            <span className="text-muted-foreground">{name}</span>
+                            <span className="font-mono font-medium tabular-nums">
+                              {formatCurrency(h.currentValue.quantity, h.currentValue.commodity)} ({pct}%)
+                            </span>
+                          </div>
+                        </>
+                      );
+                    }}
+                  />
+                }
+              />
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="symbol"
+                innerRadius="60%"
+                outerRadius="80%"
+                strokeWidth={2}
+                stroke="transparent"
+              >
+                {chartData.map((_, i) => (
+                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            {chartData.map((item, i) => (
+              <div key={item.symbol} className="flex items-center gap-2 text-sm">
+                <div
+                  className="h-2.5 w-2.5 flex-shrink-0 rounded-sm"
+                  style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                />
+                <span className="min-w-0 flex-1 font-mono font-semibold">{item.symbol}</span>
+                <span className="font-mono tabular-nums">{formatCurrency(item.value.toString(), item.commodity)}</span>
+                <span className="w-12 text-right text-xs text-muted-foreground">
+                  {item.portfolioPct > 0 ? `${item.portfolioPct.toFixed(1)}%` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>

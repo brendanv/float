@@ -32,9 +32,13 @@ export const mockAccountBalanceRows = [
 ];
 
 export const mockExpenseBalanceRows = [
+  { fullName: "expenses:rent", displayName: "rent", amounts: [{ commodity: "USD", quantity: "1500.00" }] },
   { fullName: "expenses:groceries", displayName: "groceries", amounts: [{ commodity: "USD", quantity: "450.00" }] },
   { fullName: "expenses:dining", displayName: "dining", amounts: [{ commodity: "USD", quantity: "210.00" }] },
-  { fullName: "expenses:utilities", displayName: "utilities", amounts: [{ commodity: "USD", quantity: "95.00" }] },
+  { fullName: "expenses:utilities", displayName: "utilities", amounts: [{ commodity: "USD", quantity: "175.00" }] },
+  { fullName: "expenses:subscriptions", displayName: "subscriptions", amounts: [{ commodity: "USD", quantity: "57.43" }] },
+  { fullName: "expenses:transport", displayName: "transport", amounts: [{ commodity: "USD", quantity: "57.45" }] },
+  { fullName: "expenses:shopping", displayName: "shopping", amounts: [{ commodity: "USD", quantity: "34.99" }] },
 ];
 
 export const mockRevenueBalanceRows = [
