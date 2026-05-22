@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	dailyStripeImportInterval = 24 * time.Hour
+	dailyStripeImportInterval = 8 * time.Hour
 	dailyStripeImportTick     = 1 * time.Hour
 	dailyStripeImportStartup  = 30 * time.Second
 )
 
 // StartDailyStripeImport runs a background loop that, while the Stripe daily auto-import
-// setting is enabled and at least 24h has elapsed since the last successful run, fetches
+// setting is enabled and at least 8h has elapsed since the last successful run, fetches
 // new transactions for every linked account and imports all non-duplicate transactions.
 // It returns when ctx is canceled.
 func (h *Handler) StartDailyStripeImport(ctx context.Context) {
