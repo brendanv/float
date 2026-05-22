@@ -10,7 +10,9 @@ import {
   Link2,
   Link2Off,
   CircleCheck,
+  Clock,
   Loader2,
+  RefreshCw,
   Tag,
   ArrowUp,
   ArrowDown,
@@ -287,6 +289,10 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
   const [importProgress, setImportProgress] = useState(null);
   const [importError, setImportError] = useState(null);
   const [importResult, setImportResult] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // refreshAccountStatus: Map<stripeAccountId, {status, elapsedSeconds, attempt, message, succeeded?, error?}>
+  const [refreshAccountStatus, setRefreshAccountStatus] = useState(new Map());
+  const [refreshError, setRefreshError] = useState(null);
 
   async function handleFetchAll() {
     setFetching(true);
@@ -309,6 +315,65 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
       setFetching(false);
     }
   }
+
+  async function handleRefreshAll() {
+    setRefreshing(true);
+    setRefreshError(null);
+    setRefreshAccountStatus(new Map());
+    let anySucceeded = false;
+    try {
+      for await (const res of ledgerClient.refreshAllStripeAccounts(
+        {},
+        { timeoutMs: 6 * 60 * 1000 },
+      )) {
+        if (res.payload.case === "progress") {
+          const p = res.payload.value;
+          setRefreshAccountStatus((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(p.stripeAccountId) ?? {};
+            next.set(p.stripeAccountId, {
+              ...existing,
+              status: p.status,
+              elapsedSeconds: Number(p.elapsedSeconds ?? 0),
+              attempt: p.attempt ?? 0,
+              message: p.message,
+            });
+            return next;
+          });
+        } else if (res.payload.case === "result") {
+          const r = res.payload.value;
+          if (r.succeeded) anySucceeded = true;
+          setRefreshAccountStatus((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(r.stripeAccountId) ?? {};
+            next.set(r.stripeAccountId, {
+              ...existing,
+              succeeded: r.succeeded,
+              throttled: r.throttled || false,
+              nextRefreshAvailableAt: Number(r.nextRefreshAvailableAt ?? 0),
+              error: r.succeeded ? null : r.errorMessage,
+            });
+            return next;
+          });
+        }
+      }
+    } catch (err) {
+      setRefreshError(err);
+    } finally {
+      setRefreshing(false);
+    }
+    if (anySucceeded) {
+      await handleFetchAll();
+    }
+  }
+
+  const accountNameById = useMemo(() => {
+    const m = new Map();
+    configuredAccounts.forEach((a) => {
+      m.set(a.stripeAccountId, a.displayName || a.stripeAccountId);
+    });
+    return m;
+  }, [configuredAccounts]);
 
   function toggleCandidate(sourceId) {
     setSelectedIds((prev) => {
@@ -385,6 +450,8 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
 
   const totalCount = allCandidates.length;
 
+  const refreshRows = Array.from(refreshAccountStatus.entries());
+
   return (
     <Card>
       <CardHeader>
@@ -395,14 +462,58 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
               Pull new transactions from all {configuredAccounts.length} linked account{configuredAccounts.length !== 1 ? "s" : ""} at once.
             </CardDescription>
           </div>
-          <Button size="sm" onClick={handleFetchAll} disabled={fetching}>
-            {fetching && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
-            {fetching ? "Fetching…" : "Fetch All"}
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleRefreshAll} disabled={refreshing || fetching}>
+              {refreshing ? (
+                <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw data-icon="inline-start" className="size-3.5" />
+              )}
+              {refreshing ? "Refreshing…" : "Refresh & Fetch All"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={handleFetchAll} disabled={fetching || refreshing}>
+              {fetching && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
+              {fetching ? "Fetching…" : "Fetch All"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      {(fetchError || importResult || importError || accountCandidates) && (
+      {(refreshError || refreshRows.length > 0 || fetchError || importResult || importError || accountCandidates) && (
         <CardContent className="flex flex-col gap-3">
+          {refreshError && <ErrorBanner error={refreshError} />}
+          {refreshRows.length > 0 && (
+            <div className="flex flex-col gap-1 rounded-md border bg-muted/30 p-3 text-xs">
+              {refreshRows.map(([accountId, st]) => {
+                const name = accountNameById.get(accountId) ?? accountId;
+                let line;
+                if (st.throttled) {
+                  const next = st.nextRefreshAvailableAt
+                    ? new Date(st.nextRefreshAvailableAt * 1000).toLocaleString()
+                    : "later";
+                  line = `throttled — next refresh at ${next}`;
+                } else if (st.succeeded === true) {
+                  line = "succeeded";
+                } else if (st.succeeded === false) {
+                  line = `failed: ${st.error ?? "unknown error"}`;
+                } else if (st.status === "polling") {
+                  line = `polling (${st.elapsedSeconds}s, attempt ${st.attempt})`;
+                } else {
+                  line = st.message || st.status || "starting";
+                }
+                const tone = st.succeeded === false
+                  ? "text-destructive"
+                  : st.throttled
+                    ? "text-amber-600 dark:text-amber-500"
+                    : "text-muted-foreground";
+                return (
+                  <div key={accountId} className="flex justify-between gap-3 font-mono">
+                    <span>{name}</span>
+                    <span className={tone}>{line}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {fetchError && <ErrorBanner error={fetchError} />}
           {importResult && (
             <Alert>
@@ -466,6 +577,10 @@ function AccountFetchPanel({ account, onImported }) {
   const [importProgress, setImportProgress] = useState(null);
   const [importError, setImportError] = useState(null);
   const [importResult, setImportResult] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState(null);
+  const [refreshError, setRefreshError] = useState(null);
+  const [refreshThrottledAt, setRefreshThrottledAt] = useState(null);
 
   async function handleFetch() {
     setFetching(true);
@@ -486,6 +601,47 @@ function AccountFetchPanel({ account, onImported }) {
       setFetchError(err);
     } finally {
       setFetching(false);
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setRefreshError(null);
+    setRefreshThrottledAt(null);
+    setRefreshStatus({ status: "starting", elapsedSeconds: 0, attempt: 0 });
+    let succeeded = false;
+    try {
+      for await (const res of ledgerClient.refreshStripeAccount(
+        { stripeAccountId: account.stripeAccountId },
+        { timeoutMs: 6 * 60 * 1000 },
+      )) {
+        if (res.payload.case === "progress") {
+          const p = res.payload.value;
+          setRefreshStatus({
+            status: p.status,
+            elapsedSeconds: Number(p.elapsedSeconds ?? 0),
+            attempt: p.attempt ?? 0,
+            message: p.message,
+          });
+        } else if (res.payload.case === "result") {
+          const r = res.payload.value;
+          succeeded = r.succeeded;
+          if (r.throttled) {
+            setRefreshThrottledAt(Number(r.nextRefreshAvailableAt ?? 0));
+          }
+          if (!r.succeeded) {
+            setRefreshError(new Error(r.errorMessage || "refresh failed"));
+          }
+        }
+      }
+    } catch (err) {
+      setRefreshError(err);
+    } finally {
+      setRefreshing(false);
+      setRefreshStatus(null);
+    }
+    if (succeeded) {
+      await handleFetch();
     }
   }
 
@@ -543,12 +699,34 @@ function AccountFetchPanel({ account, onImported }) {
 
   return (
     <div className="flex flex-col gap-3 pt-3 border-t">
-      <div>
-        <Button size="sm" variant="secondary" onClick={handleFetch} disabled={fetching}>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={handleRefresh} disabled={refreshing || fetching}>
+          {refreshing ? (
+            <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />
+          ) : (
+            <RefreshCw data-icon="inline-start" className="size-3.5" />
+          )}
+          {refreshing
+            ? refreshStatus
+              ? `Refreshing… (${refreshStatus.elapsedSeconds}s, attempt ${refreshStatus.attempt})`
+              : "Refreshing…"
+            : "Refresh & Fetch"}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={handleFetch} disabled={fetching || refreshing}>
           {fetching && <Loader2 data-icon="inline-start" className="size-3.5 animate-spin" />}
           {fetching ? "Fetching…" : "Fetch Transactions"}
         </Button>
       </div>
+      {refreshError && <ErrorBanner error={refreshError} />}
+      {refreshThrottledAt > 0 && (
+        <Alert>
+          <Clock className="size-4" />
+          <AlertDescription>
+            Stripe throttled this refresh. Next refresh available at{" "}
+            {new Date(refreshThrottledAt * 1000).toLocaleString()}. Showing existing transactions.
+          </AlertDescription>
+        </Alert>
+      )}
       {fetchError && <ErrorBanner error={fetchError} />}
       {importResult && (
         <Alert>

@@ -755,6 +755,46 @@ message UpdateStripeAccountLastFetchedAtRequest {
 
 message UpdateStripeAccountLastFetchedAtResponse {}
 
+message RefreshStripeAccountRequest {
+  string stripe_account_id = 1;
+}
+
+message RefreshAllStripeAccountsRequest {}
+
+// RefreshStripeAccountProgress is emitted while polling Stripe for refresh completion.
+message RefreshStripeAccountProgress {
+  string stripe_account_id = 1;
+  // Status is one of: "starting", "polling", "succeeded", "failed", "timeout", "skipped", "throttled".
+  string status = 2;
+  int32 attempt = 3;
+  int64 elapsed_seconds = 4;
+  string refresh_id = 5;       // populated once known; may be empty
+  string message = 6;          // human-readable hint, e.g. "polling (next in 8s)"
+}
+
+// RefreshStripeAccountResult is emitted once per account when polling terminates.
+message RefreshStripeAccountResult {
+  string stripe_account_id = 1;
+  string refresh_id = 2;       // empty if no refresh was in progress
+  bool succeeded = 3;
+  string error_message = 4;    // empty on success
+  // Throttled is true when no new refresh was initiated because Stripe's
+  // next_refresh_available_at is in the future. Succeeded is still set to true
+  // in that case (the operation completed without error) and callers should
+  // proceed to list transactions without expecting new data.
+  bool throttled = 5;
+  // NextRefreshAvailableAt is the Unix timestamp (seconds) when the next
+  // refresh becomes available. Populated only when throttled is true.
+  int64 next_refresh_available_at = 6;
+}
+
+message RefreshStripeAccountResponse {
+  oneof payload {
+    RefreshStripeAccountProgress progress = 1;
+    RefreshStripeAccountResult result = 2;
+  }
+}
+
 // ---- AI ----
 
 message SuggestedRule {
@@ -928,6 +968,8 @@ service LedgerService {
   rpc FetchAllStripeTransactions(FetchAllStripeTransactionsRequest) returns (FetchAllStripeTransactionsResponse);
   rpc ImportAllStripeTransactions(ImportAllStripeTransactionsRequest) returns (stream ImportTransactionsResponse);
   rpc UpdateStripeAccountLastFetchedAt(UpdateStripeAccountLastFetchedAtRequest) returns (UpdateStripeAccountLastFetchedAtResponse);
+  rpc RefreshStripeAccount(RefreshStripeAccountRequest) returns (stream RefreshStripeAccountResponse);
+  rpc RefreshAllStripeAccounts(RefreshAllStripeAccountsRequest) returns (stream RefreshStripeAccountResponse);
 
   // AI
   rpc SuggestRules(SuggestRulesRequest) returns (SuggestRulesResponse);

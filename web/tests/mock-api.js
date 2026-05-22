@@ -871,6 +871,24 @@ export const mockIncomeStatementTimeseries = {
   netAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2859.57")),
 };
 
+function encodeConnectStreamingBody(messages) {
+  const parts = [];
+  for (const msg of messages) {
+    const json = JSON.stringify(msg);
+    const buf = Buffer.from(json, "utf8");
+    const header = Buffer.alloc(5);
+    header[0] = 0x00;
+    header.writeUInt32BE(buf.length, 1);
+    parts.push(header, buf);
+  }
+  const trailer = Buffer.from("{}", "utf8");
+  const eosHeader = Buffer.alloc(5);
+  eosHeader[0] = 0x02;
+  eosHeader.writeUInt32BE(trailer.length, 1);
+  parts.push(eosHeader, trailer);
+  return Buffer.concat(parts);
+}
+
 export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations, portfolioHoldings, stripeEnabled = true } = {}) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
@@ -1140,6 +1158,30 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "UpdateStripeAccountLastFetchedAt":
         body = {};
         break;
+      case "RefreshStripeAccount": {
+        const acctId = reqBody.stripeAccountId || "fca_mock";
+        await route.fulfill({
+          status: 200,
+          contentType: "application/connect+json",
+          body: encodeConnectStreamingBody([
+            { payload: { case: "progress", value: { stripeAccountId: acctId, status: "starting", attempt: 0, elapsedSeconds: "0", refreshId: "", message: "starting refresh" } } },
+            { payload: { case: "result", value: { stripeAccountId: acctId, refreshId: "trr_mock123", succeeded: true, errorMessage: "" } } },
+          ]),
+        });
+        return;
+      }
+      case "RefreshAllStripeAccounts": {
+        const messages = mockStripeLinkedAccounts.flatMap((acct) => [
+          { payload: { case: "progress", value: { stripeAccountId: acct.stripeAccountId, status: "starting", attempt: 0, elapsedSeconds: "0", refreshId: "", message: "starting refresh" } } },
+          { payload: { case: "result", value: { stripeAccountId: acct.stripeAccountId, refreshId: "trr_mock123", succeeded: true, errorMessage: "" } } },
+        ]);
+        await route.fulfill({
+          status: 200,
+          contentType: "application/connect+json",
+          body: encodeConnectStreamingBody(messages),
+        });
+        return;
+      }
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;

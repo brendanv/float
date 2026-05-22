@@ -191,6 +191,12 @@ const (
 	// LedgerServiceUpdateStripeAccountLastFetchedAtProcedure is the fully-qualified name of the
 	// LedgerService's UpdateStripeAccountLastFetchedAt RPC.
 	LedgerServiceUpdateStripeAccountLastFetchedAtProcedure = "/float.v1.LedgerService/UpdateStripeAccountLastFetchedAt"
+	// LedgerServiceRefreshStripeAccountProcedure is the fully-qualified name of the LedgerService's
+	// RefreshStripeAccount RPC.
+	LedgerServiceRefreshStripeAccountProcedure = "/float.v1.LedgerService/RefreshStripeAccount"
+	// LedgerServiceRefreshAllStripeAccountsProcedure is the fully-qualified name of the LedgerService's
+	// RefreshAllStripeAccounts RPC.
+	LedgerServiceRefreshAllStripeAccountsProcedure = "/float.v1.LedgerService/RefreshAllStripeAccounts"
 	// LedgerServiceSuggestRulesProcedure is the fully-qualified name of the LedgerService's
 	// SuggestRules RPC.
 	LedgerServiceSuggestRulesProcedure = "/float.v1.LedgerService/SuggestRules"
@@ -288,6 +294,8 @@ type LedgerServiceClient interface {
 	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
 	ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
 	UpdateStripeAccountLastFetchedAt(context.Context, *connect.Request[v1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[v1.UpdateStripeAccountLastFetchedAtResponse], error)
+	RefreshStripeAccount(context.Context, *connect.Request[v1.RefreshStripeAccountRequest]) (*connect.ServerStreamForClient[v1.RefreshStripeAccountResponse], error)
+	RefreshAllStripeAccounts(context.Context, *connect.Request[v1.RefreshAllStripeAccountsRequest]) (*connect.ServerStreamForClient[v1.RefreshStripeAccountResponse], error)
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -640,6 +648,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("UpdateStripeAccountLastFetchedAt")),
 			connect.WithClientOptions(opts...),
 		),
+		refreshStripeAccount: connect.NewClient[v1.RefreshStripeAccountRequest, v1.RefreshStripeAccountResponse](
+			httpClient,
+			baseURL+LedgerServiceRefreshStripeAccountProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("RefreshStripeAccount")),
+			connect.WithClientOptions(opts...),
+		),
+		refreshAllStripeAccounts: connect.NewClient[v1.RefreshAllStripeAccountsRequest, v1.RefreshStripeAccountResponse](
+			httpClient,
+			baseURL+LedgerServiceRefreshAllStripeAccountsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("RefreshAllStripeAccounts")),
+			connect.WithClientOptions(opts...),
+		),
 		suggestRules: connect.NewClient[v1.SuggestRulesRequest, v1.SuggestRulesResponse](
 			httpClient,
 			baseURL+LedgerServiceSuggestRulesProcedure,
@@ -771,6 +791,8 @@ type ledgerServiceClient struct {
 	fetchAllStripeTransactions       *connect.Client[v1.FetchAllStripeTransactionsRequest, v1.FetchAllStripeTransactionsResponse]
 	importAllStripeTransactions      *connect.Client[v1.ImportAllStripeTransactionsRequest, v1.ImportTransactionsResponse]
 	updateStripeAccountLastFetchedAt *connect.Client[v1.UpdateStripeAccountLastFetchedAtRequest, v1.UpdateStripeAccountLastFetchedAtResponse]
+	refreshStripeAccount             *connect.Client[v1.RefreshStripeAccountRequest, v1.RefreshStripeAccountResponse]
+	refreshAllStripeAccounts         *connect.Client[v1.RefreshAllStripeAccountsRequest, v1.RefreshStripeAccountResponse]
 	suggestRules                     *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
 	translateQuery                   *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
 	askQuestion                      *connect.Client[v1.AskQuestionRequest, v1.AskQuestionResponse]
@@ -1055,6 +1077,16 @@ func (c *ledgerServiceClient) UpdateStripeAccountLastFetchedAt(ctx context.Conte
 	return c.updateStripeAccountLastFetchedAt.CallUnary(ctx, req)
 }
 
+// RefreshStripeAccount calls float.v1.LedgerService.RefreshStripeAccount.
+func (c *ledgerServiceClient) RefreshStripeAccount(ctx context.Context, req *connect.Request[v1.RefreshStripeAccountRequest]) (*connect.ServerStreamForClient[v1.RefreshStripeAccountResponse], error) {
+	return c.refreshStripeAccount.CallServerStream(ctx, req)
+}
+
+// RefreshAllStripeAccounts calls float.v1.LedgerService.RefreshAllStripeAccounts.
+func (c *ledgerServiceClient) RefreshAllStripeAccounts(ctx context.Context, req *connect.Request[v1.RefreshAllStripeAccountsRequest]) (*connect.ServerStreamForClient[v1.RefreshStripeAccountResponse], error) {
+	return c.refreshAllStripeAccounts.CallServerStream(ctx, req)
+}
+
 // SuggestRules calls float.v1.LedgerService.SuggestRules.
 func (c *ledgerServiceClient) SuggestRules(ctx context.Context, req *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
 	return c.suggestRules.CallUnary(ctx, req)
@@ -1174,6 +1206,8 @@ type LedgerServiceHandler interface {
 	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
 	ImportAllStripeTransactions(context.Context, *connect.Request[v1.ImportAllStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
 	UpdateStripeAccountLastFetchedAt(context.Context, *connect.Request[v1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[v1.UpdateStripeAccountLastFetchedAtResponse], error)
+	RefreshStripeAccount(context.Context, *connect.Request[v1.RefreshStripeAccountRequest], *connect.ServerStream[v1.RefreshStripeAccountResponse]) error
+	RefreshAllStripeAccounts(context.Context, *connect.Request[v1.RefreshAllStripeAccountsRequest], *connect.ServerStream[v1.RefreshStripeAccountResponse]) error
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
@@ -1522,6 +1556,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("UpdateStripeAccountLastFetchedAt")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceRefreshStripeAccountHandler := connect.NewServerStreamHandler(
+		LedgerServiceRefreshStripeAccountProcedure,
+		svc.RefreshStripeAccount,
+		connect.WithSchema(ledgerServiceMethods.ByName("RefreshStripeAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceRefreshAllStripeAccountsHandler := connect.NewServerStreamHandler(
+		LedgerServiceRefreshAllStripeAccountsProcedure,
+		svc.RefreshAllStripeAccounts,
+		connect.WithSchema(ledgerServiceMethods.ByName("RefreshAllStripeAccounts")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceSuggestRulesHandler := connect.NewUnaryHandler(
 		LedgerServiceSuggestRulesProcedure,
 		svc.SuggestRules,
@@ -1704,6 +1750,10 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceImportAllStripeTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceUpdateStripeAccountLastFetchedAtProcedure:
 			ledgerServiceUpdateStripeAccountLastFetchedAtHandler.ServeHTTP(w, r)
+		case LedgerServiceRefreshStripeAccountProcedure:
+			ledgerServiceRefreshStripeAccountHandler.ServeHTTP(w, r)
+		case LedgerServiceRefreshAllStripeAccountsProcedure:
+			ledgerServiceRefreshAllStripeAccountsHandler.ServeHTTP(w, r)
 		case LedgerServiceSuggestRulesProcedure:
 			ledgerServiceSuggestRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceTranslateQueryProcedure:
@@ -1951,6 +2001,14 @@ func (UnimplementedLedgerServiceHandler) ImportAllStripeTransactions(context.Con
 
 func (UnimplementedLedgerServiceHandler) UpdateStripeAccountLastFetchedAt(context.Context, *connect.Request[v1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[v1.UpdateStripeAccountLastFetchedAtResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateStripeAccountLastFetchedAt is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) RefreshStripeAccount(context.Context, *connect.Request[v1.RefreshStripeAccountRequest], *connect.ServerStream[v1.RefreshStripeAccountResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RefreshStripeAccount is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) RefreshAllStripeAccounts(context.Context, *connect.Request[v1.RefreshAllStripeAccountsRequest], *connect.ServerStream[v1.RefreshStripeAccountResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RefreshAllStripeAccounts is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {

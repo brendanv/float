@@ -27,9 +27,13 @@ Cache keys are namespaced by RPC type. Query args are sorted before joining so `
 
 **Pass-through queries** (no cache): `GetRules`, `GetSnapshots`, `ListPrices`, `GetImportBatches`, `PreviewImport`, `GetConfig`
 
-**Stripe Financial Connections** (pass-through, implemented in `stripe.go`): `GetStripeConfig`, `CreateStripeLinkSession`, `CompleteStripeLinking`, `ListStripeLinkedAccounts`, `UnlinkStripeAccount`, `FetchStripeTransactions`, `ImportStripeTransactions`
+**Stripe Financial Connections** (pass-through, implemented in `stripe.go`): `GetStripeConfig`, `CreateStripeLinkSession`, `CompleteStripeLinking`, `ListStripeLinkedAccounts`, `UnlinkStripeAccount`, `FetchStripeTransactions`, `ImportStripeTransactions`, `FetchAllStripeTransactions`, `ImportAllStripeTransactions`, `RefreshStripeAccount`, `RefreshAllStripeAccounts`, `UpdateStripeAccountLastFetchedAt`
 
 Stripe RPCs read credentials from environment variables (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_ACCOUNT_ID`) and degrade gracefully when unset. `CompleteStripeLinking`, `UnlinkStripeAccount`, and `ImportStripeTransactions` are mutations that go through `txlock.Do()` to persist account mappings / `LastFetchedAt` to `config.toml`. `FetchStripeTransactions` and `ImportStripeTransactions` apply categorization rules via `internal/rules` before returning or writing candidates.
+
+**Refresh vs fetch (split)**: `FetchStripeTransactions` and `FetchAllStripeTransactions` only list transactions — they are fast and never trigger a Stripe refresh. `RefreshStripeAccount` and `RefreshAllStripeAccounts` are server-streaming RPCs that kick off a Stripe refresh and emit `RefreshStripeAccountProgress` events while polling, then a terminal `RefreshStripeAccountResult`. Streaming keeps the HTTP/2 connection alive past upstream proxy timeouts during the polling loop. **Invariant**: refresh RPCs never mutate `LastTransactionRefreshID` or `LastFetchedAt` in config. That high-water mark is advanced only by successful imports (`ImportStripeTransactions`, `ImportAllStripeTransactions`, daily auto-import), which guarantees a refresh-without-import doesn't drop transactions on the next refresh — the next list with `after=oldID` still captures everything from any intervening refreshes.
+
+**Throttling**: Refresh handlers call `stripe.MaybeRefreshTransactions`, which inspects the account's `next_refresh_available_at` field before kicking off a new refresh. When throttled, the terminal `RefreshStripeAccountResult` has `succeeded=true`, `throttled=true`, and `next_refresh_available_at` populated so the UI can show when the next refresh becomes available. The daily auto-import follows the same pattern: it lists transactions using the existing refresh ID rather than blocking on a refresh that Stripe will refuse.
 
 ## Adding a New RPC
 

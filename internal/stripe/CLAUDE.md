@@ -8,9 +8,13 @@ Thin wrapper around the Stripe Financial Connections API (`github.com/stripe/str
 - `ListSessionAccounts(ctx, secretKey, sessionID)` — retrieves accounts from a completed FC session
 - `ListAccounts(ctx, secretKey, accountID)` — lists all FC accounts under the given Stripe account holder; pass `""` for `accountID` to list all
 - `SubscribeTransactions(ctx, secretKey, accountID)` — enables transaction data for an account (must be called before `ListTransactions` works)
-- `RefreshTransactions(ctx, secretKey, accountID)` — requests a fresh transaction sync from Stripe
+- `RefreshTransactions(ctx, secretKey, accountID)` — requests a fresh transaction sync from Stripe (asynchronous; poll with `WaitForRefresh`). Prefer `MaybeRefreshTransactions` for user-triggered flows so the per-account refresh throttle is honored.
+- `MaybeRefreshTransactions(ctx, logger, secretKey, accountID)` — inspects the account state and either kicks off a refresh, joins a pending one, or returns `RefreshKickoffThrottled` with `NextRefreshAvailableAt` set (so callers can surface the next-available time instead of getting a silent no-op from Stripe).
+- `WaitForRefresh(ctx, logger, secretKey, accountID)` — polls until the account's `transaction_refresh` reaches `succeeded`/`failed`; returns the refresh ID. Pass `nil` logger to use `slog.Default()`. Exponential backoff capped at 30s; 5-minute timeout. Returns `("", nil)` immediately if no refresh is in progress.
+- `WaitForRefreshWithProgress(ctx, logger, secretKey, accountID, onProgress)` — same as `WaitForRefresh` but invokes `onProgress(RefreshProgress)` at start, on each pending poll, and on terminal state. Use this to drive a streaming RPC.
+- `GetTransactionRefreshID(ctx, secretKey, accountID)` — returns the account's current `transaction_refresh.id`; `""` if none.
 - `DisconnectAccount(ctx, secretKey, accountID)` — revokes access and disconnects the account
-- `ListTransactions(ctx, secretKey, accountID, since)` — returns transactions for an account; pass zero `time.Time` to fetch all
+- `ListTransactions(ctx, secretKey, accountID, afterRefreshID)` — returns transactions for an account; pass `""` for `afterRefreshID` to fetch all available history, or a refresh ID to only return transactions captured by that refresh or later.
 
 ## Types
 
