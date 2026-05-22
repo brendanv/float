@@ -86,6 +86,30 @@ function generalDisplay(tx) {
   return { from: neg.account, to: pos.account, amount: formatAmounts(pos.amounts) };
 }
 
+// accountSplit returns the singular from/to accounts for a transaction, or
+// flags isMultiple when either side has more than one posting and the cells
+// should be merged into a single "multiple accounts" view.
+function accountSplit(tx) {
+  const postings = tx.postings || [];
+  if (postings.length === 0) return { from: "", to: "", isMultiple: false };
+  if (postings.length === 1) {
+    return { from: postings[0].account, to: postings[0].account, isMultiple: false };
+  }
+  const positives = postings.filter((p) => firstQuantity(p) > 0);
+  const negatives = postings.filter((p) => firstQuantity(p) < 0);
+  if (postings.length === 2 && (negatives.length !== 1 || positives.length !== 1)) {
+    return { from: postings[0].account, to: postings[1].account, isMultiple: false };
+  }
+  if (negatives.length === 1 && positives.length === 1) {
+    return { from: negatives[0].account, to: positives[0].account, isMultiple: false };
+  }
+  return {
+    from: negatives.length === 1 ? negatives[0].account : "",
+    to: positives.length === 1 ? positives[0].account : "",
+    isMultiple: true,
+  };
+}
+
 function accountRegisterDisplay(tx, focusedAccount) {
   const postings = tx.postings || [];
   if (postings.length === 0) return null;
@@ -219,6 +243,67 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
           onInput={(e) => state.setDraft(e.target.value)}
           onKeyDown={inlineEditKeyHandler({ onSave: save, onCancel: state.cancel })}
           autoFocus
+        />
+      }
+    />
+  );
+}
+
+// EditableAccountSideCell handles the from/to columns in the general
+// transactions view. `side` is "from" or "to" and selects which posting on
+// the row to replace on save (the single negative or single positive
+// posting). When the row has zero or multiple postings on that side, the
+// cell is not editable and falls back to the full edit view.
+function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
+  const postings = tx.postings || [];
+  const matching = postings.filter((p) => side === "from" ? firstQuantity(p) < 0 : firstQuantity(p) > 0);
+  const account = matching.length === 1 ? matching[0].account : "";
+  const state = useInlineEditState(account);
+  const canEdit = !!tx.fid && matching.length === 1;
+
+  async function save() {
+    if (!state.draft || state.draft === account) { state.cancel(); return; }
+    const oldAccount = matching[0].account;
+    await state.run(async () => {
+      const newPostings = postings.map((p) => {
+        const a = p.amounts?.[0];
+        const ba = p.balanceAssertion;
+        return toPostingInput({
+          account: p.account === oldAccount ? state.draft : p.account,
+          commodity: a?.commodity ?? "",
+          quantity: a?.quantity ?? "",
+          cost: a?.cost,
+          balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
+        });
+      });
+      await ledgerClient.updateTransaction({
+        fid: tx.fid,
+        description: tx.description,
+        date: tx.date,
+        postings: newPostings,
+        status: tx.status === "Cleared" ? "Cleared" : "",
+      });
+      if (onSaved) onSaved();
+    });
+  }
+
+  return (
+    <InlineEdit
+      display={account}
+      canEdit={canEdit}
+      editing={state.editing}
+      onActivate={() => state.start(account)}
+      onCancel={state.cancel}
+      onSave={save}
+      saving={state.saving}
+      error={state.error}
+      title={`Click to change ${side} account`}
+      displayClassName="text-sm text-muted-foreground"
+      editor={
+        <AccountInput
+          value={state.draft}
+          onChange={state.setDraft}
+          accounts={accounts}
         />
       }
     />
@@ -693,24 +778,41 @@ const tagsColumn = col.display({
   },
 });
 
-// "Accounts" column for the general transactions table: "From -> To" by
-// default, "Other accounts" when filtered to a single account.
-const accountsColumn = col.display({
-  id: "accounts",
-  header: ({ table }) => table.options.meta.focusedAccount ? "Other accounts" : "From \u2192 To",
+// "From" and "To" columns for the general transactions table. Each cell is
+// inline-editable via the account typeahead when the row has exactly one
+// posting on that side. Rows with multiple postings on either side render
+// as a single merged "multiple accounts" cell (handled by TableRowGroup);
+// the sort accessor still returns a stable string so the column header
+// remains sortable.
+const fromColumn = col.accessor((tx) => accountSplit(tx).from || "", {
+  id: "from",
+  header: ({ column }) => <SortableHeader column={column}>From</SortableHeader>,
   cell: ({ row, table }) => {
-    const { focusedAccount } = table.options.meta;
-    const tx = row.original;
-    if (focusedAccount) {
-      const display = accountRegisterDisplay(tx, focusedAccount);
-      return <span className="text-sm text-muted-foreground">{display?.otherAccounts || ""}</span>;
-    }
-    const display = generalDisplay(tx);
-    if (!display) return null;
-    const accountText = display.from === "various accounts" && display.to === "various accounts"
-      ? "various accounts"
-      : `${display.from} \u2192 ${display.to}`;
-    return <span className="text-sm text-muted-foreground">{accountText}</span>;
+    const { accounts, onStatusChange } = table.options.meta;
+    return (
+      <EditableAccountSideCell
+        tx={row.original}
+        side="from"
+        accounts={accounts}
+        onSaved={onStatusChange}
+      />
+    );
+  },
+});
+
+const toColumn = col.accessor((tx) => accountSplit(tx).to || "", {
+  id: "to",
+  header: ({ column }) => <SortableHeader column={column}>To</SortableHeader>,
+  cell: ({ row, table }) => {
+    const { accounts, onStatusChange } = table.options.meta;
+    return (
+      <EditableAccountSideCell
+        tx={row.original}
+        side="to"
+        accounts={accounts}
+        onSaved={onStatusChange}
+      />
+    );
   },
 });
 
@@ -815,7 +917,8 @@ const transactionColumns = [
   statusColumn,
   descriptionColumn,
   tagsColumn,
-  accountsColumn,
+  fromColumn,
+  toColumn,
   amountColumn,
 ];
 
@@ -1043,6 +1146,7 @@ export function TransactionTable({
 function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onTagsChanged, onDeleted, visibleColumnCount }) {
   const tx = row.original;
   const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
+  const split = isRegisterMode ? null : accountSplit(tx);
 
   return (
     <>
@@ -1053,14 +1157,30 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
           isSelected && "bg-primary/10 hover:bg-primary/15",
         )}
       >
-        {row.getVisibleCells().map((cell) => (
-          <TableCell
-            key={cell.id}
-            className={cell.column.columnDef.meta?.cellClass}
-          >
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          if (split?.isMultiple && cell.column.id === "from") {
+            return (
+              <TableCell
+                key={cell.id}
+                colSpan={2}
+                className="text-sm italic text-muted-foreground"
+              >
+                multiple accounts
+              </TableCell>
+            );
+          }
+          if (split?.isMultiple && cell.column.id === "to") {
+            return null;
+          }
+          return (
+            <TableCell
+              key={cell.id}
+              className={cell.column.columnDef.meta?.cellClass}
+            >
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          );
+        })}
       </TableRow>
       {row.getIsExpanded() && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
@@ -1083,31 +1203,24 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
 
 function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
   const tx = row.original;
-  let accountCell = "";
   let amountCell = "";
   let balanceCell = "";
   let changePositive = false;
   let changeNegative = false;
+  const split = isRegisterMode ? null : accountSplit(tx);
 
   if (isRegisterMode) {
     const cells = resolveRegisterCells(tx);
-    accountCell = cells.otherAccounts;
     amountCell = cells.change;
     balanceCell = cells.balance;
     changePositive = cells.changePositive;
     changeNegative = cells.changeNegative;
   } else if (focusedAccount) {
     const display = accountRegisterDisplay(tx, focusedAccount);
-    accountCell = display?.otherAccounts || "";
     amountCell = display?.amount || "";
   } else {
     const display = generalDisplay(tx);
-    if (display) {
-      accountCell = display.from === "various accounts" && display.to === "various accounts"
-        ? "various accounts"
-        : `${display.from} \u2192 ${display.to}`;
-      amountCell = display.amount;
-    }
+    amountCell = display?.amount || "";
   }
 
   const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
@@ -1174,8 +1287,24 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
                 accounts={accounts}
                 onSaved={onStatusChange}
               />
+            ) : split?.isMultiple ? (
+              <span className="italic text-muted-foreground">multiple accounts</span>
             ) : (
-              <span className="truncate text-muted-foreground">{accountCell}</span>
+              <span className="flex flex-wrap items-center gap-1 text-muted-foreground">
+                <EditableAccountSideCell
+                  tx={tx}
+                  side="from"
+                  accounts={accounts}
+                  onSaved={onStatusChange}
+                />
+                <span className="text-muted-foreground/60">→</span>
+                <EditableAccountSideCell
+                  tx={tx}
+                  side="to"
+                  accounts={accounts}
+                  onSaved={onStatusChange}
+                />
+              </span>
             )}
           </div>
           {isRegisterMode && balanceCell && (
