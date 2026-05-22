@@ -132,6 +132,39 @@ export const mockTransactions = [
     tags: {},
   },
   {
+    fid: "u1v2w3x4",
+    date: "2026-03-19",
+    description: "Unknown Merchant",
+    status: "Cleared",
+    postings: [
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-25.00" }] },
+      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "25.00" }] },
+    ],
+    tags: {},
+  },
+  {
+    fid: "u5v6w7x8",
+    date: "2026-03-18",
+    description: "Cash Withdrawal",
+    status: "Cleared",
+    postings: [
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-100.00" }] },
+      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "100.00" }] },
+    ],
+    tags: {},
+  },
+  {
+    fid: "u9v0w1x2",
+    date: "2026-03-16",
+    description: "Unknown Merchant",
+    status: "Cleared",
+    postings: [
+      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-38.50" }] },
+      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "38.50" }] },
+    ],
+    tags: {},
+  },
+  {
     fid: "o5p6q7r8",
     date: "2026-03-19",
     description: "Fidelity | buy AAPL",
