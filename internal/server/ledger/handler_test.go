@@ -2125,6 +2125,71 @@ func TestImportTransactionsHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("reimport_detected_as_duplicate_when_rule_modifies_description", func(t *testing.T) {
+		// Regression test: fingerprint must be computed after rules are applied so
+		// that re-importing the same CSV detects the transaction as a duplicate.
+		// Previously, IsDuplicate was set before the payee/account rule was applied,
+		// so the stored fingerprint (post-rule description) never matched the
+		// candidate fingerprint (pre-rule description).
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 302, NumTxns: 0, WithFIDs: true})
+
+		hledgerRules := "skip 1\nfields date, description, amount\naccount1 assets:checking\naccount2 expenses:misc\n"
+		if err := os.WriteFile(filepath.Join(dir, "bank.rules"), []byte(hledgerRules), 0o644); err != nil {
+			t.Fatalf("write bank.rules: %v", err)
+		}
+
+		floatRulesJSON := `[{"id":"rule1","pattern":"COFFEE","payee":"Local Coffee","account":"expenses:food:coffee","tags":{},"priority":0,"auto_reviewed":false}]`
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(floatRulesJSON), 0o644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		lock := txlock.New(dir, c)
+		cfg := &config.Config{
+			BankProfiles: []config.BankProfile{
+				{Name: "test-bank", RulesFile: "bank.rules"},
+			},
+		}
+		h := serverledger.NewHandler(c, lock, dir, "", nil, nil, cfg, nil)
+
+		csvData := []byte("date,description,amount\n2026-03-10,COFFEE SHOP,-5.50\n")
+
+		// First import: transaction is new.
+		_, err = importTransactions(t, h, &floatv1.ImportTransactionsRequest{
+			CsvData:          csvData,
+			ProfileName:      "test-bank",
+			CandidateIndices: []int32{0},
+		})
+		if err != nil {
+			t.Fatalf("first ImportTransactions: %v", err)
+		}
+
+		// Second preview of the same CSV: should be detected as a duplicate.
+		mux := http.NewServeMux()
+		path, handler := floatv1connect.NewLedgerServiceHandler(h)
+		mux.Handle(path, handler)
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+		client := floatv1connect.NewLedgerServiceClient(srv.Client(), srv.URL)
+
+		previewResp, err := client.PreviewImport(t.Context(), connect.NewRequest(&floatv1.PreviewImportRequest{
+			CsvData:     csvData,
+			ProfileName: "test-bank",
+		}))
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if len(previewResp.Msg.Candidates) != 1 {
+			t.Fatalf("expected 1 candidate, got %d", len(previewResp.Msg.Candidates))
+		}
+		if !previewResp.Msg.Candidates[0].IsDuplicate {
+			t.Errorf("IsDuplicate = false, want true — previously imported transaction not detected as duplicate")
+		}
+	})
+
 	t.Run("import_batch_id_populated_on_imported_transactions", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 301, NumTxns: 1, WithFIDs: true})
 
