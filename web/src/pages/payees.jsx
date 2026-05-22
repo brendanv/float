@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
   Pagination,
@@ -226,19 +227,30 @@ export function PayeesPage() {
   const descRows = useMemo(() => {
     const map = new Map();
     for (const tx of txData?.transactions ?? []) {
-      if (!map.has(tx.description)) map.set(tx.description, []);
-      map.get(tx.description).push(tx.fid);
+      if (!map.has(tx.description)) map.set(tx.description, { fids: [], hasUncategorized: false });
+      const entry = map.get(tx.description);
+      entry.fids.push(tx.fid);
+      if (!entry.hasUncategorized) {
+        entry.hasUncategorized = (tx.postings ?? []).some((p) => p.account === "expenses:unknown");
+      }
     }
-    return [...map.entries()].map(([description, fids]) => ({
+    return [...map.entries()].map(([description, { fids, hasUncategorized }]) => ({
       description,
       fids,
       count: fids.length,
+      hasUncategorized,
     }));
   }, [txData]);
 
   const [descFilter, setDescFilter] = useState("");
   const [descSorting, setDescSorting] = useState([{ id: "count", desc: true }]);
   const [descPagination, setDescPagination] = useState({ pageIndex: 0, pageSize: 25 });
+  const [showUncategorizedOnly, setShowUncategorizedOnly] = useState(false);
+
+  const filteredDescRows = useMemo(
+    () => (showUncategorizedOnly ? descRows.filter((r) => r.hasUncategorized) : descRows),
+    [descRows, showUncategorizedOnly],
+  );
   const [activeDesc, setActiveDesc] = useState(null);
   const [newPayee, setNewPayee] = useState("");
   const [settingPayee, setSettingPayee] = useState(false);
@@ -362,7 +374,7 @@ export function PayeesPage() {
   );
 
   const descTable = useReactTable({
-    data: descRows,
+    data: filteredDescRows,
     columns: descColumns,
     state: { sorting: descSorting, globalFilter: descFilter, pagination: descPagination },
     onSortingChange: setDescSorting,
@@ -471,12 +483,24 @@ export function PayeesPage() {
                 </p>
               ) : (
                 <>
-                  <Input
-                    placeholder="Filter descriptions…"
-                    value={descFilter}
-                    onChange={(e) => descTable.setGlobalFilter(e.target.value)}
-                    className="max-w-sm"
-                  />
+                  <div className="flex flex-wrap items-center gap-4">
+                    <Input
+                      placeholder="Filter descriptions…"
+                      value={descFilter}
+                      onChange={(e) => descTable.setGlobalFilter(e.target.value)}
+                      className="max-w-sm"
+                    />
+                    <Label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={showUncategorizedOnly}
+                        onCheckedChange={(checked) => {
+                          setShowUncategorizedOnly(!!checked);
+                          setDescPagination((p) => ({ ...p, pageIndex: 0 }));
+                        }}
+                      />
+                      Uncategorized only
+                    </Label>
+                  </div>
                   {descTable.getFilteredRowModel().rows.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       No descriptions match your filter.

@@ -577,6 +577,17 @@ test("payees page - suggest rules wizard suggestions step", async ({ page }) => 
   await page.screenshot({ path: "test-results/payees-suggest-rules-suggestions.png", fullPage: true });
 });
 
+test("payees page - uncategorized filter active", async ({ page }) => {
+  await page.goto("/#/payees");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(500);
+  // Enable the "Uncategorized only" checkbox
+  await page.locator("[data-slot='checkbox']").click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/payees-uncategorized-filter.png", fullPage: true });
+});
+
 test("payees page - mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/payees");
