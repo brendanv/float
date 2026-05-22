@@ -317,8 +317,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 	for _, st := range stripeTxns {
 		ht := stripeTransactionToHledger(st, linked.HledgerAccount)
 		candidate := &floatv1.ImportCandidate{
-			IsDuplicate: fpSet[journal.TxnFingerprint(ht)],
-			SourceId:    st.ID,
+			SourceId: st.ID,
 		}
 		if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
 			candidate.MatchedRuleId = r.ID
@@ -333,6 +332,8 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 				}
 			}
 		}
+		// Fingerprint after rules so it matches the form written to disk by ImportStripeTransactions.
+		candidate.IsDuplicate = fpSet[journal.TxnFingerprint(ht)]
 		candidate.Transaction = toProtoTransaction(ht)
 		candidates = append(candidates, candidate)
 	}

@@ -1766,9 +1766,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 
 	out := make([]*floatv1.ImportCandidate, len(candidates))
 	for i, c := range candidates {
-		candidate := &floatv1.ImportCandidate{
-			IsDuplicate: fpSet[journal.TxnFingerprint(c)],
-		}
+		candidate := &floatv1.ImportCandidate{}
 		if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
 			candidate.MatchedRuleId = r.ID
 			// Apply rule transformations so the preview reflects what will actually be imported.
@@ -1783,6 +1781,8 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 				}
 			}
 		}
+		// Fingerprint after rules so it matches the form written to disk by ImportTransactions.
+		candidate.IsDuplicate = fpSet[journal.TxnFingerprint(c)]
 		candidate.Transaction = toProtoTransaction(c)
 		out[i] = candidate
 	}
