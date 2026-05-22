@@ -160,6 +160,85 @@ func GetTransactionRefreshID(ctx context.Context, secretKey, accountID string) (
 	return acct.TransactionRefresh.ID, nil
 }
 
+// RefreshKickoffStatus describes the outcome of MaybeRefreshTransactions.
+type RefreshKickoffStatus int
+
+const (
+	// RefreshKickoffStarted means a new transaction refresh was initiated.
+	RefreshKickoffStarted RefreshKickoffStatus = iota
+	// RefreshKickoffAlreadyPending means a refresh was already in progress;
+	// the caller should poll for the existing one rather than start a new one.
+	RefreshKickoffAlreadyPending
+	// RefreshKickoffThrottled means the account's next_refresh_available_at
+	// is in the future; no refresh was initiated.
+	RefreshKickoffThrottled
+)
+
+// RefreshKickoff describes the outcome of MaybeRefreshTransactions.
+type RefreshKickoff struct {
+	Status RefreshKickoffStatus
+	// CurrentRefreshID is the ID of the existing transaction_refresh on the
+	// account at the time of the check, if any.
+	CurrentRefreshID string
+	// NextRefreshAvailableAt is the time the next refresh becomes available.
+	// Zero when Status is not RefreshKickoffThrottled.
+	NextRefreshAvailableAt time.Time
+}
+
+// MaybeRefreshTransactions inspects the account state and either initiates a
+// new transaction refresh, joins a pending one, or reports that refreshes are
+// currently throttled (per Stripe's next_refresh_available_at field).
+//
+// Use this rather than RefreshTransactions directly when honoring Stripe's
+// per-account refresh throttle. Pass nil logger to use slog.Default().
+func MaybeRefreshTransactions(ctx context.Context, logger *slog.Logger, secretKey, accountID string) (RefreshKickoff, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger = logger.With("account", accountID)
+
+	c := newClient(secretKey)
+	acct, err := c.V1FinancialConnectionsAccounts.GetByID(ctx, accountID, &stripe.FinancialConnectionsAccountRetrieveParams{})
+	if err != nil {
+		return RefreshKickoff{}, fmt.Errorf("stripe: get account %s for refresh check: %w", accountID, err)
+	}
+
+	if acct.TransactionRefresh != nil && acct.TransactionRefresh.Status == stripe.FinancialConnectionsAccountTransactionRefreshStatusPending {
+		logger.InfoContext(ctx, "stripe: refresh already pending, joining existing", "refresh_id", acct.TransactionRefresh.ID)
+		return RefreshKickoff{
+			Status:           RefreshKickoffAlreadyPending,
+			CurrentRefreshID: acct.TransactionRefresh.ID,
+		}, nil
+	}
+
+	if acct.TransactionRefresh != nil && acct.TransactionRefresh.NextRefreshAvailableAt > 0 {
+		nextAt := time.Unix(acct.TransactionRefresh.NextRefreshAvailableAt, 0).UTC()
+		if time.Now().Before(nextAt) {
+			logger.InfoContext(ctx, "stripe: refresh throttled",
+				"refresh_id", acct.TransactionRefresh.ID,
+				"next_refresh_available_at", nextAt.Format(time.RFC3339))
+			return RefreshKickoff{
+				Status:                 RefreshKickoffThrottled,
+				CurrentRefreshID:       acct.TransactionRefresh.ID,
+				NextRefreshAvailableAt: nextAt,
+			}, nil
+		}
+	}
+
+	if err := RefreshTransactions(ctx, secretKey, accountID); err != nil {
+		return RefreshKickoff{}, err
+	}
+	currentID := ""
+	if acct.TransactionRefresh != nil {
+		currentID = acct.TransactionRefresh.ID
+	}
+	logger.InfoContext(ctx, "stripe: refresh kicked off", "previous_refresh_id", currentID)
+	return RefreshKickoff{
+		Status:           RefreshKickoffStarted,
+		CurrentRefreshID: currentID,
+	}, nil
+}
+
 type Account struct {
 	ID          string
 	DisplayName string

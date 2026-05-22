@@ -811,7 +811,8 @@ func runRefreshOne(
 ) {
 	logger.InfoContext(ctx, "refresh stripe account: starting", "account", accountID)
 
-	if err := stripeClient.RefreshTransactions(ctx, secretKey, accountID); err != nil {
+	kickoff, err := stripeClient.MaybeRefreshTransactions(ctx, logger, secretKey, accountID)
+	if err != nil {
 		logger.ErrorContext(ctx, "refresh stripe account: kickoff failed", "account", accountID, "error", err)
 		emit(&floatv1.RefreshStripeAccountResponse{
 			Payload: &floatv1.RefreshStripeAccountResponse_Result{
@@ -819,6 +820,32 @@ func runRefreshOne(
 					StripeAccountId: accountID,
 					Succeeded:       false,
 					ErrorMessage:    "failed to start refresh: " + err.Error(),
+				},
+			},
+		})
+		return
+	}
+
+	if kickoff.Status == stripeClient.RefreshKickoffThrottled {
+		nextAt := kickoff.NextRefreshAvailableAt.Unix()
+		emit(&floatv1.RefreshStripeAccountResponse{
+			Payload: &floatv1.RefreshStripeAccountResponse_Progress{
+				Progress: &floatv1.RefreshStripeAccountProgress{
+					StripeAccountId: accountID,
+					Status:          "throttled",
+					RefreshId:       kickoff.CurrentRefreshID,
+					Message:         "next refresh available at " + kickoff.NextRefreshAvailableAt.Format(time.RFC3339),
+				},
+			},
+		})
+		emit(&floatv1.RefreshStripeAccountResponse{
+			Payload: &floatv1.RefreshStripeAccountResponse_Result{
+				Result: &floatv1.RefreshStripeAccountResult{
+					StripeAccountId:        accountID,
+					RefreshId:              kickoff.CurrentRefreshID,
+					Succeeded:              true,
+					Throttled:              true,
+					NextRefreshAvailableAt: nextAt,
 				},
 			},
 		})
@@ -873,6 +900,8 @@ func refreshProgressMessage(p stripeClient.RefreshProgress) string {
 		return "refresh timed out"
 	case "skipped":
 		return "no refresh in progress"
+	case "throttled":
+		return "refresh throttled"
 	}
 	return p.Status
 }

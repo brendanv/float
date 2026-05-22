@@ -478,6 +478,166 @@ func TestGetTransactionRefreshID(t *testing.T) {
 	})
 }
 
+func TestMaybeRefreshTransactions(t *testing.T) {
+	t.Run("kicks off refresh when account has no previous refresh", func(t *testing.T) {
+		mux := http.NewServeMux()
+		var refreshCalls int
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+			})
+		})
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc/refresh", func(w http.ResponseWriter, _ *http.Request) {
+			refreshCalls++
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":     "txnr_new",
+					"status": "pending",
+				},
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("MaybeRefreshTransactions: %v", err)
+		}
+		if kickoff.Status != RefreshKickoffStarted {
+			t.Errorf("Status = %d, want RefreshKickoffStarted", kickoff.Status)
+		}
+		if refreshCalls != 1 {
+			t.Errorf("refresh endpoint hit %d times, want 1", refreshCalls)
+		}
+	})
+
+	t.Run("joins existing pending refresh without kicking off a new one", func(t *testing.T) {
+		mux := http.NewServeMux()
+		var refreshCalls int
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":     "txnr_in_flight",
+					"status": "pending",
+				},
+			})
+		})
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc/refresh", func(w http.ResponseWriter, _ *http.Request) {
+			refreshCalls++
+			writeJSON(w, map[string]any{})
+		})
+		mockStripeBackend(t, mux)
+
+		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("MaybeRefreshTransactions: %v", err)
+		}
+		if kickoff.Status != RefreshKickoffAlreadyPending {
+			t.Errorf("Status = %d, want RefreshKickoffAlreadyPending", kickoff.Status)
+		}
+		if kickoff.CurrentRefreshID != "txnr_in_flight" {
+			t.Errorf("CurrentRefreshID = %q, want txnr_in_flight", kickoff.CurrentRefreshID)
+		}
+		if refreshCalls != 0 {
+			t.Errorf("refresh endpoint hit %d times, want 0 (already pending)", refreshCalls)
+		}
+	})
+
+	t.Run("returns throttled when next_refresh_available_at is in the future", func(t *testing.T) {
+		mux := http.NewServeMux()
+		var refreshCalls int
+		futureUnix := time.Now().Add(2 * time.Hour).Unix()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":                        "txnr_done",
+					"status":                    "succeeded",
+					"next_refresh_available_at": futureUnix,
+				},
+			})
+		})
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc/refresh", func(w http.ResponseWriter, _ *http.Request) {
+			refreshCalls++
+			writeJSON(w, map[string]any{})
+		})
+		mockStripeBackend(t, mux)
+
+		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("MaybeRefreshTransactions: %v", err)
+		}
+		if kickoff.Status != RefreshKickoffThrottled {
+			t.Errorf("Status = %d, want RefreshKickoffThrottled", kickoff.Status)
+		}
+		if kickoff.NextRefreshAvailableAt.Unix() != futureUnix {
+			t.Errorf("NextRefreshAvailableAt = %v, want unix %d", kickoff.NextRefreshAvailableAt, futureUnix)
+		}
+		if kickoff.CurrentRefreshID != "txnr_done" {
+			t.Errorf("CurrentRefreshID = %q, want txnr_done", kickoff.CurrentRefreshID)
+		}
+		if refreshCalls != 0 {
+			t.Errorf("refresh endpoint hit %d times, want 0 (throttled)", refreshCalls)
+		}
+	})
+
+	t.Run("kicks off refresh when next_refresh_available_at is in the past", func(t *testing.T) {
+		mux := http.NewServeMux()
+		var refreshCalls int
+		pastUnix := time.Now().Add(-1 * time.Hour).Unix()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":                        "txnr_done",
+					"status":                    "succeeded",
+					"next_refresh_available_at": pastUnix,
+				},
+			})
+		})
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc/refresh", func(w http.ResponseWriter, _ *http.Request) {
+			refreshCalls++
+			writeJSON(w, map[string]any{
+				"id":     "fca_test_abc",
+				"object": "financial_connections.account",
+				"status": "active",
+				"transaction_refresh": map[string]any{
+					"id":     "txnr_new",
+					"status": "pending",
+				},
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("MaybeRefreshTransactions: %v", err)
+		}
+		if kickoff.Status != RefreshKickoffStarted {
+			t.Errorf("Status = %d, want RefreshKickoffStarted", kickoff.Status)
+		}
+		if refreshCalls != 1 {
+			t.Errorf("refresh endpoint hit %d times, want 1", refreshCalls)
+		}
+	})
+}
+
 func TestWaitForRefreshWithProgress(t *testing.T) {
 	t.Run("emits starting then succeeded when status is already succeeded", func(t *testing.T) {
 		mux := http.NewServeMux()

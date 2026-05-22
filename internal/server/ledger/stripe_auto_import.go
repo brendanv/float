@@ -126,14 +126,24 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := stripeClient.RefreshTransactions(ctx, secretKey, linked.StripeAccountID); err != nil {
+			kickoff, err := stripeClient.MaybeRefreshTransactions(ctx, logger, secretKey, linked.StripeAccountID)
+			if err != nil {
 				fetched[i].err = fmt.Errorf("refresh: %w", err)
 				return
 			}
-			newRefreshID, err := stripeClient.WaitForRefresh(ctx, logger, secretKey, linked.StripeAccountID)
-			if err != nil {
-				fetched[i].err = fmt.Errorf("wait for refresh: %w", err)
-				return
+			var newRefreshID string
+			if kickoff.Status == stripeClient.RefreshKickoffThrottled {
+				logger.InfoContext(ctx, "daily stripe import: refresh throttled, listing without new refresh",
+					"account", linked.StripeAccountID,
+					"next_refresh_available_at", kickoff.NextRefreshAvailableAt.Format(time.RFC3339),
+				)
+				newRefreshID = kickoff.CurrentRefreshID
+			} else {
+				newRefreshID, err = stripeClient.WaitForRefresh(ctx, logger, secretKey, linked.StripeAccountID)
+				if err != nil {
+					fetched[i].err = fmt.Errorf("wait for refresh: %w", err)
+					return
+				}
 			}
 			fetched[i].newRefreshID = newRefreshID
 			txns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)

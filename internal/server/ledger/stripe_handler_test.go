@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	stripelib "github.com/stripe/stripe-go/v82"
@@ -1044,6 +1045,77 @@ func TestRefreshStripeAccount(t *testing.T) {
 		}
 		if result.ErrorMessage == "" {
 			t.Error("result.ErrorMessage is empty, want a kickoff failure message")
+		}
+	})
+
+	t.Run("throttled refresh skips kickoff and reports next_refresh_available_at", func(t *testing.T) {
+		mux := http.NewServeMux()
+		futureUnix := time.Now().Add(3 * time.Hour).Unix()
+		var refreshCalls int
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_abc/refresh", func(w http.ResponseWriter, _ *http.Request) {
+			refreshCalls++
+			writeStripeJSON(w, map[string]any{})
+		})
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id":     "fca_abc",
+				"object": "financial_connections.account",
+				"status": "active",
+				"transaction_refresh": map[string]any{
+					"id":                        "txnr_existing",
+					"status":                    "succeeded",
+					"last_attempted_at":         int64(1746835200),
+					"next_refresh_available_at": futureUnix,
+				},
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 783, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+
+		events, err := refreshStripeAccount(t, h, &floatv1.RefreshStripeAccountRequest{StripeAccountId: "fca_abc"})
+		if err != nil {
+			t.Fatalf("RefreshStripeAccount: %v", err)
+		}
+		if refreshCalls != 0 {
+			t.Errorf("stripe refresh endpoint hit %d times, want 0 (throttled)", refreshCalls)
+		}
+		var result *floatv1.RefreshStripeAccountResult
+		var sawThrottledProgress bool
+		for _, ev := range events {
+			switch p := ev.Payload.(type) {
+			case *floatv1.RefreshStripeAccountResponse_Progress:
+				if p.Progress.Status == "throttled" {
+					sawThrottledProgress = true
+				}
+			case *floatv1.RefreshStripeAccountResponse_Result:
+				result = p.Result
+			}
+		}
+		if !sawThrottledProgress {
+			t.Error("no progress event with status=throttled emitted")
+		}
+		if result == nil {
+			t.Fatal("no result event emitted")
+		}
+		if !result.Succeeded {
+			t.Errorf("result.Succeeded = false, want true (no error, just throttled)")
+		}
+		if !result.Throttled {
+			t.Error("result.Throttled = false, want true")
+		}
+		if result.NextRefreshAvailableAt != futureUnix {
+			t.Errorf("result.NextRefreshAvailableAt = %d, want %d", result.NextRefreshAvailableAt, futureUnix)
+		}
+		if result.RefreshId != "txnr_existing" {
+			t.Errorf("result.RefreshId = %q, want txnr_existing", result.RefreshId)
 		}
 	})
 }

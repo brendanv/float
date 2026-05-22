@@ -10,6 +10,7 @@ import {
   Link2,
   Link2Off,
   CircleCheck,
+  Clock,
   Loader2,
   RefreshCw,
   Tag,
@@ -348,6 +349,8 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
             next.set(r.stripeAccountId, {
               ...existing,
               succeeded: r.succeeded,
+              throttled: r.throttled || false,
+              nextRefreshAvailableAt: Number(r.nextRefreshAvailableAt ?? 0),
               error: r.succeeded ? null : r.errorMessage,
             });
             return next;
@@ -483,7 +486,12 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
               {refreshRows.map(([accountId, st]) => {
                 const name = accountNameById.get(accountId) ?? accountId;
                 let line;
-                if (st.succeeded === true) {
+                if (st.throttled) {
+                  const next = st.nextRefreshAvailableAt
+                    ? new Date(st.nextRefreshAvailableAt * 1000).toLocaleString()
+                    : "later";
+                  line = `throttled — next refresh at ${next}`;
+                } else if (st.succeeded === true) {
                   line = "succeeded";
                 } else if (st.succeeded === false) {
                   line = `failed: ${st.error ?? "unknown error"}`;
@@ -492,10 +500,15 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
                 } else {
                   line = st.message || st.status || "starting";
                 }
+                const tone = st.succeeded === false
+                  ? "text-destructive"
+                  : st.throttled
+                    ? "text-amber-600 dark:text-amber-500"
+                    : "text-muted-foreground";
                 return (
                   <div key={accountId} className="flex justify-between gap-3 font-mono">
                     <span>{name}</span>
-                    <span className={st.succeeded === false ? "text-destructive" : "text-muted-foreground"}>{line}</span>
+                    <span className={tone}>{line}</span>
                   </div>
                 );
               })}
@@ -567,6 +580,7 @@ function AccountFetchPanel({ account, onImported }) {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState(null);
   const [refreshError, setRefreshError] = useState(null);
+  const [refreshThrottledAt, setRefreshThrottledAt] = useState(null);
 
   async function handleFetch() {
     setFetching(true);
@@ -593,6 +607,7 @@ function AccountFetchPanel({ account, onImported }) {
   async function handleRefresh() {
     setRefreshing(true);
     setRefreshError(null);
+    setRefreshThrottledAt(null);
     setRefreshStatus({ status: "starting", elapsedSeconds: 0, attempt: 0 });
     let succeeded = false;
     try {
@@ -611,6 +626,9 @@ function AccountFetchPanel({ account, onImported }) {
         } else if (res.payload.case === "result") {
           const r = res.payload.value;
           succeeded = r.succeeded;
+          if (r.throttled) {
+            setRefreshThrottledAt(Number(r.nextRefreshAvailableAt ?? 0));
+          }
           if (!r.succeeded) {
             setRefreshError(new Error(r.errorMessage || "refresh failed"));
           }
@@ -700,6 +718,15 @@ function AccountFetchPanel({ account, onImported }) {
         </Button>
       </div>
       {refreshError && <ErrorBanner error={refreshError} />}
+      {refreshThrottledAt > 0 && (
+        <Alert>
+          <Clock className="size-4" />
+          <AlertDescription>
+            Stripe throttled this refresh. Next refresh available at{" "}
+            {new Date(refreshThrottledAt * 1000).toLocaleString()}. Showing existing transactions.
+          </AlertDescription>
+        </Alert>
+      )}
       {fetchError && <ErrorBanner error={fetchError} />}
       {importResult && (
         <Alert>

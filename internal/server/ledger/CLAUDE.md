@@ -33,6 +33,8 @@ Stripe RPCs read credentials from environment variables (`STRIPE_SECRET_KEY`, `S
 
 **Refresh vs fetch (split)**: `FetchStripeTransactions` and `FetchAllStripeTransactions` only list transactions — they are fast and never trigger a Stripe refresh. `RefreshStripeAccount` and `RefreshAllStripeAccounts` are server-streaming RPCs that kick off a Stripe refresh and emit `RefreshStripeAccountProgress` events while polling, then a terminal `RefreshStripeAccountResult`. Streaming keeps the HTTP/2 connection alive past upstream proxy timeouts during the polling loop. **Invariant**: refresh RPCs never mutate `LastTransactionRefreshID` or `LastFetchedAt` in config. That high-water mark is advanced only by successful imports (`ImportStripeTransactions`, `ImportAllStripeTransactions`, daily auto-import), which guarantees a refresh-without-import doesn't drop transactions on the next refresh — the next list with `after=oldID` still captures everything from any intervening refreshes.
 
+**Throttling**: Refresh handlers call `stripe.MaybeRefreshTransactions`, which inspects the account's `next_refresh_available_at` field before kicking off a new refresh. When throttled, the terminal `RefreshStripeAccountResult` has `succeeded=true`, `throttled=true`, and `next_refresh_available_at` populated so the UI can show when the next refresh becomes available. The daily auto-import follows the same pattern: it lists transactions using the existing refresh ID rather than blocking on a refresh that Stripe will refuse.
+
 ## Adding a New RPC
 
 1. Add the method to `proto/float/v1/ledger.proto` and run `mise run proto-gen`

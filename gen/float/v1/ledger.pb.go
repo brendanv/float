@@ -8049,7 +8049,7 @@ func (*RefreshAllStripeAccountsRequest) Descriptor() ([]byte, []int) {
 type RefreshStripeAccountProgress struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	StripeAccountId string                 `protobuf:"bytes,1,opt,name=stripe_account_id,json=stripeAccountId,proto3" json:"stripe_account_id,omitempty"`
-	// Status is one of: "starting", "polling", "succeeded", "failed", "timeout", "skipped".
+	// Status is one of: "starting", "polling", "succeeded", "failed", "timeout", "skipped", "throttled".
 	Status         string `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
 	Attempt        int32  `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
 	ElapsedSeconds int64  `protobuf:"varint,4,opt,name=elapsed_seconds,json=elapsedSeconds,proto3" json:"elapsed_seconds,omitempty"`
@@ -8138,8 +8138,16 @@ type RefreshStripeAccountResult struct {
 	RefreshId       string                 `protobuf:"bytes,2,opt,name=refresh_id,json=refreshId,proto3" json:"refresh_id,omitempty"` // empty if no refresh was in progress
 	Succeeded       bool                   `protobuf:"varint,3,opt,name=succeeded,proto3" json:"succeeded,omitempty"`
 	ErrorMessage    string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"` // empty on success
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Throttled is true when no new refresh was initiated because Stripe's
+	// next_refresh_available_at is in the future. Succeeded is still set to true
+	// in that case (the operation completed without error) and callers should
+	// proceed to list transactions without expecting new data.
+	Throttled bool `protobuf:"varint,5,opt,name=throttled,proto3" json:"throttled,omitempty"`
+	// NextRefreshAvailableAt is the Unix timestamp (seconds) when the next
+	// refresh becomes available. Populated only when throttled is true.
+	NextRefreshAvailableAt int64 `protobuf:"varint,6,opt,name=next_refresh_available_at,json=nextRefreshAvailableAt,proto3" json:"next_refresh_available_at,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *RefreshStripeAccountResult) Reset() {
@@ -8198,6 +8206,20 @@ func (x *RefreshStripeAccountResult) GetErrorMessage() string {
 		return x.ErrorMessage
 	}
 	return ""
+}
+
+func (x *RefreshStripeAccountResult) GetThrottled() bool {
+	if x != nil {
+		return x.Throttled
+	}
+	return false
+}
+
+func (x *RefreshStripeAccountResult) GetNextRefreshAvailableAt() int64 {
+	if x != nil {
+		return x.NextRefreshAvailableAt
+	}
+	return 0
 }
 
 type RefreshStripeAccountResponse struct {
@@ -9958,13 +9980,15 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x0felapsed_seconds\x18\x04 \x01(\x03R\x0eelapsedSeconds\x12\x1d\n" +
 	"\n" +
 	"refresh_id\x18\x05 \x01(\tR\trefreshId\x12\x18\n" +
-	"\amessage\x18\x06 \x01(\tR\amessage\"\xaa\x01\n" +
+	"\amessage\x18\x06 \x01(\tR\amessage\"\x83\x02\n" +
 	"\x1aRefreshStripeAccountResult\x12*\n" +
 	"\x11stripe_account_id\x18\x01 \x01(\tR\x0fstripeAccountId\x12\x1d\n" +
 	"\n" +
 	"refresh_id\x18\x02 \x01(\tR\trefreshId\x12\x1c\n" +
 	"\tsucceeded\x18\x03 \x01(\bR\tsucceeded\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"\xaf\x01\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\x12\x1c\n" +
+	"\tthrottled\x18\x05 \x01(\bR\tthrottled\x129\n" +
+	"\x19next_refresh_available_at\x18\x06 \x01(\x03R\x16nextRefreshAvailableAt\"\xaf\x01\n" +
 	"\x1cRefreshStripeAccountResponse\x12D\n" +
 	"\bprogress\x18\x01 \x01(\v2&.float.v1.RefreshStripeAccountProgressH\x00R\bprogress\x12>\n" +
 	"\x06result\x18\x02 \x01(\v2$.float.v1.RefreshStripeAccountResultH\x00R\x06resultB\t\n" +
