@@ -44,6 +44,22 @@ test("transactions page - expanded edit row", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-expanded-edit.png", fullPage: true });
 });
 
+test("transactions page - from cell inline edit", async ({ page }) => {
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Activate the inline "From" cell on the first row (a normal 2-posting
+  // transaction). The From column is the 6th cell: select, date, status,
+  // description, tags, from.
+  await page.click("tbody tr:first-child td:nth-child(6) > span");
+  await page.waitForTimeout(200);
+  // Open the typeahead popover
+  await page.click("tbody tr:first-child td:nth-child(6) button[role='combobox']");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/transactions-from-edit.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 600 } });
+});
+
 test("add transaction page", async ({ page }) => {
   await page.goto("/#/add");
   await page.waitForSelector("form", { timeout: 5000 }).catch(() => {});

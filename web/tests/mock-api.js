@@ -57,6 +57,21 @@ export const mockTransactions = [
     tags: { reimbursable: "" },
   },
   {
+    fid: "a1b2c3e0",
+    date: "2026-03-25",
+    description: "Costco | mixed run",
+    payee: "Costco",
+    note: "mixed run",
+    status: "Pending",
+    postings: [
+      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "62.40" }] },
+      { account: "expenses:household", amounts: [{ commodity: "USD", quantity: "31.10" }] },
+      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "12.25" }] },
+      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-105.75" }] },
+    ],
+    tags: {},
+  },
+  {
     fid: "a1b2c3d5",
     date: "2026-03-25",
     description: "Amazon | desk lamp",
