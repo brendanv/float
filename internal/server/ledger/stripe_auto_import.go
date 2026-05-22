@@ -130,7 +130,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 				fetched[i].err = fmt.Errorf("refresh: %w", err)
 				return
 			}
-			newRefreshID, err := stripeClient.WaitForRefresh(ctx, secretKey, linked.StripeAccountID)
+			newRefreshID, err := stripeClient.WaitForRefresh(ctx, logger, secretKey, linked.StripeAccountID)
 			if err != nil {
 				fetched[i].err = fmt.Errorf("wait for refresh: %w", err)
 				return

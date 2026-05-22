@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -286,16 +288,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	if err := stripeClient.RefreshTransactions(ctx, secretKey, linked.StripeAccountID); err != nil {
-		logger.ErrorContext(ctx, "refresh stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to refresh Stripe transactions"))
-	}
-
-	if _, err := stripeClient.WaitForRefresh(ctx, secretKey, linked.StripeAccountID); err != nil {
-		logger.ErrorContext(ctx, "wait for stripe refresh failed", "account", linked.StripeAccountID, "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to wait for Stripe refresh"))
-	}
-
+	logger.InfoContext(ctx, "fetch stripe transactions", "account", linked.StripeAccountID, "after_refresh_id", linked.LastTransactionRefreshID)
 	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
@@ -501,16 +494,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 	for i, linked := range eligible {
 		i, linked := i, linked
 		g.Go(func() error {
-			if err := stripeClient.RefreshTransactions(gctx, secretKey, linked.StripeAccountID); err != nil {
-				logger.ErrorContext(gctx, "refresh stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-				return fmt.Errorf("failed to refresh transactions for account %s", linked.StripeAccountID)
-			}
-
-			if _, err := stripeClient.WaitForRefresh(gctx, secretKey, linked.StripeAccountID); err != nil {
-				logger.ErrorContext(gctx, "wait for stripe refresh failed", "account", linked.StripeAccountID, "error", err)
-				return fmt.Errorf("failed to wait for refresh on account %s", linked.StripeAccountID)
-			}
-
+			logger.InfoContext(gctx, "fetch all: list stripe transactions", "account", linked.StripeAccountID, "after_refresh_id", linked.LastTransactionRefreshID)
 			stripeTxns, err := stripeClient.ListTransactions(gctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
 			if err != nil {
 				logger.ErrorContext(gctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
@@ -698,6 +682,199 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 			},
 		},
 	})
+}
+
+// RefreshStripeAccount triggers a transaction refresh on Stripe and streams
+// polling progress until the refresh terminates. It deliberately does NOT
+// mutate LastTransactionRefreshID or LastFetchedAt in config — the persisted
+// refresh ID is the high-water mark advanced only by successful imports, so a
+// bare refresh that isn't followed by an import doesn't lose transactions.
+func (h *Handler) RefreshStripeAccount(
+	ctx context.Context,
+	req *connect.Request[floatv1.RefreshStripeAccountRequest],
+	stream *connect.ServerStream[floatv1.RefreshStripeAccountResponse],
+) error {
+	logger := slogctx.FromContext(ctx)
+	if h.cfg == nil {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	secretKey := stripeSecretKey()
+	if secretKey == "" {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	}
+	if req.Msg.StripeAccountId == "" {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
+	}
+
+	linked, err := h.findLinkedAccount(req.Msg.StripeAccountId)
+	if err != nil {
+		return connect.NewError(connect.CodeNotFound, err)
+	}
+
+	return streamRefreshOne(ctx, logger, stream, secretKey, linked.StripeAccountID)
+}
+
+// RefreshAllStripeAccounts triggers refresh for every eligible linked account
+// (one with a configured HledgerAccount) in parallel, multiplexing progress
+// from all accounts onto a single stream. Like RefreshStripeAccount, this does
+// NOT mutate config; imports remain the only place where LastTransactionRefreshID
+// is advanced.
+func (h *Handler) RefreshAllStripeAccounts(
+	ctx context.Context,
+	_ *connect.Request[floatv1.RefreshAllStripeAccountsRequest],
+	stream *connect.ServerStream[floatv1.RefreshStripeAccountResponse],
+) error {
+	logger := slogctx.FromContext(ctx)
+	if h.cfg == nil {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	secretKey := stripeSecretKey()
+	if secretKey == "" {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	}
+
+	var eligible []config.StripeLinkedAccount
+	for _, la := range h.cfg.Stripe.LinkedAccounts {
+		if la.HledgerAccount != "" {
+			eligible = append(eligible, la)
+		}
+	}
+	if len(eligible) == 0 {
+		return nil
+	}
+
+	logger.InfoContext(ctx, "refresh all stripe accounts: starting", "accounts", len(eligible))
+
+	// Single writer goroutine drains the events channel so concurrent goroutines
+	// don't race on stream.Send.
+	events := make(chan *floatv1.RefreshStripeAccountResponse, len(eligible)*4)
+	sendDone := make(chan error, 1)
+	go func() {
+		for ev := range events {
+			if err := stream.Send(ev); err != nil {
+				sendDone <- err
+				// Drain remaining events so producers can exit cleanly.
+				for range events {
+				}
+				return
+			}
+		}
+		sendDone <- nil
+	}()
+
+	var wg sync.WaitGroup
+	for _, la := range eligible {
+		la := la
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runRefreshOne(ctx, logger, secretKey, la.StripeAccountID, func(ev *floatv1.RefreshStripeAccountResponse) {
+				select {
+				case events <- ev:
+				case <-ctx.Done():
+				}
+			})
+		}()
+	}
+	wg.Wait()
+	close(events)
+	return <-sendDone
+}
+
+// streamRefreshOne kicks off a refresh and streams events for a single account.
+func streamRefreshOne(
+	ctx context.Context,
+	logger *slog.Logger,
+	stream *connect.ServerStream[floatv1.RefreshStripeAccountResponse],
+	secretKey, accountID string,
+) error {
+	var sendErr error
+	runRefreshOne(ctx, logger, secretKey, accountID, func(ev *floatv1.RefreshStripeAccountResponse) {
+		if sendErr != nil {
+			return
+		}
+		if err := stream.Send(ev); err != nil {
+			sendErr = err
+		}
+	})
+	return sendErr
+}
+
+// runRefreshOne performs the refresh + poll loop for one account, delivering
+// progress and a single terminal result event through emit. It never mutates
+// config.
+func runRefreshOne(
+	ctx context.Context,
+	logger *slog.Logger,
+	secretKey, accountID string,
+	emit func(*floatv1.RefreshStripeAccountResponse),
+) {
+	logger.InfoContext(ctx, "refresh stripe account: starting", "account", accountID)
+
+	if err := stripeClient.RefreshTransactions(ctx, secretKey, accountID); err != nil {
+		logger.ErrorContext(ctx, "refresh stripe account: kickoff failed", "account", accountID, "error", err)
+		emit(&floatv1.RefreshStripeAccountResponse{
+			Payload: &floatv1.RefreshStripeAccountResponse_Result{
+				Result: &floatv1.RefreshStripeAccountResult{
+					StripeAccountId: accountID,
+					Succeeded:       false,
+					ErrorMessage:    "failed to start refresh: " + err.Error(),
+				},
+			},
+		})
+		return
+	}
+
+	refreshID, err := stripeClient.WaitForRefreshWithProgress(ctx, logger, secretKey, accountID, func(p stripeClient.RefreshProgress) {
+		emit(&floatv1.RefreshStripeAccountResponse{
+			Payload: &floatv1.RefreshStripeAccountResponse_Progress{
+				Progress: &floatv1.RefreshStripeAccountProgress{
+					StripeAccountId: accountID,
+					Status:          p.Status,
+					Attempt:         int32(p.Attempt),
+					ElapsedSeconds:  int64(p.Elapsed.Seconds()),
+					RefreshId:       p.RefreshID,
+					Message:         refreshProgressMessage(p),
+				},
+			},
+		})
+	})
+
+	result := &floatv1.RefreshStripeAccountResult{
+		StripeAccountId: accountID,
+		RefreshId:       refreshID,
+		Succeeded:       err == nil,
+	}
+	if err != nil {
+		result.ErrorMessage = err.Error()
+	}
+	emit(&floatv1.RefreshStripeAccountResponse{
+		Payload: &floatv1.RefreshStripeAccountResponse_Result{Result: result},
+	})
+}
+
+func refreshProgressMessage(p stripeClient.RefreshProgress) string {
+	switch p.Status {
+	case "starting":
+		return "starting refresh"
+	case "polling":
+		if p.NextInterval > 0 {
+			return fmt.Sprintf("polling (next in %ds)", int(p.NextInterval.Seconds()))
+		}
+		return "polling"
+	case "succeeded":
+		return "refresh succeeded"
+	case "failed":
+		if p.Err != nil {
+			return "refresh failed: " + p.Err.Error()
+		}
+		return "refresh failed"
+	case "timeout":
+		return "refresh timed out"
+	case "skipped":
+		return "no refresh in progress"
+	}
+	return p.Status
 }
 
 func (h *Handler) findLinkedAccount(stripeAccountID string) (config.StripeLinkedAccount, error) {

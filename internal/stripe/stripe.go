@@ -3,6 +3,7 @@ package stripe
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v82"
@@ -14,40 +15,125 @@ const (
 	waitForRefreshTimeout      = 5 * time.Minute
 )
 
+// RefreshProgress is reported by WaitForRefreshWithProgress on each poll tick
+// and on terminal states.
+type RefreshProgress struct {
+	// Status is one of: "starting", "polling", "succeeded", "failed", "timeout", "skipped".
+	// "skipped" means no transaction_refresh is currently associated with the account.
+	Status       string
+	Attempt      int
+	Elapsed      time.Duration
+	NextInterval time.Duration // 0 on terminal states
+	RefreshID    string        // populated when known
+	Err          error         // populated on "failed"/"timeout"
+}
+
 // WaitForRefresh polls the Financial Connections account until the transaction
 // refresh status changes from "pending" to "succeeded" or "failed". It returns
 // the refresh ID on success, or an error if the refresh fails or times out.
 // If account.TransactionRefresh is nil, it returns ("", nil) immediately.
-func WaitForRefresh(ctx context.Context, secretKey, accountID string) (string, error) {
+//
+// Pass a logger to receive structured progress logs; pass nil to use slog.Default().
+func WaitForRefresh(ctx context.Context, logger *slog.Logger, secretKey, accountID string) (string, error) {
+	return WaitForRefreshWithProgress(ctx, logger, secretKey, accountID, nil)
+}
+
+// WaitForRefreshWithProgress is like WaitForRefresh but invokes onProgress
+// at start, on each "pending" poll, and once on the terminal state.
+// onProgress may be nil.
+func WaitForRefreshWithProgress(
+	ctx context.Context,
+	logger *slog.Logger,
+	secretKey, accountID string,
+	onProgress func(RefreshProgress),
+) (string, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger = logger.With("account", accountID)
+
 	c := newClient(secretKey)
-	deadline := time.Now().Add(waitForRefreshTimeout)
+	start := time.Now()
+	deadline := start.Add(waitForRefreshTimeout)
 	interval := waitForRefreshPollInterval
+	attempt := 0
+
+	logger.InfoContext(ctx, "stripe: waiting for transaction refresh")
+	if onProgress != nil {
+		onProgress(RefreshProgress{Status: "starting"})
+	}
+
+	emit := func(p RefreshProgress) {
+		if onProgress != nil {
+			onProgress(p)
+		}
+	}
 
 	for {
+		attempt++
 		acct, err := c.V1FinancialConnectionsAccounts.GetByID(ctx, accountID, &stripe.FinancialConnectionsAccountRetrieveParams{})
 		if err != nil {
-			return "", fmt.Errorf("stripe: wait for refresh %s: get account: %w", accountID, err)
+			elapsed := time.Since(start)
+			logger.ErrorContext(ctx, "stripe: refresh poll failed", "attempt", attempt, "elapsed_seconds", int(elapsed.Seconds()), "error", err)
+			wrapped := fmt.Errorf("stripe: wait for refresh %s: get account: %w", accountID, err)
+			emit(RefreshProgress{Status: "failed", Attempt: attempt, Elapsed: elapsed, Err: wrapped})
+			return "", wrapped
 		}
 
+		elapsed := time.Since(start)
+
 		if acct.TransactionRefresh == nil {
-			// No refresh in progress; return empty ID.
+			logger.InfoContext(ctx, "stripe: no refresh in progress", "attempts", attempt, "elapsed_seconds", int(elapsed.Seconds()))
+			emit(RefreshProgress{Status: "skipped", Attempt: attempt, Elapsed: elapsed})
 			return "", nil
 		}
 
 		switch acct.TransactionRefresh.Status {
 		case stripe.FinancialConnectionsAccountTransactionRefreshStatusSucceeded:
+			logger.InfoContext(ctx, "stripe: refresh succeeded",
+				"refresh_id", acct.TransactionRefresh.ID,
+				"attempts", attempt,
+				"elapsed_seconds", int(elapsed.Seconds()))
+			emit(RefreshProgress{Status: "succeeded", Attempt: attempt, Elapsed: elapsed, RefreshID: acct.TransactionRefresh.ID})
 			return acct.TransactionRefresh.ID, nil
 		case stripe.FinancialConnectionsAccountTransactionRefreshStatusFailed:
-			return "", fmt.Errorf("stripe: transaction refresh %s failed for account %s", acct.TransactionRefresh.ID, accountID)
+			logger.WarnContext(ctx, "stripe: refresh failed",
+				"refresh_id", acct.TransactionRefresh.ID,
+				"attempts", attempt,
+				"elapsed_seconds", int(elapsed.Seconds()))
+			wrapped := fmt.Errorf("stripe: transaction refresh %s failed for account %s", acct.TransactionRefresh.ID, accountID)
+			emit(RefreshProgress{Status: "failed", Attempt: attempt, Elapsed: elapsed, RefreshID: acct.TransactionRefresh.ID, Err: wrapped})
+			return "", wrapped
 		}
 		// Status is "pending" — continue polling.
 
 		if time.Now().After(deadline) {
-			return "", fmt.Errorf("stripe: timed out waiting for transaction refresh on account %s", accountID)
+			logger.WarnContext(ctx, "stripe: refresh timed out",
+				"refresh_id", acct.TransactionRefresh.ID,
+				"attempts", attempt,
+				"elapsed_seconds", int(elapsed.Seconds()))
+			wrapped := fmt.Errorf("stripe: timed out waiting for transaction refresh on account %s", accountID)
+			emit(RefreshProgress{Status: "timeout", Attempt: attempt, Elapsed: elapsed, RefreshID: acct.TransactionRefresh.ID, Err: wrapped})
+			return "", wrapped
 		}
+
+		logger.DebugContext(ctx, "stripe: refresh still pending",
+			"refresh_id", acct.TransactionRefresh.ID,
+			"attempt", attempt,
+			"elapsed_seconds", int(elapsed.Seconds()),
+			"next_interval_seconds", int(interval.Seconds()))
+		emit(RefreshProgress{
+			Status:       "polling",
+			Attempt:      attempt,
+			Elapsed:      elapsed,
+			NextInterval: interval,
+			RefreshID:    acct.TransactionRefresh.ID,
+		})
 
 		select {
 		case <-ctx.Done():
+			logger.WarnContext(ctx, "stripe: refresh wait cancelled", "attempts", attempt, "elapsed_seconds", int(elapsed.Seconds()), "error", ctx.Err())
+			emit(RefreshProgress{Status: "failed", Attempt: attempt, Elapsed: elapsed, Err: ctx.Err()})
 			return "", ctx.Err()
 		case <-time.After(interval):
 		}

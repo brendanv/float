@@ -860,3 +860,190 @@ func TestImportStripeTransactions(t *testing.T) {
 		}
 	})
 }
+
+func refreshStripeAccount(t *testing.T, h *serverledger.Handler, req *floatv1.RefreshStripeAccountRequest) ([]*floatv1.RefreshStripeAccountResponse, error) {
+	t.Helper()
+	mux := http.NewServeMux()
+	path, handler := floatv1connect.NewLedgerServiceHandler(h)
+	mux.Handle(path, handler)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := floatv1connect.NewLedgerServiceClient(srv.Client(), srv.URL)
+	stream, err := client.RefreshStripeAccount(t.Context(), connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() { _ = stream.Close() })
+
+	var events []*floatv1.RefreshStripeAccountResponse
+	for stream.Receive() {
+		events = append(events, stream.Msg())
+	}
+	if err := stream.Err(); err != nil {
+		return events, err
+	}
+	return events, nil
+}
+
+func TestRefreshStripeAccount(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	t.Run("streams progress and result for a succeeding refresh", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_abc/refresh", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id":     "fca_abc",
+				"object": "financial_connections.account",
+				"status": "active",
+				"transaction_refresh": map[string]any{
+					"id":                "txnr_pending",
+					"status":            "pending",
+					"last_attempted_at": int64(1746835200),
+				},
+			})
+		})
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id":     "fca_abc",
+				"object": "financial_connections.account",
+				"status": "active",
+				"transaction_refresh": map[string]any{
+					"id":                "txnr_done",
+					"status":            "succeeded",
+					"last_attempted_at": int64(1746835200),
+				},
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 780, NumTxns: 1})
+		cfg := &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{
+						StripeAccountID:          "fca_abc",
+						HledgerAccount:           "assets:checking",
+						LastFetchedAt:            "2026-05-01T00:00:00Z",
+						LastTransactionRefreshID: "txnr_previous",
+					},
+				},
+			},
+		}
+		h := mustHandlerWithConfig(t, dir, cfg)
+
+		events, err := refreshStripeAccount(t, h, &floatv1.RefreshStripeAccountRequest{StripeAccountId: "fca_abc"})
+		if err != nil {
+			t.Fatalf("RefreshStripeAccount: %v", err)
+		}
+		if len(events) == 0 {
+			t.Fatal("expected at least one event, got 0")
+		}
+		var sawProgress, sawResult bool
+		var resultRefreshID string
+		var resultSucceeded bool
+		for _, ev := range events {
+			switch p := ev.Payload.(type) {
+			case *floatv1.RefreshStripeAccountResponse_Progress:
+				sawProgress = true
+				if p.Progress.StripeAccountId != "fca_abc" {
+					t.Errorf("progress.StripeAccountId = %q, want fca_abc", p.Progress.StripeAccountId)
+				}
+			case *floatv1.RefreshStripeAccountResponse_Result:
+				sawResult = true
+				resultRefreshID = p.Result.RefreshId
+				resultSucceeded = p.Result.Succeeded
+			}
+		}
+		if !sawProgress {
+			t.Error("no progress events emitted")
+		}
+		if !sawResult {
+			t.Fatal("no result event emitted")
+		}
+		if !resultSucceeded {
+			t.Errorf("result.Succeeded = false, want true")
+		}
+		if resultRefreshID != "txnr_done" {
+			t.Errorf("result.RefreshId = %q, want txnr_done", resultRefreshID)
+		}
+
+		// Invariant: config must be untouched by RefreshStripeAccount, otherwise
+		// a refresh-without-import would skip transactions on the next refresh.
+		configPath := filepath.Join(dir, "config.toml")
+		savedCfg, err := config.Load(configPath)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		la := savedCfg.Stripe.LinkedAccounts[0]
+		if la.LastTransactionRefreshID != "txnr_previous" {
+			t.Errorf("LastTransactionRefreshID = %q, want %q (refresh must not advance the high-water mark)", la.LastTransactionRefreshID, "txnr_previous")
+		}
+		if la.LastFetchedAt != "2026-05-01T00:00:00Z" {
+			t.Errorf("LastFetchedAt = %q, want unchanged", la.LastFetchedAt)
+		}
+	})
+
+	t.Run("missing stripe_account_id returns invalid argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 781, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		_, err := refreshStripeAccount(t, h, &floatv1.RefreshStripeAccountRequest{StripeAccountId: ""})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("kickoff error surfaces as result with succeeded=false", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_abc/refresh", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{
+					"type":    "invalid_request_error",
+					"message": "refresh not available",
+					"code":    "refresh_not_available",
+				},
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 782, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+
+		events, err := refreshStripeAccount(t, h, &floatv1.RefreshStripeAccountRequest{StripeAccountId: "fca_abc"})
+		if err != nil {
+			t.Fatalf("RefreshStripeAccount: %v", err)
+		}
+		var result *floatv1.RefreshStripeAccountResult
+		for _, ev := range events {
+			if p, ok := ev.Payload.(*floatv1.RefreshStripeAccountResponse_Result); ok {
+				result = p.Result
+			}
+		}
+		if result == nil {
+			t.Fatal("no result event emitted")
+		}
+		if result.Succeeded {
+			t.Error("result.Succeeded = true, want false on kickoff error")
+		}
+		if result.ErrorMessage == "" {
+			t.Error("result.ErrorMessage is empty, want a kickoff failure message")
+		}
+	})
+}
