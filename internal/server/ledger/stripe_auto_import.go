@@ -69,6 +69,11 @@ func (h *Handler) maybeRunDailyStripeImport(ctx context.Context) {
 		"account_errors", len(perAccountErrs),
 	)
 
+	if len(perAccountErrs) > 0 {
+		logger.WarnContext(ctx, "daily stripe import: skipping last run timestamp update due to account errors; will retry on next tick")
+		return
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	if err := h.lock.Do(ctx, "stripe daily auto-import: update last run timestamp", func() error {
 		h.cfg.Stripe.LastDailyImportAt = now
