@@ -6,10 +6,12 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronRight, Pencil } from "lucide-react";
+import { Loader2, ChevronRight, ChevronDown, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -106,6 +108,67 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName
         </div>
       )}
     </div>
+  );
+}
+
+function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNames, deletingName, onDelete }) {
+  const [open, setOpen] = useState(true);
+  const canDelete = declaredNames.has(root) && !rootDecl?.hasPostings;
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CollapsibleTrigger className="flex items-center gap-2 text-left flex-1 min-w-0">
+              <CardTitle className="capitalize">{root}</CardTitle>
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                  open && "rotate-180",
+                )}
+              />
+            </CollapsibleTrigger>
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-destructive text-xs h-6"
+                disabled={deletingName === root}
+                onClick={() => onDelete(root)}
+              >
+                {deletingName === root ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  "Delete"
+                )}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent>
+            {kids.length > 0 ? (
+              <div>
+                {kids.map((child) => (
+                  <AccountTreeNode
+                    key={child}
+                    name={child}
+                    byName={byName}
+                    children={childrenMap}
+                    depth={0}
+                    onDelete={onDelete}
+                    deletingName={deletingName}
+                    declaredNames={declaredNames}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No sub-accounts declared.</p>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
 
@@ -206,65 +269,32 @@ export function AccountsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Declared Accounts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading && <Loading />}
-          {fetchError && <ErrorBanner error={fetchError} />}
-          {data && (
-            declarations.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                {roots.map((root) => {
-                  const rootDecl = byName.get(root);
-                  const kids = children.get(root) ?? [];
-                  return (
-                    <div key={root} className="rounded-md border overflow-hidden">
-                      <div className="px-3 py-2 bg-muted/40 border-b flex items-center justify-between gap-2">
-                        <span className="font-semibold text-sm capitalize">{root}</span>
-                        {declaredNames.has(root) && !rootDecl?.hasPostings && (
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            className="text-destructive text-xs h-6"
-                            disabled={deletingName === root}
-                            onClick={() => handleDelete(root)}
-                          >
-                            {deletingName === root ? (
-                              <Loader2 className="size-3 animate-spin" />
-                            ) : (
-                              "Delete"
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                      {kids.length > 0 && (
-                        <div>
-                          {kids.map((child) => (
-                            <AccountTreeNode
-                              key={child}
-                              name={child}
-                              byName={byName}
-                              children={children}
-                              depth={0}
-                              onDelete={handleDelete}
-                              deletingName={deletingName}
-                              declaredNames={declaredNames}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No account declarations yet.</p>
-            )
-          )}
-        </CardContent>
-      </Card>
+      {isLoading && <Loading />}
+      {fetchError && <ErrorBanner error={fetchError} />}
+      {data && declarations.length === 0 && (
+        <Card>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">No account declarations yet.</p>
+          </CardContent>
+        </Card>
+      )}
+      {data && declarations.length > 0 && roots.map((root) => {
+        const rootDecl = byName.get(root);
+        const kids = children.get(root) ?? [];
+        return (
+          <RootAccountCard
+            key={root}
+            root={root}
+            rootDecl={rootDecl}
+            kids={kids}
+            byName={byName}
+            childrenMap={children}
+            declaredNames={declaredNames}
+            deletingName={deletingName}
+            onDelete={handleDelete}
+          />
+        );
+      })}
 
       <RenameAccountDialog
         open={renameOpen}
