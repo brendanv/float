@@ -16,6 +16,7 @@ import (
 	"github.com/brendanv/float/internal/rules"
 	"github.com/brendanv/float/internal/slogctx"
 	stripeClient "github.com/brendanv/float/internal/stripe"
+	"golang.org/x/sync/errgroup"
 )
 
 func stripeSecretKey() string {
@@ -474,55 +475,76 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
 	}
 
-	var accountCandidates []*floatv1.AccountCandidates
+	var eligible []config.StripeLinkedAccount
 	for _, linked := range h.cfg.Stripe.LinkedAccounts {
-		if linked.HledgerAccount == "" {
-			continue
+		if linked.HledgerAccount != "" {
+			eligible = append(eligible, linked)
 		}
+	}
 
-		if err := stripeClient.RefreshTransactions(ctx, secretKey, linked.StripeAccountID); err != nil {
-			logger.ErrorContext(ctx, "refresh stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to refresh transactions for account %s", linked.StripeAccountID))
-		}
+	type accountResult struct {
+		candidates []*floatv1.ImportCandidate
+	}
+	results := make([]accountResult, len(eligible))
 
-		var since time.Time
-		if linked.LastFetchedAt != "" {
-			since, _ = time.Parse(time.RFC3339, linked.LastFetchedAt)
-		}
-
-		stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, since)
-		if err != nil {
-			logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list transactions for account %s", linked.StripeAccountID))
-		}
-
-		candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
-		for _, st := range stripeTxns {
-			ht := stripeTransactionToHledger(st, linked.HledgerAccount)
-			candidate := &floatv1.ImportCandidate{
-				IsDuplicate: fpSet[journal.TxnFingerprint(ht)],
-				SourceId:    st.ID,
+	g, gctx := errgroup.WithContext(ctx)
+	for i, linked := range eligible {
+		i, linked := i, linked
+		g.Go(func() error {
+			if err := stripeClient.RefreshTransactions(gctx, secretKey, linked.StripeAccountID); err != nil {
+				logger.ErrorContext(gctx, "refresh stripe transactions failed", "account", linked.StripeAccountID, "error", err)
+				return fmt.Errorf("failed to refresh transactions for account %s", linked.StripeAccountID)
 			}
-			if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
-				candidate.MatchedRuleId = r.ID
-				if r.Payee != "" {
-					ht.Description = r.Payee + " | " + ht.Description
+
+			var since time.Time
+			if linked.LastFetchedAt != "" {
+				since, _ = time.Parse(time.RFC3339, linked.LastFetchedAt)
+			}
+
+			stripeTxns, err := stripeClient.ListTransactions(gctx, secretKey, linked.StripeAccountID, since)
+			if err != nil {
+				logger.ErrorContext(gctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
+				return fmt.Errorf("failed to list transactions for account %s", linked.StripeAccountID)
+			}
+
+			candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
+			for _, st := range stripeTxns {
+				ht := stripeTransactionToHledger(st, linked.HledgerAccount)
+				candidate := &floatv1.ImportCandidate{
+					IsDuplicate: fpSet[journal.TxnFingerprint(ht)],
+					SourceId:    st.ID,
 				}
-				if r.Account != "" && len(ht.Postings) == 2 {
-					for j, p := range ht.Postings {
-						if !isAssetOrLiabilityAccount(p.Account) {
-							ht.Postings[j].Account = r.Account
+				if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
+					candidate.MatchedRuleId = r.ID
+					if r.Payee != "" {
+						ht.Description = r.Payee + " | " + ht.Description
+					}
+					if r.Account != "" && len(ht.Postings) == 2 {
+						for j, p := range ht.Postings {
+							if !isAssetOrLiabilityAccount(p.Account) {
+								ht.Postings[j].Account = r.Account
+							}
 						}
 					}
 				}
+				candidate.Transaction = toProtoTransaction(ht)
+				candidates = append(candidates, candidate)
 			}
-			candidate.Transaction = toProtoTransaction(ht)
-			candidates = append(candidates, candidate)
-		}
 
+			results[i].candidates = candidates
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	accountCandidates := make([]*floatv1.AccountCandidates, 0, len(eligible))
+	for i, linked := range eligible {
 		accountCandidates = append(accountCandidates, &floatv1.AccountCandidates{
 			Account:    configToProtoLinkedAccount(linked),
-			Candidates: candidates,
+			Candidates: results[i].candidates,
 		})
 	}
 
