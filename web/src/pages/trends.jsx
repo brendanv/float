@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend } from "chart.js";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { formatCurrency } from "../format.js";
@@ -9,8 +9,19 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip, Legend);
+const chartConfig = {
+  netWorth: { label: "Net Worth", color: "var(--chart-1)" },
+  assets: { label: "Assets", color: "var(--chart-2)" },
+  liabilities: { label: "Liabilities", color: "var(--chart-3)" },
+};
 
 const RANGES = [
   { label: "1Y", months: 12 },
@@ -54,90 +65,74 @@ function StatCard({ title, value, desc, valueClass }) {
 }
 
 function NetWorthChart({ snapshots }) {
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
-
-  useEffect(() => {
-    if (!canvasRef.current || !snapshots || snapshots.length === 0) return;
-
-    const labels = snapshots.map((s) => formatLabel(s.date));
-    const assetsData = snapshots.map((s) => parseAmount(s.assets));
-    const liabilitiesData = snapshots.map((s) => Math.abs(parseAmount(s.liabilities)));
-    const netWorthData = snapshots.map((s) => parseAmount(s.netWorth));
-
-    if (chartRef.current) {
-      chartRef.current.destroy();
-    }
-
-    chartRef.current = new Chart(canvasRef.current, {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: "Net Worth",
-            data: netWorthData,
-            borderColor: "rgba(99,102,241,1)",
-            backgroundColor: "rgba(99,102,241,0.1)",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 3,
-          },
-          {
-            label: "Assets",
-            data: assetsData,
-            borderColor: "rgba(34,197,94,1)",
-            backgroundColor: "rgba(34,197,94,0.05)",
-            fill: false,
-            tension: 0.3,
-            pointRadius: 3,
-          },
-          {
-            label: "Liabilities",
-            data: liabilitiesData,
-            borderColor: "rgba(239,68,68,1)",
-            backgroundColor: "rgba(239,68,68,0.05)",
-            fill: false,
-            tension: 0.3,
-            pointRadius: 3,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { position: "top" },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => ` ${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y, "USD")}`,
-            },
-          },
-        },
-        scales: {
-          x: { grid: { display: false } },
-          y: {
-            ticks: {
-              callback: (v) => formatCurrency(v, "USD"),
-            },
-          },
-        },
-      },
-    });
-
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-        chartRef.current = null;
-      }
-    };
-  }, [snapshots]);
+  const chartData = snapshots.map((s) => ({
+    date: formatLabel(s.date),
+    netWorth: parseAmount(s.netWorth),
+    assets: parseAmount(s.assets),
+    liabilities: Math.abs(parseAmount(s.liabilities)),
+  }));
 
   return (
-    <div className="trends-chart relative h-80">
-      <canvas ref={canvasRef} />
-    </div>
+    <ChartContainer config={chartConfig} className="h-80 w-full">
+      <LineChart
+        accessibilityLayer
+        data={chartData}
+        margin={{ left: 12, right: 12 }}
+      >
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          width={80}
+          tickFormatter={(v) => formatCurrency(v, "USD")}
+        />
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              formatter={(value, name, item) => (
+                <>
+                  <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: item.color }} />
+                  <div className="flex flex-1 justify-between items-center gap-2 leading-none">
+                    <span className="text-muted-foreground">{chartConfig[name]?.label ?? name}</span>
+                    <span className="font-mono font-medium tabular-nums">{formatCurrency(value, "USD")}</span>
+                  </div>
+                </>
+              )}
+            />
+          }
+        />
+        <ChartLegend content={<ChartLegendContent />} />
+        <Line
+          dataKey="netWorth"
+          type="monotone"
+          stroke="var(--color-netWorth)"
+          strokeWidth={2}
+          dot={false}
+        />
+        <Line
+          dataKey="assets"
+          type="monotone"
+          stroke="var(--color-assets)"
+          strokeWidth={2}
+          dot={false}
+        />
+        <Line
+          dataKey="liabilities"
+          type="monotone"
+          stroke="var(--color-liabilities)"
+          strokeWidth={2}
+          dot={false}
+        />
+      </LineChart>
+    </ChartContainer>
   );
 }
 

@@ -5,15 +5,10 @@ import {
   Chart,
   ArcElement,
   DoughnutController,
-  LineController,
-  LineElement,
-  PointElement,
-  LinearScale,
-  CategoryScale,
-  Filler,
   Tooltip,
   Legend,
 } from "chart.js";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   useReactTable,
   getCoreRowModel,
@@ -29,6 +24,13 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
   Table,
   TableBody,
   TableCell,
@@ -40,11 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-Chart.register(
-  ArcElement, DoughnutController,
-  LineController, LineElement, PointElement,
-  LinearScale, CategoryScale, Filler, Tooltip, Legend
-);
+Chart.register(ArcElement, DoughnutController, Tooltip, Legend);
 
 const CHART_COLORS = [
   "#6366f1", "#22d3ee", "#f59e0b", "#34d399", "#f43f5e",
@@ -162,90 +160,23 @@ function AllocationChart({ holdings }) {
 }
 
 function PortfolioChart({ snapshots }) {
-  const canvasRef = useRef(null);
-  const chartRef = useRef(null);
-
   const hasCostBasis = useMemo(
     () => snapshots?.some((s) => s.costBasis),
     [snapshots]
   );
 
-  useEffect(() => {
-    if (!canvasRef.current || !snapshots || snapshots.length < 2) return;
-
-    const labels = snapshots.map((s) => formatLabel(s.date));
-    const valueData = snapshots.map((s) =>
-      s.totalValue ? parseFloat(s.totalValue.quantity) : null
-    );
-    const costData = snapshots.map((s) =>
-      s.costBasis ? parseFloat(s.costBasis.quantity) : null
-    );
-
-    if (chartRef.current) chartRef.current.destroy();
-
-    const datasets = [
-      {
-        label: "Market Value",
-        data: valueData,
-        borderColor: "rgba(99,102,241,1)",
-        backgroundColor: "rgba(99,102,241,0.1)",
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        spanGaps: true,
-      },
-    ];
-
-    if (hasCostBasis) {
-      datasets.push({
-        label: "Cost Basis",
-        data: costData,
-        borderColor: "rgba(251,146,60,1)",
-        backgroundColor: "rgba(251,146,60,0.05)",
-        fill: false,
-        tension: 0.3,
-        pointRadius: 3,
-        borderDash: [5, 3],
-        spanGaps: true,
-      });
-    }
-
-    chartRef.current = new Chart(canvasRef.current, {
-      type: "line",
-      data: { labels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { display: hasCostBasis },
-          tooltip: {
-            callbacks: {
-              label: (ctx) =>
-                ` ${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y?.toString(), "USD")}`,
-            },
-          },
-        },
-        scales: {
-          x: { grid: { display: false } },
-          y: {
-            ticks: {
-              callback: (v) => formatCurrency(v?.toString(), "USD"),
-            },
-          },
-        },
-      },
-    });
-
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-        chartRef.current = null;
-      }
-    };
-  }, [snapshots, hasCostBasis]);
-
   if (!snapshots || snapshots.length < 2) return null;
+
+  const chartData = snapshots.map((s) => ({
+    date: formatLabel(s.date),
+    marketValue: s.totalValue ? parseFloat(s.totalValue.quantity) : null,
+    ...(hasCostBasis && { costBasis: s.costBasis ? parseFloat(s.costBasis.quantity) : null }),
+  }));
+
+  const chartConfig = {
+    marketValue: { label: "Market Value", color: "var(--chart-1)" },
+    ...(hasCostBasis && { costBasis: { label: "Cost Basis", color: "var(--chart-2)" } }),
+  };
 
   return (
     <Card>
@@ -253,9 +184,62 @@ function PortfolioChart({ snapshots }) {
         <CardTitle>Portfolio Value Over Time</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="relative h-64">
-          <canvas ref={canvasRef} />
-        </div>
+        <ChartContainer config={chartConfig}>
+          <LineChart
+            accessibilityLayer
+            data={chartData}
+            margin={{ left: 12, right: 12 }}
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              width={80}
+              tickFormatter={(v) => formatCurrency(v?.toString(), "USD")}
+            />
+            <ChartTooltip
+              cursor={false}
+              content={
+                <ChartTooltipContent
+                  formatter={(value, name, item) => (
+                    <>
+                      <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: item.color }} />
+                      <div className="flex flex-1 justify-between items-center gap-2 leading-none">
+                        <span className="text-muted-foreground">{chartConfig[name]?.label ?? name}</span>
+                        <span className="font-mono font-medium tabular-nums">{formatCurrency(value?.toString(), "USD")}</span>
+                      </div>
+                    </>
+                  )}
+                />
+              }
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Line
+              dataKey="marketValue"
+              type="monotone"
+              stroke="var(--color-marketValue)"
+              strokeWidth={2}
+              dot={false}
+            />
+            {hasCostBasis && (
+              <Line
+                dataKey="costBasis"
+                type="monotone"
+                stroke="var(--color-costBasis)"
+                strokeWidth={2}
+                dot={false}
+                strokeDasharray="5 3"
+              />
+            )}
+          </LineChart>
+        </ChartContainer>
       </CardContent>
     </Card>
   );
