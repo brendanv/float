@@ -736,7 +736,7 @@ test("connections page - fetch all panel", async ({ page }) => {
   await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
-  const fetchAllBtn = page.locator("button:has-text('Fetch All')").first();
+  const fetchAllBtn = page.getByRole("button", { name: "Fetch All", exact: true }).first();
   await fetchAllBtn.click();
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
