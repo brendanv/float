@@ -214,6 +214,11 @@ func (h *Handler) UpdateStripeAccountLastFetchedAt(ctx context.Context, req *con
 		for i, a := range h.cfg.Stripe.LinkedAccounts {
 			if a.StripeAccountID == req.Msg.StripeAccountId {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = req.Msg.LastFetchedAt
+				// Clearing the fetch date resets the fetch window; also clear the
+				// refresh ID so the next fetch retrieves full history.
+				if req.Msg.LastFetchedAt == "" {
+					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = ""
+				}
 				found = true
 				return config.Save(h.configPath, h.cfg)
 			}
@@ -286,12 +291,12 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to refresh Stripe transactions"))
 	}
 
-	var since time.Time
-	if linked.LastFetchedAt != "" {
-		since, _ = time.Parse(time.RFC3339, linked.LastFetchedAt)
+	if _, err := stripeClient.WaitForRefresh(ctx, secretKey, linked.StripeAccountID); err != nil {
+		logger.ErrorContext(ctx, "wait for stripe refresh failed", "account", linked.StripeAccountID, "error", err)
+		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to wait for Stripe refresh"))
 	}
 
-	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, since)
+	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
@@ -360,15 +365,16 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		return connect.NewError(connect.CodeNotFound, err)
 	}
 
-	var since time.Time
-	if linked.LastFetchedAt != "" {
-		since, _ = time.Parse(time.RFC3339, linked.LastFetchedAt)
-	}
-
-	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, since)
+	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
 		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
+	}
+
+	newRefreshID, err := stripeClient.GetTransactionRefreshID(ctx, secretKey, linked.StripeAccountID)
+	if err != nil {
+		logger.ErrorContext(ctx, "get transaction refresh id failed", "account", linked.StripeAccountID, "error", err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to get Stripe refresh ID"))
 	}
 
 	rulesList, err := rules.Load(h.dataDir)
@@ -419,6 +425,9 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
 			if la.StripeAccountID == linked.StripeAccountID {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+				if newRefreshID != "" {
+					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
+				}
 				break
 			}
 		}
@@ -496,12 +505,12 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 				return fmt.Errorf("failed to refresh transactions for account %s", linked.StripeAccountID)
 			}
 
-			var since time.Time
-			if linked.LastFetchedAt != "" {
-				since, _ = time.Parse(time.RFC3339, linked.LastFetchedAt)
+			if _, err := stripeClient.WaitForRefresh(gctx, secretKey, linked.StripeAccountID); err != nil {
+				logger.ErrorContext(gctx, "wait for stripe refresh failed", "account", linked.StripeAccountID, "error", err)
+				return fmt.Errorf("failed to wait for refresh on account %s", linked.StripeAccountID)
 			}
 
-			stripeTxns, err := stripeClient.ListTransactions(gctx, secretKey, linked.StripeAccountID, since)
+			stripeTxns, err := stripeClient.ListTransactions(gctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
 			if err != nil {
 				logger.ErrorContext(gctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
 				return fmt.Errorf("failed to list transactions for account %s", linked.StripeAccountID)
@@ -580,6 +589,22 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		return connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
 	}
 
+	// Pre-fetch the current refresh ID for each account outside the lock.
+	newRefreshIDs := make(map[string]string)
+	for _, sel := range req.Msg.Selections {
+		if len(sel.StripeTransactionIds) == 0 {
+			continue
+		}
+		if _, seen := newRefreshIDs[sel.StripeAccountId]; seen {
+			continue
+		}
+		rid, ridErr := stripeClient.GetTransactionRefreshID(ctx, secretKey, sel.StripeAccountId)
+		if ridErr != nil {
+			logger.WarnContext(ctx, "get transaction refresh id failed", "account", sel.StripeAccountId, "error", ridErr)
+		}
+		newRefreshIDs[sel.StripeAccountId] = rid
+	}
+
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
 	var importedFIDs []string
 	var touchedAccountIDs []string
@@ -595,12 +620,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				return fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
 			}
 
-			var since time.Time
-			if linked.LastFetchedAt != "" {
-				since, _ = time.Parse(time.RFC3339, linked.LastFetchedAt)
-			}
-
-			stripeTxns, listErr := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, since)
+			stripeTxns, listErr := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
 			if listErr != nil {
 				return fmt.Errorf("list transactions for %s: %w", linked.StripeAccountID, listErr)
 			}
@@ -646,6 +666,9 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 			for _, id := range touchedAccountIDs {
 				if la.StripeAccountID == id {
 					h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+					if rid := newRefreshIDs[id]; rid != "" {
+						h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = rid
+					}
 					break
 				}
 			}

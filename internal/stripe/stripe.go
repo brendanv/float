@@ -8,6 +8,72 @@ import (
 	stripe "github.com/stripe/stripe-go/v82"
 )
 
+const (
+	waitForRefreshPollInterval = 2 * time.Second
+	waitForRefreshMaxInterval  = 30 * time.Second
+	waitForRefreshTimeout      = 5 * time.Minute
+)
+
+// WaitForRefresh polls the Financial Connections account until the transaction
+// refresh status changes from "pending" to "succeeded" or "failed". It returns
+// the refresh ID on success, or an error if the refresh fails or times out.
+// If account.TransactionRefresh is nil, it returns ("", nil) immediately.
+func WaitForRefresh(ctx context.Context, secretKey, accountID string) (string, error) {
+	c := newClient(secretKey)
+	deadline := time.Now().Add(waitForRefreshTimeout)
+	interval := waitForRefreshPollInterval
+
+	for {
+		acct, err := c.V1FinancialConnectionsAccounts.GetByID(ctx, accountID, &stripe.FinancialConnectionsAccountRetrieveParams{})
+		if err != nil {
+			return "", fmt.Errorf("stripe: wait for refresh %s: get account: %w", accountID, err)
+		}
+
+		if acct.TransactionRefresh == nil {
+			// No refresh in progress; return empty ID.
+			return "", nil
+		}
+
+		switch acct.TransactionRefresh.Status {
+		case stripe.FinancialConnectionsAccountTransactionRefreshStatusSucceeded:
+			return acct.TransactionRefresh.ID, nil
+		case stripe.FinancialConnectionsAccountTransactionRefreshStatusFailed:
+			return "", fmt.Errorf("stripe: transaction refresh %s failed for account %s", acct.TransactionRefresh.ID, accountID)
+		}
+		// Status is "pending" — continue polling.
+
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("stripe: timed out waiting for transaction refresh on account %s", accountID)
+		}
+
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(interval):
+		}
+
+		// Exponential backoff up to max interval.
+		interval *= 2
+		if interval > waitForRefreshMaxInterval {
+			interval = waitForRefreshMaxInterval
+		}
+	}
+}
+
+// GetTransactionRefreshID retrieves the current transaction refresh ID for the
+// given account. Returns "" if the account has no transaction refresh recorded.
+func GetTransactionRefreshID(ctx context.Context, secretKey, accountID string) (string, error) {
+	c := newClient(secretKey)
+	acct, err := c.V1FinancialConnectionsAccounts.GetByID(ctx, accountID, &stripe.FinancialConnectionsAccountRetrieveParams{})
+	if err != nil {
+		return "", fmt.Errorf("stripe: get transaction refresh id for %s: %w", accountID, err)
+	}
+	if acct.TransactionRefresh == nil {
+		return "", nil
+	}
+	return acct.TransactionRefresh.ID, nil
+}
+
 type Account struct {
 	ID          string
 	DisplayName string
@@ -144,14 +210,17 @@ func DisconnectAccount(ctx context.Context, secretKey, accountID string) error {
 	return nil
 }
 
-func ListTransactions(ctx context.Context, secretKey, accountID string, since time.Time) ([]Transaction, error) {
+// ListTransactions returns transactions for an account. When afterRefreshID is
+// non-empty, only transactions captured by that refresh (or later) are returned.
+// Pass "" to fetch all transactions.
+func ListTransactions(ctx context.Context, secretKey, accountID string, afterRefreshID string) ([]Transaction, error) {
 	c := newClient(secretKey)
 	params := &stripe.FinancialConnectionsTransactionListParams{
 		Account: stripe.String(accountID),
 	}
-	if !since.IsZero() {
-		params.TransactedAtRange = &stripe.RangeQueryParams{
-			GreaterThan: since.Unix(),
+	if afterRefreshID != "" {
+		params.TransactionRefresh = &stripe.FinancialConnectionsTransactionListTransactionRefreshParams{
+			After: stripe.String(afterRefreshID),
 		}
 	}
 

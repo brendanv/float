@@ -237,7 +237,7 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		txns, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", time.Time{})
+		txns, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", "")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
@@ -278,8 +278,7 @@ func TestListTransactions(t *testing.T) {
 		}
 	})
 
-	t.Run("with_since_sends_range_param", func(t *testing.T) {
-		since := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	t.Run("with_refresh_id_sends_transaction_refresh_param", func(t *testing.T) {
 		var gotQuery string
 		mux := http.NewServeMux()
 		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, r *http.Request) {
@@ -293,16 +292,19 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", since)
+		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", "txnr_abc123")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
-		if !strings.Contains(gotQuery, "transacted_at") {
-			t.Errorf("expected transacted_at range in query params, got: %q", gotQuery)
+		if !strings.Contains(gotQuery, "transaction_refresh") {
+			t.Errorf("expected transaction_refresh in query params, got: %q", gotQuery)
+		}
+		if !strings.Contains(gotQuery, "txnr_abc123") {
+			t.Errorf("expected refresh ID txnr_abc123 in query params, got: %q", gotQuery)
 		}
 	})
 
-	t.Run("no_since_no_range_param", func(t *testing.T) {
+	t.Run("no_refresh_id_no_filter_param", func(t *testing.T) {
 		var gotQuery string
 		mux := http.NewServeMux()
 		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, r *http.Request) {
@@ -316,12 +318,162 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", time.Time{})
+		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", "")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
-		if strings.Contains(gotQuery, "transacted_at") {
-			t.Errorf("expected no transacted_at range in query, got: %q", gotQuery)
+		if strings.Contains(gotQuery, "transaction_refresh") {
+			t.Errorf("expected no transaction_refresh in query, got: %q", gotQuery)
+		}
+	})
+}
+
+func TestWaitForRefresh(t *testing.T) {
+	t.Run("returns refresh ID immediately when status is succeeded", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":          "txnr_success",
+					"status":      "succeeded",
+					"last_attempted_at": int64(1746835200),
+				},
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		refreshID, err := WaitForRefresh(context.Background(), "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("WaitForRefresh: %v", err)
+		}
+		if refreshID != "txnr_success" {
+			t.Errorf("refreshID = %q, want %q", refreshID, "txnr_success")
+		}
+	})
+
+	t.Run("returns error when status is failed", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":          "txnr_failed",
+					"status":      "failed",
+					"last_attempted_at": int64(1746835200),
+				},
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		_, err := WaitForRefresh(context.Background(), "sk_test_xxx", "fca_test_abc")
+		if err == nil {
+			t.Fatal("expected error for failed refresh, got nil")
+		}
+		if !strings.Contains(err.Error(), "failed") {
+			t.Errorf("error %q does not mention 'failed'", err.Error())
+		}
+	})
+
+	t.Run("returns empty string when no transaction_refresh", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		refreshID, err := WaitForRefresh(context.Background(), "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("WaitForRefresh with no refresh: %v", err)
+		}
+		if refreshID != "" {
+			t.Errorf("refreshID = %q, want empty string", refreshID)
+		}
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":          "txnr_pending",
+					"status":      "pending",
+					"last_attempted_at": int64(1746835200),
+				},
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately
+
+		_, err := WaitForRefresh(ctx, "sk_test_xxx", "fca_test_abc")
+		if err == nil {
+			t.Fatal("expected error from cancelled context, got nil")
+		}
+	})
+}
+
+func TestGetTransactionRefreshID(t *testing.T) {
+	t.Run("returns refresh ID from account", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+				"transaction_refresh": map[string]any{
+					"id":          "txnr_abc123",
+					"status":      "succeeded",
+					"last_attempted_at": int64(1746835200),
+				},
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		id, err := GetTransactionRefreshID(context.Background(), "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("GetTransactionRefreshID: %v", err)
+		}
+		if id != "txnr_abc123" {
+			t.Errorf("id = %q, want %q", id, "txnr_abc123")
+		}
+	})
+
+	t.Run("returns empty string when TransactionRefresh is nil", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"id":       "fca_test_abc",
+				"object":   "financial_connections.account",
+				"status":   "active",
+				"livemode": false,
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		id, err := GetTransactionRefreshID(context.Background(), "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("GetTransactionRefreshID: %v", err)
+		}
+		if id != "" {
+			t.Errorf("id = %q, want empty string", id)
 		}
 	})
 }

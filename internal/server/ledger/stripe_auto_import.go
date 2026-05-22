@@ -115,8 +115,9 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 
 	// Phase 1: fetch from Stripe in parallel — each account needs a refresh + list call.
 	type fetchResult struct {
-		txns []stripeClient.Transaction
-		err  error
+		txns         []stripeClient.Transaction
+		newRefreshID string
+		err          error
 	}
 	fetched := make([]fetchResult, len(eligible))
 	var wg sync.WaitGroup
@@ -129,11 +130,13 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 				fetched[i].err = fmt.Errorf("refresh: %w", err)
 				return
 			}
-			var since time.Time
-			if linked.LastFetchedAt != "" {
-				since, _ = time.Parse(time.RFC3339, linked.LastFetchedAt)
+			newRefreshID, err := stripeClient.WaitForRefresh(ctx, secretKey, linked.StripeAccountID)
+			if err != nil {
+				fetched[i].err = fmt.Errorf("wait for refresh: %w", err)
+				return
 			}
-			txns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, since)
+			fetched[i].newRefreshID = newRefreshID
+			txns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
 			if err != nil {
 				fetched[i].err = fmt.Errorf("list: %w", err)
 				return
@@ -155,7 +158,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 			continue
 		}
 
-		imported, err := h.importFetchedStripeTransactions(ctx, linked, fetched[i].txns, rulesList, fpSet)
+		imported, err := h.importFetchedStripeTransactions(ctx, linked, fetched[i].txns, fetched[i].newRefreshID, rulesList, fpSet)
 		if err != nil {
 			logger.WarnContext(ctx, "daily stripe import: account import failed",
 				"account", linked.StripeAccountID,
@@ -175,12 +178,15 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 }
 
 // importFetchedStripeTransactions deduplicates pre-fetched Stripe transactions against fpSet,
-// writes new ones to the journal, and updates LastFetchedAt in config. fpSet is updated in
-// place so that subsequent accounts in the same batch don't re-import the same transactions.
+// writes new ones to the journal, and updates LastFetchedAt and LastTransactionRefreshID in
+// config. fpSet is updated in place so that subsequent accounts in the same batch don't
+// re-import the same transactions. newRefreshID is the refresh ID from WaitForRefresh; when
+// non-empty it is persisted so the next fetch filters by that refresh.
 func (h *Handler) importFetchedStripeTransactions(
 	ctx context.Context,
 	linked config.StripeLinkedAccount,
 	stripeTxns []stripeClient.Transaction,
+	newRefreshID string,
 	rulesList []rules.Rule,
 	fpSet map[string]bool,
 ) (int, error) {
@@ -199,6 +205,9 @@ func (h *Handler) importFetchedStripeTransactions(
 			for i, la := range h.cfg.Stripe.LinkedAccounts {
 				if la.StripeAccountID == linked.StripeAccountID {
 					h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+					if newRefreshID != "" {
+						h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
+					}
 					break
 				}
 			}
@@ -224,6 +233,9 @@ func (h *Handler) importFetchedStripeTransactions(
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
 			if la.StripeAccountID == linked.StripeAccountID {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+				if newRefreshID != "" {
+					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
+				}
 				break
 			}
 		}
