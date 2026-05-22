@@ -150,8 +150,13 @@ func ListTransactions(ctx context.Context, secretKey, accountID string, since ti
 		Account: stripe.String(accountID),
 	}
 	if !since.IsZero() {
+		// Stripe stores transacted_at at day precision (midnight UTC). Using a
+		// precise GreaterThan timestamp would silently drop same-day transactions
+		// whose transacted_at predates the fetch time. Align to start-of-day and
+		// use gte so all transactions on the last-seen date are included.
+		startOfDay := time.Date(since.Year(), since.Month(), since.Day(), 0, 0, 0, 0, time.UTC)
 		params.TransactedAtRange = &stripe.RangeQueryParams{
-			GreaterThan: since.Unix(),
+			GreaterThanOrEqual: startOfDay.Unix(),
 		}
 	}
 
