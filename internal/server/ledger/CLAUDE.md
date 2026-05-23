@@ -35,6 +35,8 @@ Stripe RPCs read credentials from environment variables (`STRIPE_SECRET_KEY`, `S
 
 **Throttling**: Refresh handlers call `stripe.MaybeRefreshTransactions`, which inspects the account's `next_refresh_available_at` field before kicking off a new refresh. When throttled, the terminal `RefreshStripeAccountResult` has `succeeded=true`, `throttled=true`, and `next_refresh_available_at` populated so the UI can show when the next refresh becomes available. The daily auto-import follows the same pattern: it lists transactions using the existing refresh ID rather than blocking on a refresh that Stripe will refuse.
 
+**Webhook receiver** (`stripe_webhook.go`): `POST /webhooks/stripe` is a plain HTTP handler (not a ConnectRPC method) mounted from `cmd/floatd/main.go`. It verifies `Stripe-Signature` against `STRIPE_WEBHOOK_SECRET`, dedupes by event ID for an hour, acks 200 immediately, then dispatches `financial_connections.account.refreshed_transactions` events to `importStripeAccountByID` — a per-account helper that mirrors the daily import's refresh+list+dedup+write flow. See `cmd/floatd/CLAUDE.md` for the env vars and Tailscale Funnel exposure.
+
 ## Adding a New RPC
 
 1. Add the method to `proto/float/v1/ledger.proto` and run `mise run proto-gen`

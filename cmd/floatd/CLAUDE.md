@@ -30,3 +30,34 @@ When `server.ssh_port` is set in `config.toml`, `startSSHServer` launches a Wish
 ## Web UI
 
 The built web UI (`internal/webui/dist/`) is embedded via `internal/webui` and served at `/`. API requests to `/float.v1.LedgerService/*` are handled by the ConnectRPC mux before falling through to the static file handler.
+
+## Webhooks
+
+floatd accepts Stripe Financial Connections webhooks at `POST /webhooks/stripe`. The receiver verifies the `Stripe-Signature` header against `STRIPE_WEBHOOK_SECRET` and, on a `financial_connections.account.refreshed_transactions` event, kicks off an async per-account import that reuses the same dedup/rules/`txlock` flow as the daily auto-import.
+
+| Env var | Required | Purpose |
+|---------|----------|---------|
+| `STRIPE_WEBHOOK_SECRET` | yes (for the endpoint) | Signing secret (`whsec_...`) from the Stripe dashboard. Endpoint returns 503 if unset. |
+| `STRIPE_SECRET_KEY` | yes (to import) | API key used to refresh + list transactions. |
+
+The endpoint accepts only `POST`, caps body size at 1 MiB, and dedupes recently-seen `event.id`s for an hour. Daily polling remains enabled in parallel as a safety net for missed deliveries.
+
+### Exposing floatd to Stripe via Tailscale Funnel
+
+When floatd runs on a private network (e.g. a NAS on a tailnet), use [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) to expose just the webhook path to the public internet. TLS terminates at Tailscale's edge; the container needs no certificates and no router port-forward.
+
+```bash
+# Enable Funnel on port 8080 (or 443/8443/10000 — Funnel's allowed ports).
+tailscale funnel --bg 8080
+tailscale funnel status  # confirm the public URL
+```
+
+Then register the webhook in the Stripe dashboard at:
+
+```
+https://<machine>.<tailnet>.ts.net/webhooks/stripe
+```
+
+Subscribe to event `financial_connections.account.refreshed_transactions`. Copy the signing secret into the floatd container as `STRIPE_WEBHOOK_SECRET`.
+
+Because Funnel exposes the endpoint publicly, signature verification is the only authentication — keep `STRIPE_WEBHOOK_SECRET` secret and rotate it through the Stripe dashboard if it leaks.

@@ -154,6 +154,7 @@ func main() {
 		connect.WithInterceptors(middleware.NewLoggingInterceptor(logger)),
 	)
 	mux.Handle(path, svcHandler)
+	mux.Handle(serverledger.StripeWebhookPath, handler.StripeWebhookHandler())
 	mux.Handle("/", webui.Handler())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
