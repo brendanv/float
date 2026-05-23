@@ -43,6 +43,10 @@ type Handler struct {
 	// in ImportAllStripeTransactions. Used in tests to simulate a concurrent config update
 	// (e.g., daily auto-import advancing LastTransactionRefreshID). Nil in production.
 	afterImportAllPreFetch func()
+	// afterImportPreFetch is called between the pre-fetch phase and lock acquisition
+	// in ImportStripeTransactions. Used in tests to simulate a concurrent config update.
+	// Nil in production.
+	afterImportPreFetch func()
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
