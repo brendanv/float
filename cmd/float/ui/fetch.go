@@ -719,6 +719,37 @@ func FetchPortfolioTimeseries(client floatv1connect.LedgerServiceClient) tea.Cmd
 	}
 }
 
+// IncomeStatementMsg carries the income statement timeseries response.
+// Year is echoed from the request so stale responses can be discarded.
+type IncomeStatementMsg struct {
+	Year       int
+	Periods    []string
+	Rows       []*floatv1.IncomeStatementRow
+	NetAmounts []*floatv1.AmountList
+	Err        error
+}
+
+// FetchIncomeStatement fetches the income statement timeseries for the given date range.
+func FetchIncomeStatement(client floatv1connect.LedgerServiceClient, year int, begin, end string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetIncomeStatementTimeseries(ctx, connect.NewRequest(&floatv1.GetIncomeStatementTimeseriesRequest{
+			Begin: begin,
+			End:   end,
+		}))
+		if err != nil {
+			return IncomeStatementMsg{Year: year, Err: err}
+		}
+		return IncomeStatementMsg{
+			Year:       year,
+			Periods:    resp.Msg.Periods,
+			Rows:       resp.Msg.Rows,
+			NetAmounts: resp.Msg.NetAmounts,
+		}
+	}
+}
+
 func BackfillPricesCmd(client floatv1connect.LedgerServiceClient, req *floatv1.BackfillPricesRequest) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := rpcContext()
