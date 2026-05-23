@@ -18,7 +18,7 @@ import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Page, PageCard } from "../components/page.jsx";
 import {
   Table,
   TableBody,
@@ -277,176 +277,161 @@ export function PricesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader title="Commodity Prices" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add Price</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form onSubmit={handleSubmit}>
-            {formError && <ErrorBanner error={formError} />}
-            <FormRow cols={4}>
-              <FormField label="Date" htmlFor="price-date">
-                <Input
-                  id="price-date"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
-                />
-              </FormField>
-              <FormField label="Commodity" htmlFor="price-commodity">
-                <Input
-                  id="price-commodity"
-                  type="text"
-                  placeholder="AAPL"
-                  value={commodity}
-                  onChange={(e) => setCommodity(e.target.value)}
-                  required
-                />
-              </FormField>
-              <FormField label="Price" htmlFor="price-quantity">
-                <Input
-                  id="price-quantity"
-                  type="text"
-                  placeholder="178.50"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  required
-                />
-              </FormField>
-              <FormField label="Currency" htmlFor="price-currency">
-                <Input
-                  id="price-currency"
-                  type="text"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  required
-                />
-              </FormField>
-            </FormRow>
-            <FormActions>
-              <Button
-                type="submit"
-                isLoading={addMutation.isPending}
-                loadingText="Adding…"
-              >
-                Add Price
-              </Button>
-            </FormActions>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Backfill Price History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form onSubmit={handleBackfill}>
-            {backfillError && <ErrorBanner error={backfillError} />}
-            {backfillResults && (
-              <div className="flex flex-col gap-1">
-                {backfillResults.map((r) =>
-                  r.error ? (
-                    <p key={r.commodity} className="text-xs text-destructive">
-                      {r.commodity}: {r.error.message ?? String(r.error)}
-                    </p>
-                  ) : (
-                    <p key={r.commodity} className="text-xs text-success">
-                      {r.commodity}: added {r.added} {r.added === 1 ? "price" : "prices"}
-                      {r.skipped > 0 && ` (${r.skipped} already existed)`}.
-                    </p>
-                  ),
-                )}
-              </div>
-            )}
-            <FormRow cols={4}>
-              <FormField label="Commodity / Commodities" htmlFor="backfill-commodities">
-                <Input
-                  id="backfill-commodities"
-                  type="text"
-                  placeholder="AAPL or AAPL, MSFT, GOOG"
-                  value={backfillCommodities}
-                  onChange={(e) => setBackfillCommodities(e.target.value)}
-                  required
-                />
-              </FormField>
-              <FormField label="Start Date" htmlFor="backfill-start">
-                <Input
-                  id="backfill-start"
-                  type="date"
-                  value={backfillStartDate}
-                  onChange={(e) => setBackfillStartDate(e.target.value)}
-                  required
-                />
-              </FormField>
-              <FormField label="End Date" htmlFor="backfill-end">
-                <Input
-                  id="backfill-end"
-                  type="date"
-                  value={backfillEndDate}
-                  onChange={(e) => setBackfillEndDate(e.target.value)}
-                  required
-                />
-              </FormField>
-              <FormField label="Currency" htmlFor="backfill-currency">
-                <Input
-                  id="backfill-currency"
-                  type="text"
-                  value={backfillCurrency}
-                  onChange={(e) => setBackfillCurrency(e.target.value)}
-                  required
-                />
-              </FormField>
-            </FormRow>
-            <FormActions>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePrefill}
-                disabled={!pricesData?.prices?.length}
-              >
-                Prefill from existing
-              </Button>
-              <Button
-                type="submit"
-                isLoading={backfillPending}
-                loadingText={
-                  backfillProgress
-                    ? `Fetching ${backfillProgress.current}/${backfillProgress.total}…`
-                    : "Backfilling…"
-                }
-              >
-                Backfill
-              </Button>
-            </FormActions>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Price History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading && <Loading />}
-          {fetchError && <ErrorBanner error={fetchError} />}
-          {pricesData && (
-            pricesData.prices?.length > 0 ? (
-              <PriceHistoryTable prices={pricesData.prices} onDelete={handleDelete} />
-            ) : (
-              <EmptyState
-                icon={Tag}
-                title="No prices recorded yet"
-                description="Add a price above or backfill from AlphaVantage."
+      <PageCard title="Add Price">
+        <Form onSubmit={handleSubmit}>
+          {formError && <ErrorBanner error={formError} />}
+          <FormRow cols={4}>
+            <FormField label="Date" htmlFor="price-date">
+              <Input
+                id="price-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
               />
-            )
+            </FormField>
+            <FormField label="Commodity" htmlFor="price-commodity">
+              <Input
+                id="price-commodity"
+                type="text"
+                placeholder="AAPL"
+                value={commodity}
+                onChange={(e) => setCommodity(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Price" htmlFor="price-quantity">
+              <Input
+                id="price-quantity"
+                type="text"
+                placeholder="178.50"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Currency" htmlFor="price-currency">
+              <Input
+                id="price-currency"
+                type="text"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                required
+              />
+            </FormField>
+          </FormRow>
+          <FormActions>
+            <Button
+              type="submit"
+              isLoading={addMutation.isPending}
+              loadingText="Adding..."
+            >
+              Add Price
+            </Button>
+          </FormActions>
+        </Form>
+      </PageCard>
+
+      <PageCard title="Backfill Price History">
+        <Form onSubmit={handleBackfill}>
+          {backfillError && <ErrorBanner error={backfillError} />}
+          {backfillResults && (
+            <div className="flex flex-col gap-1">
+              {backfillResults.map((r) =>
+                r.error ? (
+                  <p key={r.commodity} className="text-xs text-destructive">
+                    {r.commodity}: {r.error.message ?? String(r.error)}
+                  </p>
+                ) : (
+                  <p key={r.commodity} className="text-xs text-success">
+                    {r.commodity}: added {r.added} {r.added === 1 ? "price" : "prices"}
+                    {r.skipped > 0 && ` (${r.skipped} already existed)`}.
+                  </p>
+                ),
+              )}
+            </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+          <FormRow cols={4}>
+            <FormField label="Commodity / Commodities" htmlFor="backfill-commodities">
+              <Input
+                id="backfill-commodities"
+                type="text"
+                placeholder="AAPL or AAPL, MSFT, GOOG"
+                value={backfillCommodities}
+                onChange={(e) => setBackfillCommodities(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Start Date" htmlFor="backfill-start">
+              <Input
+                id="backfill-start"
+                type="date"
+                value={backfillStartDate}
+                onChange={(e) => setBackfillStartDate(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="End Date" htmlFor="backfill-end">
+              <Input
+                id="backfill-end"
+                type="date"
+                value={backfillEndDate}
+                onChange={(e) => setBackfillEndDate(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Currency" htmlFor="backfill-currency">
+              <Input
+                id="backfill-currency"
+                type="text"
+                value={backfillCurrency}
+                onChange={(e) => setBackfillCurrency(e.target.value)}
+                required
+              />
+            </FormField>
+          </FormRow>
+          <FormActions>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrefill}
+              disabled={!pricesData?.prices?.length}
+            >
+              Prefill from existing
+            </Button>
+            <Button
+              type="submit"
+              isLoading={backfillPending}
+              loadingText={
+                backfillProgress
+                  ? `Fetching ${backfillProgress.current}/${backfillProgress.total}...`
+                  : "Backfilling..."
+              }
+            >
+              Backfill
+            </Button>
+          </FormActions>
+        </Form>
+      </PageCard>
+
+      <PageCard title="Price History">
+        {isLoading && <Loading />}
+        {fetchError && <ErrorBanner error={fetchError} />}
+        {pricesData && (
+          pricesData.prices?.length > 0 ? (
+            <PriceHistoryTable prices={pricesData.prices} onDelete={handleDelete} />
+          ) : (
+            <EmptyState
+              icon={Tag}
+              title="No prices recorded yet"
+              description="Add a price above or backfill from AlphaVantage."
+            />
+          )
+        )}
+      </PageCard>
+    </Page>
   );
 }

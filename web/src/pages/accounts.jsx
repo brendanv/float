@@ -8,6 +8,7 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
+import { Page, PageCard } from "../components/page.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -218,50 +219,45 @@ export function AccountsPage() {
   const { byName, children, roots } = buildTree(declarations);
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader title="Account Declarations">
         <Button variant="outline" onClick={() => { setFormError(null); setRenameOpen(true); }}>
-          <Pencil data-icon="inline-start" className="size-3.5" />
+          <Pencil data-icon="inline-start" />
           Rename Account
         </Button>
       </PageHeader>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Declare Account</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form onSubmit={handleSubmit}>
-            {formError && <ErrorBanner error={formError} />}
-            <FormRow cols={2}>
-              <FormField
-                label="Account Name"
-                htmlFor="acct-name"
-                description="Colon-separated hierarchy, e.g. assets:bank:checking"
-              >
-                <Input
-                  id="acct-name"
-                  type="text"
-                  placeholder="assets:checking"
-                  className="font-mono"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </FormField>
-            </FormRow>
-            <FormActions>
-              <Button
-                type="submit"
-                isLoading={addMutation.isPending}
-                loadingText="Declaring…"
-              >
-                Declare Account
-              </Button>
-            </FormActions>
-          </Form>
-        </CardContent>
-      </Card>
+      <PageCard title="Declare Account">
+        <Form onSubmit={handleSubmit}>
+          {formError && <ErrorBanner error={formError} />}
+          <FormRow cols={2}>
+            <FormField
+              label="Account Name"
+              htmlFor="acct-name"
+              description="Colon-separated hierarchy, e.g. assets:bank:checking"
+            >
+              <Input
+                id="acct-name"
+                type="text"
+                placeholder="assets:checking"
+                className="font-mono"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </FormField>
+          </FormRow>
+          <FormActions>
+            <Button
+              type="submit"
+              isLoading={addMutation.isPending}
+              loadingText="Declaring..."
+            >
+              Declare Account
+            </Button>
+          </FormActions>
+        </Form>
+      </PageCard>
 
       {isLoading && <Loading />}
       {fetchError && <ErrorBanner error={fetchError} />}
@@ -298,7 +294,7 @@ export function AccountsPage() {
         open={renameOpen}
         onOpenChange={setRenameOpen}
       />
-    </div>
+    </Page>
   );
 }
 
@@ -428,7 +424,7 @@ function RenameAccountDialog({ open, onOpenChange }) {
               <Button
                 type="button"
                 isLoading={renameMutation.isPending}
-                loadingText="Renaming…"
+                loadingText="Renaming..."
                 onClick={handleConfirm}
               >
                 Confirm Rename

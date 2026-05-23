@@ -8,7 +8,7 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Page, PageCard } from "../components/page.jsx";
 import {
   Table,
   TableBody,
@@ -70,75 +70,70 @@ export function ImportsHistoryPage() {
   const imports = data?.imports ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader title="Import History" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Past Imports</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading && <Loading />}
-          {error && <ErrorBanner error={error} />}
-          {!isLoading && !error && imports.length === 0 && (
-            <EmptyState
-              icon={PackageOpen}
-              title="No imports yet"
-              description="Use the Import page to bring in transactions."
-            />
-          )}
-          {imports.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Batch ID</TableHead>
-                  <TableHead>Transactions</TableHead>
-                  <TableHead></TableHead>
+      <PageCard title="Past Imports">
+        {isLoading && <Loading />}
+        {error && <ErrorBanner error={error} />}
+        {!isLoading && !error && imports.length === 0 && (
+          <EmptyState
+            icon={PackageOpen}
+            title="No imports yet"
+            description="Use the Import page to bring in transactions."
+          />
+        )}
+        {imports.length > 0 && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Batch ID</TableHead>
+                <TableHead>Transactions</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {imports.map((imp) => (
+                <TableRow
+                  key={imp.importBatchId}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.navigate({ to: "/transactions", search: { importBatchId: imp.importBatchId, account: "", payee: "" } })}
+                >
+                  <TableCell className="whitespace-nowrap font-mono text-sm">{imp.date}</TableCell>
+                  <TableCell className="font-mono text-sm">{imp.importBatchId}</TableCell>
+                  <TableCell>{imp.transactionCount}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {imp.source === "csv" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingBatchId(imp.importBatchId);
+                          }}
+                        >
+                          <FileText data-icon="inline-start" />
+                          View file
+                        </Button>
+                      )}
+                      <span className="text-muted-foreground text-xs">View</span>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {imports.map((imp) => (
-                  <TableRow
-                    key={imp.importBatchId}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.navigate({ to: "/transactions", search: { importBatchId: imp.importBatchId, account: "", payee: "" } })}
-                  >
-                    <TableCell className="whitespace-nowrap font-mono text-sm">{imp.date}</TableCell>
-                    <TableCell className="font-mono text-sm">{imp.importBatchId}</TableCell>
-                    <TableCell>{imp.transactionCount}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {imp.source === "csv" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setViewingBatchId(imp.importBatchId);
-                            }}
-                          >
-                            <FileText size={13} />
-                            View file
-                          </Button>
-                        )}
-                        <span className="text-muted-foreground text-xs">View →</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </PageCard>
 
       <ImportFileDialog
         importBatchId={viewingBatchId}
         open={viewingBatchId !== null}
         onOpenChange={(open) => { if (!open) setViewingBatchId(null); }}
       />
-    </div>
+    </Page>
   );
 }

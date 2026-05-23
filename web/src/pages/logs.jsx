@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcWebTransport } from "@connectrpc/connect-web";
 import { LedgerService } from "@/gen/float/v1/ledger_pb.js";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Page, PageCard } from "../components/page.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,77 +86,73 @@ export function LogsPage() {
 
   const statusBadge = useMemo(() => {
     if (status === "connected") return <Badge variant="outline">Live</Badge>;
-    if (status === "connecting") return <Badge variant="secondary">Connecting…</Badge>;
+    if (status === "connecting") return <Badge variant="secondary">Connecting...</Badge>;
     return <Badge variant="destructive">Disconnected</Badge>;
   }, [status]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <Page>
       <PageHeader
         title="Logs"
         description="Live server logs via gRPC stream. The connection closes automatically when you leave this page."
       />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ScrollText className="size-4" />
-                Stream
-              </CardTitle>
-              <CardDescription>Showing up to the latest 400 log entries.</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">{statusBadge}</div>
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={minLevel} onValueChange={setMinLevel}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Minimum level" />
-              </SelectTrigger>
-              <SelectContent>
-                {LEVELS.map((level) => (
-                  <SelectItem key={level} value={level}>{level}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={() => setEntries([])}>
-              <Trash2 className="size-4" />
-              Clear
-            </Button>
-          </div>
+      <PageCard
+        title={
+          <span className="flex items-center gap-2">
+            <ScrollText />
+            Stream
+          </span>
+        }
+        description="Showing up to the latest 400 log entries."
+        action={statusBadge}
+        contentClassName="flex flex-col gap-3"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={minLevel} onValueChange={setMinLevel}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Minimum level" />
+            </SelectTrigger>
+            <SelectContent>
+              {LEVELS.map((level) => (
+                <SelectItem key={level} value={level}>{level}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => setEntries([])}>
+            <Trash2 data-icon="inline-start" />
+            Clear
+          </Button>
+        </div>
 
-          {streamError && (
-            <Alert variant="destructive">
-              <CircleAlert className="size-4" />
-              <AlertDescription>{streamError.message || String(streamError)}</AlertDescription>
-            </Alert>
+        {streamError && (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription>{streamError.message || String(streamError)}</AlertDescription>
+          </Alert>
+        )}
+
+        <div ref={listRef} className="h-[60vh] overflow-auto rounded-md border bg-muted/20 p-2 font-mono text-xs">
+          {entries.length === 0 ? (
+            <p className="px-2 py-1 text-muted-foreground">Waiting for log entries...</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {entries.map((entry, idx) => (
+                <li key={`${entry.time}-${idx}`} className="rounded border bg-background px-2 py-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">{entry.time}</span>
+                    <Badge variant={levelVariant(entry.level)} className="font-mono">{entry.level}</Badge>
+                    <span className="break-all">{entry.message}</span>
+                  </div>
+                  {formatAttrs(entry.attrs) && (
+                    <div className="mt-1 text-muted-foreground break-all">{formatAttrs(entry.attrs)}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
-
-          <div ref={listRef} className="h-[60vh] overflow-auto rounded-md border bg-muted/20 p-2 font-mono text-xs">
-            {entries.length === 0 ? (
-              <p className="px-2 py-1 text-muted-foreground">Waiting for log entries…</p>
-            ) : (
-              <ul className="space-y-1">
-                {entries.map((entry, idx) => (
-                  <li key={`${entry.time}-${idx}`} className="rounded border bg-background px-2 py-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-muted-foreground">{entry.time}</span>
-                      <Badge variant={levelVariant(entry.level)} className="font-mono">{entry.level}</Badge>
-                      <span className="break-all">{entry.message}</span>
-                    </div>
-                    {formatAttrs(entry.attrs) && (
-                      <div className="mt-1 text-muted-foreground break-all">{formatAttrs(entry.attrs)}</div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </PageCard>
+    </Page>
   );
 }

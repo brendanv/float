@@ -9,7 +9,7 @@ import { PeriodBar } from "../components/search-controls.jsx";
 import { DATE_PRESETS } from "../components/search-presets.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { Card, CardContent } from "@/components/ui/card";
+import { Page, PageCard } from "../components/page.jsx";
 
 export function HomePage() {
   const initial = DATE_PRESETS[0].fn();
@@ -39,29 +39,25 @@ export function HomePage() {
   const accountBalanceRows = accountBalancesData?.report?.rows || [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
       <BalanceSummary balanceRows={balanceRows} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardContent>
-            {accountsLoading && <Loading />}
-            {accountsError && <ErrorBanner error={accountsError} />}
-            {accountsData && (
-              <AccountList
-                accounts={sidebarAccounts}
-                balanceRows={accountBalanceRows}
-              />
-            )}
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-2">
-          <CardContent>
-            <InsightsChart periodQuery={periodQuery} />
-          </CardContent>
-        </Card>
+        <PageCard title="Accounts" className="lg:col-span-1">
+          {accountsLoading && <Loading />}
+          {accountsError && <ErrorBanner error={accountsError} />}
+          {accountsData && (
+            <AccountList
+              accounts={sidebarAccounts}
+              balanceRows={accountBalanceRows}
+            />
+          )}
+        </PageCard>
+        <PageCard title="Insights" className="lg:col-span-2">
+          <InsightsChart periodQuery={periodQuery} />
+        </PageCard>
       </div>
-    </div>
+    </Page>
   );
 }

@@ -10,6 +10,7 @@ import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { inlineEditKeyHandler } from "../components/inline-edit.jsx";
+import { Page } from "../components/page.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -356,14 +357,13 @@ export function TransactionsPage() {
   const bulkActionTransactions = isAccountMode ? (registerRows || []) : transactions;
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       {importBatchId && (
         <div className="mb-3 flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.navigate({ to: "/imports" })}
-            className="gap-1.5"
           >
             <ArrowLeft data-icon="inline-start" />
             Import History
@@ -412,7 +412,7 @@ export function TransactionsPage() {
           />
         </>
       )}
-    </div>
+    </Page>
   );
 }
 
