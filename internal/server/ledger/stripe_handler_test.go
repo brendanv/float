@@ -17,6 +17,7 @@ import (
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/journal"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/testgen"
 	"github.com/brendanv/float/internal/txlock"
@@ -743,6 +744,56 @@ func TestFetchStripeTransactions(t *testing.T) {
 				t.Error("candidate has nil transaction")
 			}
 		}
+		if resp.Msg.Candidates[0].IsDuplicate {
+			t.Errorf("candidate[0].IsDuplicate = true, want false")
+		}
+	})
+
+	t.Run("marks duplicate when stripe transaction id already imported", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{"id": "fca_abc", "object": "financial_connections.account", "status": "active", "livemode": false})
+		})
+		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"object": "list",
+				"data": []any{map[string]any{
+					"id": "fca_txn_dup", "object": "financial_connections.transaction",
+					"account": "fca_abc", "amount": int64(5000), "currency": "usd",
+					"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+					"status": "posted", "livemode": false,
+				}},
+				"has_more": false, "url": "/v1/financial_connections/transactions",
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 753, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{Stripe: config.StripeConfig{LinkedAccounts: []config.StripeLinkedAccount{{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"}}}})
+
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Fatalf("hledger client: %v", err)
+		}
+		if _, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
+			Date:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+			Description: "already imported",
+			FloatMeta:   map[string]string{"float-stripe-txn": "fca_txn_dup"},
+			Postings: []journal.PostingInput{{Account: "assets:checking", Commodity: "USD", Quantity: "50.00"}, {Account: "expenses:unknown", Commodity: "USD", Quantity: "-50.00"}},
+		}); err != nil {
+			t.Fatalf("append transaction: %v", err)
+		}
+
+		resp, err := h.FetchStripeTransactions(t.Context(), connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{StripeAccountId: "fca_abc"}))
+		if err != nil {
+			t.Fatalf("FetchStripeTransactions: %v", err)
+		}
+		if len(resp.Msg.Candidates) != 1 {
+			t.Fatalf("got %d candidates, want 1", len(resp.Msg.Candidates))
+		}
+		if !resp.Msg.Candidates[0].IsDuplicate {
+			t.Errorf("candidate.IsDuplicate = false, want true")
+		}
 	})
 }
 
@@ -858,6 +909,40 @@ func TestImportStripeTransactions(t *testing.T) {
 		}
 		if savedCfg.Stripe.LinkedAccounts[0].LastFetchedAt == "" {
 			t.Error("LastFetchedAt was not updated after import")
+		}
+	})
+
+	t.Run("skips already imported stripe transaction ids", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{"id": "fca_abc", "object": "financial_connections.account", "status": "active", "livemode": false})
+		})
+		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{"object": "list", "data": []any{map[string]any{"id": "fca_txn_dup", "object": "financial_connections.transaction", "account": "fca_abc", "amount": int64(5000), "currency": "usd", "description": "GROCERY STORE", "transacted_at": int64(1746835200), "status": "posted", "livemode": false}}, "has_more": false, "url": "/v1/financial_connections/transactions"})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 763, NumTxns: 1})
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+		cfg := &config.Config{Stripe: config.StripeConfig{LinkedAccounts: []config.StripeLinkedAccount{{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"}}}}
+		h := mustHandlerWithConfig(t, dir, cfg)
+
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Fatalf("hledger client: %v", err)
+		}
+		if _, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{Date: time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC), Description: "already imported", FloatMeta: map[string]string{"float-stripe-txn": "fca_txn_dup"}, Postings: []journal.PostingInput{{Account: "assets:checking", Commodity: "USD", Quantity: "50.00"}, {Account: "expenses:unknown", Commodity: "USD", Quantity: "-50.00"}}}); err != nil {
+			t.Fatalf("append transaction: %v", err)
+		}
+
+		result, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{StripeAccountId: "fca_abc", StripeTransactionIds: []string{"fca_txn_dup"}})
+		if err != nil {
+			t.Fatalf("ImportStripeTransactions: %v", err)
+		}
+		if result.ImportedCount != 0 {
+			t.Errorf("ImportedCount = %d, want 0", result.ImportedCount)
 		}
 	})
 }

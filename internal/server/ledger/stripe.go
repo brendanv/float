@@ -301,8 +301,12 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
 	}
 	fpSet := make(map[string]bool, len(existing))
+	stripeTxnSet := make(map[string]bool)
 	for _, t := range existing {
 		fpSet[journal.TxnFingerprint(t)] = true
+		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+			stripeTxnSet[id] = true
+		}
 	}
 
 	rulesList, err := rules.Load(h.dataDir)
@@ -331,7 +335,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 			}
 		}
 		// Fingerprint after rules so it matches the form written to disk by ImportStripeTransactions.
-		candidate.IsDuplicate = fpSet[journal.TxnFingerprint(ht)]
+		candidate.IsDuplicate = stripeTxnSet[st.ID] || fpSet[journal.TxnFingerprint(ht)]
 		candidate.Transaction = toProtoTransaction(ht)
 		candidates = append(candidates, candidate)
 	}
@@ -382,6 +386,19 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		txnByID[st.ID] = st
 	}
 
+	existing, err := h.hl.Transactions(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
+	}
+	importedStripeTxnSet := make(map[string]bool)
+	for _, t := range existing {
+		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+			importedStripeTxnSet[id] = true
+		}
+	}
+
+
 	selectedIDs := req.Msg.StripeTransactionIds
 	importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	total := int32(len(selectedIDs))
@@ -390,6 +407,9 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 	var importedFIDs []string
 	err = h.lock.Do(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(selectedIDs), importBatchID), func() error {
 		for _, txnID := range selectedIDs {
+			if importedStripeTxnSet[txnID] {
+				continue
+			}
 			st, ok := txnByID[txnID]
 			if !ok {
 				return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
@@ -468,8 +488,12 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
 	}
 	fpSet := make(map[string]bool, len(existing))
+	stripeTxnSet := make(map[string]bool)
 	for _, t := range existing {
 		fpSet[journal.TxnFingerprint(t)] = true
+		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+			stripeTxnSet[id] = true
+		}
 	}
 
 	rulesList, err := rules.Load(h.dataDir)
@@ -504,10 +528,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 			candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
 			for _, st := range stripeTxns {
 				ht := stripeTransactionToHledger(st, linked.HledgerAccount)
-				candidate := &floatv1.ImportCandidate{
-					IsDuplicate: fpSet[journal.TxnFingerprint(ht)],
-					SourceId:    st.ID,
-				}
+				candidate := &floatv1.ImportCandidate{SourceId: st.ID}
 				if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
 					candidate.MatchedRuleId = r.ID
 					if r.Payee != "" {
@@ -521,6 +542,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 						}
 					}
 				}
+				candidate.IsDuplicate = stripeTxnSet[st.ID] || fpSet[journal.TxnFingerprint(ht)]
 				candidate.Transaction = toProtoTransaction(ht)
 				candidates = append(candidates, candidate)
 			}
@@ -574,6 +596,18 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		return connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
 	}
 
+	existing, err := h.hl.Transactions(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
+	}
+	importedStripeTxnSet := make(map[string]bool)
+	for _, t := range existing {
+		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+			importedStripeTxnSet[id] = true
+		}
+	}
+
 	// Pre-fetch the current refresh ID for each account outside the lock.
 	newRefreshIDs := make(map[string]string)
 	for _, sel := range req.Msg.Selections {
@@ -618,6 +652,9 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 			importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 
 			for _, txnID := range sel.StripeTransactionIds {
+				if importedStripeTxnSet[txnID] {
+					continue
+				}
 				st, ok := txnByID[txnID]
 				if !ok {
 					return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
@@ -631,6 +668,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 					return fmt.Errorf("write transaction %s: %w", txnID, writeErr)
 				}
 				importedFIDs = append(importedFIDs, fid)
+				importedStripeTxnSet[txnID] = true
 
 				if sendErr := stream.Send(&floatv1.ImportTransactionsResponse{
 					Payload: &floatv1.ImportTransactionsResponse_Progress{
