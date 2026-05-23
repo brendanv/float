@@ -431,6 +431,19 @@ func (StripeEditKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keyNextField, keyPrevField, keySubmit, keyEsc}}
 }
 
+// PortfolioKeyMap is for the portfolio tab.
+type PortfolioKeyMap struct{}
+
+func (PortfolioKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyRetry, keyHelp}
+}
+func (PortfolioKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyRetry},
+	}
+}
+
 // SettingsKeyMap is for the settings tab.
 type SettingsKeyMap struct{}
 
