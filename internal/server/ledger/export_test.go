@@ -15,6 +15,13 @@ func ExportedSetAfterImportAllPreFetch(h *Handler, fn func()) {
 	h.afterImportAllPreFetch = fn
 }
 
+// ExportedSetAfterImportPreFetch installs a hook that is called between the pre-fetch
+// phase and the lock acquisition in ImportStripeTransactions. Use this in tests to
+// simulate a concurrent config update in the race window between pre-fetch and lock.
+func ExportedSetAfterImportPreFetch(h *Handler, fn func()) {
+	h.afterImportPreFetch = fn
+}
+
 // ExportedSetStripeRefreshID directly sets LastTransactionRefreshID for a linked account
 // in the handler's in-memory config. Used with ExportedSetAfterImportAllPreFetch to
 // simulate a concurrent write that races with ImportAllStripeTransactions.

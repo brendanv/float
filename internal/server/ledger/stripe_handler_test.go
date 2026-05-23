@@ -1069,6 +1069,172 @@ func TestImportStripeTransactions(t *testing.T) {
 			t.Errorf("ImportedCount = %d, want 0", result.ImportedCount)
 		}
 	})
+
+	t.Run("does not regress refresh id when concurrent update advanced it before lock", func(t *testing.T) {
+		// This simulates the race where daily auto-import advances LastTransactionRefreshID
+		// between ImportStripeTransactions' pre-fetch and its lock acquisition.
+		// The pre-fetch captures fromRefreshID = "txnr_old" and newRefreshID = "txnr_new".
+		// Before the lock is acquired, the config is advanced to "txnr_concurrent" (simulating
+		// auto-import). The regression guard detects the mismatch and skips the advancement,
+		// leaving the mark at "txnr_concurrent" rather than regressing to "txnr_new".
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id": "fca_abc", "object": "financial_connections.account",
+				"status": "active", "livemode": false,
+				"transaction_refresh": map[string]any{
+					"id": "txnr_new", "status": "succeeded",
+				},
+			})
+		})
+		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"object": "list",
+				"data": []any{
+					map[string]any{
+						"id": "fca_txn_rg1", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(-5000), "currency": "usd",
+						"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+						"status": "posted", "livemode": false,
+					},
+				},
+				"has_more": false, "url": "/v1/financial_connections/transactions",
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 771, NumTxns: 1})
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+		cfg := &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
+				},
+			},
+		}
+		h := mustHandlerWithConfig(t, dir, cfg)
+
+		// Install hook that fires between pre-fetch and lock, advancing the mark to
+		// "txnr_concurrent" as daily auto-import would in production.
+		serverledger.ExportedSetAfterImportPreFetch(h, func() {
+			serverledger.ExportedSetStripeRefreshID(h, "fca_abc", "txnr_concurrent")
+		})
+		t.Cleanup(func() { serverledger.ExportedSetAfterImportPreFetch(h, nil) })
+
+		result, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
+			StripeAccountId:      "fca_abc",
+			StripeTransactionIds: []string{"fca_txn_rg1"},
+		})
+		if err != nil {
+			t.Fatalf("ImportStripeTransactions: %v", err)
+		}
+		// Transaction is still imported (pre-fetched data is valid for writing).
+		if result.ImportedCount != 1 {
+			t.Errorf("ImportedCount = %d, want 1", result.ImportedCount)
+		}
+
+		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		la := savedCfg.Stripe.LinkedAccounts[0]
+		if la.LastTransactionRefreshID != "txnr_concurrent" {
+			t.Errorf("LastTransactionRefreshID = %q, want %q (must not regress past concurrent update)", la.LastTransactionRefreshID, "txnr_concurrent")
+		}
+	})
+
+	t.Run("does not duplicate transaction when concurrent auto-import wrote it between pre-fetch and lock", func(t *testing.T) {
+		// Simulates the race where daily auto-import writes a transaction between the time
+		// ImportStripeTransactions builds its importedStripeTxnSet and when it acquires the
+		// lock. Without the in-lock refresh the same transaction would be appended twice.
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"id": "fca_abc", "object": "financial_connections.account",
+				"status": "active", "livemode": false,
+			})
+		})
+		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+			writeStripeJSON(w, map[string]any{
+				"object": "list",
+				"data": []any{
+					map[string]any{
+						"id": "fca_txn_dedup1", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(-3000), "currency": "usd",
+						"description": "COFFEE SHOP", "transacted_at": int64(1746835200),
+						"status": "posted", "livemode": false,
+					},
+				},
+				"has_more": false, "url": "/v1/financial_connections/transactions",
+			})
+		})
+		mockStripeAPI(t, mux)
+
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 772, NumTxns: 1})
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+		cfg := &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		}
+		h := mustHandlerWithConfig(t, dir, cfg)
+
+		c, cErr := hledger.New("hledger", dir+"/main.journal")
+		if cErr != nil {
+			t.Fatalf("hledger client: %v", cErr)
+		}
+
+		// Hook writes the transaction to the journal between the pre-fetch set build and
+		// the lock — simulating a concurrent daily auto-import write.
+		serverledger.ExportedSetAfterImportPreFetch(h, func() {
+			if _, writeErr := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
+				Date:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+				Description: "COFFEE SHOP",
+				FloatMeta:   map[string]string{"float-stripe-txn": "fca_txn_dedup1"},
+				Postings: []journal.PostingInput{
+					{Account: "assets:checking", Commodity: "USD", Quantity: "-30.00"},
+					{Account: "expenses:unknown", Commodity: "USD", Quantity: "30.00"},
+				},
+			}); writeErr != nil {
+				t.Logf("hook write: %v", writeErr)
+			}
+		})
+		t.Cleanup(func() { serverledger.ExportedSetAfterImportPreFetch(h, nil) })
+
+		result, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
+			StripeAccountId:      "fca_abc",
+			StripeTransactionIds: []string{"fca_txn_dedup1"},
+		})
+		if err != nil {
+			t.Fatalf("ImportStripeTransactions: %v", err)
+		}
+		// The transaction was already written by the hook, so ImportStripeTransactions must
+		// skip it — ImportedCount must be 0, not 1.
+		if result.ImportedCount != 0 {
+			t.Errorf("ImportedCount = %d, want 0 (transaction was already written by concurrent import)", result.ImportedCount)
+		}
+
+		// Verify there is exactly one copy in the journal by scanning all transactions.
+		allTxns, fetchErr := c.Transactions(t.Context())
+		if fetchErr != nil {
+			t.Fatalf("fetch transactions: %v", fetchErr)
+		}
+		count := 0
+		for _, txn := range allTxns {
+			if id, ok := txn.FloatMeta["float-stripe-txn"]; ok && id == "fca_txn_dedup1" {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Errorf("got %d journal entries for fca_txn_dedup1, want exactly 1 (no duplicates)", count)
+		}
+	})
 }
 
 func importAllStripeTransactions(t *testing.T, h *serverledger.Handler, req *floatv1.ImportAllStripeTransactionsRequest) (*floatv1.ImportTransactionsResult, error) {

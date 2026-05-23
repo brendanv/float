@@ -363,6 +363,11 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		return connect.NewError(connect.CodeNotFound, err)
 	}
 
+	// Capture the cursor in use for ListTransactions so the regression guard inside the
+	// lock can detect if a concurrent operation (e.g. daily auto-import) advanced it
+	// between our pre-fetch and lock acquisition.
+	fromRefreshID := linked.LastTransactionRefreshID
+
 	// Capture the current refresh ID before listing so that any refresh completing
 	// between these two calls doesn't advance the high-water mark past unseen transactions.
 	newRefreshID, err := stripeClient.GetTransactionRefreshID(ctx, secretKey, linked.StripeAccountID)
@@ -400,6 +405,10 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		}
 	}
 
+	if h.afterImportPreFetch != nil {
+		h.afterImportPreFetch()
+	}
+
 	selectedIDs := req.Msg.StripeTransactionIds
 	selectedIDSet := make(map[string]bool, len(selectedIDs))
 	for _, id := range selectedIDs {
@@ -422,6 +431,19 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 
 	var importedFIDs []string
 	err = h.lock.Do(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(selectedIDs), importBatchID), func() error {
+		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
+		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
+		// acquisition are not written a second time.
+		freshExisting, freshErr := h.hl.Transactions(ctx)
+		if freshErr != nil {
+			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+		}
+		for _, t := range freshExisting {
+			if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+				importedStripeTxnSet[id] = true
+			}
+		}
+
 		for _, txnID := range selectedIDs {
 			if importedStripeTxnSet[txnID] {
 				continue
@@ -455,7 +477,11 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
 			if la.StripeAccountID == linked.StripeAccountID {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-				if newRefreshID != "" && allWindowCovered {
+				// Regression guard: only advance the cursor when it hasn't moved since our
+				// pre-fetch. A mismatch means a concurrent operation (e.g. daily auto-import)
+				// already advanced it; overwriting with our older newRefreshID would regress
+				// the high-water mark and cause already-processed transactions to re-surface.
+				if newRefreshID != "" && allWindowCovered && la.LastTransactionRefreshID == fromRefreshID {
 					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
 				}
 				break
@@ -690,6 +716,19 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 	}
 
 	err = h.lock.Do(ctx, fmt.Sprintf("import all stripe transactions (%d selections)", len(req.Msg.Selections)), func() error {
+		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
+		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
+		// acquisition are not written a second time.
+		freshExisting, freshErr := h.hl.Transactions(ctx)
+		if freshErr != nil {
+			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+		}
+		for _, t := range freshExisting {
+			if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+				importedStripeTxnSet[id] = true
+			}
+		}
+
 		for _, sel := range req.Msg.Selections {
 			if len(sel.StripeTransactionIds) == 0 {
 				continue
