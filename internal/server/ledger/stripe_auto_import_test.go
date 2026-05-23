@@ -1,10 +1,18 @@
 package ledger_test
 
 import (
+	"encoding/json"
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/internal/config"
+	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/journal"
+	"github.com/brendanv/float/internal/rules"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/testgen"
 
@@ -62,6 +70,34 @@ func TestGetStripeConfigDailyImportFields(t *testing.T) {
 	}
 }
 
+// stripeAutoImportMockAPI registers Stripe mock handlers for a throttled refresh (so no
+// refresh polling is needed) and a single-page transaction list returning txns.
+func stripeAutoImportMockAPI(t *testing.T, accountID string, txns []map[string]any) {
+	t.Helper()
+	mux := http.NewServeMux()
+	// MaybeRefreshTransactions: return throttled so auto-import skips the refresh poll.
+	mux.HandleFunc("/v1/financial_connections/accounts/"+accountID, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": accountID, "object": "financial_connections.account",
+			"status": "active", "livemode": false,
+			"transaction_refresh": map[string]any{
+				"id":                        "txnr_throttled",
+				"status":                    "succeeded",
+				"next_refresh_available_at": time.Now().Add(time.Hour).Unix(),
+			},
+		})
+	})
+	mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object": "list", "data": txns, "has_more": false,
+			"url": "/v1/financial_connections/transactions",
+		})
+	})
+	mockStripeAPI(t, mux)
+}
+
 // TestRunDailyStripeImport_NoLinkedAccounts verifies the auto-importer is a clean no-op
 // when nothing is configured. The internal helper runs to completion without touching
 // Stripe (no accounts to iterate) and reports zero imports / zero errors.
@@ -78,5 +114,81 @@ func TestRunDailyStripeImport_NoLinkedAccounts(t *testing.T) {
 	}
 	if len(errs) != 0 {
 		t.Errorf("errors = %v, want none", errs)
+	}
+}
+
+// TestRunDailyStripeImport_NoDuplicateWhenRuleApplied verifies that the auto-import does
+// not re-import a transaction that was previously imported via the manual flow with a rule
+// applied (which modifies the description and/or account, changing its fingerprint).
+// Before the fix, the auto-import computed fingerprints without rules, so the modified
+// fingerprint in the journal would not match and the transaction would be duplicated.
+func TestRunDailyStripeImport_NoDuplicateWhenRuleApplied(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	stripeAutoImportMockAPI(t, "fca_abc", []map[string]any{
+		{
+			"id": "fca_txn_rule1", "object": "financial_connections.transaction",
+			"account": "fca_abc", "amount": int64(-9999), "currency": "usd",
+			"description": "AMAZON MARKETPLACE", "transacted_at": int64(1746835200),
+			"status": "posted", "livemode": false,
+		},
+	})
+
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 803, NumTxns: 1})
+
+	// Write a rule that matches "AMAZON" and sets payee + account.
+	ruleJSON, _ := json.Marshal([]rules.Rule{{
+		ID:      "testrule1",
+		Pattern: "AMAZON",
+		Payee:   "Amazon",
+		Account: "expenses:shopping",
+	}})
+	if err := os.WriteFile(filepath.Join(dir, "rules.json"), ruleJSON, 0644); err != nil {
+		t.Fatalf("write rules.json: %v", err)
+	}
+
+	hl, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+
+	// Simulate a prior manual import: the transaction was written with the rule applied
+	// (description modified to "Amazon | AMAZON MARKETPLACE", account to expenses:shopping).
+	if _, err := journal.AppendTransaction(t.Context(), hl, dir, journal.TransactionInput{
+		Date:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		Description: "Amazon | AMAZON MARKETPLACE",
+		FloatMeta:   map[string]string{"float-stripe-txn": "fca_txn_rule1"},
+		Postings: []journal.PostingInput{
+			{Account: "assets:checking", Commodity: "USD", Quantity: "-99.99"},
+			{Account: "expenses:shopping", Commodity: "USD", Quantity: "99.99"},
+		},
+	}); err != nil {
+		t.Fatalf("append pre-existing transaction: %v", err)
+	}
+
+	cfg := &config.Config{
+		Stripe: config.StripeConfig{
+			LinkedAccounts: []config.StripeLinkedAccount{
+				{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+			},
+		},
+	}
+	h := mustHandlerWithConfig(t, dir, cfg)
+
+	imported, errs := serverledger.ExportedRunDailyStripeImport(h, t.Context())
+	if len(errs) != 0 {
+		t.Fatalf("auto-import errors: %v", errs)
+	}
+	if imported != 0 {
+		t.Errorf("imported = %d, want 0: auto-import must not duplicate a transaction already in the journal (even when a rule changed its fingerprint)", imported)
+	}
+
+	// Double-check: the journal should still have exactly one Stripe transaction.
+	txns, err := hl.Transactions(t.Context(), "tag:float-stripe-txn=fca_txn_rule1")
+	if err != nil {
+		t.Fatalf("query transactions: %v", err)
+	}
+	if len(txns) != 1 {
+		t.Errorf("journal has %d copies of fca_txn_rule1, want 1", len(txns))
 	}
 }
