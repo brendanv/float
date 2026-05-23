@@ -25,9 +25,26 @@ import (
 	"github.com/brendanv/float/internal/logstream"
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
+	"github.com/brendanv/float/internal/tsnetsrv"
 	"github.com/brendanv/float/internal/txlock"
+	"github.com/brendanv/float/internal/webhooks"
 	"github.com/brendanv/float/internal/webui"
 )
+
+// stripeWebhookAdapter bridges the webhooks.StripeImporter interface to the
+// ledger handler so internal/webhooks doesn't need to depend on the connectrpc
+// handler package.
+type stripeWebhookAdapter struct {
+	h *serverledger.Handler
+}
+
+func (a *stripeWebhookAdapter) ImportRefreshedAccount(ctx context.Context, stripeAccountID string) (int, error) {
+	return a.h.WebhookImportStripeAccount(ctx, stripeAccountID)
+}
+
+func (a *stripeWebhookAdapter) AccountDisconnected(ctx context.Context, stripeAccountID string) error {
+	return a.h.WebhookMarkStripeAccountDisconnected(ctx, stripeAccountID)
+}
 
 func main() {
 	dataDir := flag.String("data-dir", "", "path to float data directory (required)")
@@ -165,10 +182,40 @@ func main() {
 
 	go handler.StartDailyStripeImport(ctx)
 
+	tsSrv, err := tsnetsrv.New(ctx, cfg.Tailscale, *dataDir, logger)
+	if err != nil {
+		slog.Error("tsnet init", "error", err)
+		os.Exit(1)
+	}
+	if tsSrv != nil {
+		secret := cfg.Webhooks.StripeSigningSecret
+		if env := os.Getenv("STRIPE_WEBHOOK_SECRET"); env != "" {
+			secret = env
+		}
+		if secret != "" {
+			tsSrv.Mux.Handle("/webhooks/stripe", webhooks.NewStripeHandler(secret, &stripeWebhookAdapter{h: handler}, logger))
+			tsSrv.Mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("ok\n"))
+			})
+			slog.Info("stripe webhook listener mounted", "path", "/webhooks/stripe")
+		} else {
+			slog.Warn("tailscale enabled but stripe webhook secret not configured; webhook listener will not accept events")
+		}
+		go func() {
+			if err := tsSrv.Serve(ctx); err != nil {
+				slog.Error("tsnet serve", "error", err)
+			}
+		}()
+	}
+
 	httpSrv := &http.Server{Addr: listenAddr, Handler: h2c.NewHandler(mux, &http2.Server{})}
 	go func() {
 		<-ctx.Done()
 		_ = httpSrv.Shutdown(context.Background())
+		if tsSrv != nil {
+			_ = tsSrv.Shutdown(context.Background())
+		}
 	}()
 
 	slog.Info("floatd listening", "addr", listenAddr, "webui", true)

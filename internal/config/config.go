@@ -48,6 +48,18 @@ type StripeConfig struct {
 	LinkedAccounts     []StripeLinkedAccount `toml:"linked_accounts"`
 }
 
+type TailscaleConfig struct {
+	Enabled  bool   `toml:"enabled"`
+	AuthKey  string `toml:"auth_key"`  // env TS_AUTHKEY takes precedence when set
+	Hostname string `toml:"hostname"`  // tailnet node name, e.g. "float"
+	StateDir string `toml:"state_dir"` // optional; default is <data_dir>/tsnet
+	Funnel   bool   `toml:"funnel"`    // expose the webhook listener publicly via Tailscale Funnel
+}
+
+type WebhooksConfig struct {
+	StripeSigningSecret string `toml:"stripe_signing_secret"` // env STRIPE_WEBHOOK_SECRET takes precedence when set
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	Users        []User             `toml:"users"`
@@ -55,6 +67,8 @@ type Config struct {
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 	AI           AIConfig           `toml:"ai"`
 	Stripe       StripeConfig       `toml:"stripe"`
+	Tailscale    TailscaleConfig    `toml:"tailscale"`
+	Webhooks     WebhooksConfig     `toml:"webhooks"`
 }
 
 // Load parses config.toml at path and returns a *Config.
