@@ -363,16 +363,18 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		return connect.NewError(connect.CodeNotFound, err)
 	}
 
-	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
-	if err != nil {
-		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
-	}
-
+	// Capture the current refresh ID before listing so that any refresh completing
+	// between these two calls doesn't advance the high-water mark past unseen transactions.
 	newRefreshID, err := stripeClient.GetTransactionRefreshID(ctx, secretKey, linked.StripeAccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "get transaction refresh id failed", "account", linked.StripeAccountID, "error", err)
 		return connect.NewError(connect.CodeInternal, errors.New("failed to get Stripe refresh ID"))
+	}
+
+	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
+	if err != nil {
+		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
 	}
 
 	rulesList, err := rules.Load(h.dataDir)
@@ -398,8 +400,22 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		}
 	}
 
-
 	selectedIDs := req.Msg.StripeTransactionIds
+	selectedIDSet := make(map[string]bool, len(selectedIDs))
+	for _, id := range selectedIDs {
+		selectedIDSet[id] = true
+	}
+	// Only advance the high-water mark if every transaction in the current window is either
+	// already imported or explicitly selected. Skipped transactions must remain reachable
+	// on the next fetch.
+	allWindowCovered := true
+	for _, st := range stripeTxns {
+		if !importedStripeTxnSet[st.ID] && !selectedIDSet[st.ID] {
+			allWindowCovered = false
+			break
+		}
+	}
+
 	importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	total := int32(len(selectedIDs))
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
@@ -439,7 +455,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
 			if la.StripeAccountID == linked.StripeAccountID {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-				if newRefreshID != "" {
+				if newRefreshID != "" && allWindowCovered {
 					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
 				}
 				break
@@ -626,7 +642,10 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
 	var importedFIDs []string
-	var touchedAccountIDs []string
+	// windowCoveredByAccount tracks whether every transaction in the fetch window for each
+	// account was either already imported or explicitly selected. Only when true is it safe
+	// to advance LastTransactionRefreshID for that account.
+	windowCoveredByAccount := make(map[string]bool)
 
 	err = h.lock.Do(ctx, fmt.Sprintf("import all stripe transactions (%d selections)", len(req.Msg.Selections)), func() error {
 		for _, sel := range req.Msg.Selections {
@@ -648,6 +667,19 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 			for _, st := range stripeTxns {
 				txnByID[st.ID] = st
 			}
+
+			selectedForAccountSet := make(map[string]bool, len(sel.StripeTransactionIds))
+			for _, id := range sel.StripeTransactionIds {
+				selectedForAccountSet[id] = true
+			}
+			allCovered := true
+			for _, st := range stripeTxns {
+				if !importedStripeTxnSet[st.ID] && !selectedForAccountSet[st.ID] {
+					allCovered = false
+					break
+				}
+			}
+			windowCoveredByAccount[linked.StripeAccountID] = allCovered
 
 			importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 
@@ -681,19 +713,15 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 					return sendErr
 				}
 			}
-
-			touchedAccountIDs = append(touchedAccountIDs, linked.StripeAccountID)
 		}
 
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
-			for _, id := range touchedAccountIDs {
-				if la.StripeAccountID == id {
-					h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-					if rid := newRefreshIDs[id]; rid != "" {
-						h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = rid
-					}
-					break
-				}
+			if !windowCoveredByAccount[la.StripeAccountID] {
+				continue
+			}
+			h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+			if rid := newRefreshIDs[la.StripeAccountID]; rid != "" {
+				h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = rid
 			}
 		}
 		return config.Save(h.configPath, h.cfg)
