@@ -142,8 +142,6 @@ func (p *holdingsPanel) setStyles(st Styles) {
 func (p *holdingsPanel) SetSize(w, h int) {
 	p.width = w
 	p.height = h
-	p.panelBase.width = w
-	p.panelBase.height = h
 	p.table.SetWidth(w)
 	p.table.SetHeight(h - 2) // -2 for summary line + spacing
 	p.resizeColumns()
@@ -264,8 +262,6 @@ func (p *portfolioChartPanel) setStyles(st Styles) {
 func (p *portfolioChartPanel) SetSize(w, h int) {
 	p.width = w
 	p.height = h
-	p.panelBase.width = w
-	p.panelBase.height = h
 }
 
 func (p *portfolioChartPanel) setData(snapshots []*floatv1.PortfolioTimeseriesSnapshot) {
