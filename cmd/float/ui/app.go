@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	TabHome     = 0
-	TabAccounts = 1
-	TabTrends   = 2
-	TabManage   = 3
-	TabSettings = 4
-	numTabs     = 5
+	TabHome      = 0
+	TabAccounts  = 1
+	TabTrends    = 2
+	TabPortfolio = 3
+	TabManage    = 4
+	TabSettings  = 5
+	numTabs      = 6
 )
 
 // Model is the root Bubbletea model for the float TUI.
@@ -29,6 +30,7 @@ type Model struct {
 	home      HomeTab
 	manager   ManagerTab
 	trends    TrendsTab
+	portfolio PortfolioTab
 	manage    ManageTab
 	settings  SettingsTab
 	client    floatv1connect.LedgerServiceClient
@@ -49,6 +51,7 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 		home:      NewHomeTab(client, st),
 		manager:   NewManagerTab(client, st),
 		trends:    NewTrendsTab(client, st),
+		portfolio: NewPortfolioTab(client, st),
 		manage:    NewManageTab(client, st),
 		settings:  NewSettingsTab(st, theme),
 	}
@@ -60,6 +63,7 @@ func (m Model) Init() tea.Cmd {
 		m.home.Init(),
 		m.manager.Init(),
 		m.trends.Init(),
+		m.portfolio.Init(),
 		m.manage.Init(),
 		m.settings.Init(),
 	)
@@ -72,6 +76,8 @@ func (m Model) activeKeyMap() help.KeyMap {
 		return m.home.KeyMap()
 	case TabAccounts:
 		return m.manager.KeyMap()
+	case TabPortfolio:
+		return m.portfolio.KeyMap()
 	case TabManage:
 		return m.manage.KeyMap()
 	case TabSettings:
@@ -91,6 +97,7 @@ func (m *Model) resizeAll() {
 	m.home = m.home.SetSize(m.width, layout.ContentHeight)
 	m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
 	m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
+	m.portfolio = m.portfolio.SetSize(m.width, layout.ContentHeight)
 	m.manage = m.manage.SetSize(m.width, layout.ContentHeight)
 	m.settings = m.settings.SetSize(m.width, layout.ContentHeight)
 }
@@ -102,6 +109,7 @@ func (m *Model) applyStyles() {
 	m.home = m.home.setStyles(m.styles)
 	m.manager = m.manager.setStyles(m.styles)
 	m.trends = m.trends.setStyles(m.styles)
+	m.portfolio = m.portfolio.setStyles(m.styles)
 	m.manage = m.manage.setStyles(m.styles)
 	m.settings = m.settings.setStyles(m.styles)
 }
@@ -179,6 +187,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.trends, cmd = m.trends.Update(msg)
 			return m, cmd
+		case TabPortfolio:
+			var cmd tea.Cmd
+			m.portfolio, cmd = m.portfolio.Update(msg)
+			return m, cmd
 		case TabManage:
 			var cmd tea.Cmd
 			m.manage, cmd = m.manage.Update(msg)
@@ -189,13 +201,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	default:
-		var cmd1, cmd2, cmd3, cmd4, cmd5 tea.Cmd
+		var cmd1, cmd2, cmd3, cmd4, cmd5, cmd6 tea.Cmd
 		m.home, cmd1 = m.home.Update(msg)
 		m.manager, cmd2 = m.manager.Update(msg)
 		m.trends, cmd3 = m.trends.Update(msg)
-		m.manage, cmd4 = m.manage.Update(msg)
-		m.settings, cmd5 = m.settings.Update(msg)
-		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5)
+		m.portfolio, cmd4 = m.portfolio.Update(msg)
+		m.manage, cmd5 = m.manage.Update(msg)
+		m.settings, cmd6 = m.settings.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5, cmd6)
 	}
 	return m, nil
 }
@@ -224,6 +237,8 @@ func (m Model) View() tea.View {
 		content = m.manager.View()
 	case TabTrends:
 		content = m.trends.View()
+	case TabPortfolio:
+		content = m.portfolio.View()
 	case TabManage:
 		content = m.manage.View()
 	case TabSettings:
