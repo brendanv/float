@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import {
   createHashHistory,
   createRouter,
@@ -8,30 +8,33 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Loading } from "@/components/loading";
 import { AppShell } from "./components/app-shell.jsx";
-import { HomePage } from "./pages/home.jsx";
-import { TransactionsPage } from "./pages/transactions.jsx";
-import { AddTransactionPage } from "./pages/add-transaction.jsx";
-import { PricesPage } from "./pages/prices.jsx";
-import { SnapshotsPage } from "./pages/snapshots.jsx";
-import { ImportPage } from "./pages/import.jsx";
-import { RulesPage } from "./pages/rules.jsx";
-import { ImportsHistoryPage } from "./pages/imports-history.jsx";
-import { AccountsPage } from "./pages/accounts.jsx";
-import { PayeesPage } from "./pages/payees.jsx";
-import { PortfolioPage } from "./pages/portfolio.jsx";
-import { SettingsPage } from "./pages/settings.jsx";
-import { HledgerQueryPage } from "./pages/hledger-query.jsx";
-import { ConnectionsPage } from "./pages/connections.jsx";
-import { LogsPage } from "./pages/logs.jsx";
 
-const LazyTrendsPage = lazy(() =>
-  import("./pages/trends.jsx").then((m) => ({ default: m.TrendsPage }))
-);
+function lazyPage(loader, exportName) {
+  return lazy(() => loader().then((m) => ({ default: m[exportName] })));
+}
 
-const LazyMonthlyDashboardPage = lazy(() =>
-  import("./pages/monthly-dashboard.jsx").then((m) => ({ default: m.MonthlyDashboardPage }))
+const HomePage = lazyPage(() => import("./pages/home.jsx"), "HomePage");
+const TransactionsPage = lazyPage(() => import("./pages/transactions.jsx"), "TransactionsPage");
+const AddTransactionPage = lazyPage(() => import("./pages/add-transaction.jsx"), "AddTransactionPage");
+const TrendsPage = lazyPage(() => import("./pages/trends.jsx"), "TrendsPage");
+const MonthlyDashboardPage = lazyPage(
+  () => import("./pages/monthly-dashboard.jsx"),
+  "MonthlyDashboardPage"
 );
+const PricesPage = lazyPage(() => import("./pages/prices.jsx"), "PricesPage");
+const AccountsPage = lazyPage(() => import("./pages/accounts.jsx"), "AccountsPage");
+const SnapshotsPage = lazyPage(() => import("./pages/snapshots.jsx"), "SnapshotsPage");
+const ImportPage = lazyPage(() => import("./pages/import.jsx"), "ImportPage");
+const RulesPage = lazyPage(() => import("./pages/rules.jsx"), "RulesPage");
+const ImportsHistoryPage = lazyPage(() => import("./pages/imports-history.jsx"), "ImportsHistoryPage");
+const PayeesPage = lazyPage(() => import("./pages/payees.jsx"), "PayeesPage");
+const PortfolioPage = lazyPage(() => import("./pages/portfolio.jsx"), "PortfolioPage");
+const SettingsPage = lazyPage(() => import("./pages/settings.jsx"), "SettingsPage");
+const HledgerQueryPage = lazyPage(() => import("./pages/hledger-query.jsx"), "HledgerQueryPage");
+const ConnectionsPage = lazyPage(() => import("./pages/connections.jsx"), "ConnectionsPage");
+const LogsPage = lazyPage(() => import("./pages/logs.jsx"), "LogsPage");
 
 const rootRoute = createRootRoute({
   component: function Root() {
@@ -39,7 +42,9 @@ const rootRoute = createRootRoute({
     return (
       <TooltipProvider>
         <AppShell currentPath={location.pathname}>
-          <Outlet />
+          <Suspense fallback={<Loading />}>
+            <Outlet />
+          </Suspense>
         </AppShell>
       </TooltipProvider>
     );
@@ -78,13 +83,13 @@ const addRoute = createRoute({
 const trendsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/trends",
-  component: LazyTrendsPage,
+  component: TrendsPage,
 });
 
 const monthlyDashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/monthly",
-  component: LazyMonthlyDashboardPage,
+  component: MonthlyDashboardPage,
 });
 
 const pricesRoute = createRoute({
