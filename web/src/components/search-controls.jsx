@@ -228,9 +228,9 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" })
   );
 }
 
-export function PeriodBar({ dateFrom, dateTo, onChange }) {
+export function PeriodBar({ dateFrom, dateTo, onChange, className }) {
   return (
-    <div className="mb-4 flex items-center gap-2">
+    <div className={cn("flex items-center gap-2", className)}>
       <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={onChange} />
     </div>
   );

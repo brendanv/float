@@ -9,7 +9,8 @@ import { PeriodBar } from "../components/search-controls.jsx";
 import { DATE_PRESETS } from "../components/search-presets.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { Page, PageCard } from "../components/page.jsx";
+import { DashboardGrid, Page, PageCard } from "../components/page.jsx";
+import { PageHeader } from "../components/page-header.jsx";
 
 export function HomePage() {
   const initial = DATE_PRESETS[0].fn();
@@ -40,11 +41,16 @@ export function HomePage() {
 
   return (
     <Page>
-      <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
-      <BalanceSummary balanceRows={balanceRows} />
+      <PageHeader title="Home" description="Balances, account coverage, and activity for the selected period.">
+        <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
+      </PageHeader>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <PageCard title="Accounts" className="lg:col-span-1">
+      <DashboardGrid>
+        <div className="col-span-12">
+          <BalanceSummary balanceRows={balanceRows} />
+        </div>
+
+        <PageCard title="Accounts" className="col-span-12 h-full xl:col-span-4">
           {accountsLoading && <Loading />}
           {accountsError && <ErrorBanner error={accountsError} />}
           {accountsData && (
@@ -54,10 +60,15 @@ export function HomePage() {
             />
           )}
         </PageCard>
-        <PageCard title="Insights" className="lg:col-span-2">
+        <PageCard
+          title="Insights"
+          description="Income and expense concentration for this period."
+          className="col-span-12 h-full xl:col-span-8"
+          contentClassName="min-h-[320px]"
+        >
           <InsightsChart periodQuery={periodQuery} />
         </PageCard>
-      </div>
+      </DashboardGrid>
     </Page>
   );
 }

@@ -16,6 +16,7 @@ import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
+import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -51,22 +52,6 @@ function formatLabel(dateStr) {
   return `${months[month - 1]} '${year.slice(2)}`;
 }
 
-function StatCard({ title, value, sub, valueClass }) {
-  return (
-    <Card className="flex-1 min-w-[160px]">
-      <CardHeader className="pb-1">
-        <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className={cn("font-mono text-2xl font-semibold", valueClass)}>{value}</div>
-        {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
-      </CardContent>
-    </Card>
-  );
-}
-
 function SortIcon({ column }) {
   const sorted = column.getIsSorted();
   if (sorted === "asc") return <ChevronUp className="inline ml-1 h-3 w-3" />;
@@ -88,7 +73,18 @@ function SortableHeader({ column, children, className }) {
 
 function AllocationChart({ holdings }) {
   const valued = holdings.filter((h) => h.currentValue);
-  if (valued.length === 0) return null;
+  if (valued.length === 0) {
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Allocation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No valued holdings available.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const chartData = valued.map((h) => ({
     symbol: h.symbol,
@@ -102,7 +98,7 @@ function AllocationChart({ holdings }) {
   );
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
         <CardTitle>Allocation</CardTitle>
       </CardHeader>
@@ -174,7 +170,18 @@ function PortfolioChart({ snapshots }) {
     [snapshots]
   );
 
-  if (!snapshots || snapshots.length < 2) return null;
+  if (!snapshots || snapshots.length < 2) {
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Portfolio Value Over Time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Not enough snapshots to chart portfolio value.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const chartData = snapshots.map((s) => ({
     date: formatLabel(s.date),
@@ -188,12 +195,12 @@ function PortfolioChart({ snapshots }) {
   };
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
         <CardTitle>Portfolio Value Over Time</CardTitle>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig}>
+        <ChartContainer config={chartConfig} className="h-80 w-full">
           <LineChart
             accessibilityLayer
             data={chartData}
@@ -258,7 +265,7 @@ const columnHelper = createColumnHelper();
 
 function gainClass(val) {
   if (val === null || val === undefined || isNaN(val)) return "";
-  return val >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400";
+  return val >= 0 ? "text-success" : "text-destructive";
 }
 
 const columns = [
@@ -453,8 +460,8 @@ export function PortfolioPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Investment Portfolio">
+    <Page>
+      <PageHeader title="Investment Portfolio" description="Holdings, allocation, performance, and valuation coverage.">
         <div className="flex items-end gap-2">
           <Label htmlFor="account-prefix" className="whitespace-nowrap text-xs text-muted-foreground">
             Account prefix
@@ -473,7 +480,7 @@ export function PortfolioPage() {
       {error && <ErrorBanner error={error} />}
 
       {data && holdings.length === 0 && (
-        <Card>
+        <Card className="h-full">
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">
               No non-currency commodity holdings found under{" "}
@@ -486,45 +493,52 @@ export function PortfolioPage() {
       )}
 
       {data && holdings.length > 0 && (
-        <>
-          <div className="flex flex-wrap gap-4">
-            <StatCard
+        <DashboardGrid>
+          <div className="col-span-12 md:col-span-4">
+            <MetricCard
               title="Total Value"
               value={
                 totalValue
                   ? formatCurrency(totalValue.quantity, totalValue.commodity)
                   : "—"
               }
-              sub={asOfDate ? `as of ${asOfDate}` : undefined}
+              description={asOfDate ? `As of ${asOfDate}` : undefined}
             />
-            <StatCard
+          </div>
+          <div className="col-span-12 md:col-span-4">
+            <MetricCard
               title="Holdings"
               value={holdings.length}
-              sub={unvaluedCount > 0 ? `${unvaluedCount} without price data` : "all valued"}
+              description={unvaluedCount > 0 ? `${unvaluedCount} without price data` : "All holdings valued"}
             />
-            {totalGain !== null && (
-              <StatCard
-                title="Unrealized Gain"
-                value={formatCurrency(totalGain.value.toString(), totalGain.currency)}
-                valueClass={gainClass(totalGain.value)}
-                sub={totalGain.value >= 0 ? "total gain" : "total loss"}
-              />
-            )}
-            {unvaluedCount > 0 && (
-              <Card className="flex-1 min-w-[160px] border-amber-300 dark:border-amber-700">
-                <CardContent className="pt-6 text-sm text-amber-700 dark:text-amber-400">
-                  {unvaluedCount} holding{unvaluedCount > 1 ? "s" : ""} missing price data.{" "}
-                  <Link to="/prices" className="underline">Add prices →</Link>
-                </CardContent>
-              </Card>
-            )}
+          </div>
+          <div className="col-span-12 md:col-span-4">
+            <MetricCard
+              title="Unrealized Gain"
+              value={totalGain !== null ? formatCurrency(totalGain.value.toString(), totalGain.currency) : "—"}
+              valueClassName={totalGain !== null ? gainClass(totalGain.value) : undefined}
+              description={totalGain !== null ? (totalGain.value >= 0 ? "Total gain" : "Total loss") : "No cost basis data"}
+            />
           </div>
 
-          <AllocationChart holdings={holdings} />
+          {unvaluedCount > 0 && (
+            <Card className="col-span-12 border-destructive/30 bg-destructive/5">
+              <CardContent className="py-4 text-sm text-destructive">
+                {unvaluedCount} holding{unvaluedCount > 1 ? "s" : ""} missing price data.{" "}
+                <Link to="/prices" className="underline">Add prices →</Link>
+              </CardContent>
+            </Card>
+          )}
 
-          <PortfolioChart snapshots={snapshots} />
+          <div className="col-span-12 xl:col-span-8">
+            <PortfolioChart snapshots={snapshots} />
+          </div>
 
-          <Card>
+          <div className="col-span-12 xl:col-span-4">
+            <AllocationChart holdings={holdings} />
+          </div>
+
+          <Card className="col-span-12 pb-0">
             <CardHeader>
               <CardTitle>Holdings</CardTitle>
             </CardHeader>
@@ -557,8 +571,8 @@ export function PortfolioPage() {
               </Table>
             </CardContent>
           </Card>
-        </>
+        </DashboardGrid>
       )}
-    </div>
+    </Page>
   );
 }

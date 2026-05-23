@@ -7,6 +7,7 @@ import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
+import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,20 +60,6 @@ function formatLabel(dateStr) {
   const [year, month] = dateStr.split("-");
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${months[parseInt(month, 10) - 1]} '${year.slice(2)}`;
-}
-
-function StatCard({ title, value, desc, valueClass }) {
-  return (
-    <Card className="flex-1">
-      <CardHeader>
-        <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className={cn("font-mono text-2xl font-semibold", valueClass)}>{value}</div>
-        {desc && <div className="mt-1 text-xs text-muted-foreground">{desc}</div>}
-      </CardContent>
-    </Card>
-  );
 }
 
 function NetWorthChart({ snapshots }) {
@@ -276,8 +263,8 @@ export function TrendsPage() {
   const expenseRows = expensesData?.report?.rows || [];
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Trends">
+    <Page>
+      <PageHeader title="Trends" description="Net worth movement and spending mix over time.">
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <Button
@@ -296,31 +283,35 @@ export function TrendsPage() {
       {error && <ErrorBanner error={error} />}
 
       {!isLoading && !error && (
-        <>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <StatCard
+        <DashboardGrid>
+          <div className="col-span-12 md:col-span-4">
+            <MetricCard
               title="Current Net Worth"
               value={currentNetWorth !== null ? formatCurrency(currentNetWorth, "USD") : "—"}
-              valueClass={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-destructive"}
+              valueClassName={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-destructive"}
             />
-            <StatCard
+          </div>
+          <div className="col-span-12 md:col-span-4">
+            <MetricCard
               title="Change This Month"
               value={monthChange !== null ? formatCurrency(monthChange, "USD") : "—"}
-              valueClass={monthChange !== null && monthChange >= 0 ? "text-success" : "text-destructive"}
-              desc={monthChange !== null && monthChange >= 0 ? "▲ vs last month" : "▼ vs last month"}
+              valueClassName={monthChange !== null && monthChange >= 0 ? "text-success" : "text-destructive"}
+              description={monthChange !== null && monthChange >= 0 ? "Up from last month" : "Down from last month"}
             />
-            <StatCard
+          </div>
+          <div className="col-span-12 md:col-span-4">
+            <MetricCard
               title="YTD Change"
               value={ytdChange !== null ? formatCurrency(ytdChange, "USD") : "—"}
-              valueClass={ytdChange !== null && ytdChange >= 0 ? "text-success" : "text-destructive"}
-              desc={ytdChange !== null && ytdChange >= 0 ? "▲ since Jan 1" : "▼ since Jan 1"}
+              valueClassName={ytdChange !== null && ytdChange >= 0 ? "text-success" : "text-destructive"}
+              description={ytdChange !== null && ytdChange >= 0 ? "Up since Jan 1" : "Down since Jan 1"}
             />
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
+          <div className="col-span-12 xl:col-span-8">
+            <Card className="h-full">
               <CardHeader>
-                <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">Net Worth Over Time</CardTitle>
+                <CardTitle>Net Worth Over Time</CardTitle>
               </CardHeader>
               <CardContent>
                 {snapshots.length === 0 ? (
@@ -330,10 +321,12 @@ export function TrendsPage() {
                 )}
               </CardContent>
             </Card>
+          </div>
 
-            <Card>
+          <div className="col-span-12 xl:col-span-4">
+            <Card className="h-full">
               <CardHeader>
-                <CardTitle className="text-xs font-normal uppercase tracking-wide text-muted-foreground">Expenses by Category</CardTitle>
+                <CardTitle>Expenses by Category</CardTitle>
               </CardHeader>
               <CardContent>
                 {expensesLoading ? (
@@ -346,8 +339,8 @@ export function TrendsPage() {
               </CardContent>
             </Card>
           </div>
-        </>
+        </DashboardGrid>
       )}
-    </div>
+    </Page>
   );
 }
