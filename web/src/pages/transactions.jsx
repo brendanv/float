@@ -93,10 +93,10 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
     setWorking(true);
     setError(null);
     try {
-      await ledgerClient.bulkEditTransactions({
-        fids,
-        operations: [{ operation: { case: "delete", value: {} } }],
-      });
+      // eslint-disable-next-line no-unused-vars
+      for await (const _response of ledgerClient.bulkDeleteTransactions({ fids })) {
+        // progress events arrive here; terminal result ends the stream
+      }
       setDeleteOpen(false);
       cancelMode();
       onActionComplete();

@@ -1347,18 +1347,12 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: unrecognized or missing operation type", i))
 		}
 	}
-	if deleteOp && len(req.Msg.Operations) > 1 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("delete operation cannot be combined with other bulk edit operations"))
+	if deleteOp {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("use BulkDeleteTransactions for bulk delete operations"))
 	}
 
 	err := h.lock.Do(ctx, bulkEditMessage(req.Msg.Fids, req.Msg.Operations), func() error {
 		for _, fid := range req.Msg.Fids {
-			if deleteOp {
-				if err := journal.DeleteTransaction(ctx, h.hl, h.dataDir, fid); err != nil {
-					return fmt.Errorf("bulk-edit: fid %q: delete: %w", fid, err)
-				}
-				continue
-			}
 
 			txns, err := h.hl.Transactions(ctx, "code:"+fid)
 			if err != nil {
@@ -1420,10 +1414,6 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		return nil, rpcErr(ctx, err, "bulk edit transactions failed")
 	}
 
-	if deleteOp {
-		return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{}), nil
-	}
-
 	results := make([]*floatv1.Transaction, 0, len(req.Msg.Fids))
 	for _, fid := range req.Msg.Fids {
 		txns, err := h.hl.Transactions(ctx, "code:"+fid)
@@ -1436,6 +1426,45 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		results = append(results, toProtoTransaction(txns[0]))
 	}
 	return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{Transactions: results}), nil
+}
+
+func (h *Handler) BulkDeleteTransactions(
+	ctx context.Context,
+	req *connect.Request[floatv1.BulkDeleteTransactionsRequest],
+	stream *connect.ServerStream[floatv1.BulkDeleteTransactionsResponse],
+) error {
+	if len(req.Msg.Fids) == 0 {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("fids must not be empty"))
+	}
+
+	total := int32(len(req.Msg.Fids))
+	var deleted int32
+
+	err := h.lock.Do(ctx, fmt.Sprintf("delete %d transactions", len(req.Msg.Fids)), func() error {
+		return journal.BatchDeleteTransactions(ctx, h.hl, req.Msg.Fids, func(d, _ int32) {
+			deleted = d
+			_ = stream.Send(&floatv1.BulkDeleteTransactionsResponse{
+				Payload: &floatv1.BulkDeleteTransactionsResponse_Progress{
+					Progress: &floatv1.BulkDeleteTransactionsProgress{
+						Deleted: deleted,
+						Total:   total,
+					},
+				},
+			})
+		})
+	})
+	if err != nil {
+		if errors.Is(err, journal.ErrNotFound) {
+			return connect.NewError(connect.CodeNotFound, err)
+		}
+		return rpcErr(ctx, err, "bulk delete transactions failed")
+	}
+
+	return stream.Send(&floatv1.BulkDeleteTransactionsResponse{
+		Payload: &floatv1.BulkDeleteTransactionsResponse_Result{
+			Result: &floatv1.BulkDeleteTransactionsResult{DeletedCount: deleted},
+		},
+	})
 }
 
 func (h *Handler) ListSnapshots(ctx context.Context, req *connect.Request[floatv1.ListSnapshotsRequest]) (*connect.Response[floatv1.ListSnapshotsResponse], error) {

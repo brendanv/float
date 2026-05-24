@@ -1760,14 +1760,13 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("delete_cannot_be_combined", func(t *testing.T) {
+	t.Run("delete_rejected", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 215, NumTxns: 1, WithFIDs: true})
 		h := mustRealHandler(t, dir)
 		_, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
 			Fids: []string{"aa001100"},
 			Operations: []*floatv1.BulkEditOperation{
 				{Operation: &floatv1.BulkEditOperation_Delete{Delete: &floatv1.DeleteOperation{}}},
-				{Operation: &floatv1.BulkEditOperation_MarkReviewed{MarkReviewed: &floatv1.MarkReviewedOperation{Reviewed: true}}},
 			},
 		}))
 		if err == nil {
@@ -1775,52 +1774,6 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		}
 		if connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
-		}
-	})
-
-	t.Run("delete_multiple_transactions_single_snapshot", func(t *testing.T) {
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 216, NumTxns: 1, WithFIDs: true})
-		c, err := hledger.New("hledger", dir+"/main.journal")
-		if err != nil {
-			t.Skipf("hledger unavailable: %v", err)
-		}
-		fid1 := appendTx(t, c, dir, baseTx("DELETE BULK 1"))
-		fid2 := appendTx(t, c, dir, baseTx("DELETE BULK 2"))
-		h, snap := mustRealHandlerWithSnap(t, dir)
-		initialSnaps, err := snap.List(t.Context(), 20)
-		if err != nil {
-			t.Fatalf("List initial snapshots: %v", err)
-		}
-
-		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
-			Fids: []string{fid1, fid2},
-			Operations: []*floatv1.BulkEditOperation{
-				{Operation: &floatv1.BulkEditOperation_Delete{Delete: &floatv1.DeleteOperation{}}},
-			},
-		}))
-		if err != nil {
-			t.Fatalf("BulkEditTransactions: %v", err)
-		}
-		if len(resp.Msg.Transactions) != 0 {
-			t.Fatalf("expected no returned transactions after delete, got %d", len(resp.Msg.Transactions))
-		}
-
-		for _, fid := range []string{fid1, fid2} {
-			txns, err := c.Transactions(t.Context(), "code:"+fid)
-			if err != nil {
-				t.Fatalf("lookup deleted transaction %s: %v", fid, err)
-			}
-			if len(txns) != 0 {
-				t.Fatalf("transaction %s still exists after bulk delete", fid)
-			}
-		}
-
-		afterSnaps, err := snap.List(t.Context(), 20)
-		if err != nil {
-			t.Fatalf("List snapshots after bulk delete: %v", err)
-		}
-		if len(afterSnaps) != len(initialSnaps)+1 {
-			t.Errorf("snapshot count: got %d, want %d (one new commit)", len(afterSnaps), len(initialSnaps)+1)
 		}
 	})
 
@@ -2075,6 +2028,169 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		}
 		if got.Payee == nil || *got.Payee != "Acme" {
 			t.Errorf("Payee = %v, want %q", got.Payee, "Acme")
+		}
+	})
+}
+
+// bulkDeleteTransactions calls the streaming BulkDeleteTransactions RPC via a test
+// HTTP server and returns the final result.
+func bulkDeleteTransactions(t *testing.T, h *serverledger.Handler, req *floatv1.BulkDeleteTransactionsRequest) (*floatv1.BulkDeleteTransactionsResult, error) {
+	t.Helper()
+	mux := http.NewServeMux()
+	path, handler := floatv1connect.NewLedgerServiceHandler(h)
+	mux.Handle(path, handler)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := floatv1connect.NewLedgerServiceClient(srv.Client(), srv.URL)
+	stream, err := client.BulkDeleteTransactions(t.Context(), connect.NewRequest(req))
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() { _ = stream.Close() })
+
+	var result *floatv1.BulkDeleteTransactionsResult
+	for stream.Receive() {
+		if p, ok := stream.Msg().Payload.(*floatv1.BulkDeleteTransactionsResponse_Result); ok {
+			result = p.Result
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func TestBulkDeleteTransactionsHandler(t *testing.T) {
+	appendTx := func(t *testing.T, c *hledger.Client, dir string, tx journal.TransactionInput) string {
+		t.Helper()
+		fid, err := journal.AppendTransaction(t.Context(), c, dir, tx)
+		if err != nil {
+			t.Fatalf("AppendTransaction: %v", err)
+		}
+		return fid
+	}
+
+	baseTx := func(desc string) journal.TransactionInput {
+		return journal.TransactionInput{
+			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+			Description: desc,
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Commodity: "USD", Quantity: "10.00"},
+				{Account: "assets:checking"},
+			},
+		}
+	}
+
+	t.Run("empty_fids", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 230, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		_, err := bulkDeleteTransactions(t, h, &floatv1.BulkDeleteTransactionsRequest{Fids: []string{}})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 231, NumTxns: 1, WithFIDs: true})
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		fid := appendTx(t, c, dir, baseTx("EXISTING"))
+		h := mustRealHandler(t, dir)
+		_, err = bulkDeleteTransactions(t, h, &floatv1.BulkDeleteTransactionsRequest{
+			Fids: []string{fid, "doesnotexist"},
+		})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v, want NotFound", connect.CodeOf(err))
+		}
+	})
+
+	t.Run("delete_multiple_transactions_single_snapshot", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 232, NumTxns: 1, WithFIDs: true})
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		fid1 := appendTx(t, c, dir, baseTx("DELETE BULK 1"))
+		fid2 := appendTx(t, c, dir, baseTx("DELETE BULK 2"))
+		h, snap := mustRealHandlerWithSnap(t, dir)
+		initialSnaps, err := snap.List(t.Context(), 20)
+		if err != nil {
+			t.Fatalf("List initial snapshots: %v", err)
+		}
+
+		result, err := bulkDeleteTransactions(t, h, &floatv1.BulkDeleteTransactionsRequest{
+			Fids: []string{fid1, fid2},
+		})
+		if err != nil {
+			t.Fatalf("BulkDeleteTransactions: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected result, got nil")
+		}
+		if result.DeletedCount != 2 {
+			t.Errorf("DeletedCount = %d, want 2", result.DeletedCount)
+		}
+
+		for _, fid := range []string{fid1, fid2} {
+			txns, err := c.Transactions(t.Context(), "code:"+fid)
+			if err != nil {
+				t.Fatalf("lookup deleted transaction %s: %v", fid, err)
+			}
+			if len(txns) != 0 {
+				t.Fatalf("transaction %s still exists after bulk delete", fid)
+			}
+		}
+
+		afterSnaps, err := snap.List(t.Context(), 20)
+		if err != nil {
+			t.Fatalf("List snapshots after bulk delete: %v", err)
+		}
+		if len(afterSnaps) != len(initialSnaps)+1 {
+			t.Errorf("snapshot count: got %d, want %d (one new commit)", len(afterSnaps), len(initialSnaps)+1)
+		}
+	})
+
+	t.Run("delete_across_multiple_files", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 233, NumTxns: 1, WithFIDs: true})
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		// Transactions in two different month files.
+		tx1 := baseTx("MULTI FILE 1")
+		tx2 := baseTx("MULTI FILE 2")
+		tx2.Date = time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC)
+		fid1 := appendTx(t, c, dir, tx1)
+		fid2 := appendTx(t, c, dir, tx2)
+		h := mustRealHandler(t, dir)
+
+		result, err := bulkDeleteTransactions(t, h, &floatv1.BulkDeleteTransactionsRequest{
+			Fids: []string{fid1, fid2},
+		})
+		if err != nil {
+			t.Fatalf("BulkDeleteTransactions: %v", err)
+		}
+		if result.DeletedCount != 2 {
+			t.Errorf("DeletedCount = %d, want 2", result.DeletedCount)
+		}
+
+		for _, fid := range []string{fid1, fid2} {
+			txns, err := c.Transactions(t.Context(), "code:"+fid)
+			if err != nil {
+				t.Fatalf("lookup %s: %v", fid, err)
+			}
+			if len(txns) != 0 {
+				t.Fatalf("transaction %s still exists after bulk delete", fid)
+			}
 		}
 	})
 }
