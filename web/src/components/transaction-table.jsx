@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { formatAmounts, formatCurrency, formatDate } from "../format.js";
+import { formatAmounts, formatCurrency } from "../format.js";
 import { AccountInput, PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { InlineEdit, inlineEditKeyHandler, useInlineEditState } from "./inline-edit.jsx";
 import { TableSortHeader } from "./table-sort-header.jsx";
@@ -59,6 +59,17 @@ import {
 import { cn } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────
+
+function formatGroupDate(dateStr) {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
 
 function firstQuantity(posting) {
   if (!posting.amounts || posting.amounts.length === 0) return 0;
@@ -677,17 +688,6 @@ const selectColumn = col.display({
   meta: { headerClass: "w-6 pr-0", cellClass: "w-6 pr-0" },
 });
 
-const dateColumn = col.accessor("date", {
-  id: "date",
-  header: ({ column }) => <TableSortHeader column={column}>Date</TableSortHeader>,
-  cell: ({ getValue }) => (
-    <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-      {formatDate(getValue())}
-    </span>
-  ),
-  meta: { headerClass: "w-28", cellClass: "w-28" },
-});
-
 const statusColumn = col.display({
   id: "status",
   header: "",
@@ -885,7 +885,6 @@ const balanceColumn = col.accessor(
 
 const transactionColumns = [
   selectColumn,
-  dateColumn,
   statusColumn,
   descriptionColumn,
   tagsColumn,
@@ -896,7 +895,6 @@ const transactionColumns = [
 
 const registerColumns = [
   selectColumn,
-  dateColumn,
   statusColumn,
   descriptionColumn,
   tagsColumn,
@@ -995,6 +993,19 @@ export function TransactionTable({
 
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
+  // Group consecutive rows by date for the grouped-day display
+  const groupedRows = [];
+  let lastDate = null;
+  for (const row of pageRows) {
+    const date = row.original.date;
+    if (date !== lastDate) {
+      groupedRows.push({ date, rows: [row] });
+      lastDate = date;
+    } else {
+      groupedRows[groupedRows.length - 1].rows.push(row);
+    }
+  }
+
   return (
     <div>
       {/* Desktop table */}
@@ -1015,19 +1026,29 @@ export function TransactionTable({
             ))}
           </TableHeader>
           <TableBody>
-            {pageRows.map((row) => (
-              <TableRowGroup
-                key={row.id}
-                row={row}
-                isRegisterMode={isRegisterMode}
-                selectable={selectable}
-                selectedFids={selectedFids}
-                accounts={accounts}
-                onStatusChange={onStatusChange}
-                onTagsChanged={onStatusChange}
-                onDeleted={onDeleted}
-                visibleColumnCount={visibleColumnCount}
-              />
+            {groupedRows.map((group) => (
+              <Fragment key={group.date + "-" + group.rows[0]?.id}>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableCell colSpan={visibleColumnCount} className="py-2 font-medium text-sm">
+                    {formatGroupDate(group.date)}
+                    <span className="ml-2 font-normal text-muted-foreground">{group.rows.length}</span>
+                  </TableCell>
+                </TableRow>
+                {group.rows.map((row) => (
+                  <TableRowGroup
+                    key={row.id}
+                    row={row}
+                    isRegisterMode={isRegisterMode}
+                    selectable={selectable}
+                    selectedFids={selectedFids}
+                    accounts={accounts}
+                    onStatusChange={onStatusChange}
+                    onTagsChanged={onStatusChange}
+                    onDeleted={onDeleted}
+                    visibleColumnCount={visibleColumnCount}
+                  />
+                ))}
+              </Fragment>
             ))}
           </TableBody>
         </Table>
@@ -1035,19 +1056,26 @@ export function TransactionTable({
 
       {/* Mobile cards */}
       <div className="-mx-4 flex flex-col gap-2 sm:hidden">
-        {pageRows.map((row) => (
-          <MobileCard
-            key={row.id}
-            row={row}
-            isRegisterMode={isRegisterMode}
-            focusedAccount={focusedAccount}
-            selectable={selectable}
-            selectedFids={selectedFids}
-            onSelectionChange={onSelectionChange}
-            onStatusChange={onStatusChange}
-            accounts={accounts}
-            onDeleted={onDeleted}
-          />
+        {groupedRows.map((group) => (
+          <Fragment key={group.date + "-" + group.rows[0]?.id}>
+            <div className="px-4 pt-2 pb-0 text-xs font-medium text-muted-foreground">
+              {formatGroupDate(group.date)}
+            </div>
+            {group.rows.map((row) => (
+              <MobileCard
+                key={row.id}
+                row={row}
+                isRegisterMode={isRegisterMode}
+                focusedAccount={focusedAccount}
+                selectable={selectable}
+                selectedFids={selectedFids}
+                onSelectionChange={onSelectionChange}
+                onStatusChange={onStatusChange}
+                accounts={accounts}
+                onDeleted={onDeleted}
+              />
+            ))}
+          </Fragment>
         ))}
       </div>
 
@@ -1209,9 +1237,6 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
     >
       <CardContent className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">
-            {formatDate(tx.date)}
-          </span>
           {selectable && (
             <span onClick={(e) => e.stopPropagation()}>
               <Checkbox
