@@ -202,6 +202,94 @@ export function SettingsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title="Settings" />
 
+      {/* AlphaVantage card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>AlphaVantage API Key</CardTitle>
+          <CardDescription>
+            Used to backfill commodity prices. Get a free key at{" "}
+            <a
+              href="https://www.alphavantage.co/support/#api-key"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              alphavantage.co
+            </a>
+            .
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {avFetchError && <ErrorBanner error={avFetchError} />}
+          {avMutationError && <ErrorBanner error={avMutationError} />}
+
+          {avLoading && <Loading />}
+
+          {avData && (
+            <>
+              <div className="flex items-center gap-2 text-sm">
+                {avData.apiKeyConfigured ? (
+                  <>
+                    <CheckCircle className="size-4 text-success" />
+                    <span>API key configured</span>
+                    <Badge variant="secondary" className="font-mono">
+                      {avData.apiKeyPreview}
+                    </Badge>
+                  </>
+                ) : (
+                  <>
+                    <Circle className="size-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">No API key set</span>
+                  </>
+                )}
+              </div>
+
+              <Form onSubmit={handleAvSave}>
+                <FormField
+                  label={avData.apiKeyConfigured ? "Replace API key" : "Set API key"}
+                  htmlFor="api-key"
+                >
+                  <div className="flex gap-2">
+                    <Input
+                      id="api-key"
+                      type="password"
+                      placeholder="Enter AlphaVantage API key"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="max-w-sm font-mono"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={!apiKey}
+                      isLoading={setKeyMutation.isPending}
+                      loadingText="Saving…"
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </FormField>
+                {avSaved && (
+                  <p className="text-xs text-success">API key saved.</p>
+                )}
+              </Form>
+
+              {avData.apiKeyConfigured && (
+                <div>
+                  <Button
+                    variant="destructive-ghost"
+                    size="sm"
+                    disabled={setKeyMutation.isPending}
+                    onClick={handleAvClear}
+                  >
+                    Clear API key
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Stripe collapsible card */}
       <Collapsible open={stripeOpen} onOpenChange={setStripeOpen}>
         <Card>
@@ -370,94 +458,6 @@ export function SettingsPage() {
           </CollapsibleContent>
         </Card>
       </Collapsible>
-
-      {/* AlphaVantage card (unchanged, not collapsible) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>AlphaVantage API Key</CardTitle>
-          <CardDescription>
-            Used to backfill commodity prices. Get a free key at{" "}
-            <a
-              href="https://www.alphavantage.co/support/#api-key"
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              alphavantage.co
-            </a>
-            .
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {avFetchError && <ErrorBanner error={avFetchError} />}
-          {avMutationError && <ErrorBanner error={avMutationError} />}
-
-          {avLoading && <Loading />}
-
-          {avData && (
-            <>
-              <div className="flex items-center gap-2 text-sm">
-                {avData.apiKeyConfigured ? (
-                  <>
-                    <CheckCircle className="size-4 text-success" />
-                    <span>API key configured</span>
-                    <Badge variant="secondary" className="font-mono">
-                      {avData.apiKeyPreview}
-                    </Badge>
-                  </>
-                ) : (
-                  <>
-                    <Circle className="size-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">No API key set</span>
-                  </>
-                )}
-              </div>
-
-              <Form onSubmit={handleAvSave}>
-                <FormField
-                  label={avData.apiKeyConfigured ? "Replace API key" : "Set API key"}
-                  htmlFor="api-key"
-                >
-                  <div className="flex gap-2">
-                    <Input
-                      id="api-key"
-                      type="password"
-                      placeholder="Enter AlphaVantage API key"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="max-w-sm font-mono"
-                    />
-                    <Button
-                      type="submit"
-                      disabled={!apiKey}
-                      isLoading={setKeyMutation.isPending}
-                      loadingText="Saving…"
-                    >
-                      Save
-                    </Button>
-                  </div>
-                </FormField>
-                {avSaved && (
-                  <p className="text-xs text-success">API key saved.</p>
-                )}
-              </Form>
-
-              {avData.apiKeyConfigured && (
-                <div>
-                  <Button
-                    variant="destructive-ghost"
-                    size="sm"
-                    disabled={setKeyMutation.isPending}
-                    onClick={handleAvClear}
-                  >
-                    Clear API key
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
 
       {/* AI collapsible card */}
       <Collapsible open={aiOpen} onOpenChange={setAiOpen}>
