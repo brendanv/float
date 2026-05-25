@@ -856,6 +856,7 @@ export function ImportPage() {
               )}
               <input
                 ref={fileInputRef}
+                id="csv-file"
                 type="file"
                 accept=".csv,text/csv"
                 className="hidden"
