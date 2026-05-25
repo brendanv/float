@@ -668,6 +668,14 @@ test("settings page - collapsed cards", async ({ page }) => {
   await page.screenshot({ path: "test-results/settings-collapsed.png", fullPage: true });
 });
 
+test("settings page - features disabled", async ({ page }) => {
+  await mockLedgerApi(page, { stripeEnabled: false, aiEnabled: false });
+  await page.goto("/#/settings");
+  await page.waitForSelector("h2", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/settings-disabled.png", fullPage: true });
+});
+
 test("query page - hledger tab", async ({ page }) => {
   await page.goto("/#/hledger-query");
   await page.waitForSelector("textarea", { timeout: 5000 }).catch(() => {});

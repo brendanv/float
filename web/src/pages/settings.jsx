@@ -187,9 +187,16 @@ export function SettingsPage() {
     setPromptMutation.mutate(promptInput);
   }
 
-  // --- Collapsible state ---
-  const [stripeOpen, setStripeOpen] = useState(true);
-  const [aiOpen, setAiOpen] = useState(true);
+  // --- Collapsible state (null = not yet initialized; defaults to open only when enabled) ---
+  const [stripeOpen, setStripeOpen] = useState(null);
+  const [aiOpen, setAiOpen] = useState(null);
+
+  if (stripeData && stripeOpen === null) {
+    setStripeOpen(stripeData.enabled);
+  }
+  if (aiData && aiOpen === null) {
+    setAiOpen(aiData.enabled);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -222,7 +229,10 @@ export function SettingsPage() {
                 </div>
               </CardTitle>
               <CardDescription>
-                Configure Stripe Financial Connections and daily auto-import.
+                {stripeData && !stripeData.enabled
+                  ? <>Set <code className="font-mono">STRIPE_SECRET_KEY</code> and <code className="font-mono">STRIPE_PUBLISHABLE_KEY</code> on the server to enable Stripe Financial Connections.</>
+                  : "Configure Stripe Financial Connections and daily auto-import."
+                }
               </CardDescription>
             </CardHeader>
           </CollapsibleTrigger>
@@ -476,7 +486,10 @@ export function SettingsPage() {
                 </div>
               </CardTitle>
               <CardDescription>
-                Configure the OpenRouter AI model and guidelines for AI features.
+                {aiData && !aiData.enabled
+                  ? <>Set <code className="font-mono">OPENROUTER_API_KEY</code> on the server to enable AI features (rule suggestions, query translation).</>
+                  : "Configure the OpenRouter AI model and guidelines for AI features."
+                }
               </CardDescription>
             </CardHeader>
           </CollapsibleTrigger>
