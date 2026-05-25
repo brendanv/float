@@ -1028,7 +1028,7 @@ export function TransactionTable({
           <TableBody>
             {groupedRows.map((group) => (
               <Fragment key={group.date + "-" + group.rows[0]?.id}>
-                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableRow className="sticky top-10 z-[9] bg-muted hover:bg-muted">
                   <TableCell colSpan={visibleColumnCount} className="py-2 font-medium text-sm">
                     {formatGroupDate(group.date)}
                     <span className="ml-2 font-normal text-muted-foreground">{group.rows.length}</span>
