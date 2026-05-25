@@ -102,8 +102,12 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		return 0, perAccountErrs
 	}
 	fpSet := make(map[string]bool, len(existing))
+	stripeTxnSet := make(map[string]bool, len(existing))
 	for _, t := range existing {
 		fpSet[journal.TxnFingerprint(t)] = true
+		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+			stripeTxnSet[id] = true
+		}
 	}
 
 	var eligible []config.StripeLinkedAccount
@@ -168,7 +172,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 			continue
 		}
 
-		imported, err := h.importFetchedStripeTransactions(ctx, linked, fetched[i].txns, fetched[i].newRefreshID, rulesList, fpSet)
+		imported, err := h.importFetchedStripeTransactions(ctx, linked, fetched[i].txns, fetched[i].newRefreshID, rulesList, fpSet, stripeTxnSet)
 		if err != nil {
 			logger.WarnContext(ctx, "daily stripe import: account import failed",
 				"account", linked.StripeAccountID,
@@ -187,11 +191,11 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	return totalImported, perAccountErrs
 }
 
-// importFetchedStripeTransactions deduplicates pre-fetched Stripe transactions against fpSet,
-// writes new ones to the journal, and updates LastFetchedAt and LastTransactionRefreshID in
-// config. fpSet is updated in place so that subsequent accounts in the same batch don't
-// re-import the same transactions. newRefreshID is the refresh ID from WaitForRefresh; when
-// non-empty it is persisted so the next fetch filters by that refresh.
+// importFetchedStripeTransactions deduplicates pre-fetched Stripe transactions against fpSet
+// and stripeTxnSet, writes new ones to the journal, and updates LastFetchedAt and
+// LastTransactionRefreshID in config. Both sets are updated in place so that subsequent
+// accounts in the same batch stay consistent. newRefreshID is the refresh ID from
+// WaitForRefresh; when non-empty it is persisted so the next fetch filters by that refresh.
 func (h *Handler) importFetchedStripeTransactions(
 	ctx context.Context,
 	linked config.StripeLinkedAccount,
@@ -199,10 +203,28 @@ func (h *Handler) importFetchedStripeTransactions(
 	newRefreshID string,
 	rulesList []rules.Rule,
 	fpSet map[string]bool,
+	stripeTxnSet map[string]bool,
 ) (int, error) {
 	var newTxns []stripeClient.Transaction
 	for _, st := range stripeTxns {
+		if stripeTxnSet[st.ID] {
+			continue
+		}
 		ht := stripeTransactionToHledger(st, linked.HledgerAccount)
+		// Apply rules before fingerprinting so the check matches what ImportStripeTransactions
+		// and FetchStripeTransactions write to disk.
+		if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
+			if r.Payee != "" {
+				ht.Description = r.Payee + " | " + ht.Description
+			}
+			if r.Account != "" && len(ht.Postings) == 2 {
+				for j, p := range ht.Postings {
+					if !isAssetOrLiabilityAccount(p.Account) {
+						ht.Postings[j].Account = r.Account
+					}
+				}
+			}
+		}
 		if fpSet[journal.TxnFingerprint(ht)] {
 			continue
 		}
@@ -256,7 +278,21 @@ func (h *Handler) importFetchedStripeTransactions(
 	}
 
 	for _, st := range newTxns {
-		fpSet[journal.TxnFingerprint(stripeTransactionToHledger(st, linked.HledgerAccount))] = true
+		ht := stripeTransactionToHledger(st, linked.HledgerAccount)
+		if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
+			if r.Payee != "" {
+				ht.Description = r.Payee + " | " + ht.Description
+			}
+			if r.Account != "" && len(ht.Postings) == 2 {
+				for j, p := range ht.Postings {
+					if !isAssetOrLiabilityAccount(p.Account) {
+						ht.Postings[j].Account = r.Account
+					}
+				}
+			}
+		}
+		fpSet[journal.TxnFingerprint(ht)] = true
+		stripeTxnSet[st.ID] = true
 	}
 
 	return imported, nil

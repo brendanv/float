@@ -675,6 +675,81 @@ func DeletePriceCmd(client floatv1connect.LedgerServiceClient, pid string) tea.C
 	}
 }
 
+// PortfolioHoldingsMsg carries portfolio holdings from GetPortfolioHoldings.
+type PortfolioHoldingsMsg struct {
+	Holdings   []*floatv1.Holding
+	TotalValue *floatv1.Amount
+	AsOfDate   string
+	Err        error
+}
+
+// PortfolioTimeseriesMsg carries portfolio timeseries data from GetPortfolioTimeseries.
+type PortfolioTimeseriesMsg struct {
+	Snapshots []*floatv1.PortfolioTimeseriesSnapshot
+	Err       error
+}
+
+// FetchPortfolioHoldings fetches current portfolio holdings.
+func FetchPortfolioHoldings(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetPortfolioHoldings(ctx, connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{}))
+		if err != nil {
+			return PortfolioHoldingsMsg{Err: err}
+		}
+		return PortfolioHoldingsMsg{
+			Holdings:   resp.Msg.Holdings,
+			TotalValue: resp.Msg.TotalValue,
+			AsOfDate:   resp.Msg.AsOfDate,
+		}
+	}
+}
+
+// FetchPortfolioTimeseries fetches the portfolio value timeseries.
+func FetchPortfolioTimeseries(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetPortfolioTimeseries(ctx, connect.NewRequest(&floatv1.GetPortfolioTimeseriesRequest{}))
+		if err != nil {
+			return PortfolioTimeseriesMsg{Err: err}
+		}
+		return PortfolioTimeseriesMsg{Snapshots: resp.Msg.Snapshots}
+	}
+}
+
+// IncomeStatementMsg carries the income statement timeseries response.
+// Year is echoed from the request so stale responses can be discarded.
+type IncomeStatementMsg struct {
+	Year       int
+	Periods    []string
+	Rows       []*floatv1.IncomeStatementRow
+	NetAmounts []*floatv1.AmountList
+	Err        error
+}
+
+// FetchIncomeStatement fetches the income statement timeseries for the given date range.
+func FetchIncomeStatement(client floatv1connect.LedgerServiceClient, year int, begin, end string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetIncomeStatementTimeseries(ctx, connect.NewRequest(&floatv1.GetIncomeStatementTimeseriesRequest{
+			Begin: begin,
+			End:   end,
+		}))
+		if err != nil {
+			return IncomeStatementMsg{Year: year, Err: err}
+		}
+		return IncomeStatementMsg{
+			Year:       year,
+			Periods:    resp.Msg.Periods,
+			Rows:       resp.Msg.Rows,
+			NetAmounts: resp.Msg.NetAmounts,
+		}
+	}
+}
+
 func BackfillPricesCmd(client floatv1connect.LedgerServiceClient, req *floatv1.BackfillPricesRequest) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := rpcContext()

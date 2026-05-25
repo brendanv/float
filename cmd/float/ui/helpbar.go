@@ -165,6 +165,20 @@ func (TrendsKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+// MonthlyKeyMap is for the monthly income statement tab.
+type MonthlyKeyMap struct{}
+
+func (MonthlyKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyNav, keyPeriod, keyRetry, keyHelp}
+}
+func (MonthlyKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyPeriod, keyRetry},
+		{keySwitch},
+	}
+}
+
 var (
 	keyPreview = key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "preview apply"))
 	keyApply   = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply selected"))
@@ -429,6 +443,19 @@ func (StripeEditKeyMap) ShortHelp() []key.Binding {
 }
 func (StripeEditKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keyNextField, keyPrevField, keySubmit, keyEsc}}
+}
+
+// PortfolioKeyMap is for the portfolio tab.
+type PortfolioKeyMap struct{}
+
+func (PortfolioKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyRetry, keyHelp}
+}
+func (PortfolioKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyRetry},
+	}
 }
 
 // SettingsKeyMap is for the settings tab.

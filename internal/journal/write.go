@@ -283,6 +283,58 @@ type BatchReplacement struct {
 	NewText    string // formatted replacement text (ends with "\n\n")
 }
 
+// DeleteSpec identifies a transaction to remove by its source location.
+type DeleteSpec struct {
+	HeaderLine int    // 1-indexed line number of the transaction header
+	FID        string // sanity-check: the FID expected at this line
+}
+
+// batchRemoveFromFile removes multiple transaction blocks from path in one
+// read+write cycle. Removals are applied in descending HeaderLine order so
+// earlier removals cannot shift the line numbers of subsequent targets.
+func batchRemoveFromFile(path string, specs []DeleteSpec) error {
+	if len(specs) == 0 {
+		return nil
+	}
+
+	sorted := make([]DeleteSpec, len(specs))
+	copy(sorted, specs)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].HeaderLine > sorted[j].HeaderLine
+	})
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("journal: batch remove: read %s: %w", path, err)
+	}
+	lines := strings.Split(string(data), "\n")
+
+	for _, spec := range sorted {
+		headerIdx := spec.HeaderLine - 1
+		if headerIdx < 0 || headerIdx >= len(lines) {
+			return fmt.Errorf("journal: batch remove: source line %d out of range in %s", spec.HeaderLine, path)
+		}
+		if !txnHeaderRe.MatchString(lines[headerIdx]) || !strings.Contains(lines[headerIdx], "("+spec.FID+")") {
+			return fmt.Errorf("journal: batch remove: line %d in %s does not match expected transaction header for fid %q", spec.HeaderLine, path, spec.FID)
+		}
+
+		endIdx := headerIdx + 1
+		for endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) != "" {
+			endIdx++
+		}
+		if endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) == "" {
+			endIdx++
+		}
+
+		lines = append(lines[:headerIdx:headerIdx], lines[endIdx:]...)
+	}
+
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+		return fmt.Errorf("journal: batch remove: write %s: %w", path, err)
+	}
+	return nil
+}
+
 // BatchReplaceTransactions applies multiple in-place transaction replacements
 // to a single journal file in one read+write cycle. Replacements are applied
 // in descending HeaderLine order so earlier replacements cannot shift the line

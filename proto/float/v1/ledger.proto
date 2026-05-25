@@ -356,6 +356,26 @@ message BulkEditTransactionsResponse {
   repeated Transaction transactions = 1;
 }
 
+message BulkDeleteTransactionsRequest {
+  repeated string fids = 1;
+}
+
+message BulkDeleteTransactionsProgress {
+  int32 deleted = 1;
+  int32 total = 2;
+}
+
+message BulkDeleteTransactionsResult {
+  int32 deleted_count = 1;
+}
+
+message BulkDeleteTransactionsResponse {
+  oneof payload {
+    BulkDeleteTransactionsProgress progress = 1;
+    BulkDeleteTransactionsResult result = 2;
+  }
+}
+
 message Snapshot {
   string hash = 1;
   string message = 2;
@@ -932,6 +952,7 @@ service LedgerService {
   rpc DeleteAccountDeclaration(DeleteAccountDeclarationRequest) returns (DeleteAccountDeclarationResponse);
   rpc RenameAccount(RenameAccountRequest) returns (RenameAccountResponse);
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
+  rpc BulkDeleteTransactions(BulkDeleteTransactionsRequest) returns (stream BulkDeleteTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
   rpc GetSnapshotDiff(GetSnapshotDiffRequest) returns (GetSnapshotDiffResponse);

@@ -363,16 +363,23 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		return connect.NewError(connect.CodeNotFound, err)
 	}
 
-	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
-	if err != nil {
-		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
-	}
+	// Capture the cursor in use for ListTransactions so the regression guard inside the
+	// lock can detect if a concurrent operation (e.g. daily auto-import) advanced it
+	// between our pre-fetch and lock acquisition.
+	fromRefreshID := linked.LastTransactionRefreshID
 
+	// Capture the current refresh ID before listing so that any refresh completing
+	// between these two calls doesn't advance the high-water mark past unseen transactions.
 	newRefreshID, err := stripeClient.GetTransactionRefreshID(ctx, secretKey, linked.StripeAccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "get transaction refresh id failed", "account", linked.StripeAccountID, "error", err)
 		return connect.NewError(connect.CodeInternal, errors.New("failed to get Stripe refresh ID"))
+	}
+
+	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
+	if err != nil {
+		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
+		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
 	}
 
 	rulesList, err := rules.Load(h.dataDir)
@@ -398,14 +405,45 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		}
 	}
 
+	if h.afterImportPreFetch != nil {
+		h.afterImportPreFetch()
+	}
 
 	selectedIDs := req.Msg.StripeTransactionIds
+	selectedIDSet := make(map[string]bool, len(selectedIDs))
+	for _, id := range selectedIDs {
+		selectedIDSet[id] = true
+	}
+	// Only advance the high-water mark if every transaction in the current window is either
+	// already imported or explicitly selected. Skipped transactions must remain reachable
+	// on the next fetch.
+	allWindowCovered := true
+	for _, st := range stripeTxns {
+		if !importedStripeTxnSet[st.ID] && !selectedIDSet[st.ID] {
+			allWindowCovered = false
+			break
+		}
+	}
+
 	importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	total := int32(len(selectedIDs))
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
 
 	var importedFIDs []string
 	err = h.lock.Do(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(selectedIDs), importBatchID), func() error {
+		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
+		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
+		// acquisition are not written a second time.
+		freshExisting, freshErr := h.hl.Transactions(ctx)
+		if freshErr != nil {
+			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+		}
+		for _, t := range freshExisting {
+			if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+				importedStripeTxnSet[id] = true
+			}
+		}
+
 		for _, txnID := range selectedIDs {
 			if importedStripeTxnSet[txnID] {
 				continue
@@ -439,7 +477,11 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
 			if la.StripeAccountID == linked.StripeAccountID {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-				if newRefreshID != "" {
+				// Regression guard: only advance the cursor when it hasn't moved since our
+				// pre-fetch. A mismatch means a concurrent operation (e.g. daily auto-import)
+				// already advanced it; overwriting with our older newRefreshID would regress
+				// the high-water mark and cause already-processed transactions to re-surface.
+				if newRefreshID != "" && allWindowCovered && la.LastTransactionRefreshID == fromRefreshID {
 					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
 				}
 				break
@@ -608,30 +650,99 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		}
 	}
 
-	// Pre-fetch the current refresh ID for each account outside the lock.
-	newRefreshIDs := make(map[string]string)
+	// Phase 1: pre-fetch all Stripe API data outside the lock. This keeps the lock
+	// free of network calls and lets us detect concurrent auto-import updates below.
+	//
+	// For each account we record:
+	//   fromRefreshID  — the LastTransactionRefreshID that was used as the ListTransactions
+	//                    filter. Storing this lets us detect if daily auto-import advanced
+	//                    the mark between our fetch and lock acquisition (regression guard).
+	//   newRefreshID   — the current refresh ID on Stripe (becomes the new high-water mark
+	//                    when the window is fully covered and no concurrent update occurred).
+	//   txns / txnByID — pre-fetched transaction list for this account.
+	type acctFetch struct {
+		fromRefreshID string
+		newRefreshID  string
+		txns          []stripeClient.Transaction
+		txnByID       map[string]stripeClient.Transaction
+		err           error
+	}
+	acctFetches := make(map[string]*acctFetch)
 	for _, sel := range req.Msg.Selections {
 		if len(sel.StripeTransactionIds) == 0 {
 			continue
 		}
-		if _, seen := newRefreshIDs[sel.StripeAccountId]; seen {
+		if _, seen := acctFetches[sel.StripeAccountId]; seen {
 			continue
 		}
+		af := &acctFetch{}
+		linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
+		if findErr != nil {
+			af.err = fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
+			acctFetches[sel.StripeAccountId] = af
+			continue
+		}
+		af.fromRefreshID = linked.LastTransactionRefreshID
+
 		rid, ridErr := stripeClient.GetTransactionRefreshID(ctx, secretKey, sel.StripeAccountId)
 		if ridErr != nil {
 			logger.WarnContext(ctx, "get transaction refresh id failed", "account", sel.StripeAccountId, "error", ridErr)
 		}
-		newRefreshIDs[sel.StripeAccountId] = rid
+		af.newRefreshID = rid
+
+		txns, listErr := stripeClient.ListTransactions(ctx, secretKey, sel.StripeAccountId, af.fromRefreshID)
+		if listErr != nil {
+			af.err = fmt.Errorf("list transactions for %s: %w", sel.StripeAccountId, listErr)
+			acctFetches[sel.StripeAccountId] = af
+			continue
+		}
+		af.txns = txns
+		af.txnByID = make(map[string]stripeClient.Transaction, len(txns))
+		for _, st := range txns {
+			af.txnByID[st.ID] = st
+		}
+		acctFetches[sel.StripeAccountId] = af
 	}
 
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
 	var importedFIDs []string
-	var touchedAccountIDs []string
+	// windowCoveredByAccount tracks whether every transaction in the fetch window for each
+	// account was either already imported or explicitly selected. Only when true is it safe
+	// to advance LastTransactionRefreshID for that account.
+	windowCoveredByAccount := make(map[string]bool)
+
+	if h.afterImportAllPreFetch != nil {
+		h.afterImportAllPreFetch()
+	}
 
 	err = h.lock.Do(ctx, fmt.Sprintf("import all stripe transactions (%d selections)", len(req.Msg.Selections)), func() error {
+		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
+		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
+		// acquisition are not written a second time.
+		freshExisting, freshErr := h.hl.Transactions(ctx)
+		if freshErr != nil {
+			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+		}
+		for _, t := range freshExisting {
+			if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+				importedStripeTxnSet[id] = true
+			}
+		}
+
 		for _, sel := range req.Msg.Selections {
 			if len(sel.StripeTransactionIds) == 0 {
 				continue
+			}
+
+			af := acctFetches[sel.StripeAccountId]
+			if af == nil || af.err != nil {
+				var errMsg error
+				if af != nil {
+					errMsg = af.err
+				} else {
+					errMsg = fmt.Errorf("no pre-fetched data for account %s", sel.StripeAccountId)
+				}
+				return errMsg
 			}
 
 			linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
@@ -639,14 +750,23 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				return fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
 			}
 
-			stripeTxns, listErr := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
-			if listErr != nil {
-				return fmt.Errorf("list transactions for %s: %w", linked.StripeAccountID, listErr)
+			selectedForAccountSet := make(map[string]bool, len(sel.StripeTransactionIds))
+			for _, id := range sel.StripeTransactionIds {
+				selectedForAccountSet[id] = true
 			}
-
-			txnByID := make(map[string]stripeClient.Transaction, len(stripeTxns))
-			for _, st := range stripeTxns {
-				txnByID[st.ID] = st
+			allCovered := true
+			for _, st := range af.txns {
+				if !importedStripeTxnSet[st.ID] && !selectedForAccountSet[st.ID] {
+					allCovered = false
+					break
+				}
+			}
+			// Only mark the window covered if no concurrent process (e.g., daily auto-import)
+			// updated LastTransactionRefreshID between our pre-fetch and the lock. A mismatch
+			// means our pre-fetched newRefreshID may be older than the current mark; advancing
+			// to it would regress the high-water mark.
+			if linked.LastTransactionRefreshID == af.fromRefreshID {
+				windowCoveredByAccount[linked.StripeAccountID] = allCovered
 			}
 
 			importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
@@ -655,7 +775,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				if importedStripeTxnSet[txnID] {
 					continue
 				}
-				st, ok := txnByID[txnID]
+				st, ok := af.txnByID[txnID]
 				if !ok {
 					return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 				}
@@ -681,19 +801,15 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 					return sendErr
 				}
 			}
-
-			touchedAccountIDs = append(touchedAccountIDs, linked.StripeAccountID)
 		}
 
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
-			for _, id := range touchedAccountIDs {
-				if la.StripeAccountID == id {
-					h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-					if rid := newRefreshIDs[id]; rid != "" {
-						h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = rid
-					}
-					break
-				}
+			if !windowCoveredByAccount[la.StripeAccountID] {
+				continue
+			}
+			h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+			if rid := acctFetches[la.StripeAccountID].newRefreshID; rid != "" {
+				h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = rid
 			}
 		}
 		return config.Save(h.configPath, h.cfg)
