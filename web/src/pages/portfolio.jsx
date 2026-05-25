@@ -15,6 +15,7 @@ import { queryKeys } from "../query-keys.js";
 import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { Stats15 } from "../components/stats-15.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,7 +99,7 @@ function AllocationChart({ holdings }) {
   );
 
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <CardTitle>Allocation</CardTitle>
       </CardHeader>
@@ -159,6 +160,71 @@ function AllocationChart({ holdings }) {
             ))}
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function findSnapshotAtOrBefore(sorted, targetDate) {
+  let result = null;
+  for (const s of sorted) {
+    if (s.date <= targetDate) result = s;
+    else break;
+  }
+  return result;
+}
+
+function MultiPeriodReturns({ snapshots }) {
+  const items = useMemo(() => {
+    if (!snapshots?.length) return [];
+    const sorted = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
+    const latest = sorted[sorted.length - 1];
+    if (!latest?.totalValue) return [];
+
+    const currentVal = parseFloat(latest.totalValue.quantity);
+    const currency = latest.totalValue.commodity;
+    const latestDate = new Date(latest.date + "T00:00:00");
+
+    function subMonths(d, n) {
+      const r = new Date(d);
+      r.setMonth(r.getMonth() - n);
+      return r.toISOString().slice(0, 10);
+    }
+
+    const periodDefs = [
+      { label: "1 Month", date: subMonths(latestDate, 1) },
+      { label: "3 Months", date: subMonths(latestDate, 3) },
+      { label: "YTD", date: `${latestDate.getFullYear()}-01-01` },
+      { label: "All Time", date: sorted[0].date },
+    ];
+
+    return periodDefs.map(({ label, date }) => {
+      const snap = findSnapshotAtOrBefore(sorted, date);
+      if (!snap?.totalValue || snap.date === latest.date) return null;
+      const startVal = parseFloat(snap.totalValue.quantity);
+      if (startVal === 0) return null;
+      const gain = currentVal - startVal;
+      const pct = (gain / startVal) * 100;
+      const positive = gain >= 0;
+      const sign = positive ? "+" : "";
+      return {
+        label,
+        value: `${sign}${formatCurrency(gain.toFixed(2), currency)}`,
+        percentage: `${sign}${pct.toFixed(1)}%`,
+        positive,
+      };
+    }).filter(Boolean);
+  }, [snapshots]);
+
+  if (!items.length) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Returns</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Stats15 items={items} />
       </CardContent>
     </Card>
   );
@@ -534,7 +600,8 @@ export function PortfolioPage() {
             <PortfolioChart snapshots={snapshots} />
           </div>
 
-          <div className="col-span-12 xl:col-span-4">
+          <div className="col-span-12 xl:col-span-4 flex flex-col gap-6">
+            <MultiPeriodReturns snapshots={snapshots} />
             <AllocationChart holdings={holdings} />
           </div>
 
