@@ -21,6 +21,29 @@ test("transactions page", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions.png", fullPage: true });
 });
 
+test("transactions page - sticky date header", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  // Scroll so the second date group header has just pinned below the column header
+  await page.evaluate(() => window.scrollBy(0, 240));
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/transactions-sticky.png" });
+});
+
+test("transactions page - account register sticky date header", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/#/transactions?account=assets%3Achecking");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.evaluate(() => window.scrollBy(0, 180));
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: "test-results/transactions-account-register-sticky.png" });
+});
+
 test("transactions page - delete confirmation", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});

@@ -1009,7 +1009,7 @@ export function TransactionTable({
   return (
     <div>
       {/* Desktop table */}
-      <div className="hidden overflow-x-auto sm:block">
+      <div className="hidden overflow-x-clip sm:block">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
