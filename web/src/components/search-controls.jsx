@@ -256,7 +256,7 @@ function DebouncedSearch({ value, onChange }) {
       <Search className="pointer-events-none absolute left-2 size-3.5 text-muted-foreground" />
       <Input
         type="search"
-        placeholder="Search..."
+        placeholder="Search or hledger query (e.g. cur:USD)..."
         value={local}
         onInput={handleInput}
         className="h-7 flex-1 border-0 bg-transparent pl-7 shadow-none focus-visible:ring-0"

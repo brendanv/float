@@ -416,6 +416,17 @@ export function TransactionsPage() {
   );
 }
 
+const HLEDGER_KEYWORD_RE = /^(not:)?(acct|code|cur|desc|date|date2|tag|payee|note|status|real|depth|amt|type|sym|commodity|inacct|inaccteq):/;
+
+function searchTokens(search) {
+  if (!search) return [];
+  const parts = search.trim().split(/\s+/);
+  if (parts.some((p) => HLEDGER_KEYWORD_RE.test(p))) {
+    return parts;
+  }
+  return [`desc:${search}`];
+}
+
 function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId, search) {
   const tokens = [];
   if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
@@ -426,7 +437,7 @@ function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
-  if (search) tokens.push(`desc:${search}`);
+  tokens.push(...searchTokens(search));
   return tokens;
 }
 
@@ -439,6 +450,6 @@ function buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId
   else if (payee) tokens.push(`payee:${payee}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
-  if (search) tokens.push(`desc:${search}`);
+  tokens.push(...searchTokens(search));
   return tokens;
 }
