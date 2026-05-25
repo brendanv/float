@@ -656,6 +656,26 @@ test("settings page", async ({ page }) => {
   await page.screenshot({ path: "test-results/settings.png", fullPage: true });
 });
 
+test("settings page - collapsed cards", async ({ page }) => {
+  await page.goto("/#/settings");
+  await page.waitForSelector("h2", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Collapse Stripe and AI cards by clicking their triggers
+  const triggers = page.locator("[data-slot='collapsible-trigger']");
+  await triggers.nth(0).click();
+  await triggers.nth(1).click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/settings-collapsed.png", fullPage: true });
+});
+
+test("settings page - features disabled", async ({ page }) => {
+  await mockLedgerApi(page, { stripeEnabled: false, aiEnabled: false });
+  await page.goto("/#/settings");
+  await page.waitForSelector("h2", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/settings-disabled.png", fullPage: true });
+});
+
 test("query page - hledger tab", async ({ page }) => {
   await page.goto("/#/hledger-query");
   await page.waitForSelector("textarea", { timeout: 5000 }).catch(() => {});

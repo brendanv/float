@@ -893,7 +893,7 @@ function encodeConnectStreamingBody(messages) {
   return Buffer.concat(parts);
 }
 
-export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations, portfolioHoldings, stripeEnabled = true } = {}) {
+export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations, portfolioHoldings, stripeEnabled = true, aiEnabled = true } = {}) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
     const method = url.split("/").pop();
@@ -1190,7 +1190,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
       case "GetAIConfig":
-        body = { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6", prompt: "My accounts use kebab-case. Groceries go under expenses:food:groceries." };
+        body = aiEnabled
+          ? { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6", prompt: "My accounts use kebab-case. Groceries go under expenses:food:groceries.", enabled: true }
+          : { model: "", effectiveModel: "anthropic/claude-3-haiku", prompt: "", enabled: false };
         break;
       case "ListSnapshots":
         body = { snapshots: mockSnapshots };

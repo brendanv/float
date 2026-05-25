@@ -57,6 +57,7 @@ func (h *Handler) GetAIConfig(ctx context.Context, req *connect.Request[floatv1.
 		Model:          h.cfg.AI.Model,
 		EffectiveModel: h.effectiveAIModel(),
 		Prompt:         h.cfg.AI.Prompt,
+		Enabled:        os.Getenv("OPENROUTER_API_KEY") != "",
 	}), nil
 }
 

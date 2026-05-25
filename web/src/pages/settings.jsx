@@ -13,7 +13,9 @@ import { Form, FormField, FormActions } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle, Circle, CreditCard, Repeat } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { CheckCircle, XCircle, Circle, CreditCard, Repeat, ChevronDown, Bot } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -185,156 +187,22 @@ export function SettingsPage() {
     setPromptMutation.mutate(promptInput);
   }
 
+  // --- Collapsible state (null = not yet initialized; defaults to open only when enabled) ---
+  const [stripeOpen, setStripeOpen] = useState(null);
+  const [aiOpen, setAiOpen] = useState(null);
+
+  if (stripeData && stripeOpen === null) {
+    setStripeOpen(stripeData.enabled);
+  }
+  if (aiData && aiOpen === null) {
+    setAiOpen(aiData.enabled);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Settings" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="size-5" />
-            Stripe Customer ID
-          </CardTitle>
-          <CardDescription>
-            The Stripe customer ID used for Financial Connections. This is created automatically
-            when you first link a bank account, but you can set it manually here to use an
-            existing Stripe customer.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {stripeFetchError && <ErrorBanner error={stripeFetchError} />}
-          {stripeMutationError && <ErrorBanner error={stripeMutationError} />}
-
-          {stripeLoading && <Loading />}
-
-          {stripeData && (
-            <>
-              <div className="flex items-center gap-2 text-sm">
-                {stripeData.customerId ? (
-                  <>
-                    <CheckCircle className="size-4 text-success" />
-                    <span>Customer ID set</span>
-                    <Badge variant="secondary" className="font-mono">
-                      {stripeData.customerId}
-                    </Badge>
-                  </>
-                ) : (
-                  <>
-                    <Circle className="size-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">No customer ID set</span>
-                  </>
-                )}
-              </div>
-
-              <Form onSubmit={handleStripeCustomerIdSave}>
-                <FormField
-                  label={stripeData.customerId ? "Replace customer ID" : "Set customer ID"}
-                  htmlFor="stripe-customer-id"
-                >
-                  <div className="flex gap-2">
-                    <Input
-                      id="stripe-customer-id"
-                      type="text"
-                      placeholder="cus_..."
-                      value={customerIdInput}
-                      onChange={(e) => setCustomerIdInput(e.target.value)}
-                      className="max-w-sm font-mono"
-                    />
-                    <Button
-                      type="submit"
-                      disabled={!customerIdInput.trim()}
-                      isLoading={setCustomerIdMutation.isPending}
-                      loadingText="Saving…"
-                    >
-                      Save
-                    </Button>
-                  </div>
-                </FormField>
-                {stripeSaved && (
-                  <p className="text-xs text-success">Customer ID saved.</p>
-                )}
-              </Form>
-
-              {stripeData.customerId && (
-                <div>
-                  <Button
-                    variant="destructive-ghost"
-                    size="sm"
-                    disabled={setCustomerIdMutation.isPending}
-                    onClick={handleStripeCustomerIdClear}
-                  >
-                    Clear customer ID
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Repeat className="size-5" />
-            Daily Stripe Auto-Import
-          </CardTitle>
-          <CardDescription>
-            Once per day, automatically fetch new transactions from every linked Stripe
-            account and import the non-duplicate ones — exactly as if you'd pressed
-            "Fetch All" and "Import" yourself on the Connections page.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {dailyImportError && <ErrorBanner error={dailyImportError} />}
-
-          {stripeLoading && <Loading />}
-
-          {stripeData && (
-            <>
-              <Label
-                htmlFor="stripe-daily-import-enabled"
-                className="flex items-start gap-3 cursor-pointer"
-              >
-                <Checkbox
-                  id="stripe-daily-import-enabled"
-                  checked={!!stripeData.dailyImportEnabled}
-                  disabled={!dailyImportAvailable || setDailyImportMutation.isPending}
-                  onCheckedChange={handleDailyImportToggle}
-                />
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-medium">
-                    Enable daily automatic import
-                  </span>
-                  {!stripeData.enabled && (
-                    <span className="text-xs text-muted-foreground">
-                      Requires <code className="font-mono">STRIPE_SECRET_KEY</code> to
-                      be set on the server.
-                    </span>
-                  )}
-                  {stripeData.enabled && (stripeData.linkedAccountCount ?? 0) === 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      Link at least one bank account on the{" "}
-                      <a href="#/connections" className="underline">
-                        Connections page
-                      </a>{" "}
-                      first.
-                    </span>
-                  )}
-                </div>
-              </Label>
-
-              <div className="text-xs text-muted-foreground">
-                {stripeData.lastDailyImportAt ? (
-                  <>Last automatic import: {stripeData.lastDailyImportAt}</>
-                ) : (
-                  <>Last automatic import: never</>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
+      {/* AlphaVantage card */}
       <Card>
         <CardHeader>
           <CardTitle>AlphaVantage API Key</CardTitle>
@@ -422,129 +290,335 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Model</CardTitle>
-          <CardDescription>
-            OpenRouter model used for AI features (rule suggestions, query translation).
-            Requires <code className="font-mono text-xs">OPENROUTER_API_KEY</code> to be set on the server.
-            Browse available models at{" "}
-            <a
-              href="https://openrouter.ai/models"
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              openrouter.ai/models
-            </a>
-            .
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {aiFetchError && <ErrorBanner error={aiFetchError} />}
-          {aiMutationError && <ErrorBanner error={aiMutationError} />}
+      {/* Stripe collapsible card */}
+      <Collapsible open={stripeOpen} onOpenChange={setStripeOpen}>
+        <Card>
+          <CollapsibleTrigger className="w-full text-left">
+            <CardHeader className="cursor-pointer select-none hover:bg-muted/30 transition-colors">
+              <CardTitle className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="size-5" />
+                  Stripe
+                </div>
+                <div className="flex items-center gap-2">
+                  {stripeData && (
+                    stripeData.enabled ? (
+                      <CheckCircle className="size-4 text-success" />
+                    ) : (
+                      <XCircle className="size-4 text-muted-foreground" />
+                    )
+                  )}
+                  <ChevronDown
+                    className={cn(
+                      "size-4 text-muted-foreground transition-transform duration-200",
+                      stripeOpen && "rotate-180"
+                    )}
+                  />
+                </div>
+              </CardTitle>
+              <CardDescription>
+                {stripeData && !stripeData.enabled
+                  ? <>Set <code className="font-mono">STRIPE_SECRET_KEY</code> and <code className="font-mono">STRIPE_PUBLISHABLE_KEY</code> on the server to enable Stripe Financial Connections.</>
+                  : "Configure Stripe Financial Connections and daily auto-import."
+                }
+              </CardDescription>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="flex flex-col gap-6 pt-0">
+              {/* Customer ID section */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <Repeat className="size-3" />
+                  Customer ID
+                </div>
+                {stripeFetchError && <ErrorBanner error={stripeFetchError} />}
+                {stripeMutationError && <ErrorBanner error={stripeMutationError} />}
+                {stripeLoading && <Loading />}
+                {stripeData && (
+                  <>
+                    <div className="flex items-center gap-2 text-sm">
+                      {stripeData.customerId ? (
+                        <>
+                          <CheckCircle className="size-4 text-success" />
+                          <span>Customer ID set</span>
+                          <Badge variant="secondary" className="font-mono">
+                            {stripeData.customerId}
+                          </Badge>
+                        </>
+                      ) : (
+                        <>
+                          <Circle className="size-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">No customer ID set</span>
+                        </>
+                      )}
+                    </div>
 
-          {aiLoading && <Loading />}
+                    <Form onSubmit={handleStripeCustomerIdSave}>
+                      <FormField
+                        label={stripeData.customerId ? "Replace customer ID" : "Set customer ID"}
+                        htmlFor="stripe-customer-id"
+                      >
+                        <div className="flex gap-2">
+                          <Input
+                            id="stripe-customer-id"
+                            type="text"
+                            placeholder="cus_..."
+                            value={customerIdInput}
+                            onChange={(e) => setCustomerIdInput(e.target.value)}
+                            className="max-w-sm font-mono"
+                          />
+                          <Button
+                            type="submit"
+                            disabled={!customerIdInput.trim()}
+                            isLoading={setCustomerIdMutation.isPending}
+                            loadingText="Saving…"
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </FormField>
+                      {stripeSaved && (
+                        <p className="text-xs text-success">Customer ID saved.</p>
+                      )}
+                    </Form>
 
-          {aiData && (
-            <>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Active model:</span>
-                <Badge variant="secondary" className="font-mono">
-                  {aiData.effectiveModel}
-                </Badge>
-                {!aiData.model && (
-                  <span className="text-xs text-muted-foreground">(default)</span>
+                    {stripeData.customerId && (
+                      <div>
+                        <Button
+                          variant="destructive-ghost"
+                          size="sm"
+                          disabled={setCustomerIdMutation.isPending}
+                          onClick={handleStripeCustomerIdClear}
+                        >
+                          Clear customer ID
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
-              <Form onSubmit={handleAiSave}>
-                <FormField
-                  label={aiData.model ? "Replace model" : "Set model"}
-                  htmlFor="ai-model"
-                >
-                  <div className="flex gap-2">
-                    <Input
-                      id="ai-model"
-                      type="text"
-                      placeholder={aiData.effectiveModel}
-                      value={modelInput}
-                      onChange={(e) => setModelInput(e.target.value)}
-                      className="max-w-sm font-mono"
-                    />
-                    <Button
-                      type="submit"
-                      disabled={!modelInput.trim()}
-                      isLoading={setModelMutation.isPending}
-                      loadingText="Saving…"
-                    >
-                      Save
-                    </Button>
-                  </div>
-                </FormField>
-                {aiSaved && (
-                  <p className="text-xs text-success">Model saved.</p>
-                )}
-              </Form>
+              {/* Divider */}
+              <div className="border-t" />
 
-              {aiData.model && (
-                <div>
-                  <Button
-                    variant="destructive-ghost"
-                    size="sm"
-                    disabled={setModelMutation.isPending}
-                    onClick={handleAiReset}
-                  >
-                    Reset to default
-                  </Button>
+              {/* Daily auto-import section */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <Repeat className="size-3" />
+                  Daily Auto-Import
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                {dailyImportError && <ErrorBanner error={dailyImportError} />}
+                {stripeLoading && <Loading />}
+                {stripeData && (
+                  <>
+                    <Label
+                      htmlFor="stripe-daily-import-enabled"
+                      className="flex items-start gap-3 cursor-pointer"
+                    >
+                      <Checkbox
+                        id="stripe-daily-import-enabled"
+                        checked={!!stripeData.dailyImportEnabled}
+                        disabled={!dailyImportAvailable || setDailyImportMutation.isPending}
+                        onCheckedChange={handleDailyImportToggle}
+                      />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-medium">
+                          Enable daily automatic import
+                        </span>
+                        {!stripeData.enabled && (
+                          <span className="text-xs text-muted-foreground">
+                            Requires <code className="font-mono">STRIPE_SECRET_KEY</code> to
+                            be set on the server.
+                          </span>
+                        )}
+                        {stripeData.enabled && (stripeData.linkedAccountCount ?? 0) === 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            Link at least one bank account on the{" "}
+                            <a href="#/connections" className="underline">
+                              Connections page
+                            </a>{" "}
+                            first.
+                          </span>
+                        )}
+                      </div>
+                    </Label>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Guidelines</CardTitle>
-          <CardDescription>
-            Optional instructions prepended to the AI system prompt for all AI features.
-            Use this to tell the AI about your account naming conventions, preferred categorization
-            style, or any other context that should influence its suggestions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {promptMutationError && <ErrorBanner error={promptMutationError} />}
-
-          {aiLoading && <Loading />}
-
-          {aiData && promptInput !== null && (
-            <Form onSubmit={handlePromptSave}>
-              <FormField label="Guidelines" htmlFor="ai-prompt">
-                <Textarea
-                  id="ai-prompt"
-                  placeholder="e.g. My accounts use kebab-case. Groceries go under expenses:food:groceries. Always prefer specific accounts over broad ones."
-                  value={promptInput}
-                  onChange={(e) => setPromptInput(e.target.value)}
-                  className="min-h-32 font-mono text-xs"
-                />
-              </FormField>
-              <FormActions align="start">
-                <Button
-                  type="submit"
-                  isLoading={setPromptMutation.isPending}
-                  loadingText="Saving…"
-                >
-                  Save guidelines
-                </Button>
-                {promptSaved && (
-                  <p className="text-xs text-success">Guidelines saved.</p>
+                    <div className="text-xs text-muted-foreground">
+                      {stripeData.lastDailyImportAt ? (
+                        <>Last automatic import: {stripeData.lastDailyImportAt}</>
+                      ) : (
+                        <>Last automatic import: never</>
+                      )}
+                    </div>
+                  </>
                 )}
-              </FormActions>
-            </Form>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* AI collapsible card */}
+      <Collapsible open={aiOpen} onOpenChange={setAiOpen}>
+        <Card>
+          <CollapsibleTrigger className="w-full text-left">
+            <CardHeader className="cursor-pointer select-none hover:bg-muted/30 transition-colors">
+              <CardTitle className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Bot className="size-5" />
+                  AI
+                </div>
+                <div className="flex items-center gap-2">
+                  {aiData && (
+                    aiData.enabled ? (
+                      <CheckCircle className="size-4 text-success" />
+                    ) : (
+                      <XCircle className="size-4 text-muted-foreground" />
+                    )
+                  )}
+                  <ChevronDown
+                    className={cn(
+                      "size-4 text-muted-foreground transition-transform duration-200",
+                      aiOpen && "rotate-180"
+                    )}
+                  />
+                </div>
+              </CardTitle>
+              <CardDescription>
+                {aiData && !aiData.enabled
+                  ? <>Set <code className="font-mono">OPENROUTER_API_KEY</code> on the server to enable AI features (rule suggestions, query translation).</>
+                  : "Configure the OpenRouter AI model and guidelines for AI features."
+                }
+              </CardDescription>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="flex flex-col gap-6 pt-0">
+              {/* AI Model section */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Model
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  OpenRouter model used for AI features (rule suggestions, query translation).
+                  Requires <code className="font-mono">OPENROUTER_API_KEY</code> to be set on the server.
+                  Browse available models at{" "}
+                  <a
+                    href="https://openrouter.ai/models"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    openrouter.ai/models
+                  </a>
+                  .
+                </p>
+                {aiFetchError && <ErrorBanner error={aiFetchError} />}
+                {aiMutationError && <ErrorBanner error={aiMutationError} />}
+                {aiLoading && <Loading />}
+                {aiData && (
+                  <>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">Active model:</span>
+                      <Badge variant="secondary" className="font-mono">
+                        {aiData.effectiveModel}
+                      </Badge>
+                      {!aiData.model && (
+                        <span className="text-xs text-muted-foreground">(default)</span>
+                      )}
+                    </div>
+
+                    <Form onSubmit={handleAiSave}>
+                      <FormField
+                        label={aiData.model ? "Replace model" : "Set model"}
+                        htmlFor="ai-model"
+                      >
+                        <div className="flex gap-2">
+                          <Input
+                            id="ai-model"
+                            type="text"
+                            placeholder={aiData.effectiveModel}
+                            value={modelInput}
+                            onChange={(e) => setModelInput(e.target.value)}
+                            className="max-w-sm font-mono"
+                          />
+                          <Button
+                            type="submit"
+                            disabled={!modelInput.trim()}
+                            isLoading={setModelMutation.isPending}
+                            loadingText="Saving…"
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </FormField>
+                      {aiSaved && (
+                        <p className="text-xs text-success">Model saved.</p>
+                      )}
+                    </Form>
+
+                    {aiData.model && (
+                      <div>
+                        <Button
+                          variant="destructive-ghost"
+                          size="sm"
+                          disabled={setModelMutation.isPending}
+                          onClick={handleAiReset}
+                        >
+                          Reset to default
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* AI Guidelines section */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Guidelines
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Optional instructions prepended to the AI system prompt for all AI features.
+                  Use this to tell the AI about your account naming conventions, preferred categorization
+                  style, or any other context that should influence its suggestions.
+                </p>
+                {promptMutationError && <ErrorBanner error={promptMutationError} />}
+                {aiLoading && <Loading />}
+                {aiData && promptInput !== null && (
+                  <Form onSubmit={handlePromptSave}>
+                    <FormField label="Guidelines" htmlFor="ai-prompt">
+                      <Textarea
+                        id="ai-prompt"
+                        placeholder="e.g. My accounts use kebab-case. Groceries go under expenses:food:groceries. Always prefer specific accounts over broad ones."
+                        value={promptInput}
+                        onChange={(e) => setPromptInput(e.target.value)}
+                        className="min-h-32 font-mono text-xs"
+                      />
+                    </FormField>
+                    <FormActions align="start">
+                      <Button
+                        type="submit"
+                        isLoading={setPromptMutation.isPending}
+                        loadingText="Saving…"
+                      >
+                        Save guidelines
+                      </Button>
+                      {promptSaved && (
+                        <p className="text-xs text-success">Guidelines saved.</p>
+                      )}
+                    </FormActions>
+                  </Form>
+                )}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
     </div>
   );
 }

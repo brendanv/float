@@ -9123,6 +9123,7 @@ type GetAIConfigResponse struct {
 	Model          string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`                                         // current model ID from config.toml (empty if not set)
 	EffectiveModel string                 `protobuf:"bytes,2,opt,name=effective_model,json=effectiveModel,proto3" json:"effective_model,omitempty"` // model that will actually be used (config → env → default)
 	Prompt         string                 `protobuf:"bytes,3,opt,name=prompt,proto3" json:"prompt,omitempty"`                                       // user-defined guidelines prepended to AI system prompts
+	Enabled        bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`                                    // true if OPENROUTER_API_KEY env var is set
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -9176,6 +9177,13 @@ func (x *GetAIConfigResponse) GetPrompt() string {
 		return x.Prompt
 	}
 	return ""
+}
+
+func (x *GetAIConfigResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
 }
 
 type SetAIModelRequest struct {
