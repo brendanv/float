@@ -552,9 +552,21 @@ export const mockPortfolioHoldings = {
 
 export const mockPortfolioTimeseries = {
   snapshots: [
-    { date: "2026-01-01", totalValue: { commodity: "USD", quantity: "1785.00" }, costBasis: { commodity: "USD", quantity: "1750.00" } },
-    { date: "2026-02-01", totalValue: { commodity: "USD", quantity: "3650.00" }, costBasis: { commodity: "USD", quantity: "3750.00" } },
-    { date: "2026-03-01", totalValue: { commodity: "USD", quantity: "3778.75" }, costBasis: { commodity: "USD", quantity: "3750.00" } },
+    { date: "2025-03-01", totalValue: { commodity: "USD", quantity: "7510.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-04-01", totalValue: { commodity: "USD", quantity: "7820.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-05-01", totalValue: { commodity: "USD", quantity: "8130.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-06-01", totalValue: { commodity: "USD", quantity: "7940.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-07-01", totalValue: { commodity: "USD", quantity: "8450.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-08-01", totalValue: { commodity: "USD", quantity: "8820.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-09-01", totalValue: { commodity: "USD", quantity: "8640.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-10-01", totalValue: { commodity: "USD", quantity: "9180.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-11-01", totalValue: { commodity: "USD", quantity: "9560.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2025-12-01", totalValue: { commodity: "USD", quantity: "9820.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2026-01-01", totalValue: { commodity: "USD", quantity: "10240.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2026-02-01", totalValue: { commodity: "USD", quantity: "9980.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2026-03-01", totalValue: { commodity: "USD", quantity: "10650.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2026-04-01", totalValue: { commodity: "USD", quantity: "10390.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    { date: "2026-05-01", totalValue: { commodity: "USD", quantity: "11120.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
   ],
 };
 
