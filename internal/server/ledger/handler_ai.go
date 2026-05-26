@@ -1,11 +1,14 @@
 package ledger
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"math"
 	"os"
+	"regexp"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -310,6 +313,246 @@ func categoryAccount(txn hledger.Transaction) string {
 		}
 	}
 	return ""
+}
+
+// csvAnalysis holds the results of inspecting a CSV file's structure.
+type csvAnalysis struct {
+	SkipCount   int      // number of header rows before data
+	FieldNames  []string // hledger field name per column
+	DateFormat  string   // strftime-style date format
+	SampleRows  [][]string // first data rows (for AI analysis)
+	HeaderRow   []string   // detected header row
+}
+
+var (
+	reDate        = regexp.MustCompile(`(?i)date|posted|trans.*date`)
+	reDescription = regexp.MustCompile(`(?i)desc|narr|memo|detail|merchant|payee|ref`)
+	reAmount      = regexp.MustCompile(`(?i)^amount$|^amt$|^value$|transaction amount`)
+	reDebit       = regexp.MustCompile(`(?i)debit|withdrawal`)
+	reCredit      = regexp.MustCompile(`(?i)credit|deposit`)
+	reBalance     = regexp.MustCompile(`(?i)balance|bal\.?$`)
+
+	reDateISO1  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	reDateISO2  = regexp.MustCompile(`^\d{4}/\d{2}/\d{2}$`)
+	reDateUS    = regexp.MustCompile(`^\d{1,2}/\d{1,2}/\d{4}$`)
+	reDateUS2   = regexp.MustCompile(`^\d{2}-\d{2}-\d{4}$`)
+	reDateEU    = regexp.MustCompile(`^\d{2}\.\d{2}\.\d{4}$`)
+	reDateCompact = regexp.MustCompile(`^\d{8}$`)
+	reNumeric   = regexp.MustCompile(`^-?[\d,]+\.?\d*$`)
+)
+
+func guessFieldName(header string) string {
+	h := strings.TrimSpace(header)
+	switch {
+	case reDate.MatchString(h):
+		return "date"
+	case reDescription.MatchString(h):
+		return "description"
+	case reAmount.MatchString(h):
+		return "amount"
+	case reDebit.MatchString(h):
+		return "amount-out"
+	case reCredit.MatchString(h):
+		return "amount-in"
+	case reBalance.MatchString(h):
+		return "balance"
+	default:
+		return "_"
+	}
+}
+
+func detectDateFormat(sample string) string {
+	s := strings.TrimSpace(sample)
+	switch {
+	case reDateISO1.MatchString(s):
+		return "%Y-%m-%d"
+	case reDateISO2.MatchString(s):
+		return "%Y/%m/%d"
+	case reDateUS.MatchString(s):
+		return "%m/%d/%Y"
+	case reDateUS2.MatchString(s):
+		return "%m-%d-%Y"
+	case reDateEU.MatchString(s):
+		return "%d.%m.%Y"
+	case reDateCompact.MatchString(s):
+		return "%Y%m%d"
+	default:
+		return "%Y-%m-%d"
+	}
+}
+
+func looksLikeDateValue(s string) bool {
+	s = strings.TrimSpace(s)
+	return reDateISO1.MatchString(s) || reDateISO2.MatchString(s) ||
+		reDateUS.MatchString(s) || reDateUS2.MatchString(s) ||
+		reDateEU.MatchString(s) || reDateCompact.MatchString(s)
+}
+
+func looksLikeNumericValue(s string) bool {
+	s = strings.TrimSpace(s)
+	// Strip leading currency symbol if present
+	s = strings.TrimLeft(s, "$€£¥-+ ")
+	return reNumeric.MatchString(s) && s != ""
+}
+
+// analyzeCSV parses raw CSV bytes and extracts structural information.
+func analyzeCSV(data []byte) (csvAnalysis, error) {
+	// Strip UTF-8 BOM if present.
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+
+	r := csv.NewReader(bytes.NewReader(data))
+	r.LazyQuotes = true
+	r.TrimLeadingSpace = true
+	r.FieldsPerRecord = -1 // allow rows with different field counts (e.g. bank headers)
+
+	allRows, err := r.ReadAll()
+	if err != nil {
+		return csvAnalysis{}, fmt.Errorf("parse CSV: %w", err)
+	}
+	if len(allRows) == 0 {
+		return csvAnalysis{}, errors.New("CSV file is empty")
+	}
+
+	// Determine skip count: number of rows before the first row where at least
+	// one cell looks like a date AND at least one looks like a number.
+	skipCount := 0
+	for i, row := range allRows {
+		hasDate := false
+		hasNum := false
+		for _, cell := range row {
+			if looksLikeDateValue(cell) {
+				hasDate = true
+			}
+			if looksLikeNumericValue(cell) {
+				hasNum = true
+			}
+		}
+		if hasDate && hasNum {
+			skipCount = i
+			break
+		}
+		// If we never find a data row, assume single header row.
+		if i == len(allRows)-1 {
+			skipCount = 1
+		}
+	}
+	if skipCount < 1 {
+		skipCount = 1
+	}
+
+	// Use the row just before the first data row as the header.
+	headerIdx := skipCount - 1
+	if headerIdx < 0 || headerIdx >= len(allRows) {
+		headerIdx = 0
+	}
+	headerRow := allRows[headerIdx]
+
+	// Map each header to a hledger field name.
+	fieldNames := make([]string, len(headerRow))
+	for i, h := range headerRow {
+		fieldNames[i] = guessFieldName(h)
+	}
+
+	// Detect date format from the first data row.
+	dateFormat := "%Y-%m-%d"
+	dateColIdx := -1
+	for i, f := range fieldNames {
+		if f == "date" {
+			dateColIdx = i
+			break
+		}
+	}
+	if dateColIdx >= 0 && skipCount < len(allRows) {
+		firstDataRow := allRows[skipCount]
+		if dateColIdx < len(firstDataRow) {
+			dateFormat = detectDateFormat(firstDataRow[dateColIdx])
+		}
+	}
+
+	// Collect sample data rows for AI analysis (up to 20).
+	end := skipCount + 20
+	if end > len(allRows) {
+		end = len(allRows)
+	}
+	sampleRows := allRows[skipCount:end]
+
+	return csvAnalysis{
+		SkipCount:  skipCount,
+		FieldNames: fieldNames,
+		DateFormat: dateFormat,
+		SampleRows: sampleRows,
+		HeaderRow:  headerRow,
+	}, nil
+}
+
+// buildStructuralRules generates the structural portion of a hledger CSV rules file.
+func buildStructuralRules(info csvAnalysis, account1 string) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "skip %d\n", info.SkipCount)
+	fmt.Fprintf(&sb, "fields %s\n", strings.Join(info.FieldNames, ", "))
+	fmt.Fprintf(&sb, "date-format %s\n", info.DateFormat)
+	fmt.Fprintf(&sb, "account1 %s\n", account1)
+	sb.WriteString("currency USD\n")
+	return sb.String()
+}
+
+// GenerateBankProfileRules analyzes a CSV file and returns a draft hledger .rules file.
+// It detects skip count, column types, and date format. If AI is configured, it also
+// suggests directives for structural edge cases (multi-currency, commodity purchases, etc.).
+func (h *Handler) GenerateBankProfileRules(
+	ctx context.Context,
+	req *connect.Request[floatv1.GenerateBankProfileRulesRequest],
+) (*connect.Response[floatv1.GenerateBankProfileRulesResponse], error) {
+	if len(req.Msg.CsvData) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("csv_data is required"))
+	}
+
+	info, err := analyzeCSV(req.Msg.CsvData)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("analyze CSV: %w", err))
+	}
+
+	account1 := strings.TrimSpace(req.Msg.Account1)
+	if account1 == "" {
+		account1 = "assets:checking"
+	}
+
+	rulesContent := buildStructuralRules(info, account1)
+
+	// Optional AI analysis for structural edge cases.
+	aiCl, aiErr := h.aiClient()
+	if aiErr == nil && len(info.SampleRows) > 0 {
+		// Reconstruct a CSV sample string for the AI.
+		var csvBuf strings.Builder
+		csvBuf.WriteString(strings.Join(info.HeaderRow, ",") + "\n")
+		for _, row := range info.SampleRows {
+			csvBuf.WriteString(strings.Join(row, ",") + "\n")
+		}
+
+		userGuidelines := ""
+		if h.cfg != nil {
+			userGuidelines = h.cfg.AI.Prompt
+		}
+
+		directives, err := aiCl.SuggestCSVRuleDirectives(ctx, csvBuf.String(), info.FieldNames, userGuidelines)
+		if err != nil {
+			slogctx.FromContext(ctx).WarnContext(ctx, "AI CSV directive suggestion failed, continuing without AI", "err", err)
+		} else if len(directives) > 0 {
+			rulesContent += "\n"
+			for _, d := range directives {
+				if d.Reasoning != "" {
+					rulesContent += "# " + d.Reasoning + "\n"
+				}
+				rulesContent += d.Directive + "\n\n"
+			}
+		}
+	}
+
+	rulesContent += "\n# Add conditional rules if needed:\n# if PATTERN\n#   account2 expenses:category\n"
+
+	return connect.NewResponse(&floatv1.GenerateBankProfileRulesResponse{
+		RulesContent: []byte(rulesContent),
+	}), nil
 }
 
 // primaryAmount formats the first amount of the first non-zero posting.

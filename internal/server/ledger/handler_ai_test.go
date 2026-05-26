@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -230,6 +231,161 @@ func TestTranslateQuery_ReturnsQueryAndExplanation(t *testing.T) {
 	if resp.Msg.Explanation == "" {
 		t.Error("Explanation should not be empty")
 	}
+}
+
+// --- GenerateBankProfileRules ---
+
+const simpleCSV = "Date,Description,Amount\n2026-04-01,AMAZON,-45.00\n2026-04-02,PAYROLL,2000.00\n"
+
+const debitCreditCSV = "Date,Description,Debit,Credit\n04/01/2026,STARBUCKS,5.50,\n04/02/2026,PAYROLL,,2000.00\n"
+
+const twoHeaderCSV = "My Bank Statement\nDate,Description,Amount\n2026-04-01,AMAZON,-45.00\n2026-04-02,PAYROLL,2000.00\n"
+
+func TestGenerateBankProfileRules_MissingCsvData(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	h := mustHandler(t, nil)
+
+	_, err := h.GenerateBankProfileRules(t.Context(), connect.NewRequest(&floatv1.GenerateBankProfileRulesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+	}
+}
+
+func TestGenerateBankProfileRules_NoAI_StructuralOnly(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	h := mustHandler(t, nil)
+
+	resp, err := h.GenerateBankProfileRules(t.Context(), connect.NewRequest(&floatv1.GenerateBankProfileRulesRequest{
+		CsvData: []byte(simpleCSV),
+	}))
+	if err != nil {
+		t.Fatalf("GenerateBankProfileRules: %v", err)
+	}
+	content := string(resp.Msg.RulesContent)
+	for _, want := range []string{"skip 1", "fields date, description, amount", "date-format %Y-%m-%d", "account1 assets:checking", "currency USD"} {
+		if !containsStr(content, want) {
+			t.Errorf("rules content missing %q\ncontent:\n%s", want, content)
+		}
+	}
+	// Must not include uncommented account2 categorization (comments are fine as examples).
+	for _, line := range splitLines(content) {
+		if trimmed := strings.TrimSpace(line); !strings.HasPrefix(trimmed, "#") && containsStr(trimmed, "account2") {
+			t.Errorf("rules content has unexpected uncommented account2 line %q\ncontent:\n%s", line, content)
+		}
+	}
+}
+
+func TestGenerateBankProfileRules_CustomAccount1(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	h := mustHandler(t, nil)
+
+	resp, err := h.GenerateBankProfileRules(t.Context(), connect.NewRequest(&floatv1.GenerateBankProfileRulesRequest{
+		CsvData:  []byte(simpleCSV),
+		Account1: "assets:savings",
+	}))
+	if err != nil {
+		t.Fatalf("GenerateBankProfileRules: %v", err)
+	}
+	content := string(resp.Msg.RulesContent)
+	if !containsStr(content, "account1 assets:savings") {
+		t.Errorf("expected account1 assets:savings in:\n%s", content)
+	}
+}
+
+func TestGenerateBankProfileRules_DetectsSkipCount(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	h := mustHandler(t, nil)
+
+	resp, err := h.GenerateBankProfileRules(t.Context(), connect.NewRequest(&floatv1.GenerateBankProfileRulesRequest{
+		CsvData: []byte(twoHeaderCSV),
+	}))
+	if err != nil {
+		t.Fatalf("GenerateBankProfileRules: %v", err)
+	}
+	content := string(resp.Msg.RulesContent)
+	if !containsStr(content, "skip 2") {
+		t.Errorf("expected skip 2 for two-header CSV, got:\n%s", content)
+	}
+}
+
+func TestGenerateBankProfileRules_DebitCreditColumns(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	h := mustHandler(t, nil)
+
+	resp, err := h.GenerateBankProfileRules(t.Context(), connect.NewRequest(&floatv1.GenerateBankProfileRulesRequest{
+		CsvData: []byte(debitCreditCSV),
+	}))
+	if err != nil {
+		t.Fatalf("GenerateBankProfileRules: %v", err)
+	}
+	content := string(resp.Msg.RulesContent)
+	if !containsStr(content, "amount-out") {
+		t.Errorf("expected amount-out field for Debit column, got:\n%s", content)
+	}
+	if !containsStr(content, "amount-in") {
+		t.Errorf("expected amount-in field for Credit column, got:\n%s", content)
+	}
+}
+
+func TestGenerateBankProfileRules_WithAI_AppendsDirectives(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "test-key")
+
+	aiBody := openRouterResp(`{"directives":[{"directive":"if %type == BUY\n  commodity %ticker","reasoning":"BUY transactions need commodity mapping"}]}`)
+	srv := newAIServer(t, aiBody, nil)
+	defer srv.Close()
+
+	h := mustHandler(t, map[string][]byte{
+		"accounts": []byte(accountsText),
+	})
+	h.AIBaseURL = srv.URL
+
+	resp, err := h.GenerateBankProfileRules(t.Context(), connect.NewRequest(&floatv1.GenerateBankProfileRulesRequest{
+		CsvData: []byte(simpleCSV),
+	}))
+	if err != nil {
+		t.Fatalf("GenerateBankProfileRules: %v", err)
+	}
+	content := string(resp.Msg.RulesContent)
+	if !containsStr(content, "if %type == BUY") {
+		t.Errorf("expected AI directive in output, got:\n%s", content)
+	}
+}
+
+func TestGenerateBankProfileRules_AIFailure_FallsBackToStructural(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "test-key")
+
+	// AI server returns HTTP 500.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	h := mustHandler(t, map[string][]byte{
+		"accounts": []byte(accountsText),
+	})
+	h.AIBaseURL = srv.URL
+
+	resp, err := h.GenerateBankProfileRules(t.Context(), connect.NewRequest(&floatv1.GenerateBankProfileRulesRequest{
+		CsvData: []byte(simpleCSV),
+	}))
+	if err != nil {
+		t.Fatalf("expected fallback success, got error: %v", err)
+	}
+	content := string(resp.Msg.RulesContent)
+	if !containsStr(content, "skip 1") {
+		t.Errorf("expected structural rules even on AI failure, got:\n%s", content)
+	}
+}
+
+func containsStr(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
+
+func splitLines(s string) []string {
+	return strings.Split(s, "\n")
 }
 
 func TestTranslateQuery_UsesCustomModel(t *testing.T) {

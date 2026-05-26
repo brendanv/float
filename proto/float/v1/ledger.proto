@@ -462,6 +462,15 @@ message DeleteBankProfileRequest {
 
 message DeleteBankProfileResponse {}
 
+message GenerateBankProfileRulesRequest {
+  bytes csv_data = 1;  // raw CSV file bytes (required)
+  string account1 = 2; // optional hledger account for this bank, e.g. "assets:checking"
+}
+
+message GenerateBankProfileRulesResponse {
+  bytes rules_content = 1; // generated .rules file content as UTF-8 text
+}
+
 message PreviewImportRequest {
   bytes csv_data = 1;      // raw CSV file contents
   string profile_name = 2; // bank profile name from config
@@ -965,6 +974,7 @@ service LedgerService {
   rpc GetBankProfileContent(GetBankProfileContentRequest) returns (GetBankProfileContentResponse);
   rpc UpdateBankProfile(UpdateBankProfileRequest) returns (UpdateBankProfileResponse);
   rpc DeleteBankProfile(DeleteBankProfileRequest) returns (DeleteBankProfileResponse);
+  rpc GenerateBankProfileRules(GenerateBankProfileRulesRequest) returns (GenerateBankProfileRulesResponse);
   rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
   rpc ImportTransactions(ImportTransactionsRequest) returns (stream ImportTransactionsResponse);
   rpc GetImportedTransactions(GetImportedTransactionsRequest) returns (ListTransactionsResponse);

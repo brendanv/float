@@ -133,6 +133,9 @@ const (
 	// LedgerServiceDeleteBankProfileProcedure is the fully-qualified name of the LedgerService's
 	// DeleteBankProfile RPC.
 	LedgerServiceDeleteBankProfileProcedure = "/float.v1.LedgerService/DeleteBankProfile"
+	// LedgerServiceGenerateBankProfileRulesProcedure is the fully-qualified name of the LedgerService's
+	// GenerateBankProfileRules RPC.
+	LedgerServiceGenerateBankProfileRulesProcedure = "/float.v1.LedgerService/GenerateBankProfileRules"
 	// LedgerServicePreviewImportProcedure is the fully-qualified name of the LedgerService's
 	// PreviewImport RPC.
 	LedgerServicePreviewImportProcedure = "/float.v1.LedgerService/PreviewImport"
@@ -275,6 +278,7 @@ type LedgerServiceClient interface {
 	GetBankProfileContent(context.Context, *connect.Request[v1.GetBankProfileContentRequest]) (*connect.Response[v1.GetBankProfileContentResponse], error)
 	UpdateBankProfile(context.Context, *connect.Request[v1.UpdateBankProfileRequest]) (*connect.Response[v1.UpdateBankProfileResponse], error)
 	DeleteBankProfile(context.Context, *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error)
+	GenerateBankProfileRules(context.Context, *connect.Request[v1.GenerateBankProfileRulesRequest]) (*connect.Response[v1.GenerateBankProfileRulesResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -532,6 +536,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("DeleteBankProfile")),
 			connect.WithClientOptions(opts...),
 		),
+		generateBankProfileRules: connect.NewClient[v1.GenerateBankProfileRulesRequest, v1.GenerateBankProfileRulesResponse](
+			httpClient,
+			baseURL+LedgerServiceGenerateBankProfileRulesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GenerateBankProfileRules")),
+			connect.WithClientOptions(opts...),
+		),
 		previewImport: connect.NewClient[v1.PreviewImportRequest, v1.PreviewImportResponse](
 			httpClient,
 			baseURL+LedgerServicePreviewImportProcedure,
@@ -781,6 +791,7 @@ type ledgerServiceClient struct {
 	getBankProfileContent            *connect.Client[v1.GetBankProfileContentRequest, v1.GetBankProfileContentResponse]
 	updateBankProfile                *connect.Client[v1.UpdateBankProfileRequest, v1.UpdateBankProfileResponse]
 	deleteBankProfile                *connect.Client[v1.DeleteBankProfileRequest, v1.DeleteBankProfileResponse]
+	generateBankProfileRules         *connect.Client[v1.GenerateBankProfileRulesRequest, v1.GenerateBankProfileRulesResponse]
 	previewImport                    *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
 	importTransactions               *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
 	getImportedTransactions          *connect.Client[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse]
@@ -986,6 +997,11 @@ func (c *ledgerServiceClient) UpdateBankProfile(ctx context.Context, req *connec
 // DeleteBankProfile calls float.v1.LedgerService.DeleteBankProfile.
 func (c *ledgerServiceClient) DeleteBankProfile(ctx context.Context, req *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error) {
 	return c.deleteBankProfile.CallUnary(ctx, req)
+}
+
+// GenerateBankProfileRules calls float.v1.LedgerService.GenerateBankProfileRules.
+func (c *ledgerServiceClient) GenerateBankProfileRules(ctx context.Context, req *connect.Request[v1.GenerateBankProfileRulesRequest]) (*connect.Response[v1.GenerateBankProfileRulesResponse], error) {
+	return c.generateBankProfileRules.CallUnary(ctx, req)
 }
 
 // PreviewImport calls float.v1.LedgerService.PreviewImport.
@@ -1200,6 +1216,7 @@ type LedgerServiceHandler interface {
 	GetBankProfileContent(context.Context, *connect.Request[v1.GetBankProfileContentRequest]) (*connect.Response[v1.GetBankProfileContentResponse], error)
 	UpdateBankProfile(context.Context, *connect.Request[v1.UpdateBankProfileRequest]) (*connect.Response[v1.UpdateBankProfileResponse], error)
 	DeleteBankProfile(context.Context, *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error)
+	GenerateBankProfileRules(context.Context, *connect.Request[v1.GenerateBankProfileRulesRequest]) (*connect.Response[v1.GenerateBankProfileRulesResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -1451,6 +1468,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceDeleteBankProfileProcedure,
 		svc.DeleteBankProfile,
 		connect.WithSchema(ledgerServiceMethods.ByName("DeleteBankProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceGenerateBankProfileRulesHandler := connect.NewUnaryHandler(
+		LedgerServiceGenerateBankProfileRulesProcedure,
+		svc.GenerateBankProfileRules,
+		connect.WithSchema(ledgerServiceMethods.ByName("GenerateBankProfileRules")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServicePreviewImportHandler := connect.NewUnaryHandler(
@@ -1733,6 +1756,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceUpdateBankProfileHandler.ServeHTTP(w, r)
 		case LedgerServiceDeleteBankProfileProcedure:
 			ledgerServiceDeleteBankProfileHandler.ServeHTTP(w, r)
+		case LedgerServiceGenerateBankProfileRulesProcedure:
+			ledgerServiceGenerateBankProfileRulesHandler.ServeHTTP(w, r)
 		case LedgerServicePreviewImportProcedure:
 			ledgerServicePreviewImportHandler.ServeHTTP(w, r)
 		case LedgerServiceImportTransactionsProcedure:
@@ -1946,6 +1971,10 @@ func (UnimplementedLedgerServiceHandler) UpdateBankProfile(context.Context, *con
 
 func (UnimplementedLedgerServiceHandler) DeleteBankProfile(context.Context, *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeleteBankProfile is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GenerateBankProfileRules(context.Context, *connect.Request[v1.GenerateBankProfileRulesRequest]) (*connect.Response[v1.GenerateBankProfileRulesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GenerateBankProfileRules is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error) {

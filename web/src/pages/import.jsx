@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useReactTable,
   getCoreRowModel,
@@ -152,6 +152,16 @@ function CreateProfileModal({ open, onCreated, onClose }) {
   const [rulesContent, setRulesContent] = useState(buildRulesContent({}));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [csvFileBytes, setCsvFileBytes] = useState(null);
+  const [csvFileName, setCsvFileName] = useState("");
+  const fileInputRef = useRef(null);
+
+  const generateRulesMutation = useMutation({
+    mutationFn: ({ csvData, account1 }) =>
+      ledgerClient.generateBankProfileRules({ csvData, account1: account1 ?? "" }),
+    onSuccess: (res) => setRulesContent(new TextDecoder().decode(res.rulesContent)),
+    onError: (err) => setError(err),
+  });
 
   const { data: declarationsData } = useQuery({
     queryKey: queryKeys.accountDeclarations(),
@@ -169,7 +179,10 @@ function CreateProfileModal({ open, onCreated, onClose }) {
     setDateFormat("%Y-%m-%d");
     setRulesContent(buildRulesContent({}));
     setError(null);
-  }, [open]);
+    setCsvFileBytes(null);
+    setCsvFileName("");
+    generateRulesMutation.reset();
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!sampleCsv.trim()) {
@@ -190,12 +203,32 @@ function CreateProfileModal({ open, onCreated, onClose }) {
     }
   }, [sampleCsv]);
 
+  async function handleFileSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    setCsvFileBytes(bytes);
+    // Also populate the sample textarea so the column mapping UI stays visible.
+    const text = new TextDecoder().decode(bytes);
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    setSampleCsv(lines.slice(0, 3).join("\n"));
+    // Reset file input so the same file can be re-selected if needed.
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   function handleGenerateRules() {
-    setRulesContent(buildRulesContent({ account, columnMappings, dateFormat }));
+    if (csvFileBytes) {
+      generateRulesMutation.mutate({ csvData: csvFileBytes, account1: account });
+    } else {
+      setRulesContent(buildRulesContent({ account, columnMappings, dateFormat }));
+    }
   }
 
   const rulesFilePath = slugifyProfileName(name);
   const hasCsvColumns = parsedRows.length > 0 && columnMappings.length > 0;
+  const generatingRules = generateRulesMutation.isPending;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -255,6 +288,34 @@ function CreateProfileModal({ open, onCreated, onClose }) {
             </FormField>
           </FormRow>
 
+          {/* CSV file upload */}
+          <FormField
+            label="Upload CSV File"
+            hint="upload your bank's CSV to auto-generate rules, or paste sample rows below"
+          >
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="size-3.5 mr-1.5" />
+                {csvFileName || "Choose file…"}
+              </Button>
+              {csvFileName && (
+                <span className="text-xs text-muted-foreground truncate max-w-48">{csvFileName}</span>
+              )}
+            </div>
+          </FormField>
+
           {/* CSV column mapping */}
           <FormField
             label="CSV Column Mapping"
@@ -308,22 +369,31 @@ function CreateProfileModal({ open, onCreated, onClose }) {
                   />
                 </FormField>
                 <div className="flex items-end">
-                  <Button type="button" size="sm" variant="secondary" onClick={handleGenerateRules}>
-                    Generate Rules
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleGenerateRules}
+                    isLoading={generatingRules}
+                    loadingText="Generating…"
+                  >
+                    {csvFileBytes ? "Generate Rules from File" : "Generate Rules"}
                   </Button>
                 </div>
               </FormRow>
             </div>
           )}
-          {!hasCsvColumns && account && (
+          {!hasCsvColumns && (account || csvFileBytes) && (
             <Button
               type="button"
               size="sm"
               variant="secondary"
               className="self-start"
               onClick={handleGenerateRules}
+              isLoading={generatingRules}
+              loadingText="Generating…"
             >
-              Generate Rules from Account
+              {csvFileBytes ? "Generate Rules from File" : "Generate Rules from Account"}
             </Button>
           )}
 
