@@ -170,6 +170,13 @@ function CreateProfileModal({ open, onCreated, onClose }) {
     enabled: open,
   });
 
+  const { data: aiConfigData } = useQuery({
+    queryKey: queryKeys.aiConfig(),
+    queryFn: () => ledgerClient.getAIConfig({}),
+    enabled: open,
+  });
+  const aiEnabled = aiConfigData?.enabled ?? false;
+
   useEffect(() => {
     if (!open) return;
     setName("");
@@ -318,7 +325,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
             </div>
           </FormField>
 
-          {csvFileBytes && (
+          {csvFileBytes && aiEnabled && (
             <FormField
               label="Instructions for AI"
               hint="optional"
@@ -394,7 +401,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
                     isLoading={generatingRules}
                     loadingText="Generating…"
                   >
-                    {csvFileBytes ? "Generate Rules from File" : "Generate Rules"}
+                    {csvFileBytes && aiEnabled ? "Generate Rules with AI" : "Generate Rules"}
                   </Button>
                 </div>
               </FormRow>
@@ -410,7 +417,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
               isLoading={generatingRules}
               loadingText="Generating…"
             >
-              {csvFileBytes ? "Generate Rules from File" : "Generate Rules from Account"}
+              {csvFileBytes && aiEnabled ? "Generate Rules with AI" : csvFileBytes ? "Generate Rules from File" : "Generate Rules from Account"}
             </Button>
           )}
 

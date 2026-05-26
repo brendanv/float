@@ -398,8 +398,8 @@ test("import page - create profile modal with file upload and generated rules", 
   });
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/import-create-profile-modal-file-upload.png", fullPage: true });
-  // Click "Generate Rules from File" to trigger backend call (mocked)
-  await page.locator('button:has-text("Generate Rules from File")').click();
+  // Click "Generate Rules with AI" to trigger backend call (mocked)
+  await page.locator('button:has-text("Generate Rules")').click();
   await page.waitForTimeout(500);
   // Scroll the dialog to the bottom to show the generated rules textarea
   const dialog = page.getByRole("dialog");
