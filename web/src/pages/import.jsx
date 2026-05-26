@@ -250,7 +250,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent size="lg" className="max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg" className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Create Bank Profile</DialogTitle>
         </DialogHeader>
@@ -291,7 +291,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
           {/* CSV file upload */}
           <FormField
             label="Upload CSV File"
-            hint="upload your bank's CSV to auto-generate rules, or paste sample rows below"
+            description="Upload to auto-generate rules, or paste sample rows in the column mapping below"
           >
             <div className="flex items-center gap-2">
               <input
