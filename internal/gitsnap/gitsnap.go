@@ -6,19 +6,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v5"
+	gogitcfg "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 )
 
 type Repo struct {
-	dir  string
-	repo *git.Repository
+	dir       string
+	repo      *git.Repository
+	pushAuth  transport.AuthMethod
+	pushCh    chan struct{} // buffered(1); nil until SetRemote is called
+	closeCh   chan struct{} // closed to stop the push goroutine
+	closeOnce sync.Once
 }
 
 const maxCommitMessageLen = 180
@@ -94,6 +102,73 @@ func writeGitignore(dir string) error {
 	return os.WriteFile(path, []byte("config.toml\nfloat.key\n"), 0600)
 }
 
+// SetRemote configures the "origin" remote and starts a background push goroutine.
+// After each successful Commit or Restore, a push to the remote is enqueued.
+// Pushes use Force: true so the remote mirrors local state even after a Restore.
+// auth may be nil for unauthenticated transports (e.g. local file:// repos in tests).
+func (r *Repo) SetRemote(url string, auth transport.AuthMethod) error {
+	cfg, err := r.repo.Config()
+	if err != nil {
+		return fmt.Errorf("gitsnap: set remote: read config: %w", err)
+	}
+	cfg.Remotes["origin"] = &gogitcfg.RemoteConfig{
+		Name: "origin",
+		URLs: []string{url},
+	}
+	if err := r.repo.SetConfig(cfg); err != nil {
+		return fmt.Errorf("gitsnap: set remote: write config: %w", err)
+	}
+	r.pushAuth = auth
+	r.pushCh = make(chan struct{}, 1)
+	r.closeCh = make(chan struct{})
+	go r.runPushLoop()
+	return nil
+}
+
+// Close stops the background push goroutine. Idempotent and safe to call even
+// if SetRemote was never called.
+func (r *Repo) Close() {
+	if r.closeCh == nil {
+		return
+	}
+	r.closeOnce.Do(func() { close(r.closeCh) })
+}
+
+func (r *Repo) enqueuePush() {
+	if r.pushCh == nil {
+		return
+	}
+	select {
+	case r.pushCh <- struct{}{}:
+	default:
+	}
+}
+
+func (r *Repo) runPushLoop() {
+	for {
+		select {
+		case <-r.closeCh:
+			return
+		case <-r.pushCh:
+			if err := r.doPush(context.Background()); err != nil {
+				slog.Warn("gitsnap: push failed", "error", err)
+			}
+		}
+	}
+}
+
+func (r *Repo) doPush(ctx context.Context) error {
+	err := r.repo.PushContext(ctx, &git.PushOptions{
+		RemoteName: "origin",
+		Auth:       r.pushAuth,
+		Force:      true,
+	})
+	if errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return nil
+	}
+	return err
+}
+
 func (r *Repo) Commit(_ context.Context, msg string) error {
 	wt, err := r.repo.Worktree()
 	if err != nil {
@@ -112,6 +187,7 @@ func (r *Repo) Commit(_ context.Context, msg string) error {
 	if _, err := wt.Commit(limitCommitMessage(msg), &git.CommitOptions{Author: floatSignature()}); err != nil {
 		return fmt.Errorf("gitsnap: commit: %w", err)
 	}
+	r.enqueuePush()
 	return nil
 }
 
@@ -189,6 +265,7 @@ func (r *Repo) Restore(_ context.Context, hash string) error {
 			return fmt.Errorf("gitsnap: restore: restore %s: %w", name, err)
 		}
 	}
+	r.enqueuePush()
 	return nil
 }
 

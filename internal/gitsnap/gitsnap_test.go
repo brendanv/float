@@ -5,6 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	gogit "github.com/go-git/go-git/v5"
+	gogitmem "github.com/go-git/go-git/v5/storage/memory"
+	gogitclient "github.com/go-git/go-git/v5/plumbing/transport/client"
+	gogitserver "github.com/go-git/go-git/v5/plumbing/transport/server"
 )
 
 func TestNew_InitializesRepo(t *testing.T) {
@@ -539,4 +545,178 @@ func TestRecoverUncommitted_CleanTree(t *testing.T) {
 	if len(snaps) != 1 {
 		t.Errorf("expected 1 snapshot, got %d", len(snaps))
 	}
+}
+
+// installInMemRemote installs a custom transport scheme backed by a memory
+// storage so tests can push/fetch without the git binary or network.
+// Returns the remote URL and the underlying storage for post-push inspection.
+// Registers a t.Cleanup to restore the previous protocol state.
+func installInMemRemote(t *testing.T) (remoteURL string, storer *gogitmem.Storage) {
+	t.Helper()
+	const scheme = "inmemtest"
+	const url = scheme + "://float-test"
+	storer = gogitmem.NewStorage()
+	// Initialize as a bare repo so the receive-pack server can store refs.
+	if _, err := gogit.Init(storer, nil); err != nil {
+		t.Fatalf("init in-memory remote: %v", err)
+	}
+	loader := gogitserver.MapLoader{url: storer}
+	old := gogitclient.Protocols[scheme]
+	gogitclient.InstallProtocol(scheme, gogitserver.NewClient(loader))
+	t.Cleanup(func() {
+		if old == nil {
+			delete(gogitclient.Protocols, scheme)
+		} else {
+			gogitclient.InstallProtocol(scheme, old)
+		}
+	})
+	return url, storer
+}
+
+// waitForRemoteCommit polls the remote storer until it has at least one commit
+// or the deadline passes.
+func waitForRemoteCommit(t *testing.T, storer *gogitmem.Storage) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		r, err := gogit.Open(storer, nil)
+		if err == nil {
+			if _, err := r.Head(); err == nil {
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for push to remote")
+}
+
+func TestSetRemote_PushAfterCommit(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	remoteURL, storer := installInMemRemote(t)
+	if err := repo.SetRemote(remoteURL, nil); err != nil {
+		t.Fatalf("SetRemote: %v", err)
+	}
+	t.Cleanup(repo.Close)
+
+	if err := os.WriteFile(filepath.Join(dir, "test.journal"), []byte("hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "test push"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	// Wait for the background goroutine to complete the push.
+	waitForRemoteCommit(t, storer)
+
+	snaps, _ := repo.List(ctx, 1)
+	r, _ := gogit.Open(storer, nil)
+	head, _ := r.Head()
+	if head.Hash().String() != snaps[0].Hash {
+		t.Errorf("remote HEAD %s != local HEAD %s", head.Hash(), snaps[0].Hash)
+	}
+}
+
+func TestSetRemote_NoPushOnCleanTree(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	remoteURL, _ := installInMemRemote(t)
+	if err := repo.SetRemote(remoteURL, nil); err != nil {
+		t.Fatalf("SetRemote: %v", err)
+	}
+	t.Cleanup(repo.Close)
+
+	// Commit on clean tree is a no-op; no push should be enqueued.
+	if err := repo.Commit(ctx, "no-op"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	// Channel should be empty.
+	select {
+	case <-repo.pushCh:
+		t.Error("push was enqueued for a clean-tree no-op commit")
+	default:
+	}
+}
+
+func TestSetRemote_PushAfterRestore(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	journalPath := filepath.Join(dir, "main.journal")
+	if err := os.WriteFile(journalPath, []byte("version-A"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "A"); err != nil {
+		t.Fatalf("Commit A: %v", err)
+	}
+	snapsA, _ := repo.List(ctx, 1)
+	hashA := snapsA[0].Hash
+
+	if err := os.WriteFile(journalPath, []byte("version-B"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "B"); err != nil {
+		t.Fatalf("Commit B: %v", err)
+	}
+
+	remoteURL, storer := installInMemRemote(t)
+	if err := repo.SetRemote(remoteURL, nil); err != nil {
+		t.Fatalf("SetRemote: %v", err)
+	}
+	t.Cleanup(repo.Close)
+
+	if err := repo.Restore(ctx, hashA); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	// Restore enqueues a push with Force:true so remote reflects the reverted HEAD.
+	waitForRemoteCommit(t, storer)
+
+	r, _ := gogit.Open(storer, nil)
+	head, _ := r.Head()
+	if head.Hash().String() != hashA {
+		t.Errorf("remote HEAD %s != restored hash %s", head.Hash(), hashA)
+	}
+}
+
+func TestClose_Idempotent(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	remoteURL, _ := installInMemRemote(t)
+	if err := repo.SetRemote(remoteURL, nil); err != nil {
+		t.Fatalf("SetRemote: %v", err)
+	}
+
+	// Should not panic when called multiple times.
+	repo.Close()
+	repo.Close()
+}
+
+func TestClose_NoRemote(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// Close without SetRemote must be a no-op.
+	repo.Close()
 }

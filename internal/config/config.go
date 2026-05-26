@@ -48,6 +48,12 @@ type StripeConfig struct {
 	LinkedAccounts     []StripeLinkedAccount `toml:"linked_accounts"`
 }
 
+type GitConfig struct {
+	RemoteURL  string `toml:"remote_url"`   // empty = push disabled
+	AuthToken  string `toml:"auth_token"`   // HTTPS personal access token
+	SSHKeyPath string `toml:"ssh_key_path"` // path to SSH private key; empty = ~/.ssh/id_rsa
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	Users        []User             `toml:"users"`
@@ -55,6 +61,7 @@ type Config struct {
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 	AI           AIConfig           `toml:"ai"`
 	Stripe       StripeConfig       `toml:"stripe"`
+	Git          GitConfig          `toml:"git"`
 }
 
 // Load parses config.toml at path and returns a *Config.

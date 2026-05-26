@@ -89,6 +89,19 @@ func main() {
 	if recoverErr := snap.RecoverUncommitted(context.Background()); recoverErr != nil {
 		slog.Warn("gitsnap: recover uncommitted", "error", recoverErr)
 	}
+	if cfg.Git.RemoteURL != "" {
+		auth, err := buildGitAuth(cfg.Git)
+		if err != nil {
+			slog.Error("gitsnap: build git auth", "error", err)
+			os.Exit(1)
+		}
+		if err := snap.SetRemote(cfg.Git.RemoteURL, auth); err != nil {
+			slog.Error("gitsnap: set remote", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("gitsnap: remote push configured", "url", cfg.Git.RemoteURL)
+		defer snap.Close()
+	}
 	lock.SetSnap(snap)
 
 	var backfillCount int
