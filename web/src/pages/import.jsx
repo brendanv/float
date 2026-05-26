@@ -154,11 +154,12 @@ function CreateProfileModal({ open, onCreated, onClose }) {
   const [error, setError] = useState(null);
   const [csvFileBytes, setCsvFileBytes] = useState(null);
   const [csvFileName, setCsvFileName] = useState("");
+  const [userInstructions, setUserInstructions] = useState("");
   const fileInputRef = useRef(null);
 
   const generateRulesMutation = useMutation({
-    mutationFn: ({ csvData, account1 }) =>
-      ledgerClient.generateBankProfileRules({ csvData, account1: account1 ?? "" }),
+    mutationFn: ({ csvData, account1, userInstructions }) =>
+      ledgerClient.generateBankProfileRules({ csvData, account1: account1 ?? "", userInstructions: userInstructions ?? "" }),
     onSuccess: (res) => setRulesContent(new TextDecoder().decode(res.rulesContent)),
     onError: (err) => setError(err),
   });
@@ -181,6 +182,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
     setError(null);
     setCsvFileBytes(null);
     setCsvFileName("");
+    setUserInstructions("");
     generateRulesMutation.reset();
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -220,7 +222,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
 
   function handleGenerateRules() {
     if (csvFileBytes) {
-      generateRulesMutation.mutate({ csvData: csvFileBytes, account1: account });
+      generateRulesMutation.mutate({ csvData: csvFileBytes, account1: account, userInstructions });
     } else {
       setRulesContent(buildRulesContent({ account, columnMappings, dateFormat }));
     }
@@ -315,6 +317,21 @@ function CreateProfileModal({ open, onCreated, onClose }) {
               )}
             </div>
           </FormField>
+
+          {csvFileBytes && (
+            <FormField
+              label="Instructions for AI"
+              hint="optional"
+              description='Anything the AI should know about this CSV, e.g. "this is a brokerage account with BUY/SELL transactions for stocks"'
+            >
+              <Textarea
+                className="h-16 text-xs"
+                placeholder="e.g. amounts are always positive; negative sign is indicated by a separate Type column"
+                value={userInstructions}
+                onChange={(e) => setUserInstructions(e.target.value)}
+              />
+            </FormField>
+          )}
 
           {/* CSV column mapping */}
           <FormField

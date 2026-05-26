@@ -463,8 +463,9 @@ message DeleteBankProfileRequest {
 message DeleteBankProfileResponse {}
 
 message GenerateBankProfileRulesRequest {
-  bytes csv_data = 1;  // raw CSV file bytes (required)
-  string account1 = 2; // optional hledger account for this bank, e.g. "assets:checking"
+  bytes csv_data = 1;           // raw CSV file bytes (required)
+  string account1 = 2;          // optional hledger account for this bank, e.g. "assets:checking"
+  string user_instructions = 3; // optional free-text instructions passed to the AI (e.g. "this is a brokerage account with stock purchases")
 }
 
 message GenerateBankProfileRulesResponse {

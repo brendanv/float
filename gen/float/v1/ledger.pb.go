@@ -4864,11 +4864,12 @@ func (*DeleteBankProfileResponse) Descriptor() ([]byte, []int) {
 }
 
 type GenerateBankProfileRulesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CsvData       []byte                 `protobuf:"bytes,1,opt,name=csv_data,json=csvData,proto3" json:"csv_data,omitempty"` // raw CSV file bytes (required)
-	Account1      string                 `protobuf:"bytes,2,opt,name=account1,proto3" json:"account1,omitempty"`              // optional hledger account for this bank, e.g. "assets:checking"
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	CsvData          []byte                 `protobuf:"bytes,1,opt,name=csv_data,json=csvData,proto3" json:"csv_data,omitempty"`                            // raw CSV file bytes (required)
+	Account1         string                 `protobuf:"bytes,2,opt,name=account1,proto3" json:"account1,omitempty"`                                         // optional hledger account for this bank, e.g. "assets:checking"
+	UserInstructions string                 `protobuf:"bytes,3,opt,name=user_instructions,json=userInstructions,proto3" json:"user_instructions,omitempty"` // optional free-text instructions passed to the AI (e.g. "this is a brokerage account with stock purchases")
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GenerateBankProfileRulesRequest) Reset() {
@@ -4911,6 +4912,13 @@ func (x *GenerateBankProfileRulesRequest) GetCsvData() []byte {
 func (x *GenerateBankProfileRulesRequest) GetAccount1() string {
 	if x != nil {
 		return x.Account1
+	}
+	return ""
+}
+
+func (x *GenerateBankProfileRulesRequest) GetUserInstructions() string {
+	if x != nil {
+		return x.UserInstructions
 	}
 	return ""
 }
@@ -10082,10 +10090,11 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x18DeleteBankProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12*\n" +
 	"\x11delete_rules_file\x18\x02 \x01(\bR\x0fdeleteRulesFile\"\x1b\n" +
-	"\x19DeleteBankProfileResponse\"X\n" +
+	"\x19DeleteBankProfileResponse\"\x85\x01\n" +
 	"\x1fGenerateBankProfileRulesRequest\x12\x19\n" +
 	"\bcsv_data\x18\x01 \x01(\fR\acsvData\x12\x1a\n" +
-	"\baccount1\x18\x02 \x01(\tR\baccount1\"G\n" +
+	"\baccount1\x18\x02 \x01(\tR\baccount1\x12+\n" +
+	"\x11user_instructions\x18\x03 \x01(\tR\x10userInstructions\"G\n" +
 	" GenerateBankProfileRulesResponse\x12#\n" +
 	"\rrules_content\x18\x01 \x01(\fR\frulesContent\"T\n" +
 	"\x14PreviewImportRequest\x12\x19\n" +

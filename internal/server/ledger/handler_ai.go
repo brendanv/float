@@ -529,10 +529,16 @@ func (h *Handler) GenerateBankProfileRules(
 			csvBuf.WriteString(strings.Join(row, ",") + "\n")
 		}
 
-		userGuidelines := ""
-		if h.cfg != nil {
-			userGuidelines = h.cfg.AI.Prompt
+		// Prepend per-request user instructions before the global AI guidelines
+		// so the specific context takes precedence.
+		var guidelinesParts []string
+		if v := strings.TrimSpace(req.Msg.UserInstructions); v != "" {
+			guidelinesParts = append(guidelinesParts, v)
 		}
+		if h.cfg != nil && h.cfg.AI.Prompt != "" {
+			guidelinesParts = append(guidelinesParts, h.cfg.AI.Prompt)
+		}
+		userGuidelines := strings.Join(guidelinesParts, "\n\n")
 
 		directives, err := aiCl.SuggestCSVRuleDirectives(ctx, csvBuf.String(), info.FieldNames, userGuidelines)
 		if err != nil {
