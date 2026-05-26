@@ -380,6 +380,34 @@ test("import page - create profile modal with CSV wizard", async ({ page }) => {
   await page.screenshot({ path: "test-results/import-create-profile-modal-wizard.png", fullPage: true });
 });
 
+test("import page - create profile modal with file upload and generated rules", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  await page.locator(".lucide-plus").click();
+  await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Fill profile name and account
+  await page.fill('input[placeholder="e.g. Chase Checking"]', "Chase Checking");
+  // Upload a mock CSV file via the hidden file input inside the dialog
+  const fileInput = page.getByRole("dialog").locator('input[type="file"]');
+  await fileInput.setInputFiles({
+    name: "chase-checking.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Date,Description,Amount\n2026-04-01,AMAZON.COM,-45.00\n2026-04-02,PAYROLL DIRECT DEPOSIT,2000.00\n"),
+  });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/import-create-profile-modal-file-upload.png", fullPage: true });
+  // Click "Generate Rules from File" to trigger backend call (mocked)
+  await page.locator('button:has-text("Generate Rules from File")').click();
+  await page.waitForTimeout(500);
+  // Scroll the dialog to the bottom to show the generated rules textarea
+  const dialog = page.getByRole("dialog");
+  await dialog.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/import-create-profile-modal-generated-rules.png", fullPage: true });
+});
+
 async function loadImportPreview(page) {
   await page.goto("/#/import");
   await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});

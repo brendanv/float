@@ -1003,6 +1003,12 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "DeleteBankProfile":
         body = {};
         break;
+      case "GenerateBankProfileRules": {
+        const account1 = reqBody.account1 || "assets:checking";
+        const generatedRules = `skip 1\nfields date, description, amount\ndate-format %Y-%m-%d\naccount1 ${account1}\ncurrency USD\n\n# Add conditional rules if needed:\n# if PATTERN\n#   account2 expenses:category\n`;
+        body = { rulesContent: btoa(generatedRules) };
+        break;
+      }
       case "PreviewImport":
         body = { candidates: mockImportCandidates };
         break;
