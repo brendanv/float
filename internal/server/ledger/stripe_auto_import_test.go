@@ -192,3 +192,63 @@ func TestRunDailyStripeImport_NoDuplicateWhenRuleApplied(t *testing.T) {
 		t.Errorf("journal has %d copies of fca_txn_rule1, want 1", len(txns))
 	}
 }
+
+// TestRunDailyStripeImport_SkipsPendingTransactions verifies that pending Stripe transactions
+// are never written to the journal — only posted transactions are imported.
+func TestRunDailyStripeImport_SkipsPendingTransactions(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	stripeAutoImportMockAPI(t, "fca_pend", []map[string]any{
+		{
+			"id": "fca_txn_settled", "object": "financial_connections.transaction",
+			"account": "fca_pend", "amount": int64(-4500), "currency": "usd",
+			"description": "COFFEE SHOP", "transacted_at": int64(1746835200),
+			"status": "posted", "livemode": false,
+		},
+		{
+			"id": "fca_txn_pending", "object": "financial_connections.transaction",
+			"account": "fca_pend", "amount": int64(-1000), "currency": "usd",
+			"description": "GAS STATION", "transacted_at": int64(1746921600),
+			"status": "pending", "livemode": false,
+		},
+	})
+
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 804, NumTxns: 1})
+	hl, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+
+	cfg := &config.Config{
+		Stripe: config.StripeConfig{
+			LinkedAccounts: []config.StripeLinkedAccount{
+				{StripeAccountID: "fca_pend", HledgerAccount: "assets:checking"},
+			},
+		},
+	}
+	h := mustHandlerWithConfig(t, dir, cfg)
+
+	imported, errs := serverledger.ExportedRunDailyStripeImport(h, t.Context())
+	if len(errs) != 0 {
+		t.Fatalf("auto-import errors: %v", errs)
+	}
+	if imported != 1 {
+		t.Errorf("imported = %d, want 1 (only the posted transaction)", imported)
+	}
+
+	settled, err := hl.Transactions(t.Context(), "tag:float-stripe-txn=fca_txn_settled")
+	if err != nil {
+		t.Fatalf("query settled transaction: %v", err)
+	}
+	if len(settled) != 1 {
+		t.Errorf("journal has %d copies of fca_txn_settled, want 1", len(settled))
+	}
+
+	pending, err := hl.Transactions(t.Context(), "tag:float-stripe-txn=fca_txn_pending")
+	if err != nil {
+		t.Fatalf("query pending transaction: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Errorf("journal has %d copies of fca_txn_pending, want 0 (pending must not be imported)", len(pending))
+	}
+}

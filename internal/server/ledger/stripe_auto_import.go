@@ -205,8 +205,13 @@ func (h *Handler) importFetchedStripeTransactions(
 	fpSet map[string]bool,
 	stripeTxnSet map[string]bool,
 ) (int, error) {
+	hasPending := false
 	var newTxns []stripeClient.Transaction
 	for _, st := range stripeTxns {
+		if st.Status == "pending" {
+			hasPending = true
+			continue
+		}
 		if stripeTxnSet[st.ID] {
 			continue
 		}
@@ -237,7 +242,7 @@ func (h *Handler) importFetchedStripeTransactions(
 			for i, la := range h.cfg.Stripe.LinkedAccounts {
 				if la.StripeAccountID == linked.StripeAccountID {
 					h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-					if newRefreshID != "" {
+					if newRefreshID != "" && !hasPending {
 						h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
 					}
 					break
@@ -265,7 +270,7 @@ func (h *Handler) importFetchedStripeTransactions(
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
 			if la.StripeAccountID == linked.StripeAccountID {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-				if newRefreshID != "" {
+				if newRefreshID != "" && !hasPending {
 					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
 				}
 				break

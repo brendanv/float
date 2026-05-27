@@ -736,8 +736,8 @@ func TestFetchStripeTransactions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FetchStripeTransactions: %v", err)
 		}
-		if len(resp.Msg.Candidates) != 2 {
-			t.Fatalf("got %d candidates, want 2", len(resp.Msg.Candidates))
+		if len(resp.Msg.Candidates) != 1 {
+			t.Fatalf("got %d candidates, want 1 (pending excluded)", len(resp.Msg.Candidates))
 		}
 		for _, c := range resp.Msg.Candidates {
 			if c.Transaction == nil {
@@ -795,6 +795,58 @@ func TestFetchStripeTransactions(t *testing.T) {
 			t.Errorf("candidate.IsDuplicate = false, want true")
 		}
 	})
+}
+
+func TestFetchStripeTransactions_ExcludesPending(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
+		writeStripeJSON(w, map[string]any{"id": "fca_abc", "object": "financial_connections.account", "status": "active", "livemode": false})
+	})
+	mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+		writeStripeJSON(w, map[string]any{
+			"object": "list",
+			"data": []any{
+				map[string]any{
+					"id": "fca_txn_excl_posted", "object": "financial_connections.transaction",
+					"account": "fca_abc", "amount": int64(5000), "currency": "usd",
+					"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+					"status": "posted", "livemode": false,
+				},
+				map[string]any{
+					"id": "fca_txn_excl_pending", "object": "financial_connections.transaction",
+					"account": "fca_abc", "amount": int64(1200), "currency": "usd",
+					"description": "GAS STATION", "transacted_at": int64(1746921600),
+					"status": "pending", "livemode": false,
+				},
+			},
+			"has_more": false, "url": "/v1/financial_connections/transactions",
+		})
+	})
+	mockStripeAPI(t, mux)
+
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 754, NumTxns: 1})
+	h := mustHandlerWithConfig(t, dir, &config.Config{
+		Stripe: config.StripeConfig{
+			LinkedAccounts: []config.StripeLinkedAccount{
+				{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+			},
+		},
+	})
+
+	resp, err := h.FetchStripeTransactions(t.Context(), connect.NewRequest(&floatv1.FetchStripeTransactionsRequest{
+		StripeAccountId: "fca_abc",
+	}))
+	if err != nil {
+		t.Fatalf("FetchStripeTransactions: %v", err)
+	}
+	if len(resp.Msg.Candidates) != 1 {
+		t.Fatalf("got %d candidates, want 1 (pending transaction must be excluded)", len(resp.Msg.Candidates))
+	}
+	if resp.Msg.Candidates[0].SourceId != "fca_txn_excl_posted" {
+		t.Errorf("candidate SourceId = %q, want %q", resp.Msg.Candidates[0].SourceId, "fca_txn_excl_posted")
+	}
 }
 
 func TestImportStripeTransactions(t *testing.T) {
