@@ -119,9 +119,8 @@ func TestRunDailyStripeImport_NoLinkedAccounts(t *testing.T) {
 
 // TestRunDailyStripeImport_NoDuplicateWhenRuleApplied verifies that the auto-import does
 // not re-import a transaction that was previously imported via the manual flow with a rule
-// applied (which modifies the description and/or account, changing its fingerprint).
-// Before the fix, the auto-import computed fingerprints without rules, so the modified
-// fingerprint in the journal would not match and the transaction would be duplicated.
+// applied (which modifies the description and/or account). Dedup is keyed on the Stripe
+// transaction id, so a rule-modified journal entry is still recognized as already imported.
 func TestRunDailyStripeImport_NoDuplicateWhenRuleApplied(t *testing.T) {
 	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
 

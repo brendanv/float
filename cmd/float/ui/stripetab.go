@@ -150,11 +150,10 @@ func (m *StripeTab) resizePreviewColumns() {
 	dateW := 12
 	amtW := 12
 	ruleW := 5
-	dupW := 5
 	var cols []table.Column
 	if m.previewIsAll {
 		acctW := 18
-		usedFixed := selW + acctW + dateW + amtW + ruleW + dupW + 6
+		usedFixed := selW + acctW + dateW + amtW + ruleW + 5
 		descW := m.width - usedFixed
 		if descW < 10 {
 			descW = 10
@@ -166,10 +165,9 @@ func (m *StripeTab) resizePreviewColumns() {
 			{Title: "Description", Width: descW},
 			{Title: "Amount", Width: amtW},
 			{Title: "Rule", Width: ruleW},
-			{Title: "Dup", Width: dupW},
 		}
 	} else {
-		usedFixed := selW + dateW + amtW + ruleW + dupW + 5
+		usedFixed := selW + dateW + amtW + ruleW + 4
 		descW := m.width - usedFixed
 		if descW < 10 {
 			descW = 10
@@ -180,7 +178,6 @@ func (m *StripeTab) resizePreviewColumns() {
 			{Title: "Description", Width: descW},
 			{Title: "Amount", Width: amtW},
 			{Title: "Rule", Width: ruleW},
-			{Title: "Dup", Width: dupW},
 		}
 	}
 	m.previewTable.SetColumns(cols)
@@ -423,16 +420,7 @@ func (m StripeTab) updatePreview(msg tea.KeyMsg) (StripeTab, tea.Cmd) {
 		}
 		m.refreshPreviewRows()
 		return m, nil
-	case "a":
-		m.selected = map[int]bool{}
-		for i, r := range m.candidates {
-			if !r.candidate.IsDuplicate {
-				m.selected[i] = true
-			}
-		}
-		m.refreshPreviewRows()
-		return m, nil
-	case "A":
+	case "a", "A":
 		m.selected = map[int]bool{}
 		for i := range m.candidates {
 			m.selected[i] = true
@@ -719,9 +707,7 @@ func (m *StripeTab) setPreviewSingle(account *floatv1.StripeLinkedAccount, cands
 	m.selected = map[int]bool{}
 	for i, c := range cands {
 		m.candidates = append(m.candidates, stripePreviewRow{account: account, candidate: c})
-		if !c.IsDuplicate {
-			m.selected[i] = true
-		}
+		m.selected[i] = true
 	}
 	m.refreshPreviewRows()
 }
@@ -735,9 +721,7 @@ func (m *StripeTab) setPreviewAll(groups []*floatv1.AccountCandidates) {
 		for _, c := range g.Candidates {
 			idx := len(m.candidates)
 			m.candidates = append(m.candidates, stripePreviewRow{account: g.Account, candidate: c})
-			if !c.IsDuplicate {
-				m.selected[idx] = true
-			}
+			m.selected[idx] = true
 		}
 	}
 	m.refreshPreviewRows()
@@ -753,10 +737,6 @@ func (m *StripeTab) refreshPreviewRows() {
 		ruleMark := ""
 		if r.candidate.MatchedRuleId != "" {
 			ruleMark = "✓"
-		}
-		dupMark := ""
-		if r.candidate.IsDuplicate {
-			dupMark = "✓"
 		}
 		date := ""
 		desc := ""
@@ -774,10 +754,9 @@ func (m *StripeTab) refreshPreviewRows() {
 				desc,
 				amt,
 				ruleMark,
-				dupMark,
 			}
 		} else {
-			rows[i] = table.Row{mark, date, desc, amt, ruleMark, dupMark}
+			rows[i] = table.Row{mark, date, desc, amt, ruleMark}
 		}
 	}
 	m.previewTable.SetRows(rows)
@@ -844,7 +823,6 @@ func newStripePreviewTable(st Styles, withAccount bool) table.Model {
 			{Title: "Description", Width: 30},
 			{Title: "Amount", Width: 12},
 			{Title: "Rule", Width: 5},
-			{Title: "Dup", Width: 5},
 		}
 	} else {
 		cols = []table.Column{
@@ -853,7 +831,6 @@ func newStripePreviewTable(st Styles, withAccount bool) table.Model {
 			{Title: "Description", Width: 40},
 			{Title: "Amount", Width: 12},
 			{Title: "Rule", Width: 5},
-			{Title: "Dup", Width: 5},
 		}
 	}
 	return table.New(

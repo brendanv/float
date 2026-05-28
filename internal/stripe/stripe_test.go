@@ -237,7 +237,7 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		txns, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", "")
+		txns, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
@@ -278,7 +278,7 @@ func TestListTransactions(t *testing.T) {
 		}
 	})
 
-	t.Run("with_refresh_id_sends_transaction_refresh_param", func(t *testing.T) {
+	t.Run("does not send a transaction_refresh filter param", func(t *testing.T) {
 		var gotQuery string
 		mux := http.NewServeMux()
 		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, r *http.Request) {
@@ -292,33 +292,7 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", "txnr_abc123")
-		if err != nil {
-			t.Fatalf("ListTransactions: %v", err)
-		}
-		if !strings.Contains(gotQuery, "transaction_refresh") {
-			t.Errorf("expected transaction_refresh in query params, got: %q", gotQuery)
-		}
-		if !strings.Contains(gotQuery, "txnr_abc123") {
-			t.Errorf("expected refresh ID txnr_abc123 in query params, got: %q", gotQuery)
-		}
-	})
-
-	t.Run("no_refresh_id_no_filter_param", func(t *testing.T) {
-		var gotQuery string
-		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, r *http.Request) {
-			gotQuery = r.URL.RawQuery
-			writeJSON(w, map[string]any{
-				"object":   "list",
-				"data":     []any{},
-				"has_more": false,
-				"url":      "/v1/financial_connections/transactions",
-			})
-		})
-		mockStripeBackend(t, mux)
-
-		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc", "")
+		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
@@ -425,55 +399,6 @@ func TestWaitForRefresh(t *testing.T) {
 		_, err := WaitForRefresh(ctx, nil, "sk_test_xxx", "fca_test_abc")
 		if err == nil {
 			t.Fatal("expected error from cancelled context, got nil")
-		}
-	})
-}
-
-func TestGetTransactionRefreshID(t *testing.T) {
-	t.Run("returns refresh ID from account", func(t *testing.T) {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, map[string]any{
-				"id":       "fca_test_abc",
-				"object":   "financial_connections.account",
-				"status":   "active",
-				"livemode": false,
-				"transaction_refresh": map[string]any{
-					"id":          "txnr_abc123",
-					"status":      "succeeded",
-					"last_attempted_at": int64(1746835200),
-				},
-			})
-		})
-		mockStripeBackend(t, mux)
-
-		id, err := GetTransactionRefreshID(context.Background(), "sk_test_xxx", "fca_test_abc")
-		if err != nil {
-			t.Fatalf("GetTransactionRefreshID: %v", err)
-		}
-		if id != "txnr_abc123" {
-			t.Errorf("id = %q, want %q", id, "txnr_abc123")
-		}
-	})
-
-	t.Run("returns empty string when TransactionRefresh is nil", func(t *testing.T) {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/financial_connections/accounts/fca_test_abc", func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, map[string]any{
-				"id":       "fca_test_abc",
-				"object":   "financial_connections.account",
-				"status":   "active",
-				"livemode": false,
-			})
-		})
-		mockStripeBackend(t, mux)
-
-		id, err := GetTransactionRefreshID(context.Background(), "sk_test_xxx", "fca_test_abc")
-		if err != nil {
-			t.Fatalf("GetTransactionRefreshID: %v", err)
-		}
-		if id != "" {
-			t.Errorf("id = %q, want empty string", id)
 		}
 	})
 }

@@ -775,22 +775,7 @@ export const mockStripeImportCandidates = [
       ],
       tags: {},
     },
-    isDuplicate: false,
     matchedRuleId: "ccdd3344",
-  },
-  {
-    transaction: {
-      fid: "",
-      date: "2026-05-09",
-      description: "WHOLE FOODS MARKET",
-      postings: [
-        { account: "assets:checking:chase", amounts: [{ commodity: "USD", quantity: "-87.43" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "87.43" }] },
-      ],
-      tags: {},
-    },
-    isDuplicate: true,
-    matchedRuleId: "eeff5566",
   },
   {
     transaction: {
@@ -803,7 +788,6 @@ export const mockStripeImportCandidates = [
       ],
       tags: {},
     },
-    isDuplicate: false,
     matchedRuleId: "",
   },
 ];
@@ -1170,9 +1154,6 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "ImportAllStripeTransactions":
         body = { importedCount: 3, transactions: [] };
-        break;
-      case "UpdateStripeAccountLastFetchedAt":
-        body = {};
         break;
       case "RefreshStripeAccount": {
         const acctId = reqBody.stripeAccountId || "fca_mock";

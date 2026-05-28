@@ -199,43 +199,6 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 	return connect.NewResponse(&floatv1.ListStripeLinkedAccountsResponse{Accounts: out}), nil
 }
 
-func (h *Handler) UpdateStripeAccountLastFetchedAt(ctx context.Context, req *connect.Request[floatv1.UpdateStripeAccountLastFetchedAtRequest]) (*connect.Response[floatv1.UpdateStripeAccountLastFetchedAtResponse], error) {
-	if h.cfg == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	if req.Msg.StripeAccountId == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
-	}
-	if req.Msg.LastFetchedAt != "" {
-		if _, err := time.Parse(time.RFC3339, req.Msg.LastFetchedAt); err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("last_fetched_at must be RFC3339: %w", err))
-		}
-	}
-	found := false
-	err := h.lock.Do(ctx, fmt.Sprintf("update stripe account last fetched at %s", req.Msg.StripeAccountId), func() error {
-		for i, a := range h.cfg.Stripe.LinkedAccounts {
-			if a.StripeAccountID == req.Msg.StripeAccountId {
-				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = req.Msg.LastFetchedAt
-				// Clearing the fetch date resets the fetch window; also clear the
-				// refresh ID so the next fetch retrieves full history.
-				if req.Msg.LastFetchedAt == "" {
-					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = ""
-				}
-				found = true
-				return config.Save(h.configPath, h.cfg)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to update last fetched at: %w", err))
-	}
-	if !found {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("account %s not found", req.Msg.StripeAccountId))
-	}
-	return connect.NewResponse(&floatv1.UpdateStripeAccountLastFetchedAtResponse{}), nil
-}
-
 func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[floatv1.UnlinkStripeAccountRequest]) (*connect.Response[floatv1.UnlinkStripeAccountResponse], error) {
 	logger := slogctx.FromContext(ctx)
 	if h.cfg == nil {
@@ -288,8 +251,8 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	logger.InfoContext(ctx, "fetch stripe transactions", "account", linked.StripeAccountID, "after_refresh_id", linked.LastTransactionRefreshID)
-	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
+	logger.InfoContext(ctx, "fetch stripe transactions", "account", linked.StripeAccountID)
+	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
@@ -300,14 +263,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
 	}
-	fpSet := make(map[string]bool, len(existing))
-	stripeTxnSet := make(map[string]bool)
-	for _, t := range existing {
-		fpSet[journal.TxnFingerprint(t)] = true
-		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
-			stripeTxnSet[id] = true
-		}
-	}
+	stripeTxnSet := importedStripeTxnIDs(existing)
 
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
@@ -317,7 +273,9 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 
 	candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
 	for _, st := range stripeTxns {
-		if st.Status == "pending" {
+		// Only settled transactions are importable; duplicates (by Stripe txn id) are
+		// hidden so the UI never shows them.
+		if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
 			continue
 		}
 		ht := stripeTransactionToHledger(st, linked.HledgerAccount)
@@ -337,8 +295,6 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 				}
 			}
 		}
-		// Fingerprint after rules so it matches the form written to disk by ImportStripeTransactions.
-		candidate.IsDuplicate = stripeTxnSet[st.ID] || fpSet[journal.TxnFingerprint(ht)]
 		candidate.Transaction = toProtoTransaction(ht)
 		candidates = append(candidates, candidate)
 	}
@@ -366,20 +322,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		return connect.NewError(connect.CodeNotFound, err)
 	}
 
-	// Capture the cursor in use for ListTransactions so the regression guard inside the
-	// lock can detect if a concurrent operation (e.g. daily auto-import) advanced it
-	// between our pre-fetch and lock acquisition.
-	fromRefreshID := linked.LastTransactionRefreshID
-
-	// Capture the current refresh ID before listing so that any refresh completing
-	// between these two calls doesn't advance the high-water mark past unseen transactions.
-	newRefreshID, err := stripeClient.GetTransactionRefreshID(ctx, secretKey, linked.StripeAccountID)
-	if err != nil {
-		logger.ErrorContext(ctx, "get transaction refresh id failed", "account", linked.StripeAccountID, "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to get Stripe refresh ID"))
-	}
-
-	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
+	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
 		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
@@ -401,33 +344,13 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
 		return connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
 	}
-	importedStripeTxnSet := make(map[string]bool)
-	for _, t := range existing {
-		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
-			importedStripeTxnSet[id] = true
-		}
-	}
+	importedStripeTxnSet := importedStripeTxnIDs(existing)
 
 	if h.afterImportPreFetch != nil {
 		h.afterImportPreFetch()
 	}
 
 	selectedIDs := req.Msg.StripeTransactionIds
-	selectedIDSet := make(map[string]bool, len(selectedIDs))
-	for _, id := range selectedIDs {
-		selectedIDSet[id] = true
-	}
-	// Only advance the high-water mark if every transaction in the current window is either
-	// already imported or explicitly selected. Skipped transactions must remain reachable
-	// on the next fetch.
-	allWindowCovered := true
-	for _, st := range stripeTxns {
-		if !importedStripeTxnSet[st.ID] && !selectedIDSet[st.ID] {
-			allWindowCovered = false
-			break
-		}
-	}
-
 	importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	total := int32(len(selectedIDs))
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
@@ -441,10 +364,8 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		if freshErr != nil {
 			return fmt.Errorf("refresh existing transactions: %w", freshErr)
 		}
-		for _, t := range freshExisting {
-			if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
-				importedStripeTxnSet[id] = true
-			}
+		for id := range importedStripeTxnIDs(freshExisting) {
+			importedStripeTxnSet[id] = true
 		}
 
 		for _, txnID := range selectedIDs {
@@ -455,7 +376,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			if !ok {
 				return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 			}
-			if st.Status == "pending" {
+			if !stripeTxnSettled(st) {
 				continue
 			}
 			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
@@ -467,6 +388,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 				return fmt.Errorf("write transaction %s: %w", txnID, writeErr)
 			}
 			importedFIDs = append(importedFIDs, fid)
+			importedStripeTxnSet[txnID] = true
 
 			if sendErr := stream.Send(&floatv1.ImportTransactionsResponse{
 				Payload: &floatv1.ImportTransactionsResponse_Progress{
@@ -483,13 +405,6 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
 			if la.StripeAccountID == linked.StripeAccountID {
 				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-				// Regression guard: only advance the cursor when it hasn't moved since our
-				// pre-fetch. A mismatch means a concurrent operation (e.g. daily auto-import)
-				// already advanced it; overwriting with our older newRefreshID would regress
-				// the high-water mark and cause already-processed transactions to re-surface.
-				if newRefreshID != "" && allWindowCovered && la.LastTransactionRefreshID == fromRefreshID {
-					h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = newRefreshID
-				}
 				break
 			}
 		}
@@ -535,14 +450,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
 	}
-	fpSet := make(map[string]bool, len(existing))
-	stripeTxnSet := make(map[string]bool)
-	for _, t := range existing {
-		fpSet[journal.TxnFingerprint(t)] = true
-		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
-			stripeTxnSet[id] = true
-		}
-	}
+	stripeTxnSet := importedStripeTxnIDs(existing)
 
 	rulesList, err := rules.Load(h.dataDir)
 	if err != nil {
@@ -566,8 +474,8 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 	for i, linked := range eligible {
 		i, linked := i, linked
 		g.Go(func() error {
-			logger.InfoContext(gctx, "fetch all: list stripe transactions", "account", linked.StripeAccountID, "after_refresh_id", linked.LastTransactionRefreshID)
-			stripeTxns, err := stripeClient.ListTransactions(gctx, secretKey, linked.StripeAccountID, linked.LastTransactionRefreshID)
+			logger.InfoContext(gctx, "fetch all: list stripe transactions", "account", linked.StripeAccountID)
+			stripeTxns, err := stripeClient.ListTransactions(gctx, secretKey, linked.StripeAccountID)
 			if err != nil {
 				logger.ErrorContext(gctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
 				return fmt.Errorf("failed to list transactions for account %s", linked.StripeAccountID)
@@ -575,7 +483,9 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 
 			candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
 			for _, st := range stripeTxns {
-				if st.Status == "pending" {
+				// Only settled transactions are importable; duplicates (by Stripe txn id)
+				// are hidden so the UI never shows them.
+				if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
 					continue
 				}
 				ht := stripeTransactionToHledger(st, linked.HledgerAccount)
@@ -593,7 +503,6 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 						}
 					}
 				}
-				candidate.IsDuplicate = stripeTxnSet[st.ID] || fpSet[journal.TxnFingerprint(ht)]
 				candidate.Transaction = toProtoTransaction(ht)
 				candidates = append(candidates, candidate)
 			}
@@ -652,57 +561,36 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
 		return connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
 	}
-	importedStripeTxnSet := make(map[string]bool)
-	for _, t := range existing {
-		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
-			importedStripeTxnSet[id] = true
-		}
-	}
+	importedStripeTxnSet := importedStripeTxnIDs(existing)
 
-	// Phase 1: pre-fetch all Stripe API data outside the lock. This keeps the lock
-	// free of network calls and lets us detect concurrent auto-import updates below.
-	//
-	// For each account we record:
-	//   fromRefreshID  — the LastTransactionRefreshID that was used as the ListTransactions
-	//                    filter. Storing this lets us detect if daily auto-import advanced
-	//                    the mark between our fetch and lock acquisition (regression guard).
-	//   newRefreshID   — the current refresh ID on Stripe (becomes the new high-water mark
-	//                    when the window is fully covered and no concurrent update occurred).
-	//   txns / txnByID — pre-fetched transaction list for this account.
+	// Phase 1: pre-fetch all Stripe API data outside the lock so the lock holds no
+	// network calls. The map is keyed by the canonical linked.StripeAccountID — never
+	// the raw sel.StripeAccountId — so any future tolerance in findLinkedAccount
+	// matching can't cause the prefetch and lock phases to disagree on which fetch
+	// belongs to which selection.
 	type acctFetch struct {
-		fromRefreshID string
-		newRefreshID  string
-		txns          []stripeClient.Transaction
-		txnByID       map[string]stripeClient.Transaction
-		err           error
+		txns    []stripeClient.Transaction
+		txnByID map[string]stripeClient.Transaction
+		err     error
 	}
 	acctFetches := make(map[string]*acctFetch)
 	for _, sel := range req.Msg.Selections {
 		if len(sel.StripeTransactionIds) == 0 {
 			continue
 		}
-		if _, seen := acctFetches[sel.StripeAccountId]; seen {
+		linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
+		if findErr != nil {
+			// Defer to the lock phase, which re-resolves and surfaces a NotFound-style error.
+			continue
+		}
+		if _, seen := acctFetches[linked.StripeAccountID]; seen {
 			continue
 		}
 		af := &acctFetch{}
-		linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
-		if findErr != nil {
-			af.err = fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
-			acctFetches[sel.StripeAccountId] = af
-			continue
-		}
-		af.fromRefreshID = linked.LastTransactionRefreshID
-
-		rid, ridErr := stripeClient.GetTransactionRefreshID(ctx, secretKey, sel.StripeAccountId)
-		if ridErr != nil {
-			logger.WarnContext(ctx, "get transaction refresh id failed", "account", sel.StripeAccountId, "error", ridErr)
-		}
-		af.newRefreshID = rid
-
-		txns, listErr := stripeClient.ListTransactions(ctx, secretKey, sel.StripeAccountId, af.fromRefreshID)
+		txns, listErr := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID)
 		if listErr != nil {
-			af.err = fmt.Errorf("list transactions for %s: %w", sel.StripeAccountId, listErr)
-			acctFetches[sel.StripeAccountId] = af
+			af.err = fmt.Errorf("list transactions for %s: %w", linked.StripeAccountID, listErr)
+			acctFetches[linked.StripeAccountID] = af
 			continue
 		}
 		af.txns = txns
@@ -710,15 +598,12 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		for _, st := range txns {
 			af.txnByID[st.ID] = st
 		}
-		acctFetches[sel.StripeAccountId] = af
+		acctFetches[linked.StripeAccountID] = af
 	}
 
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
 	var importedFIDs []string
-	// windowCoveredByAccount tracks whether every transaction in the fetch window for each
-	// account was either already imported or explicitly selected. Only when true is it safe
-	// to advance LastTransactionRefreshID for that account.
-	windowCoveredByAccount := make(map[string]bool)
+	importedAccounts := make(map[string]bool)
 
 	if h.afterImportAllPreFetch != nil {
 		h.afterImportAllPreFetch()
@@ -732,10 +617,8 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		if freshErr != nil {
 			return fmt.Errorf("refresh existing transactions: %w", freshErr)
 		}
-		for _, t := range freshExisting {
-			if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
-				importedStripeTxnSet[id] = true
-			}
+		for id := range importedStripeTxnIDs(freshExisting) {
+			importedStripeTxnSet[id] = true
 		}
 
 		for _, sel := range req.Msg.Selections {
@@ -743,39 +626,20 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				continue
 			}
 
-			af := acctFetches[sel.StripeAccountId]
-			if af == nil || af.err != nil {
-				var errMsg error
-				if af != nil {
-					errMsg = af.err
-				} else {
-					errMsg = fmt.Errorf("no pre-fetched data for account %s", sel.StripeAccountId)
-				}
-				return errMsg
-			}
-
 			linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
 			if findErr != nil {
 				return fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
 			}
 
-			selectedForAccountSet := make(map[string]bool, len(sel.StripeTransactionIds))
-			for _, id := range sel.StripeTransactionIds {
-				selectedForAccountSet[id] = true
-			}
-			allCovered := true
-			for _, st := range af.txns {
-				if !importedStripeTxnSet[st.ID] && !selectedForAccountSet[st.ID] {
-					allCovered = false
-					break
+			af := acctFetches[linked.StripeAccountID]
+			if af == nil || af.err != nil {
+				var errMsg error
+				if af != nil {
+					errMsg = af.err
+				} else {
+					errMsg = fmt.Errorf("no pre-fetched data for account %s", linked.StripeAccountID)
 				}
-			}
-			// Only mark the window covered if no concurrent process (e.g., daily auto-import)
-			// updated LastTransactionRefreshID between our pre-fetch and the lock. A mismatch
-			// means our pre-fetched newRefreshID may be older than the current mark; advancing
-			// to it would regress the high-water mark.
-			if linked.LastTransactionRefreshID == af.fromRefreshID {
-				windowCoveredByAccount[linked.StripeAccountID] = allCovered
+				return errMsg
 			}
 
 			importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
@@ -788,7 +652,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				if !ok {
 					return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 				}
-				if st.Status == "pending" {
+				if !stripeTxnSettled(st) {
 					continue
 				}
 				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
@@ -801,6 +665,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				}
 				importedFIDs = append(importedFIDs, fid)
 				importedStripeTxnSet[txnID] = true
+				importedAccounts[linked.StripeAccountID] = true
 
 				if sendErr := stream.Send(&floatv1.ImportTransactionsResponse{
 					Payload: &floatv1.ImportTransactionsResponse_Progress{
@@ -816,12 +681,8 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		}
 
 		for i, la := range h.cfg.Stripe.LinkedAccounts {
-			if !windowCoveredByAccount[la.StripeAccountID] {
-				continue
-			}
-			h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
-			if rid := acctFetches[la.StripeAccountID].newRefreshID; rid != "" {
-				h.cfg.Stripe.LinkedAccounts[i].LastTransactionRefreshID = rid
+			if importedAccounts[la.StripeAccountID] {
+				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
 			}
 		}
 		return config.Save(h.configPath, h.cfg)
@@ -851,10 +712,8 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 }
 
 // RefreshStripeAccount triggers a transaction refresh on Stripe and streams
-// polling progress until the refresh terminates. It deliberately does NOT
-// mutate LastTransactionRefreshID or LastFetchedAt in config — the persisted
-// refresh ID is the high-water mark advanced only by successful imports, so a
-// bare refresh that isn't followed by an import doesn't lose transactions.
+// polling progress until the refresh terminates. A refresh asks Stripe to sync
+// fresh data from the bank; it does not mutate config.
 func (h *Handler) RefreshStripeAccount(
 	ctx context.Context,
 	req *connect.Request[floatv1.RefreshStripeAccountRequest],
@@ -883,8 +742,7 @@ func (h *Handler) RefreshStripeAccount(
 // RefreshAllStripeAccounts triggers refresh for every eligible linked account
 // (one with a configured HledgerAccount) in parallel, multiplexing progress
 // from all accounts onto a single stream. Like RefreshStripeAccount, this does
-// NOT mutate config; imports remain the only place where LastTransactionRefreshID
-// is advanced.
+// NOT mutate config.
 func (h *Handler) RefreshAllStripeAccounts(
 	ctx context.Context,
 	_ *connect.Request[floatv1.RefreshAllStripeAccountsRequest],
@@ -1090,6 +948,24 @@ func configToProtoLinkedAccount(a config.StripeLinkedAccount) *floatv1.StripeLin
 	}
 }
 
+// stripeTxnSettled reports whether a Stripe transaction is settled ("posted")
+// and therefore eligible for import. Pending and void transactions are ignored.
+func stripeTxnSettled(t stripeClient.Transaction) bool {
+	return t.Status == "posted"
+}
+
+// importedStripeTxnIDs returns the set of Stripe transaction ids already present
+// in the journal (recorded via the float-stripe-txn meta tag).
+func importedStripeTxnIDs(txns []hledger.Transaction) map[string]bool {
+	set := make(map[string]bool, len(txns))
+	for _, t := range txns {
+		if id, ok := t.FloatMeta["float-stripe-txn"]; ok && id != "" {
+			set[id] = true
+		}
+	}
+	return set
+}
+
 func stripeTransactionToHledger(t stripeClient.Transaction, hledgerAccount string) hledger.Transaction {
 	amountDecimal := float64(t.AmountCents) / 100.0
 	currency := strings.ToUpper(t.Currency)
@@ -1097,15 +973,9 @@ func stripeTransactionToHledger(t stripeClient.Transaction, hledgerAccount strin
 	qty := hledger.AmountQuantity{FloatingPoint: amountDecimal, DecimalPlaces: 2}
 	counterQty := hledger.AmountQuantity{FloatingPoint: -amountDecimal, DecimalPlaces: 2}
 
-	status := ""
-	if t.Status == "pending" {
-		status = "Pending"
-	}
-
 	return hledger.Transaction{
 		Date:        t.TransactedAt.Format("2006-01-02"),
 		Description: t.Description,
-		Status:      status,
 		Postings: []hledger.Posting{
 			{
 				Account: hledgerAccount,
@@ -1125,18 +995,12 @@ func stripeTransactionToInput(t stripeClient.Transaction, hledgerAccount, import
 	amountStr := fmt.Sprintf("%.2f", amountDecimal)
 	counterAmountStr := fmt.Sprintf("%.2f", -amountDecimal)
 
-	status := ""
-	if t.Status == "pending" {
-		status = "Pending"
-	}
-
 	return journal.TransactionInput{
 		Date:        t.TransactedAt.UTC().Truncate(24 * time.Hour),
 		Description: t.Description,
-		Status:      status,
 		FloatMeta: map[string]string{
-			"float-import":      importBatchID,
-			"float-stripe-txn":  t.ID,
+			"float-import":     importBatchID,
+			"float-stripe-txn": t.ID,
 		},
 		Postings: []journal.PostingInput{
 			{Account: hledgerAccount, Commodity: currency, Quantity: amountStr},

@@ -146,20 +146,6 @@ func WaitForRefreshWithProgress(
 	}
 }
 
-// GetTransactionRefreshID retrieves the current transaction refresh ID for the
-// given account. Returns "" if the account has no transaction refresh recorded.
-func GetTransactionRefreshID(ctx context.Context, secretKey, accountID string) (string, error) {
-	c := newClient(secretKey)
-	acct, err := c.V1FinancialConnectionsAccounts.GetByID(ctx, accountID, &stripe.FinancialConnectionsAccountRetrieveParams{})
-	if err != nil {
-		return "", fmt.Errorf("stripe: get transaction refresh id for %s: %w", accountID, err)
-	}
-	if acct.TransactionRefresh == nil {
-		return "", nil
-	}
-	return acct.TransactionRefresh.ID, nil
-}
-
 // RefreshKickoffStatus describes the outcome of MaybeRefreshTransactions.
 type RefreshKickoffStatus int
 
@@ -375,18 +361,11 @@ func DisconnectAccount(ctx context.Context, secretKey, accountID string) error {
 	return nil
 }
 
-// ListTransactions returns transactions for an account. When afterRefreshID is
-// non-empty, only transactions captured by that refresh (or later) are returned.
-// Pass "" to fetch all transactions.
-func ListTransactions(ctx context.Context, secretKey, accountID string, afterRefreshID string) ([]Transaction, error) {
+// ListTransactions returns all available transactions for an account.
+func ListTransactions(ctx context.Context, secretKey, accountID string) ([]Transaction, error) {
 	c := newClient(secretKey)
 	params := &stripe.FinancialConnectionsTransactionListParams{
 		Account: stripe.String(accountID),
-	}
-	if afterRefreshID != "" {
-		params.TransactionRefresh = &stripe.FinancialConnectionsTransactionListTransactionRefreshParams{
-			After: stripe.String(afterRefreshID),
-		}
 	}
 
 	var txns []Transaction
