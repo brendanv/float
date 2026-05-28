@@ -40,11 +40,11 @@ type Handler struct {
 	// AIBaseURL overrides the OpenRouter API endpoint. Set in tests only.
 	AIBaseURL string
 	// afterImportAllPreFetch is called between the pre-fetch phase and lock acquisition
-	// in ImportAllStripeTransactions. Used in tests to simulate a concurrent config update
-	// (e.g., daily auto-import advancing LastTransactionRefreshID). Nil in production.
+	// in ImportAllStripeTransactions. Used in tests to simulate a concurrent import (e.g.,
+	// daily auto-import writing the same transactions). Nil in production.
 	afterImportAllPreFetch func()
 	// afterImportPreFetch is called between the pre-fetch phase and lock acquisition
-	// in ImportStripeTransactions. Used in tests to simulate a concurrent config update.
+	// in ImportStripeTransactions. Used in tests to simulate a concurrent import.
 	// Nil in production.
 	afterImportPreFetch func()
 }

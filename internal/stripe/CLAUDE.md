@@ -12,9 +12,8 @@ Thin wrapper around the Stripe Financial Connections API (`github.com/stripe/str
 - `MaybeRefreshTransactions(ctx, logger, secretKey, accountID)` — inspects the account state and either kicks off a refresh, joins a pending one, or returns `RefreshKickoffThrottled` with `NextRefreshAvailableAt` set (so callers can surface the next-available time instead of getting a silent no-op from Stripe).
 - `WaitForRefresh(ctx, logger, secretKey, accountID)` — polls until the account's `transaction_refresh` reaches `succeeded`/`failed`; returns the refresh ID. Pass `nil` logger to use `slog.Default()`. Exponential backoff capped at 30s; 5-minute timeout. Returns `("", nil)` immediately if no refresh is in progress.
 - `WaitForRefreshWithProgress(ctx, logger, secretKey, accountID, onProgress)` — same as `WaitForRefresh` but invokes `onProgress(RefreshProgress)` at start, on each pending poll, and on terminal state. Use this to drive a streaming RPC.
-- `GetTransactionRefreshID(ctx, secretKey, accountID)` — returns the account's current `transaction_refresh.id`; `""` if none.
 - `DisconnectAccount(ctx, secretKey, accountID)` — revokes access and disconnects the account
-- `ListTransactions(ctx, secretKey, accountID, afterRefreshID)` — returns transactions for an account; pass `""` for `afterRefreshID` to fetch all available history, or a refresh ID to only return transactions captured by that refresh or later.
+- `ListTransactions(ctx, secretKey, accountID)` — returns all available transactions for an account.
 
 ## Types
 

@@ -749,7 +749,7 @@ func TestFetchStripeTransactions(t *testing.T) {
 		}
 	})
 
-	t.Run("marks duplicate when stripe transaction id already imported", func(t *testing.T) {
+	t.Run("omits transaction whose stripe id is already imported", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
 			writeStripeJSON(w, map[string]any{"id": "fca_abc", "object": "financial_connections.account", "status": "active", "livemode": false})
@@ -757,12 +757,20 @@ func TestFetchStripeTransactions(t *testing.T) {
 		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
 			writeStripeJSON(w, map[string]any{
 				"object": "list",
-				"data": []any{map[string]any{
-					"id": "fca_txn_dup", "object": "financial_connections.transaction",
-					"account": "fca_abc", "amount": int64(5000), "currency": "usd",
-					"description": "GROCERY STORE", "transacted_at": int64(1746835200),
-					"status": "posted", "livemode": false,
-				}},
+				"data": []any{
+					map[string]any{
+						"id": "fca_txn_dup", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(5000), "currency": "usd",
+						"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+						"status": "posted", "livemode": false,
+					},
+					map[string]any{
+						"id": "fca_txn_fresh", "object": "financial_connections.transaction",
+						"account": "fca_abc", "amount": int64(2500), "currency": "usd",
+						"description": "BOOK STORE", "transacted_at": int64(1746835200),
+						"status": "posted", "livemode": false,
+					},
+				},
 				"has_more": false, "url": "/v1/financial_connections/transactions",
 			})
 		})
@@ -788,16 +796,17 @@ func TestFetchStripeTransactions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FetchStripeTransactions: %v", err)
 		}
+		// The already-imported transaction is hidden by the backend; only the fresh one remains.
 		if len(resp.Msg.Candidates) != 1 {
-			t.Fatalf("got %d candidates, want 1", len(resp.Msg.Candidates))
+			t.Fatalf("got %d candidates, want 1 (duplicate hidden)", len(resp.Msg.Candidates))
 		}
-		if !resp.Msg.Candidates[0].IsDuplicate {
-			t.Errorf("candidate.IsDuplicate = false, want true")
+		if resp.Msg.Candidates[0].SourceId != "fca_txn_fresh" {
+			t.Errorf("candidate SourceId = %q, want %q", resp.Msg.Candidates[0].SourceId, "fca_txn_fresh")
 		}
 	})
 }
 
-func TestFetchStripeTransactions_ExcludesPending(t *testing.T) {
+func TestFetchStripeTransactions_OnlySettled(t *testing.T) {
 	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
 
 	mux := http.NewServeMux()
@@ -819,6 +828,12 @@ func TestFetchStripeTransactions_ExcludesPending(t *testing.T) {
 					"account": "fca_abc", "amount": int64(1200), "currency": "usd",
 					"description": "GAS STATION", "transacted_at": int64(1746921600),
 					"status": "pending", "livemode": false,
+				},
+				map[string]any{
+					"id": "fca_txn_excl_void", "object": "financial_connections.transaction",
+					"account": "fca_abc", "amount": int64(800), "currency": "usd",
+					"description": "REFUNDED CHARGE", "transacted_at": int64(1746921600),
+					"status": "void", "livemode": false,
 				},
 			},
 			"has_more": false, "url": "/v1/financial_connections/transactions",
@@ -842,7 +857,7 @@ func TestFetchStripeTransactions_ExcludesPending(t *testing.T) {
 		t.Fatalf("FetchStripeTransactions: %v", err)
 	}
 	if len(resp.Msg.Candidates) != 1 {
-		t.Fatalf("got %d candidates, want 1 (pending transaction must be excluded)", len(resp.Msg.Candidates))
+		t.Fatalf("got %d candidates, want 1 (only posted/settled transactions)", len(resp.Msg.Candidates))
 	}
 	if resp.Msg.Candidates[0].SourceId != "fca_txn_excl_posted" {
 		t.Errorf("candidate SourceId = %q, want %q", resp.Msg.Candidates[0].SourceId, "fca_txn_excl_posted")
@@ -896,15 +911,6 @@ func TestImportStripeTransactions(t *testing.T) {
 
 	t.Run("imports selected transactions", func(t *testing.T) {
 		mux := http.NewServeMux()
-		// GetTransactionRefreshID (called after ListTransactions) issues a GET to the account endpoint.
-		// Return an account without a transaction_refresh field so WaitForRefresh / GetTransactionRefreshID
-		// return ("", nil) immediately — which is the correct behaviour for tests that don't simulate a refresh.
-		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"id": "fca_abc", "object": "financial_connections.account",
-				"status": "active", "livemode": false,
-			})
-		})
 		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
 			writeStripeJSON(w, map[string]any{
 				"object": "list",
@@ -964,130 +970,6 @@ func TestImportStripeTransactions(t *testing.T) {
 		}
 	})
 
-	t.Run("partial import does not advance refresh id", func(t *testing.T) {
-		// Two transactions available; user imports only one. LastTransactionRefreshID must
-		// NOT advance so the skipped transaction remains fetchable on the next import.
-		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"id": "fca_abc", "object": "financial_connections.account",
-				"status": "active", "livemode": false,
-				"transaction_refresh": map[string]any{
-					"id": "txnr_new", "status": "succeeded",
-				},
-			})
-		})
-		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"object": "list",
-				"data": []any{
-					map[string]any{
-						"id": "fca_txn_p1", "object": "financial_connections.transaction",
-						"account": "fca_abc", "amount": int64(5000), "currency": "usd",
-						"description": "GROCERY STORE", "transacted_at": int64(1746835200),
-						"status": "posted", "livemode": false,
-					},
-					map[string]any{
-						"id": "fca_txn_p2", "object": "financial_connections.transaction",
-						"account": "fca_abc", "amount": int64(1200), "currency": "usd",
-						"description": "COFFEE SHOP", "transacted_at": int64(1746748800),
-						"status": "posted", "livemode": false,
-					},
-				},
-				"has_more": false, "url": "/v1/financial_connections/transactions",
-			})
-		})
-		mockStripeAPI(t, mux)
-
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 764, NumTxns: 1})
-		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
-			t.Fatalf("write rules.json: %v", err)
-		}
-		cfg := &config.Config{
-			Stripe: config.StripeConfig{
-				LinkedAccounts: []config.StripeLinkedAccount{
-					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
-				},
-			},
-		}
-		h := mustHandlerWithConfig(t, dir, cfg)
-
-		// Import only the first transaction, deliberately skipping the second.
-		if _, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
-			StripeAccountId:      "fca_abc",
-			StripeTransactionIds: []string{"fca_txn_p1"},
-		}); err != nil {
-			t.Fatalf("ImportStripeTransactions: %v", err)
-		}
-
-		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
-		if err != nil {
-			t.Fatalf("load config: %v", err)
-		}
-		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_old" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (must not advance when window has unselected transactions)", la.LastTransactionRefreshID, "txnr_old")
-		}
-	})
-
-	t.Run("full import advances refresh id", func(t *testing.T) {
-		// All transactions selected: refresh ID must advance so next import only fetches new ones.
-		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"id": "fca_abc", "object": "financial_connections.account",
-				"status": "active", "livemode": false,
-				"transaction_refresh": map[string]any{
-					"id": "txnr_new", "status": "succeeded",
-				},
-			})
-		})
-		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"object": "list",
-				"data": []any{
-					map[string]any{
-						"id": "fca_txn_f1", "object": "financial_connections.transaction",
-						"account": "fca_abc", "amount": int64(5000), "currency": "usd",
-						"description": "GROCERY STORE", "transacted_at": int64(1746835200),
-						"status": "posted", "livemode": false,
-					},
-				},
-				"has_more": false, "url": "/v1/financial_connections/transactions",
-			})
-		})
-		mockStripeAPI(t, mux)
-
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 765, NumTxns: 1})
-		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
-			t.Fatalf("write rules.json: %v", err)
-		}
-		cfg := &config.Config{
-			Stripe: config.StripeConfig{
-				LinkedAccounts: []config.StripeLinkedAccount{
-					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
-				},
-			},
-		}
-		h := mustHandlerWithConfig(t, dir, cfg)
-
-		if _, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
-			StripeAccountId:      "fca_abc",
-			StripeTransactionIds: []string{"fca_txn_f1"},
-		}); err != nil {
-			t.Fatalf("ImportStripeTransactions: %v", err)
-		}
-
-		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
-		if err != nil {
-			t.Fatalf("load config: %v", err)
-		}
-		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_new" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (must advance when all window transactions are accounted for)", la.LastTransactionRefreshID, "txnr_new")
-		}
-	})
-
 	t.Run("skips already imported stripe transaction ids", func(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
@@ -1119,81 +1001,6 @@ func TestImportStripeTransactions(t *testing.T) {
 		}
 		if result.ImportedCount != 0 {
 			t.Errorf("ImportedCount = %d, want 0", result.ImportedCount)
-		}
-	})
-
-	t.Run("does not regress refresh id when concurrent update advanced it before lock", func(t *testing.T) {
-		// This simulates the race where daily auto-import advances LastTransactionRefreshID
-		// between ImportStripeTransactions' pre-fetch and its lock acquisition.
-		// The pre-fetch captures fromRefreshID = "txnr_old" and newRefreshID = "txnr_new".
-		// Before the lock is acquired, the config is advanced to "txnr_concurrent" (simulating
-		// auto-import). The regression guard detects the mismatch and skips the advancement,
-		// leaving the mark at "txnr_concurrent" rather than regressing to "txnr_new".
-		mux := http.NewServeMux()
-		mux.HandleFunc("/v1/financial_connections/accounts/", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"id": "fca_abc", "object": "financial_connections.account",
-				"status": "active", "livemode": false,
-				"transaction_refresh": map[string]any{
-					"id": "txnr_new", "status": "succeeded",
-				},
-			})
-		})
-		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
-			writeStripeJSON(w, map[string]any{
-				"object": "list",
-				"data": []any{
-					map[string]any{
-						"id": "fca_txn_rg1", "object": "financial_connections.transaction",
-						"account": "fca_abc", "amount": int64(-5000), "currency": "usd",
-						"description": "GROCERY STORE", "transacted_at": int64(1746835200),
-						"status": "posted", "livemode": false,
-					},
-				},
-				"has_more": false, "url": "/v1/financial_connections/transactions",
-			})
-		})
-		mockStripeAPI(t, mux)
-
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 771, NumTxns: 1})
-		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
-			t.Fatalf("write rules.json: %v", err)
-		}
-		cfg := &config.Config{
-			Stripe: config.StripeConfig{
-				LinkedAccounts: []config.StripeLinkedAccount{
-					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
-				},
-			},
-		}
-		h := mustHandlerWithConfig(t, dir, cfg)
-
-		// Install hook that fires between pre-fetch and lock, advancing the mark to
-		// "txnr_concurrent" as daily auto-import would in production.
-		serverledger.ExportedSetAfterImportPreFetch(h, func() {
-			serverledger.ExportedSetStripeRefreshID(h, "fca_abc", "txnr_concurrent")
-		})
-		t.Cleanup(func() { serverledger.ExportedSetAfterImportPreFetch(h, nil) })
-
-		result, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
-			StripeAccountId:      "fca_abc",
-			StripeTransactionIds: []string{"fca_txn_rg1"},
-		})
-		if err != nil {
-			t.Fatalf("ImportStripeTransactions: %v", err)
-		}
-		// Transaction is still imported (pre-fetched data is valid for writing).
-		if result.ImportedCount != 1 {
-			t.Errorf("ImportedCount = %d, want 1", result.ImportedCount)
-		}
-
-		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
-		if err != nil {
-			t.Fatalf("load config: %v", err)
-		}
-		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_concurrent" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (must not regress past concurrent update)", la.LastTransactionRefreshID, "txnr_concurrent")
 		}
 	})
 
@@ -1318,18 +1125,9 @@ func importAllStripeTransactions(t *testing.T, h *serverledger.Handler, req *flo
 
 // stripeImportAllMockAPI registers Stripe mock handlers for ImportAllStripeTransactions.
 // The account endpoint returns a single refresh ID; the transaction list returns txns.
-func stripeImportAllMockAPI(t *testing.T, accountID, refreshID string, txns []map[string]any) {
+func stripeImportAllMockAPI(t *testing.T, txns []map[string]any) {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/financial_connections/accounts/"+accountID, func(w http.ResponseWriter, _ *http.Request) {
-		writeStripeJSON(w, map[string]any{
-			"id": accountID, "object": "financial_connections.account",
-			"status": "active", "livemode": false,
-			"transaction_refresh": map[string]any{
-				"id": refreshID, "status": "succeeded",
-			},
-		})
-	})
 	mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
 		writeStripeJSON(w, map[string]any{
 			"object": "list", "data": txns, "has_more": false,
@@ -1342,8 +1140,8 @@ func stripeImportAllMockAPI(t *testing.T, accountID, refreshID string, txns []ma
 func TestImportAllStripeTransactions(t *testing.T) {
 	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
 
-	t.Run("advances refresh id when all transactions in window are selected", func(t *testing.T) {
-		stripeImportAllMockAPI(t, "fca_abc", "txnr_new", []map[string]any{
+	t.Run("imports selected transactions and updates last_fetched_at", func(t *testing.T) {
+		stripeImportAllMockAPI(t, []map[string]any{
 			{
 				"id": "fca_txn_a1", "object": "financial_connections.transaction",
 				"account": "fca_abc", "amount": int64(-5000), "currency": "usd",
@@ -1358,7 +1156,7 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		cfg := &config.Config{
 			Stripe: config.StripeConfig{
 				LinkedAccounts: []config.StripeLinkedAccount{
-					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
 				},
 			},
 		}
@@ -1380,67 +1178,13 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("load config: %v", err)
 		}
-		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_new" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (must advance when all window transactions are accounted for)", la.LastTransactionRefreshID, "txnr_new")
+		if savedCfg.Stripe.LinkedAccounts[0].LastFetchedAt == "" {
+			t.Error("LastFetchedAt was not updated after import")
 		}
 	})
 
-	t.Run("does not advance refresh id when some window transactions are not selected", func(t *testing.T) {
-		stripeImportAllMockAPI(t, "fca_abc", "txnr_new", []map[string]any{
-			{
-				"id": "fca_txn_b1", "object": "financial_connections.transaction",
-				"account": "fca_abc", "amount": int64(-5000), "currency": "usd",
-				"description": "GROCERY STORE", "transacted_at": int64(1746835200),
-				"status": "posted", "livemode": false,
-			},
-			{
-				"id": "fca_txn_b2", "object": "financial_connections.transaction",
-				"account": "fca_abc", "amount": int64(-1200), "currency": "usd",
-				"description": "COFFEE SHOP", "transacted_at": int64(1746748800),
-				"status": "posted", "livemode": false,
-			},
-		})
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 831, NumTxns: 1})
-		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
-			t.Fatalf("write rules.json: %v", err)
-		}
-		cfg := &config.Config{
-			Stripe: config.StripeConfig{
-				LinkedAccounts: []config.StripeLinkedAccount{
-					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
-				},
-			},
-		}
-		h := mustHandlerWithConfig(t, dir, cfg)
-
-		// Import only the first transaction; the second is deliberately skipped.
-		result, err := importAllStripeTransactions(t, h, &floatv1.ImportAllStripeTransactionsRequest{
-			Selections: []*floatv1.AccountTransactionSelection{
-				{StripeAccountId: "fca_abc", StripeTransactionIds: []string{"fca_txn_b1"}},
-			},
-		})
-		if err != nil {
-			t.Fatalf("ImportAllStripeTransactions: %v", err)
-		}
-		if result.ImportedCount != 1 {
-			t.Errorf("ImportedCount = %d, want 1", result.ImportedCount)
-		}
-
-		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
-		if err != nil {
-			t.Fatalf("load config: %v", err)
-		}
-		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_old" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (must not advance when window has unselected non-duplicate transactions)", la.LastTransactionRefreshID, "txnr_old")
-		}
-	})
-
-	t.Run("advances refresh id when window transactions are all duplicates", func(t *testing.T) {
-		// All transactions in the window are already imported — they count as covered even
-		// though none are explicitly selected. The high-water mark should still advance.
-		stripeImportAllMockAPI(t, "fca_abc", "txnr_new", []map[string]any{
+	t.Run("skips already imported stripe transaction ids", func(t *testing.T) {
+		stripeImportAllMockAPI(t, []map[string]any{
 			{
 				"id": "fca_txn_c1", "object": "financial_connections.transaction",
 				"account": "fca_abc", "amount": int64(-5000), "currency": "usd",
@@ -1457,7 +1201,6 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		if err != nil {
 			t.Skipf("hledger unavailable: %v", err)
 		}
-		// Pre-import the transaction so it shows up as a duplicate.
 		if _, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
 			Date:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 			Description: "already imported",
@@ -1473,13 +1216,12 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		cfg := &config.Config{
 			Stripe: config.StripeConfig{
 				LinkedAccounts: []config.StripeLinkedAccount{
-					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
 				},
 			},
 		}
 		h := mustHandlerWithConfig(t, dir, cfg)
 
-		// Select the already-imported transaction (the handler must still treat window as covered).
 		result, err := importAllStripeTransactions(t, h, &floatv1.ImportAllStripeTransactionsRequest{
 			Selections: []*floatv1.AccountTransactionSelection{
 				{StripeAccountId: "fca_abc", StripeTransactionIds: []string{"fca_txn_c1"}},
@@ -1490,74 +1232,6 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		}
 		if result.ImportedCount != 0 {
 			t.Errorf("ImportedCount = %d, want 0 (already imported)", result.ImportedCount)
-		}
-
-		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
-		if err != nil {
-			t.Fatalf("load config: %v", err)
-		}
-		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_new" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (window fully covered by existing imports)", la.LastTransactionRefreshID, "txnr_new")
-		}
-	})
-
-	t.Run("does not regress refresh id when concurrent update advanced it before lock", func(t *testing.T) {
-		// This simulates the race where daily auto-import advances LastTransactionRefreshID
-		// between ImportAllStripeTransactions' pre-fetch and its lock acquisition.
-		// The pre-fetch captures fromRefreshID = "txnr_old" and newRefreshID = "txnr_new".
-		// Before the lock is acquired, the config is advanced to "txnr_concurrent" (simulating
-		// auto-import). The regression guard detects the mismatch and skips the advancement,
-		// leaving the mark at "txnr_concurrent" rather than regressing to "txnr_new".
-		stripeImportAllMockAPI(t, "fca_abc", "txnr_new", []map[string]any{
-			{
-				"id": "fca_txn_d1", "object": "financial_connections.transaction",
-				"account": "fca_abc", "amount": int64(-5000), "currency": "usd",
-				"description": "GROCERY STORE", "transacted_at": int64(1746835200),
-				"status": "posted", "livemode": false,
-			},
-		})
-		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 833, NumTxns: 1})
-		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
-			t.Fatalf("write rules.json: %v", err)
-		}
-		cfg := &config.Config{
-			Stripe: config.StripeConfig{
-				LinkedAccounts: []config.StripeLinkedAccount{
-					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking", LastTransactionRefreshID: "txnr_old"},
-				},
-			},
-		}
-		h := mustHandlerWithConfig(t, dir, cfg)
-
-		// Install a hook that fires between pre-fetch and lock, simulating auto-import
-		// advancing the mark to "txnr_concurrent" in that window.
-		serverledger.ExportedSetAfterImportAllPreFetch(h, func() {
-			serverledger.ExportedSetStripeRefreshID(h, "fca_abc", "txnr_concurrent")
-		})
-		t.Cleanup(func() { serverledger.ExportedSetAfterImportAllPreFetch(h, nil) })
-
-		result, err := importAllStripeTransactions(t, h, &floatv1.ImportAllStripeTransactionsRequest{
-			Selections: []*floatv1.AccountTransactionSelection{
-				{StripeAccountId: "fca_abc", StripeTransactionIds: []string{"fca_txn_d1"}},
-			},
-		})
-		if err != nil {
-			t.Fatalf("ImportAllStripeTransactions: %v", err)
-		}
-		// The transaction is imported (the fetch data is still valid for writing),
-		// but the refresh ID must NOT be regressed.
-		if result.ImportedCount != 1 {
-			t.Errorf("ImportedCount = %d, want 1", result.ImportedCount)
-		}
-
-		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
-		if err != nil {
-			t.Fatalf("load config: %v", err)
-		}
-		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_concurrent" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (must not regress past concurrent update)", la.LastTransactionRefreshID, "txnr_concurrent")
 		}
 	})
 }
@@ -1623,10 +1297,9 @@ func TestRefreshStripeAccount(t *testing.T) {
 			Stripe: config.StripeConfig{
 				LinkedAccounts: []config.StripeLinkedAccount{
 					{
-						StripeAccountID:          "fca_abc",
-						HledgerAccount:           "assets:checking",
-						LastFetchedAt:            "2026-05-01T00:00:00Z",
-						LastTransactionRefreshID: "txnr_previous",
+						StripeAccountID: "fca_abc",
+						HledgerAccount:  "assets:checking",
+						LastFetchedAt:   "2026-05-01T00:00:00Z",
 					},
 				},
 			},
@@ -1669,17 +1342,13 @@ func TestRefreshStripeAccount(t *testing.T) {
 			t.Errorf("result.RefreshId = %q, want txnr_done", resultRefreshID)
 		}
 
-		// Invariant: config must be untouched by RefreshStripeAccount, otherwise
-		// a refresh-without-import would skip transactions on the next refresh.
+		// Invariant: config must be untouched by RefreshStripeAccount.
 		configPath := filepath.Join(dir, "config.toml")
 		savedCfg, err := config.Load(configPath)
 		if err != nil {
 			t.Fatalf("load config: %v", err)
 		}
 		la := savedCfg.Stripe.LinkedAccounts[0]
-		if la.LastTransactionRefreshID != "txnr_previous" {
-			t.Errorf("LastTransactionRefreshID = %q, want %q (refresh must not advance the high-water mark)", la.LastTransactionRefreshID, "txnr_previous")
-		}
 		if la.LastFetchedAt != "2026-05-01T00:00:00Z" {
 			t.Errorf("LastFetchedAt = %q, want unchanged", la.LastFetchedAt)
 		}

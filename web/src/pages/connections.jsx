@@ -13,7 +13,6 @@ import {
   Clock,
   RefreshCw,
   Tag,
-  Calendar,
 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
@@ -32,7 +31,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormField } from "@/components/ui/form";
 import { Combobox } from "@/components/ui/combobox";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -50,7 +48,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 
 function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, onClose }) {
   const [mappings, setMappings] = useState(() =>
@@ -145,20 +142,9 @@ function CandidatesTable({ candidates, selectedIds, onToggle, showAccount }) {
         cell: ({ row }) => (
           <Checkbox
             checked={selectedIds.has(row.original.sourceId)}
-            disabled={row.original.isDuplicate || !row.original.sourceId}
+            disabled={!row.original.sourceId}
             onCheckedChange={() => onToggle(row.original.sourceId)}
           />
-        ),
-        enableSorting: false,
-      },
-      {
-        id: "status",
-        header: "Status",
-        accessorFn: (row) => row.isDuplicate,
-        cell: ({ getValue }) => (
-          <Badge variant={getValue() ? "secondary" : "default"}>
-            {getValue() ? "DUP" : "NEW"}
-          </Badge>
         ),
         enableSorting: false,
       },
@@ -253,10 +239,7 @@ function CandidatesTable({ candidates, selectedIds, onToggle, showAccount }) {
       </TableHeader>
       <TableBody>
         {table.getRowModel().rows.map((row) => (
-          <TableRow
-            key={row.id}
-            className={cn(row.original.isDuplicate && "opacity-50")}
-          >
+          <TableRow key={row.id}>
             {row.getVisibleCells().map((cell) => (
               <TableCell key={cell.id}>
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -295,7 +278,7 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
       const autoSelected = new Set();
       res.accountCandidates.forEach((ac) => {
         ac.candidates.forEach((c) => {
-          if (!c.isDuplicate && c.sourceId) autoSelected.add(c.sourceId);
+          if (c.sourceId) autoSelected.add(c.sourceId);
         });
       });
       setSelectedIds(autoSelected);
@@ -385,16 +368,14 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
     );
   }, [accountCandidates]);
 
-  const newCount = allCandidates.filter((c) => !c.isDuplicate).length;
-
   function toggleAll() {
-    const allNewIds = allCandidates
-      .filter((c) => !c.isDuplicate && c.sourceId)
+    const allIds = allCandidates
+      .filter((c) => c.sourceId)
       .map((c) => c.sourceId);
-    if (selectedIds.size === allNewIds.length) {
+    if (selectedIds.size === allIds.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(allNewIds));
+      setSelectedIds(new Set(allIds));
     }
   }
 
@@ -526,11 +507,11 @@ function FetchAllPanel({ configuredAccounts, onImported }) {
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm text-muted-foreground">
-                  {totalCount} transaction(s), {newCount} new
+                  {totalCount} new transaction(s)
                 </span>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={toggleAll}>
-                    {selectedIds.size === newCount ? "Deselect All" : "Select All New"}
+                    {selectedIds.size === totalCount ? "Deselect All" : "Select All"}
                   </Button>
                   <Button
                     size="sm"
@@ -591,7 +572,7 @@ function AccountFetchPanel({ account, onImported }) {
       setCandidates(res.candidates);
       const autoSelected = new Set();
       res.candidates.forEach((c) => {
-        if (!c.isDuplicate && c.sourceId) autoSelected.add(c.sourceId);
+        if (c.sourceId) autoSelected.add(c.sourceId);
       });
       setSelectedIds(autoSelected);
     } catch (err) {
@@ -653,13 +634,13 @@ function AccountFetchPanel({ account, onImported }) {
 
   function toggleAll() {
     if (!candidates) return;
-    const allNewIds = candidates
-      .filter((c) => !c.isDuplicate && c.sourceId)
+    const allIds = candidates
+      .filter((c) => c.sourceId)
       .map((c) => c.sourceId);
-    if (selectedIds.size === allNewIds.length) {
+    if (selectedIds.size === allIds.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(allNewIds));
+      setSelectedIds(new Set(allIds));
     }
   }
 
@@ -692,7 +673,7 @@ function AccountFetchPanel({ account, onImported }) {
     }
   }
 
-  const newCount = candidates ? candidates.filter((c) => !c.isDuplicate).length : 0;
+  const totalCount = candidates ? candidates.length : 0;
 
   return (
     <div className="flex flex-col gap-3 pt-3 border-t">
@@ -746,11 +727,11 @@ function AccountFetchPanel({ account, onImported }) {
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm text-muted-foreground">
-              {candidates.length} transaction(s), {newCount} new
+              {totalCount} new transaction(s)
             </span>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" onClick={toggleAll}>
-                {selectedIds.size === newCount ? "Deselect All" : "Select All New"}
+                {selectedIds.size === totalCount ? "Deselect All" : "Select All"}
               </Button>
               <Button
                 size="sm"
@@ -779,110 +760,12 @@ function AccountFetchPanel({ account, onImported }) {
   );
 }
 
-function UpdateFetchDateDialog({ account, open, onClose, onUpdated }) {
-  const [dateValue, setDateValue] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  function handleOpenChange(v) {
-    if (!v) {
-      setDateValue("");
-      setError(null);
-      onClose();
-    }
-  }
-
-  async function handleSave(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      // Convert local date to RFC3339 UTC midnight
-      const lastFetchedAt = dateValue ? new Date(dateValue + "T00:00:00").toISOString() : "";
-      await ledgerClient.updateStripeAccountLastFetchedAt({
-        stripeAccountId: account.stripeAccountId,
-        lastFetchedAt,
-      });
-      onUpdated();
-      onClose();
-    } catch (err) {
-      setError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleClear() {
-    setSaving(true);
-    setError(null);
-    try {
-      await ledgerClient.updateStripeAccountLastFetchedAt({
-        stripeAccountId: account.stripeAccountId,
-        lastFetchedAt: "",
-      });
-      onUpdated();
-      onClose();
-    } catch (err) {
-      setError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Update Fetch Date</DialogTitle>
-        </DialogHeader>
-        <Form onSubmit={handleSave}>
-          {error && <ErrorBanner error={error} />}
-          <p className="text-sm text-muted-foreground">
-            Set or clear the last fetched date for <strong>{account.displayName}</strong>.
-            The next fetch will retrieve transactions starting from this date.
-            Clear it to fetch all available history.
-          </p>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Fetch from date</label>
-            <Input
-              type="date"
-              value={dateValue}
-              onChange={(e) => setDateValue(e.target.value)}
-              placeholder="Leave empty to fetch all history"
-            />
-          </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClear}
-              disabled={saving}
-              className="text-destructive hover:text-destructive"
-            >
-              Clear (fetch all history)
-            </Button>
-            <Button
-              type="submit"
-              disabled={!dateValue}
-              isLoading={saving}
-              loadingText="Saving…"
-            >
-              Set date
-            </Button>
-          </DialogFooter>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export function ConnectionsPage() {
   const queryClient = useQueryClient();
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState(null);
   const [pendingSession, setPendingSession] = useState(null);
   const [pendingConfigureAccount, setPendingConfigureAccount] = useState(null);
-  const [updateFetchDateAccount, setUpdateFetchDateAccount] = useState(null);
 
   const {
     data: configData,
@@ -1064,19 +947,12 @@ export function ConnectionsPage() {
                   )}
                   {account.institutionName && <span>·</span>}
                   <span className="font-mono">{account.hledgerAccount}</span>
-                  <span>·</span>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 hover:text-foreground transition-colors"
-                    title="Update last fetched date"
-                    onClick={() => setUpdateFetchDateAccount(account)}
-                  >
-                    <Calendar className="size-3" />
-                    {account.lastFetchedAt
-                      ? <>Last fetched {account.lastFetchedAt}</>
-                      : <>Set fetch date</>
-                    }
-                  </button>
+                  {account.lastFetchedAt && (
+                    <>
+                      <span>·</span>
+                      <span>Last imported {account.lastFetchedAt}</span>
+                    </>
+                  )}
                 </div>
               </div>
               <Button
@@ -1158,15 +1034,6 @@ export function ConnectionsPage() {
           accountDeclarations={declarationsData?.declarations ?? []}
           onComplete={handleConfigureComplete}
           onClose={() => setPendingConfigureAccount(null)}
-        />
-      )}
-
-      {updateFetchDateAccount && (
-        <UpdateFetchDateDialog
-          account={updateFetchDateAccount}
-          open={true}
-          onClose={() => setUpdateFetchDateAccount(null)}
-          onUpdated={() => queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() })}
         />
       )}
     </div>
