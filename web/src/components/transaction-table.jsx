@@ -278,7 +278,7 @@ function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
         description: tx.description,
         date: tx.date,
         postings: newPostings,
-        status: tx.status === "Cleared" ? "Cleared" : "",
+        status: "Cleared",
       });
       if (onSaved) onSaved();
     });
@@ -418,14 +418,14 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
     setSaving(true);
     setError(null);
     const trimmed = postings.map(toPostingInput);
-    const autoReview = tx.status !== "Cleared" && trimmed.every((p) => !p.account.toLowerCase().includes("unknown"));
+    const autoReview = trimmed.every((p) => !p.account.toLowerCase().includes("unknown"));
     try {
       await ledgerClient.updateTransaction({
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
         postings: trimmed,
-        status: autoReview ? "Cleared" : "",
+        status: autoReview ? "Cleared" : (tx.status ?? ""),
       });
       if (onSaved) onSaved();
     } catch (err) {
