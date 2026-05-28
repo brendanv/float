@@ -908,6 +908,32 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "ListTags":
         body = { tags: ["category", "memo", "reimbursable"] };
         break;
+      case "GetBalanceAssertionStatus":
+        body = {
+          accounts: [
+            {
+              account: "liabilities:creditcard",
+              type: "L",
+              balance: [{ commodity: "USD", quantity: "-842.18" }],
+              lastTransaction: mockTransactions[0],
+            },
+            {
+              account: "assets:savings",
+              type: "A",
+              balance: [{ commodity: "USD", quantity: "12500.00" }],
+              lastAssertionDate: "2025-11-01",
+              lastTransaction: mockTransactions[0],
+            },
+            {
+              account: "assets:checking",
+              type: "A",
+              balance: [{ commodity: "USD", quantity: "3214.55" }],
+              lastAssertionDate: "2026-03-20",
+              lastTransaction: mockTransactions[0],
+            },
+          ],
+        };
+        break;
       case "GetBalances": {
         const query = reqBody.query || [];
         const isExpense = query.includes("type:X");

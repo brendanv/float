@@ -661,6 +661,111 @@ func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1
 	return connect.NewResponse(&floatv1.ListAccountsResponse{Accounts: accounts}), nil
 }
 
+// GetBalanceAssertionStatus reports, for every asset and liability account that
+// has postings, the date of its most recent balance assertion and its most
+// recent transaction (so the UI can edit it to add a fresh assertion). It does
+// a single transactions pass and groups in Go rather than running hledger once
+// per account. Accounts are sorted so the most at-risk (never-asserted, then
+// oldest assertion) surface first.
+func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Request[floatv1.GetBalanceAssertionStatusRequest]) (*connect.Response[floatv1.GetBalanceAssertionStatusResponse], error) {
+	nodes, err := cachedAccounts(ctx, h.cache, h.hl)
+	if err != nil {
+		return nil, rpcErr(ctx, err, "hledger accounts failed")
+	}
+	// Cash (C) is an hledger subtype of Asset, so treat it as an asset too.
+	accountType := make(map[string]hledger.AccountType, len(nodes))
+	for _, n := range nodes {
+		switch n.Type {
+		case hledger.AccountTypeAsset, hledger.AccountTypeCash:
+			accountType[n.FullName] = hledger.AccountTypeAsset
+		case hledger.AccountTypeLiability:
+			accountType[n.FullName] = hledger.AccountTypeLiability
+		}
+	}
+
+	txns, err := cachedTransactions(ctx, h.cache, h.hl, nil)
+	if err != nil {
+		return nil, rpcErr(ctx, err, "hledger transactions failed")
+	}
+
+	balReport, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
+	if err != nil {
+		return nil, rpcErr(ctx, err, "hledger balances failed")
+	}
+	balByAccount := make(map[string][]hledger.Amount, len(balReport.Rows))
+	for _, row := range balReport.Rows {
+		balByAccount[row.FullName] = row.Amounts
+	}
+
+	type agg struct {
+		lastTxn       *hledger.Transaction
+		lastAssertion string // "YYYY-MM-DD"; "" if never asserted
+	}
+	aggs := make(map[string]*agg)
+	for i := range txns {
+		t := &txns[i]
+		seen := make(map[string]bool)
+		for _, p := range t.Postings {
+			if _, ok := accountType[p.Account]; !ok {
+				continue
+			}
+			a := aggs[p.Account]
+			if a == nil {
+				a = &agg{}
+				aggs[p.Account] = a
+			}
+			// Transactions arrive in ascending date/file order; track the most
+			// recent transaction touching each account (compare dates so we are
+			// resilient to unsorted input).
+			if !seen[p.Account] {
+				if a.lastTxn == nil || t.Date >= a.lastTxn.Date {
+					a.lastTxn = t
+				}
+				seen[p.Account] = true
+			}
+			// Any assertion form (=, =*, ==, ==*) counts as "asserted".
+			if p.BalanceAssertion != nil && t.Date >= a.lastAssertion {
+				a.lastAssertion = t.Date
+			}
+		}
+	}
+
+	statuses := make([]*floatv1.AccountAssertionStatus, 0, len(aggs))
+	for account, a := range aggs {
+		if a.lastTxn == nil {
+			continue
+		}
+		s := &floatv1.AccountAssertionStatus{
+			Account:         account,
+			Type:            string(accountType[account]),
+			Balance:         toProtoAmounts(balByAccount[account]),
+			LastTransaction: toProtoTransaction(*a.lastTxn),
+		}
+		if a.lastAssertion != "" {
+			s.LastAssertionDate = &a.lastAssertion
+		}
+		statuses = append(statuses, s)
+	}
+
+	sort.Slice(statuses, func(i, j int) bool {
+		di := statuses[i].GetLastAssertionDate()
+		dj := statuses[j].GetLastAssertionDate()
+		if di != dj {
+			// Empty (never asserted) sorts first, then oldest assertion first.
+			if di == "" {
+				return true
+			}
+			if dj == "" {
+				return false
+			}
+			return di < dj
+		}
+		return statuses[i].Account < statuses[j].Account
+	})
+
+	return connect.NewResponse(&floatv1.GetBalanceAssertionStatusResponse{Accounts: statuses}), nil
+}
+
 func (h *Handler) ListTags(ctx context.Context, req *connect.Request[floatv1.ListTagsRequest]) (*connect.Response[floatv1.ListTagsResponse], error) {
 	all, err := cachedTags(ctx, h.cache, h.hl)
 	if err != nil {

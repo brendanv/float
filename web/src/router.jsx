@@ -25,6 +25,10 @@ const MonthlyDashboardPage = lazyPage(
 );
 const PricesPage = lazyPage(() => import("./pages/prices.jsx"), "PricesPage");
 const AccountsPage = lazyPage(() => import("./pages/accounts.jsx"), "AccountsPage");
+const BalanceAssertionsPage = lazyPage(
+  () => import("./pages/balance-assertions.jsx"),
+  "BalanceAssertionsPage"
+);
 const SnapshotsPage = lazyPage(() => import("./pages/snapshots.jsx"), "SnapshotsPage");
 const ImportPage = lazyPage(() => import("./pages/import.jsx"), "ImportPage");
 const RulesPage = lazyPage(() => import("./pages/rules.jsx"), "RulesPage");
@@ -104,6 +108,12 @@ const accountsRoute = createRoute({
   component: AccountsPage,
 });
 
+const balanceAssertionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assertions",
+  component: BalanceAssertionsPage,
+});
+
 const snapshotsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/snapshots",
@@ -172,6 +182,7 @@ const routeTree = rootRoute.addChildren([
   monthlyDashboardRoute,
   pricesRoute,
   accountsRoute,
+  balanceAssertionsRoute,
   snapshotsRoute,
   importRoute,
   rulesRoute,

@@ -44,6 +44,24 @@ test("transactions page - expanded edit row", async ({ page }) => {
   await page.screenshot({ path: "test-results/transactions-expanded-edit.png", fullPage: true });
 });
 
+test("balance assertions page", async ({ page }) => {
+  await page.goto("/#/assertions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/balance-assertions.png", fullPage: true });
+});
+
+test("balance assertions page - expanded editor", async ({ page }) => {
+  await page.goto("/#/assertions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.click("tbody tr:first-child");
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/balance-assertions-expanded.png", fullPage: true });
+});
+
 test("transactions page - from cell inline edit", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
