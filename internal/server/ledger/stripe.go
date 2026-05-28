@@ -564,7 +564,10 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 	importedStripeTxnSet := importedStripeTxnIDs(existing)
 
 	// Phase 1: pre-fetch all Stripe API data outside the lock so the lock holds no
-	// network calls.
+	// network calls. The map is keyed by the canonical linked.StripeAccountID — never
+	// the raw sel.StripeAccountId — so any future tolerance in findLinkedAccount
+	// matching can't cause the prefetch and lock phases to disagree on which fetch
+	// belongs to which selection.
 	type acctFetch struct {
 		txns    []stripeClient.Transaction
 		txnByID map[string]stripeClient.Transaction
@@ -575,20 +578,19 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		if len(sel.StripeTransactionIds) == 0 {
 			continue
 		}
-		if _, seen := acctFetches[sel.StripeAccountId]; seen {
+		linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
+		if findErr != nil {
+			// Defer to the lock phase, which re-resolves and surfaces a NotFound-style error.
+			continue
+		}
+		if _, seen := acctFetches[linked.StripeAccountID]; seen {
 			continue
 		}
 		af := &acctFetch{}
-		if _, findErr := h.findLinkedAccount(sel.StripeAccountId); findErr != nil {
-			af.err = fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
-			acctFetches[sel.StripeAccountId] = af
-			continue
-		}
-
-		txns, listErr := stripeClient.ListTransactions(ctx, secretKey, sel.StripeAccountId)
+		txns, listErr := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID)
 		if listErr != nil {
-			af.err = fmt.Errorf("list transactions for %s: %w", sel.StripeAccountId, listErr)
-			acctFetches[sel.StripeAccountId] = af
+			af.err = fmt.Errorf("list transactions for %s: %w", linked.StripeAccountID, listErr)
+			acctFetches[linked.StripeAccountID] = af
 			continue
 		}
 		af.txns = txns
@@ -596,7 +598,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		for _, st := range txns {
 			af.txnByID[st.ID] = st
 		}
-		acctFetches[sel.StripeAccountId] = af
+		acctFetches[linked.StripeAccountID] = af
 	}
 
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
@@ -624,20 +626,20 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				continue
 			}
 
-			af := acctFetches[sel.StripeAccountId]
+			linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
+			if findErr != nil {
+				return fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
+			}
+
+			af := acctFetches[linked.StripeAccountID]
 			if af == nil || af.err != nil {
 				var errMsg error
 				if af != nil {
 					errMsg = af.err
 				} else {
-					errMsg = fmt.Errorf("no pre-fetched data for account %s", sel.StripeAccountId)
+					errMsg = fmt.Errorf("no pre-fetched data for account %s", linked.StripeAccountID)
 				}
 				return errMsg
-			}
-
-			linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
-			if findErr != nil {
-				return fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
 			}
 
 			importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
