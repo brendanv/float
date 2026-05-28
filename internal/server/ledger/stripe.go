@@ -317,6 +317,9 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 
 	candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
 	for _, st := range stripeTxns {
+		if st.Status == "pending" {
+			continue
+		}
 		ht := stripeTransactionToHledger(st, linked.HledgerAccount)
 		candidate := &floatv1.ImportCandidate{
 			SourceId: st.ID,
@@ -452,6 +455,9 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			if !ok {
 				return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 			}
+			if st.Status == "pending" {
+				continue
+			}
 			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
 			applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
@@ -569,6 +575,9 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 
 			candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
 			for _, st := range stripeTxns {
+				if st.Status == "pending" {
+					continue
+				}
 				ht := stripeTransactionToHledger(st, linked.HledgerAccount)
 				candidate := &floatv1.ImportCandidate{SourceId: st.ID}
 				if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
@@ -778,6 +787,9 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				st, ok := af.txnByID[txnID]
 				if !ok {
 					return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
+				}
+				if st.Status == "pending" {
+					continue
 				}
 				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
 
