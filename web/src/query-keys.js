@@ -6,6 +6,7 @@ export const queryKeys = {
   tags:                 () => ["tags"],
   prices:               () => ["prices"],
   accountDeclarations:  () => ["accountDeclarations"],
+  balanceAssertionStatus: () => ["balanceAssertionStatus"],
   snapshots:            () => ["snapshots"],
   snapshotDiff:         (hash) => ["snapshotDiff", hash],
   bankProfiles:         () => ["bankProfiles"],

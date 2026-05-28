@@ -20,6 +20,7 @@ import {
   Terminal,
   Link2,
   Logs,
+  Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -46,6 +47,7 @@ const NAV_OVERVIEW = [
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/monthly", label: "Monthly", icon: BarChart2 },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
+  { href: "/assertions", label: "Assertions", icon: Scale },
 ];
 
 const NAV_FINANCES = [

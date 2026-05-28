@@ -906,6 +906,22 @@ message BalanceAssertion {
   Amount amount = 1; // the asserted balance, e.g. {commodity: "$", quantity: "100.00"}
 }
 
+// AccountAssertionStatus describes how far an asset/liability account may have
+// drifted from its last enforced balance assertion.
+message AccountAssertionStatus {
+  string account = 1;                        // full colon path (e.g. "assets:checking")
+  string type = 2;                           // "A" or "L"
+  repeated Amount balance = 3;               // current balance, for drift context
+  optional string last_assertion_date = 4;   // "YYYY-MM-DD" of the most recent balance assertion; nil if never asserted
+  optional Transaction last_transaction = 5;  // most recent transaction touching this account; editable to add an assertion
+}
+
+message GetBalanceAssertionStatusRequest {}
+
+message GetBalanceAssertionStatusResponse {
+  repeated AccountAssertionStatus accounts = 1; // sorted oldest/missing assertion first
+}
+
 message LogEntry {
   string time = 1;               // RFC3339Nano timestamp
   string level = 2;              // "DEBUG", "INFO", "WARN", "ERROR"
@@ -926,6 +942,7 @@ service LedgerService {
   rpc GetAccountRegister(GetAccountRegisterRequest) returns (GetAccountRegisterResponse);
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc GetBalanceAssertionStatus(GetBalanceAssertionStatusRequest) returns (GetBalanceAssertionStatusResponse);
   rpc ListTags(ListTagsRequest) returns (ListTagsResponse);
   rpc ListPayees(ListPayeesRequest) returns (ListPayeesResponse);
   rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);
