@@ -931,6 +931,18 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
               lastAssertionDate: "2026-03-20",
               lastTransaction: mockTransactions[0],
             },
+            {
+              account: "assets:investments:brokerage",
+              type: "A",
+              balance: [
+                { commodity: "AAPL", quantity: "10", cost: { quantity: "150.00", commodity: "USD", isTotal: false } },
+                { commodity: "AAPL", quantity: "5", cost: { quantity: "170.00", commodity: "USD", isTotal: false } },
+                { commodity: "GOOGL", quantity: "3", cost: { quantity: "175.00", commodity: "USD", isTotal: false } },
+                { commodity: "USD", quantity: "1842.30" },
+              ],
+              lastAssertionDate: "2025-08-15",
+              lastTransaction: mockTransactions[0],
+            },
           ],
         };
         break;
