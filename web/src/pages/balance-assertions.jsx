@@ -171,7 +171,7 @@ function AssertionRow({ status, accounts, onSaved }) {
       </TableRow>
       {open && tx && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={6} className="p-0">
+          <TableCell colSpan={6} className="p-0 whitespace-normal">
             <AssertionEditor
               account={status.account}
               tx={tx}
