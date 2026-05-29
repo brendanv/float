@@ -679,6 +679,15 @@ const selectColumn = col.display({
 
 const dateColumn = col.accessor("date", {
   id: "date",
+  // Use original array index as a tiebreaker so that descending sort also
+  // reverses within-day order (later transactions in file = shown first).
+  sortingFn: (rowA, rowB) => {
+    const dateA = rowA.original.date;
+    const dateB = rowB.original.date;
+    if (dateA < dateB) return -1;
+    if (dateA > dateB) return 1;
+    return rowA.index - rowB.index;
+  },
   header: ({ column }) => <TableSortHeader column={column}>Date</TableSortHeader>,
   cell: ({ getValue }) => (
     <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
