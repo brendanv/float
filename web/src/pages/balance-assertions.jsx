@@ -9,7 +9,7 @@ import { EmptyState } from "../components/empty-state.jsx";
 import { Page, PageCard } from "../components/page.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { PostingFields, toPostingInput } from "../components/posting-fields.jsx";
-import { formatAmounts, formatDate } from "../format.js";
+import { formatCurrency, formatDate } from "../format.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormActions } from "@/components/ui/form";
@@ -24,6 +24,21 @@ import {
 import { cn } from "@/lib/utils";
 
 const STALE_DAYS = 90;
+
+// collapseAmountsByCommodity sums amounts with the same commodity, dropping cost
+// annotations. Investment accounts can have many lots at different cost bases;
+// for drift-checking purposes we only need total units per commodity.
+function collapseAmountsByCommodity(amounts) {
+  if (!amounts || amounts.length === 0) return [];
+  const totals = new Map();
+  for (const a of amounts) {
+    totals.set(a.commodity, (totals.get(a.commodity) || 0) + (parseFloat(a.quantity) || 0));
+  }
+  return Array.from(totals.entries()).map(([commodity, total]) => ({
+    commodity,
+    quantity: String(total),
+  }));
+}
 
 // daysSince returns whole days between an ISO date string and today, or null.
 function daysSince(dateStr) {
@@ -141,7 +156,13 @@ function AssertionRow({ status, accounts, onSaved }) {
           <Badge variant="outline">{status.type === "L" ? "Liability" : "Asset"}</Badge>
         </TableCell>
         <TableCell className="text-right font-mono tabular-nums">
-          {formatAmounts(status.balance) || "—"}
+          {collapseAmountsByCommodity(status.balance).length === 0 ? (
+            "—"
+          ) : (
+            collapseAmountsByCommodity(status.balance).map((a) => (
+              <div key={a.commodity}>{formatCurrency(a.quantity, a.commodity)}</div>
+            ))
+          )}
         </TableCell>
         <TableCell>{status.lastAssertionDate ? formatDate(status.lastAssertionDate) : "—"}</TableCell>
         <TableCell>
@@ -150,7 +171,7 @@ function AssertionRow({ status, accounts, onSaved }) {
       </TableRow>
       {open && tx && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={6} className="p-0">
+          <TableCell colSpan={6} className="p-0 whitespace-normal">
             <AssertionEditor
               account={status.account}
               tx={tx}
