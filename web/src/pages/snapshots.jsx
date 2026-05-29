@@ -168,7 +168,9 @@ export function SnapshotsPage() {
                     <TableRow key={s.hash}>
                       <TableCell className="font-mono">{s.hash.slice(0, 12)}</TableCell>
                       <TableCell className="font-mono">{s.timestamp}</TableCell>
-                      <TableCell>{s.message}</TableCell>
+                      <TableCell>
+                        <div className="max-w-[10rem] truncate sm:max-w-xs" title={s.message}>{s.message}</div>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button
