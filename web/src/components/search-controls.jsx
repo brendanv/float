@@ -3,13 +3,7 @@ import { Check, X, Search, CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile.js";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
   Popover,
   PopoverContent,
@@ -411,22 +405,17 @@ export function SearchControls({
 
           <Separator orientation="vertical" className="h-5" />
 
-          <Select
-            value={tag || ""}
-            onValueChange={(v) => onTagChange(v === "__any__" ? "" : v)}
+          <NativeSelect
+            size="sm"
+            value={tag || "__any__"}
+            onChange={(e) => onTagChange(e.target.value === "__any__" ? "" : e.target.value)}
+            className="[&>select]:border-0 [&>select]:bg-transparent [&>select]:shadow-none [&>select]:focus-visible:ring-0 [&>select:hover]:bg-muted dark:[&>select]:bg-transparent dark:[&>select:hover]:bg-muted"
           >
-            <SelectTrigger size="sm" className="border-0 bg-transparent shadow-none hover:bg-muted focus-visible:ring-0 dark:bg-transparent dark:hover:bg-muted">
-              <SelectValue placeholder="Any tag">
-                {tag || "Any tag"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__any__">Any tag</SelectItem>
-              {(tags || []).map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <NativeSelectOption value="__any__">Any tag</NativeSelectOption>
+            {(tags || []).map((t) => (
+              <NativeSelectOption key={t} value={t}>{t}</NativeSelectOption>
+            ))}
+          </NativeSelect>
 
           {onSearchChange && (
             <div className="hidden flex-1 items-center md:flex">

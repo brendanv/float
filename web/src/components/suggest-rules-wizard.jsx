@@ -17,13 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 
 const SOURCE_LABELS = {
@@ -140,16 +134,15 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
             <div className="flex flex-col gap-4">
               {error && <ErrorBanner error={error} />}
               <FormField label="Transaction source">
-                <Select value={sourceType} onValueChange={setSourceType}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue>{() => SOURCE_LABELS[sourceType]}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unreviewed">Unreviewed transactions</SelectItem>
-                    <SelectItem value="account">From a specific account</SelectItem>
-                    <SelectItem value="nopayee">Transactions without payees</SelectItem>
-                  </SelectContent>
-                </Select>
+                <NativeSelect
+                  value={sourceType}
+                  onChange={(e) => setSourceType(e.target.value)}
+                  className="w-full"
+                >
+                  <NativeSelectOption value="unreviewed">Unreviewed transactions</NativeSelectOption>
+                  <NativeSelectOption value="account">From a specific account</NativeSelectOption>
+                  <NativeSelectOption value="nopayee">Transactions without payees</NativeSelectOption>
+                </NativeSelect>
               </FormField>
               {sourceType === "account" && (
                 <FormField label="Account">
