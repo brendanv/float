@@ -23,8 +23,6 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-const STALE_DAYS = 90;
-
 // collapseAmountsByCommodity sums amounts with the same commodity, dropping cost
 // annotations. Investment accounts can have many lots at different cost bases;
 // for drift-checking purposes we only need total units per commodity.
@@ -40,29 +38,25 @@ function collapseAmountsByCommodity(amounts) {
   }));
 }
 
-// daysSince returns whole days between an ISO date string and today, or null.
-function daysSince(dateStr) {
-  if (!dateStr) return null;
-  const then = new Date(dateStr + "T00:00:00");
-  if (isNaN(then.getTime())) return null;
-  const now = new Date();
-  return Math.floor((now - then) / 86400000);
+function transactionCountLabel(count) {
+  if (count === 0) return "No transactions since";
+  if (count === 1) return "1 transaction since";
+  return `${count} transactions since`;
 }
 
-function AssertionBadge({ lastAssertionDate }) {
-  const days = daysSince(lastAssertionDate);
-  if (days === null) {
+function AssertionBadge({ lastAssertionDate, transactionsSinceLastAssertion = 0 }) {
+  const countLabel = transactionCountLabel(transactionsSinceLastAssertion);
+  if (!lastAssertionDate) {
     return (
       <Badge variant="destructive">
-        <AlertTriangle data-icon="inline-start" /> Never asserted
+        <AlertTriangle data-icon="inline-start" /> Never asserted ({countLabel.toLowerCase()})
       </Badge>
     );
   }
-  const label = days === 0 ? "Today" : days === 1 ? "1 day ago" : `${days} days ago`;
-  if (days > STALE_DAYS) {
-    return <Badge variant="destructive">{label}</Badge>;
+  if (transactionsSinceLastAssertion === 0) {
+    return <Badge variant="secondary">Up to date</Badge>;
   }
-  return <Badge variant="secondary">{label}</Badge>;
+  return <Badge variant="secondary">{countLabel}</Badge>;
 }
 
 // toFields maps a transaction's postings to PostingFields rows, and pre-scaffolds
@@ -164,9 +158,17 @@ function AssertionRow({ status, accounts, onSaved }) {
             ))
           )}
         </TableCell>
-        <TableCell>{status.lastAssertionDate ? formatDate(status.lastAssertionDate) : "—"}</TableCell>
         <TableCell>
-          <AssertionBadge lastAssertionDate={status.lastAssertionDate} />
+          <div>{status.lastAssertionDate ? formatDate(status.lastAssertionDate) : "—"}</div>
+          <div className="text-xs text-muted-foreground">
+            {transactionCountLabel(status.transactionsSinceLastAssertion || 0)}
+          </div>
+        </TableCell>
+        <TableCell>
+          <AssertionBadge
+            lastAssertionDate={status.lastAssertionDate}
+            transactionsSinceLastAssertion={status.transactionsSinceLastAssertion || 0}
+          />
         </TableCell>
       </TableRow>
       {open && tx && (
@@ -210,7 +212,7 @@ export function BalanceAssertionsPage() {
     <Page>
       <PageHeader
         title="Balance Assertions"
-        description="See how far your asset and liability accounts may have drifted from their last enforced balance assertion. Expand an account to edit its most recent transaction and add a fresh assertion."
+        description="See how many asset and liability account transactions have posted since each account's last enforced balance assertion. Expand an account to edit its most recent transaction and add a fresh assertion."
       />
       {isLoading ? (
         <Loading />

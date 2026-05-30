@@ -915,13 +915,7 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
               account: "liabilities:creditcard",
               type: "L",
               balance: [{ commodity: "USD", quantity: "-842.18" }],
-              lastTransaction: mockTransactions[0],
-            },
-            {
-              account: "assets:savings",
-              type: "A",
-              balance: [{ commodity: "USD", quantity: "12500.00" }],
-              lastAssertionDate: "2025-11-01",
+              transactionsSinceLastAssertion: 6,
               lastTransaction: mockTransactions[0],
             },
             {
@@ -929,6 +923,7 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
               type: "A",
               balance: [{ commodity: "USD", quantity: "3214.55" }],
               lastAssertionDate: "2026-03-20",
+              transactionsSinceLastAssertion: 3,
               lastTransaction: mockTransactions[0],
             },
             {
@@ -941,6 +936,15 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
                 { commodity: "USD", quantity: "1842.30" },
               ],
               lastAssertionDate: "2025-08-15",
+              transactionsSinceLastAssertion: 1,
+              lastTransaction: mockTransactions[0],
+            },
+            {
+              account: "assets:savings",
+              type: "A",
+              balance: [{ commodity: "USD", quantity: "12500.00" }],
+              lastAssertionDate: "2025-11-01",
+              transactionsSinceLastAssertion: 0,
               lastTransaction: mockTransactions[0],
             },
           ],

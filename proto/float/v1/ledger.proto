@@ -914,12 +914,13 @@ message AccountAssertionStatus {
   repeated Amount balance = 3;               // current balance, for drift context
   optional string last_assertion_date = 4;   // "YYYY-MM-DD" of the most recent balance assertion; nil if never asserted
   optional Transaction last_transaction = 5;  // most recent transaction touching this account; editable to add an assertion
+  int32 transactions_since_last_assertion = 6; // account transactions after the last assertion; all transactions if never asserted
 }
 
 message GetBalanceAssertionStatusRequest {}
 
 message GetBalanceAssertionStatusResponse {
-  repeated AccountAssertionStatus accounts = 1; // sorted oldest/missing assertion first
+  repeated AccountAssertionStatus accounts = 1; // sorted by transactions since last assertion, highest first
 }
 
 message LogEntry {
