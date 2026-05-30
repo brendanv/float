@@ -50,12 +50,9 @@ import {
   PaginationItem,
 } from "@/components/ui/pagination";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -1065,23 +1062,19 @@ export function TransactionTable({
         <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
-            <Select
+            <NativeSelect
               value={String(table.getState().pagination.pageSize)}
-              onValueChange={(val) => {
-                table.setPageSize(Number(val));
+              onChange={(e) => {
+                table.setPageSize(Number(e.target.value));
                 setPagination((p) => ({ ...p, pageIndex: 0 }));
               }}
+              className="w-16"
             >
-              <SelectTrigger className="h-8 w-16">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
+              <NativeSelectOption value="10">10</NativeSelectOption>
+              <NativeSelectOption value="25">25</NativeSelectOption>
+              <NativeSelectOption value="50">50</NativeSelectOption>
+              <NativeSelectOption value="100">100</NativeSelectOption>
+            </NativeSelect>
           </div>
           <div className="flex items-center gap-2">
             <span className="whitespace-nowrap text-sm text-muted-foreground">

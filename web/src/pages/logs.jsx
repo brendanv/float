@@ -3,7 +3,7 @@ import { createClient } from "@connectrpc/connect";
 import { createGrpcWebTransport } from "@connectrpc/connect-web";
 import { LedgerService } from "@/gen/float/v1/ledger_pb.js";
 import { Page, PageCard } from "../components/page.jsx";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -109,16 +109,15 @@ export function LogsPage() {
         contentClassName="flex flex-col gap-3"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={minLevel} onValueChange={setMinLevel}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Minimum level" />
-            </SelectTrigger>
-            <SelectContent>
-              {LEVELS.map((level) => (
-                <SelectItem key={level} value={level}>{level}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            value={minLevel}
+            onChange={(e) => setMinLevel(e.target.value)}
+            className="w-[180px]"
+          >
+            {LEVELS.map((level) => (
+              <NativeSelectOption key={level} value={level}>{level}</NativeSelectOption>
+            ))}
+          </NativeSelect>
           <Button variant="outline" size="sm" onClick={() => setEntries([])}>
             <Trash2 data-icon="inline-start" />
             Clear

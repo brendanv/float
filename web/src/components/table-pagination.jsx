@@ -7,12 +7,9 @@ import {
   PaginationItem,
 } from "@/components/ui/pagination";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -31,24 +28,20 @@ export function TablePagination({
         <Label className="whitespace-nowrap text-sm text-muted-foreground">
           Rows per page:
         </Label>
-        <Select
+        <NativeSelect
           value={String(pageSize)}
-          onValueChange={(val) => {
-            table.setPageSize(Number(val));
+          onChange={(e) => {
+            table.setPageSize(Number(e.target.value));
             table.setPageIndex(0);
           }}
+          className="w-16"
         >
-          <SelectTrigger className="h-8 w-16">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {pageSizeOptions.map((opt) => (
-              <SelectItem key={opt} value={String(opt)}>
-                {opt}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {pageSizeOptions.map((opt) => (
+            <NativeSelectOption key={opt} value={String(opt)}>
+              {opt}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
       </div>
       <div className="flex items-center gap-2">
         <span className="whitespace-nowrap text-sm text-muted-foreground">
