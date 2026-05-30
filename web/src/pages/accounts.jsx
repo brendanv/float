@@ -53,7 +53,7 @@ function buildTree(declarations) {
   return { byName, children, roots };
 }
 
-function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName, declaredNames }) {
+function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, deletingName, declaredNames }) {
   const [expanded, setExpanded] = useState(true);
   const kids = children.get(name) ?? [];
   const decl = byName.get(name);
@@ -78,7 +78,18 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName
             />
           )}
         </button>
-        <span className="font-mono text-sm flex-1">{label}</span>
+        <div className="flex flex-1 items-center gap-1 min-w-0">
+          <span className="font-mono text-sm truncate" title={name}>{label}</span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Rename ${name}`}
+            title={`Rename ${name}`}
+            onClick={() => onRename(name)}
+          >
+            <Pencil className="size-3" />
+          </Button>
+        </div>
         {declaredNames.has(name) && !decl?.hasPostings && (
           <Button
             variant="destructive-ghost"
@@ -101,6 +112,7 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName
               children={children}
               depth={depth + 1}
               onDelete={onDelete}
+              onRename={onRename}
               deletingName={deletingName}
               declaredNames={declaredNames}
             />
@@ -111,7 +123,7 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, deletingName
   );
 }
 
-function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNames, deletingName, onDelete }) {
+function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNames, deletingName, onDelete, onRename }) {
   const [open, setOpen] = useState(true);
   const canDelete = declaredNames.has(root) && !rootDecl?.hasPostings;
   return (
@@ -119,15 +131,29 @@ function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNa
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
-            <CollapsibleTrigger className="flex items-center gap-2 text-left flex-1 min-w-0">
-              <CardTitle className="capitalize">{root}</CardTitle>
-              <ChevronDown
-                className={cn(
-                  "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                  open && "rotate-180",
-                )}
-              />
-            </CollapsibleTrigger>
+            <div className="flex flex-1 items-center gap-1 min-w-0">
+              <CardTitle className="capitalize truncate" title={root}>{root}</CardTitle>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Rename ${root}`}
+                title={`Rename ${root}`}
+                onClick={() => onRename(root)}
+              >
+                <Pencil className="size-3" />
+              </Button>
+              <CollapsibleTrigger
+                className="flex items-center justify-center size-6 shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label={open ? `Collapse ${root}` : `Expand ${root}`}
+              >
+                <ChevronDown
+                  className={cn(
+                    "size-4 transition-transform duration-200",
+                    open && "rotate-180",
+                  )}
+                />
+              </CollapsibleTrigger>
+            </div>
             {canDelete && (
               <Button
                 variant="destructive-ghost"
@@ -152,6 +178,7 @@ function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNa
                     children={childrenMap}
                     depth={0}
                     onDelete={onDelete}
+                    onRename={onRename}
                     deletingName={deletingName}
                     declaredNames={declaredNames}
                   />
@@ -179,6 +206,7 @@ export function AccountsPage() {
   const [formError, setFormError] = useState(null);
   const [deletingName, setDeletingName] = useState(null);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [renameAccountName, setRenameAccountName] = useState("");
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.declareAccount(vars),
@@ -214,18 +242,19 @@ export function AccountsPage() {
     deleteMutation.mutate({ name });
   }
 
+  function handleRename(name) {
+    setRenameAccountName(name);
+    setFormError(null);
+    setRenameOpen(true);
+  }
+
   const declarations = data?.declarations ?? [];
   const declaredNames = new Set(declarations.map((d) => d.name));
   const { byName, children, roots } = buildTree(declarations);
 
   return (
     <Page>
-      <PageHeader title="Account Declarations">
-        <Button variant="outline" onClick={() => { setFormError(null); setRenameOpen(true); }}>
-          <Pencil data-icon="inline-start" />
-          Rename Account
-        </Button>
-      </PageHeader>
+      <PageHeader title="Account Declarations" />
 
       <PageCard title="Declare Account">
         <Form onSubmit={handleSubmit}>
@@ -286,6 +315,7 @@ export function AccountsPage() {
             declaredNames={declaredNames}
             deletingName={deletingName}
             onDelete={handleDelete}
+            onRename={handleRename}
           />
         );
       })}
@@ -293,12 +323,13 @@ export function AccountsPage() {
       <RenameAccountDialog
         open={renameOpen}
         onOpenChange={setRenameOpen}
+        selectedAccountName={renameAccountName}
       />
     </Page>
   );
 }
 
-function RenameAccountDialog({ open, onOpenChange }) {
+function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
   const queryClient = useQueryClient();
   const [oldName, setOldName] = useState("");
   const [newName, setNewName] = useState("");
@@ -313,12 +344,13 @@ function RenameAccountDialog({ open, onOpenChange }) {
 
   useEffect(() => {
     if (open) {
-      setOldName("");
-      setNewName("");
+      const selected = selectedAccountName.trim();
+      setOldName(selected);
+      setNewName(selected);
       setStep("input");
       setError(null);
     }
-  }, [open]);
+  }, [open, selectedAccountName]);
 
   const renameMutation = useMutation({
     mutationFn: (vars) => ledgerClient.renameAccount(vars),
@@ -333,6 +365,14 @@ function RenameAccountDialog({ open, onOpenChange }) {
     },
     onError: (err) => setError(err),
   });
+
+  function handleOldNameChange(value) {
+    const previousOldName = oldName.trim();
+    setOldName(value);
+    setNewName((current) => (
+      current.trim() === previousOldName ? value : current
+    ));
+  }
 
   function handleContinue(e) {
     e.preventDefault();
@@ -375,7 +415,7 @@ function RenameAccountDialog({ open, onOpenChange }) {
             <FormField label="Account to rename">
               <AccountInput
                 value={oldName}
-                onChange={setOldName}
+                onChange={handleOldNameChange}
                 accounts={accountsData?.accounts || []}
                 placeholder="Select account"
               />
