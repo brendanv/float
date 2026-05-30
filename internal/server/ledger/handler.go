@@ -290,6 +290,76 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 	}), nil
 }
 
+type exactQty struct {
+	mantissa int64
+	scale    int
+}
+
+func addExactQty(cur exactQty, q hledger.AmountQuantity) exactQty {
+	m := q.DecimalMantissa
+	p := q.DecimalPlaces
+	if p > cur.scale {
+		factor := int64(1)
+		for i := 0; i < p-cur.scale; i++ {
+			factor *= 10
+		}
+		cur.mantissa *= factor
+		cur.scale = p
+	} else if p < cur.scale {
+		factor := int64(1)
+		for i := 0; i < cur.scale-p; i++ {
+			factor *= 10
+		}
+		m *= factor
+	}
+	cur.mantissa += m
+	return cur
+}
+
+func exactQtyFloat(q exactQty) float64 {
+	value := float64(q.mantissa)
+	if q.scale > 0 {
+		divisor := float64(1)
+		for i := 0; i < q.scale; i++ {
+			divisor *= 10
+		}
+		value /= divisor
+	}
+	return value
+}
+
+func collapseAmountsByCommodityExact(amounts []hledger.Amount) []hledger.Amount {
+	if len(amounts) == 0 {
+		return nil
+	}
+
+	totals := make(map[string]exactQty)
+	order := make([]string, 0, len(amounts))
+	for _, amount := range amounts {
+		if _, seen := totals[amount.Commodity]; !seen {
+			order = append(order, amount.Commodity)
+		}
+		totals[amount.Commodity] = addExactQty(totals[amount.Commodity], amount.Quantity)
+	}
+
+	collapsed := make([]hledger.Amount, 0, len(order))
+	for _, commodity := range order {
+		qty := totals[commodity]
+		if qty.mantissa == 0 {
+			continue
+		}
+		collapsed = append(collapsed, hledger.Amount{
+			Commodity: commodity,
+			Quantity: hledger.AmountQuantity{
+				DecimalMantissa: qty.mantissa,
+				DecimalPlaces:   qty.scale,
+				FloatingPoint:   exactQtyFloat(qty),
+			},
+		})
+	}
+	return collapsed
+}
+
 // currencySymbols is the set of commodity codes treated as plain fiat currency.
 // Accounts whose amounts consist only of these commodities are excluded from the
 // portfolio view — they are cash positions, not equity holdings.
@@ -344,10 +414,6 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	// avoid float64 rounding errors that produce near-zero residuals like
 	// 6e-14 for fully-liquidated positions.
 	type holdingKey struct{ account, symbol string }
-	type exactQty struct {
-		mantissa int64
-		scale    int
-	}
 	type costBasis struct {
 		total    float64
 		currency string
@@ -364,25 +430,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			if _, seen := aggregated[k]; !seen {
 				holdingOrder = append(holdingOrder, k)
 			}
-			cur := aggregated[k]
-			m := amt.Quantity.DecimalMantissa
-			p := amt.Quantity.DecimalPlaces
-			if p > cur.scale {
-				factor := int64(1)
-				for i := 0; i < p-cur.scale; i++ {
-					factor *= 10
-				}
-				cur.mantissa *= factor
-				cur.scale = p
-			} else if p < cur.scale {
-				factor := int64(1)
-				for i := 0; i < cur.scale-p; i++ {
-					factor *= 10
-				}
-				m *= factor
-			}
-			cur.mantissa += m
-			aggregated[k] = cur
+			aggregated[k] = addExactQty(aggregated[k], amt.Quantity)
 
 			if c, err := amt.ParseCost(); err == nil && c != nil {
 				var lotCost float64
@@ -407,14 +455,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		if eq.mantissa == 0 {
 			continue
 		}
-		qty := float64(eq.mantissa)
-		if eq.scale > 0 {
-			divisor := float64(1)
-			for i := 0; i < eq.scale; i++ {
-				divisor *= 10
-			}
-			qty /= divisor
-		}
+		qty := exactQtyFloat(eq)
 		holding := &floatv1.Holding{
 			Account:   k.account,
 			Symbol:    k.symbol,
@@ -738,7 +779,7 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 		s := &floatv1.AccountAssertionStatus{
 			Account:         account,
 			Type:            string(accountType[account]),
-			Balance:         toProtoAmounts(balByAccount[account]),
+			Balance:         toProtoAmounts(collapseAmountsByCommodityExact(balByAccount[account])),
 			LastTransaction: toProtoTransaction(*a.lastTxn),
 		}
 		if a.lastAssertion != "" {

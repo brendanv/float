@@ -137,6 +137,7 @@ function AssertionEditor({ account, tx, accounts, onSaved }) {
 function AssertionRow({ status, accounts, onSaved }) {
   const [open, setOpen] = useState(false);
   const tx = status.lastTransaction;
+  const collapsedBalance = collapseAmountsByCommodity(status.balance);
   return (
     <>
       <TableRow
@@ -156,10 +157,10 @@ function AssertionRow({ status, accounts, onSaved }) {
           <Badge variant="outline">{status.type === "L" ? "Liability" : "Asset"}</Badge>
         </TableCell>
         <TableCell className="text-right font-mono tabular-nums">
-          {collapseAmountsByCommodity(status.balance).length === 0 ? (
+          {collapsedBalance.length === 0 ? (
             "—"
           ) : (
-            collapseAmountsByCommodity(status.balance).map((a) => (
+            collapsedBalance.map((a) => (
               <div key={a.commodity}>{formatCurrency(a.quantity, a.commodity)}</div>
             ))
           )}
