@@ -145,10 +145,29 @@ capture "trends"
 
 stop_tui
 
+# ── Assertions tab ────────────────────────────────────────────────────────────
+start_tui
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Accounts
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Trends
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Portfolio
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Monthly
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Assertions
+sleep 2
+capture "assertions"
+
+tmux send-keys -t "$TUI_PANE" "" Enter # open assertion editor for selected account
+sleep 1
+capture "assertions-editor"
+
+stop_tui
+
 # ── Manage tab — all 6 sub-tabs ───────────────────────────────────────────────
 start_tui
 tmux send-keys -t "$TUI_PANE" "" Tab   # → Accounts
 tmux send-keys -t "$TUI_PANE" "" Tab   # → Trends
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Portfolio
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Monthly
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Assertions
 tmux send-keys -t "$TUI_PANE" "" Tab   # → Manage
 sleep 2
 capture "manage-rules"
@@ -179,6 +198,9 @@ stop_tui
 start_tui
 tmux send-keys -t "$TUI_PANE" "" Tab   # → Accounts
 tmux send-keys -t "$TUI_PANE" "" Tab   # → Trends
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Portfolio
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Monthly
+tmux send-keys -t "$TUI_PANE" "" Tab   # → Assertions
 tmux send-keys -t "$TUI_PANE" "" Tab   # → Manage
 tmux send-keys -t "$TUI_PANE" "" Tab   # → Settings
 sleep 1
