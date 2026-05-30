@@ -157,7 +157,6 @@ export function SnapshotsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Hash</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Message</TableHead>
                     <TableHead></TableHead>
@@ -166,7 +165,6 @@ export function SnapshotsPage() {
                 <TableBody>
                   {snapshotsData.snapshots.map((s) => (
                     <TableRow key={s.hash}>
-                      <TableCell className="font-mono">{s.hash.slice(0, 12)}</TableCell>
                       <TableCell className="font-mono">{s.timestamp}</TableCell>
                       <TableCell>
                         <div className="max-w-[10rem] truncate sm:max-w-xs" title={s.message}>{s.message}</div>
