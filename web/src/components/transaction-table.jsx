@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, Scale, Plus } from "lucide-react";
+import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, Scale, Plus, ArrowUp, ArrowDown } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -694,7 +694,7 @@ const dateColumn = col.accessor("date", {
       {formatDate(getValue())}
     </span>
   ),
-  meta: { headerClass: "w-28", cellClass: "w-28" },
+  meta: { headerClass: "w-28", cellClass: "w-28", label: "Date" },
 });
 
 const statusColumn = col.display({
@@ -709,6 +709,7 @@ const statusColumn = col.display({
 
 const descriptionColumn = col.accessor((tx) => tx.description, {
   id: "description",
+  meta: { label: "Description" },
   header: ({ column }) => <TableSortHeader column={column}>Description</TableSortHeader>,
   cell: ({ row, table }) => {
     const { onStatusChange } = table.options.meta;
@@ -767,6 +768,7 @@ const tagsColumn = col.display({
 // remains sortable.
 const fromColumn = col.accessor((tx) => accountSplit(tx).from || "", {
   id: "from",
+  meta: { label: "From account" },
   header: ({ column }) => <TableSortHeader column={column}>From</TableSortHeader>,
   cell: ({ row, table }) => {
     const { accounts, onStatusChange } = table.options.meta;
@@ -783,6 +785,7 @@ const fromColumn = col.accessor((tx) => accountSplit(tx).from || "", {
 
 const toColumn = col.accessor((tx) => accountSplit(tx).to || "", {
   id: "to",
+  meta: { label: "To account" },
   header: ({ column }) => <TableSortHeader column={column}>To</TableSortHeader>,
   cell: ({ row, table }) => {
     const { accounts, onStatusChange } = table.options.meta;
@@ -831,7 +834,7 @@ const amountColumn = col.accessor(
         </span>
       );
     },
-    meta: { headerClass: "text-right", cellClass: "text-right" },
+    meta: { headerClass: "text-right", cellClass: "text-right", label: "Amount" },
   },
 );
 
@@ -871,7 +874,7 @@ const changeColumn = col.accessor(
         </span>
       );
     },
-    meta: { cellClass: "text-right" },
+    meta: { cellClass: "text-right", label: "Change" },
   },
 );
 
@@ -888,7 +891,7 @@ const balanceColumn = col.accessor(
         </span>
       );
     },
-    meta: { cellClass: "text-right" },
+    meta: { cellClass: "text-right", label: "Balance" },
   },
 );
 
@@ -913,6 +916,58 @@ const registerColumns = [
   changeColumn,
   balanceColumn,
 ];
+
+// ── mobile sort control ─────────────────────────────────────────────────────
+// The card layout has no column headers, so mobile users have no way to sort.
+// This compact bar drives the same TanStack `sorting` state the desktop header
+// toggles: a field picker plus an ascending/descending toggle. Sortable
+// columns are those that opt in via `meta.label`.
+
+const NO_SORT = "__default__";
+
+function MobileSortControl({ table }) {
+  const sortableColumns = table
+    .getAllLeafColumns()
+    .filter((c) => c.getCanSort() && c.columnDef.meta?.label);
+  const active = table.getState().sorting[0];
+  const activeColumn = active ? table.getColumn(active.id) : null;
+
+  return (
+    <div className="mb-2 flex items-center gap-2 sm:hidden">
+      <span className="shrink-0 text-xs text-muted-foreground">Sort by</span>
+      <Select
+        value={active?.id ?? NO_SORT}
+        onValueChange={(val) => {
+          if (val === NO_SORT) table.setSorting([]);
+          else table.setSorting([{ id: val, desc: false }]);
+        }}
+      >
+        <SelectTrigger size="sm" className="h-8 flex-1">
+          <SelectValue placeholder="Default order" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_SORT}>Default order</SelectItem>
+          {sortableColumns.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.columnDef.meta.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        variant="outline"
+        size="icon"
+        className="size-8 shrink-0"
+        disabled={!activeColumn}
+        onClick={() => activeColumn?.toggleSorting(activeColumn.getIsSorted() === "asc")}
+        title={active?.desc ? "Descending — tap for ascending" : "Ascending — tap for descending"}
+        aria-label="Toggle sort direction"
+      >
+        {active?.desc ? <ArrowDown className="size-4" /> : <ArrowUp className="size-4" />}
+      </Button>
+    </div>
+  );
+}
 
 // ── main component ─────────────────────────────────────────────────────────
 
@@ -1042,7 +1097,8 @@ export function TransactionTable({
         </Table>
       </div>
 
-      {/* Mobile cards */}
+      {/* Mobile sort + cards */}
+      <MobileSortControl table={table} />
       <div className="-mx-4 flex flex-col gap-2 sm:hidden">
         {pageRows.map((row) => (
           <MobileCard
