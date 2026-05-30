@@ -22,13 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 
 function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSelection }) {
   const [mode, setMode] = useState("idle"); // 'idle' | 'add-tag' | 'remove-tag' | 'set-payee'
@@ -212,16 +206,16 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
 
       {mode === "remove-tag" && (
         <>
-          <Select value={removeTagKey} onValueChange={setRemoveTagKey}>
-            <SelectTrigger size="sm" className="h-6 min-w-28">
-              <SelectValue>{removeTagKey}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {availableTagKeys.map((k) => (
-                <SelectItem key={k} value={k}>{k}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            size="sm"
+            value={removeTagKey}
+            onChange={(e) => setRemoveTagKey(e.target.value)}
+            className="min-w-28"
+          >
+            {availableTagKeys.map((k) => (
+              <NativeSelectOption key={k} value={k}>{k}</NativeSelectOption>
+            ))}
+          </NativeSelect>
           <Button variant="ghost" size="icon-xs" disabled={!removeTagKey} isLoading={working} onClick={bulkRemoveTag} title="Apply">
             <Check className="size-3" />
           </Button>

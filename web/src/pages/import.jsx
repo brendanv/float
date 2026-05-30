@@ -24,13 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import { Combobox } from "@/components/ui/combobox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -278,23 +272,20 @@ function CreateProfileModal({ open, onCreated, onClose }) {
                     >
                       {header || `Col ${idx + 1}`}
                     </span>
-                    <Select
+                    <NativeSelect
+                      size="sm"
                       value={columnMappings[idx]}
-                      onValueChange={(v) => {
+                      onChange={(e) => {
                         const next = [...columnMappings];
-                        next[idx] = v;
+                        next[idx] = e.target.value;
                         setColumnMappings(next);
                       }}
+                      className="w-36"
                     >
-                      <SelectTrigger size="sm" className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COLUMN_TYPES.map((ct) => (
-                          <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      {COLUMN_TYPES.map((ct) => (
+                        <NativeSelectOption key={ct.value} value={ct.value}>{ct.label}</NativeSelectOption>
+                      ))}
+                    </NativeSelect>
                   </div>
                 ))}
               </div>
@@ -738,29 +729,18 @@ export function ImportPage() {
             {profilesError && <ErrorBanner error={profilesError} />}
             <FormField label="Bank Profile">
                 <div className="flex items-center gap-1">
-                  {profilesLoading ? (
-                    <Select disabled value="">
-                      <SelectTrigger size="sm" className="flex-1">
-                        <SelectValue>Loading…</SelectValue>
-                      </SelectTrigger>
-                    </Select>
-                  ) : (
-                    <Select
-                      value={selectedProfile || undefined}
-                      onValueChange={setSelectedProfile}
-                    >
-                      <SelectTrigger size="sm" className="flex-1">
-                        <SelectValue placeholder="Select profile…">
-                          {selectedProfile || "Select profile…"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(profilesData?.profiles ?? []).map((p) => (
-                          <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <NativeSelect
+                    size="sm"
+                    value={selectedProfile || ""}
+                    onChange={(e) => setSelectedProfile(e.target.value || undefined)}
+                    disabled={profilesLoading}
+                    className="flex-1"
+                  >
+                    <NativeSelectOption value="">{profilesLoading ? "Loading…" : "Select profile…"}</NativeSelectOption>
+                    {(profilesData?.profiles ?? []).map((p) => (
+                      <NativeSelectOption key={p.name} value={p.name}>{p.name}</NativeSelectOption>
+                    ))}
+                  </NativeSelect>
                   <Tooltip>
                     <TooltipTrigger
                       render={
