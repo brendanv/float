@@ -42,36 +42,45 @@ import {
 } from "@/components/ui/sidebar";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 
-const NAV_OVERVIEW = [
+const NAV_FINANCES = [
   { href: "/", label: "Home", icon: House },
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/monthly", label: "Monthly", icon: BarChart2 },
+  { href: "/transactions", label: "Transactions", icon: List },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { href: "/assertions", label: "Assertions", icon: Scale },
 ];
 
-const NAV_FINANCES = [
-  { href: "/transactions", label: "Transactions", icon: List },
-  { href: "/connections", label: "Connections", icon: Link2 },
-  { href: "/import", label: "Import", icon: Upload },
-  { href: "/imports", label: "Import History", icon: ClockArrowUp },
-  { href: "/prices", label: "Prices", icon: Tag },
+const NAV_MANAGE = [
+  { href: "/accounts", label: "Accounts", icon: BookOpen },
+  { href: "/payees", label: "Payees", icon: Users },
   { href: "/rules", label: "Rules", icon: ListFilter },
 ];
 
-const NAV_SETUP = [
-  { href: "/accounts", label: "Accounts", icon: BookOpen },
-  { href: "/payees", label: "Payees", icon: Users },
+const NAV_DATA_SOURCES = [
+  { href: "/connections", label: "Connections", icon: Link2 },
+  { href: "/import", label: "Import", icon: Upload },
+  { href: "/prices", label: "Prices", icon: Tag },
+  { href: "/assertions", label: "Assertions", icon: Scale },
+];
+
+const NAV_HISTORY = [
+  { href: "/imports", label: "Import History", icon: ClockArrowUp },
+  { href: "/snapshots", label: "Snapshots", icon: History },
 ];
 
 const NAV_SETTINGS = [
-  { href: "/snapshots", label: "Snapshots", icon: History },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/hledger-query", label: "Query", icon: Terminal },
   { href: "/logs", label: "Logs", icon: Logs },
 ];
 
-const ALL_NAV = [...NAV_OVERVIEW, ...NAV_FINANCES, ...NAV_SETUP, ...NAV_SETTINGS];
+const ALL_NAV = [
+  ...NAV_FINANCES,
+  ...NAV_MANAGE,
+  ...NAV_DATA_SOURCES,
+  ...NAV_HISTORY,
+  ...NAV_SETTINGS,
+];
 
 function ThemeSwitcher() {
   const [isDark, setIsDark] = useState(
@@ -143,9 +152,10 @@ function AppSidebar({ currentPath, onAddTransaction }) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavGroup label="Overview" items={NAV_OVERVIEW} currentPath={currentPath} />
         <NavGroup label="Finances" items={NAV_FINANCES} currentPath={currentPath} />
-        <NavGroup label="Setup" items={NAV_SETUP} currentPath={currentPath} />
+        <NavGroup label="Manage" items={NAV_MANAGE} currentPath={currentPath} />
+        <NavGroup label="Data sources" items={NAV_DATA_SOURCES} currentPath={currentPath} />
+        <NavGroup label="History" items={NAV_HISTORY} currentPath={currentPath} />
         <NavGroup label="Settings" items={NAV_SETTINGS} currentPath={currentPath} />
         <SidebarGroup>
           <SidebarGroupContent>

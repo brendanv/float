@@ -15,7 +15,11 @@ import (
 func writeAssertionJournal(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	journal := `2026-01-01 (aa000001) Opening balance
+	journal := `2025-12-01 (aa000000) Savings opening balance
+    assets:savings             $5000 = $5000
+    equity:opening
+
+2026-01-01 (aa000001) Opening balance
     assets:checking            $1000 = $1000
     equity:opening
 
@@ -43,20 +47,29 @@ func TestGetBalanceAssertionStatus(t *testing.T) {
 	}
 	got := resp.Msg.Accounts
 
-	// Only asset and liability accounts with postings: assets:checking and
-	// liabilities:card. equity:opening and expenses:food must be excluded.
-	if len(got) != 2 {
+	// Only asset and liability accounts with postings: assets:checking,
+	// assets:savings, and liabilities:card. equity:opening and expenses:food must
+	// be excluded.
+	if len(got) != 3 {
 		var names []string
 		for _, a := range got {
 			names = append(names, a.Account)
 		}
-		t.Fatalf("expected 2 accounts, got %d: %v", len(got), names)
+		t.Fatalf("expected 3 accounts, got %d: %v", len(got), names)
 	}
 
-	// Never-asserted account sorts first.
-	card := got[0]
+	// Accounts sort by transactions since the last assertion, highest first.
+	checking := got[0]
+	if checking.Account != "assets:checking" {
+		t.Errorf("first account = %q, want assets:checking", checking.Account)
+	}
+	if checking.GetTransactionsSinceLastAssertion() != 2 {
+		t.Errorf("assets:checking transactions_since_last_assertion = %d, want 2", checking.GetTransactionsSinceLastAssertion())
+	}
+
+	card := got[1]
 	if card.Account != "liabilities:card" {
-		t.Errorf("first account = %q, want liabilities:card", card.Account)
+		t.Errorf("second account = %q, want liabilities:card", card.Account)
 	}
 	if card.Type != "L" {
 		t.Errorf("liabilities:card type = %q, want L", card.Type)
@@ -64,13 +77,11 @@ func TestGetBalanceAssertionStatus(t *testing.T) {
 	if card.LastAssertionDate != nil {
 		t.Errorf("liabilities:card last_assertion_date = %q, want nil", card.GetLastAssertionDate())
 	}
+	if card.GetTransactionsSinceLastAssertion() != 1 {
+		t.Errorf("liabilities:card transactions_since_last_assertion = %d, want 1", card.GetTransactionsSinceLastAssertion())
+	}
 	if card.LastTransaction == nil || card.LastTransaction.Date != "2026-01-15" {
 		t.Errorf("liabilities:card last_transaction date = %v, want 2026-01-15", card.LastTransaction)
-	}
-
-	checking := got[1]
-	if checking.Account != "assets:checking" {
-		t.Errorf("second account = %q, want assets:checking", checking.Account)
 	}
 	if checking.Type != "A" {
 		t.Errorf("assets:checking type = %q, want A", checking.Type)
@@ -84,5 +95,16 @@ func TestGetBalanceAssertionStatus(t *testing.T) {
 	}
 	if len(checking.Balance) == 0 {
 		t.Errorf("assets:checking balance is empty, want a current balance")
+	}
+
+	savings := got[2]
+	if savings.Account != "assets:savings" {
+		t.Errorf("third account = %q, want assets:savings", savings.Account)
+	}
+	if savings.GetLastAssertionDate() != "2025-12-01" {
+		t.Errorf("assets:savings last_assertion_date = %q, want 2025-12-01", savings.GetLastAssertionDate())
+	}
+	if savings.GetTransactionsSinceLastAssertion() != 0 {
+		t.Errorf("assets:savings transactions_since_last_assertion = %d, want 0", savings.GetTransactionsSinceLastAssertion())
 	}
 }

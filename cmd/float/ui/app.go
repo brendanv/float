@@ -9,33 +9,35 @@ import (
 )
 
 const (
-	TabHome      = 0
-	TabAccounts  = 1
-	TabTrends    = 2
-	TabPortfolio = 3
-	TabMonthly   = 4
-	TabManage    = 5
-	TabSettings  = 6
-	numTabs      = 7
+	TabHome       = 0
+	TabAccounts   = 1
+	TabTrends     = 2
+	TabPortfolio  = 3
+	TabMonthly    = 4
+	TabAssertions = 5
+	TabManage     = 6
+	TabSettings   = 7
+	numTabs       = 8
 )
 
 // Model is the root Bubbletea model for the float TUI.
 type Model struct {
-	width     int
-	height    int
-	activeTab int
-	hasDark   bool
-	theme     Theme
-	styles    Styles
-	helpModel help.Model
-	home      HomeTab
-	manager   ManagerTab
-	trends    TrendsTab
-	portfolio PortfolioTab
-	monthly   MonthlyTab
-	manage    ManageTab
-	settings  SettingsTab
-	client    floatv1connect.LedgerServiceClient
+	width      int
+	height     int
+	activeTab  int
+	hasDark    bool
+	theme      Theme
+	styles     Styles
+	helpModel  help.Model
+	home       HomeTab
+	manager    ManagerTab
+	trends     TrendsTab
+	portfolio  PortfolioTab
+	monthly    MonthlyTab
+	assertions AssertionsTab
+	manage     ManageTab
+	settings   SettingsTab
+	client     floatv1connect.LedgerServiceClient
 }
 
 // New creates the root model with the given gRPC client.
@@ -45,18 +47,19 @@ func New(client floatv1connect.LedgerServiceClient) Model {
 	theme := LoadTUITheme()
 	st := NewStylesWithTheme(theme, true)
 	return Model{
-		client:    client,
-		hasDark:   true,
-		theme:     theme,
-		styles:    st,
-		helpModel: NewHelpModel(st),
-		home:      NewHomeTab(client, st),
-		manager:   NewManagerTab(client, st),
-		trends:    NewTrendsTab(client, st),
-		portfolio: NewPortfolioTab(client, st),
-		monthly:   NewMonthlyTab(client, st),
-		manage:    NewManageTab(client, st),
-		settings:  NewSettingsTab(st, theme),
+		client:     client,
+		hasDark:    true,
+		theme:      theme,
+		styles:     st,
+		helpModel:  NewHelpModel(st),
+		home:       NewHomeTab(client, st),
+		manager:    NewManagerTab(client, st),
+		trends:     NewTrendsTab(client, st),
+		portfolio:  NewPortfolioTab(client, st),
+		monthly:    NewMonthlyTab(client, st),
+		assertions: NewAssertionsTab(client, st),
+		manage:     NewManageTab(client, st),
+		settings:   NewSettingsTab(st, theme),
 	}
 }
 
@@ -68,6 +71,7 @@ func (m Model) Init() tea.Cmd {
 		m.trends.Init(),
 		m.portfolio.Init(),
 		m.monthly.Init(),
+		m.assertions.Init(),
 		m.manage.Init(),
 		m.settings.Init(),
 	)
@@ -84,6 +88,8 @@ func (m Model) activeKeyMap() help.KeyMap {
 		return m.portfolio.KeyMap()
 	case TabMonthly:
 		return m.monthly.KeyMap()
+	case TabAssertions:
+		return m.assertions.KeyMap()
 	case TabManage:
 		return m.manage.KeyMap()
 	case TabSettings:
@@ -105,6 +111,7 @@ func (m *Model) resizeAll() {
 	m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
 	m.portfolio = m.portfolio.SetSize(m.width, layout.ContentHeight)
 	m.monthly = m.monthly.SetSize(m.width, layout.ContentHeight)
+	m.assertions = m.assertions.SetSize(m.width, layout.ContentHeight)
 	m.manage = m.manage.SetSize(m.width, layout.ContentHeight)
 	m.settings = m.settings.SetSize(m.width, layout.ContentHeight)
 }
@@ -118,6 +125,7 @@ func (m *Model) applyStyles() {
 	m.trends = m.trends.setStyles(m.styles)
 	m.portfolio = m.portfolio.setStyles(m.styles)
 	m.monthly = m.monthly.setStyles(m.styles)
+	m.assertions = m.assertions.setStyles(m.styles)
 	m.manage = m.manage.setStyles(m.styles)
 	m.settings = m.settings.setStyles(m.styles)
 }
@@ -168,6 +176,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.manage, cmd = m.manage.Update(msg)
 			return m, cmd
 		}
+		if m.activeTab == TabAssertions && m.assertions.capturesAllKeys() {
+			var cmd tea.Cmd
+			m.assertions, cmd = m.assertions.Update(msg)
+			return m, cmd
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -203,6 +216,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.monthly, cmd = m.monthly.Update(msg)
 			return m, cmd
+		case TabAssertions:
+			var cmd tea.Cmd
+			m.assertions, cmd = m.assertions.Update(msg)
+			return m, cmd
 		case TabManage:
 			var cmd tea.Cmd
 			m.manage, cmd = m.manage.Update(msg)
@@ -213,15 +230,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 	default:
-		var cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7 tea.Cmd
+		var cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7, cmd8 tea.Cmd
 		m.home, cmd1 = m.home.Update(msg)
 		m.manager, cmd2 = m.manager.Update(msg)
 		m.trends, cmd3 = m.trends.Update(msg)
 		m.portfolio, cmd4 = m.portfolio.Update(msg)
 		m.monthly, cmd5 = m.monthly.Update(msg)
-		m.manage, cmd6 = m.manage.Update(msg)
-		m.settings, cmd7 = m.settings.Update(msg)
-		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7)
+		m.assertions, cmd6 = m.assertions.Update(msg)
+		m.manage, cmd7 = m.manage.Update(msg)
+		m.settings, cmd8 = m.settings.Update(msg)
+		return m, tea.Batch(cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7, cmd8)
 	}
 	return m, nil
 }
@@ -254,6 +272,8 @@ func (m Model) View() tea.View {
 		content = m.portfolio.View()
 	case TabMonthly:
 		content = m.monthly.View()
+	case TabAssertions:
+		content = m.assertions.View()
 	case TabManage:
 		content = m.manage.View()
 	case TabSettings:

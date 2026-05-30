@@ -35,6 +35,25 @@ type TransactionsMsg struct {
 
 type RetryFetchMsg struct{}
 
+// BalanceAssertionStatusMsg carries the assertion freshness summary for
+// asset/liability accounts.
+type BalanceAssertionStatusMsg struct {
+	Accounts []*floatv1.AccountAssertionStatus
+	Err      error
+}
+
+func FetchBalanceAssertionStatus(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.GetBalanceAssertionStatus(ctx, connect.NewRequest(&floatv1.GetBalanceAssertionStatusRequest{}))
+		if err != nil {
+			return BalanceAssertionStatusMsg{Err: err}
+		}
+		return BalanceAssertionStatusMsg{Accounts: resp.Msg.Accounts}
+	}
+}
+
 func FetchAccounts(client floatv1connect.LedgerServiceClient) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := rpcContext()

@@ -33,6 +33,8 @@ The script accepts an optional output directory (defaults to a `mktemp -d` temp 
 | `accounts.png` | Accounts tab — account tree |
 | `accounts-register.png` | Accounts tab — single-account register |
 | `trends.png` | Trends tab — net worth chart |
+| `assertions.png` | Assertions tab — balance assertion freshness |
+| `assertions-editor.png` | Assertions tab — record assertion modal |
 | `manage-rules.png` | Manage tab → Rules sub-tab |
 | `manage-imports.png` | Manage tab → Imports sub-tab |
 | `manage-tags.png` | Manage tab → Tags sub-tab |
@@ -79,8 +81,11 @@ Send keystrokes with `tmux send-keys -t float-preview:0.1`. Main tabs cycle with
 | 0 | Home (default) |
 | 1 | Accounts |
 | 2 | Trends |
-| 3 | Manage |
-| 4 | Settings |
+| 3 | Portfolio |
+| 4 | Monthly |
+| 5 | Assertions |
+| 6 | Manage |
+| 7 | Settings |
 
 Manage sub-tabs cycle with `[` / `]`:
 
@@ -110,6 +115,9 @@ Other useful keys:
 # Example: navigate to Manage → Imports
 tmux send-keys -t float-preview:0.1 "" Tab   # → Accounts
 tmux send-keys -t float-preview:0.1 "" Tab   # → Trends
+tmux send-keys -t float-preview:0.1 "" Tab   # → Portfolio
+tmux send-keys -t float-preview:0.1 "" Tab   # → Monthly
+tmux send-keys -t float-preview:0.1 "" Tab   # → Assertions
 tmux send-keys -t float-preview:0.1 "" Tab   # → Manage
 tmux send-keys -t float-preview:0.1 "]" ""   # → Imports
 ```
