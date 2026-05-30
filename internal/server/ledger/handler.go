@@ -662,11 +662,12 @@ func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1
 }
 
 // GetBalanceAssertionStatus reports, for every asset and liability account that
-// has postings, the date of its most recent balance assertion and its most
-// recent transaction (so the UI can edit it to add a fresh assertion). It does
-// a single transactions pass and groups in Go rather than running hledger once
-// per account. Accounts are sorted so the most at-risk (never-asserted, then
-// oldest assertion) surface first.
+// has postings, the date of its most recent balance assertion, the number of
+// transactions since that assertion, and its most recent transaction (so the UI
+// can edit it to add a fresh assertion). It does a single transactions pass and
+// groups in Go rather than running hledger once per account. Accounts are sorted
+// by the transaction count since the last assertion so the busiest drift risks
+// surface first.
 func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Request[floatv1.GetBalanceAssertionStatusRequest]) (*connect.Response[floatv1.GetBalanceAssertionStatusResponse], error) {
 	nodes, err := cachedAccounts(ctx, h.cache, h.hl)
 	if err != nil {
@@ -698,8 +699,10 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 	}
 
 	type agg struct {
-		lastTxn       *hledger.Transaction
-		lastAssertion string // "YYYY-MM-DD"; "" if never asserted
+		lastTxn               *hledger.Transaction
+		lastAssertion         string // "YYYY-MM-DD"; "" if never asserted
+		transactionCount      int32
+		lastAssertionTxnCount int32
 	}
 	aggs := make(map[string]*agg)
 	for i := range txns {
@@ -718,6 +721,7 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 			// recent transaction touching each account (compare dates so we are
 			// resilient to unsorted input).
 			if !seen[p.Account] {
+				a.transactionCount++
 				if a.lastTxn == nil || t.Date >= a.lastTxn.Date {
 					a.lastTxn = t
 				}
@@ -726,6 +730,7 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 			// Any assertion form (=, =*, ==, ==*) counts as "asserted".
 			if p.BalanceAssertion != nil && t.Date >= a.lastAssertion {
 				a.lastAssertion = t.Date
+				a.lastAssertionTxnCount = a.transactionCount
 			}
 		}
 	}
@@ -735,11 +740,16 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 		if a.lastTxn == nil {
 			continue
 		}
+		transactionsSinceLastAssertion := a.transactionCount
+		if a.lastAssertion != "" {
+			transactionsSinceLastAssertion -= a.lastAssertionTxnCount
+		}
 		s := &floatv1.AccountAssertionStatus{
-			Account:         account,
-			Type:            string(accountType[account]),
-			Balance:         toProtoAmounts(balByAccount[account]),
-			LastTransaction: toProtoTransaction(*a.lastTxn),
+			Account:                        account,
+			Type:                           string(accountType[account]),
+			Balance:                        toProtoAmounts(balByAccount[account]),
+			LastTransaction:                toProtoTransaction(*a.lastTxn),
+			TransactionsSinceLastAssertion: transactionsSinceLastAssertion,
 		}
 		if a.lastAssertion != "" {
 			s.LastAssertionDate = &a.lastAssertion
@@ -748,17 +758,10 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 	}
 
 	sort.Slice(statuses, func(i, j int) bool {
-		di := statuses[i].GetLastAssertionDate()
-		dj := statuses[j].GetLastAssertionDate()
-		if di != dj {
-			// Empty (never asserted) sorts first, then oldest assertion first.
-			if di == "" {
-				return true
-			}
-			if dj == "" {
-				return false
-			}
-			return di < dj
+		ti := statuses[i].GetTransactionsSinceLastAssertion()
+		tj := statuses[j].GetTransactionsSinceLastAssertion()
+		if ti != tj {
+			return ti > tj
 		}
 		return statuses[i].Account < statuses[j].Account
 	})
