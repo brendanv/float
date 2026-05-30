@@ -943,7 +943,9 @@ function MobileSortControl({ table }) {
         }}
       >
         <SelectTrigger size="sm" className="h-8 flex-1">
-          <SelectValue placeholder="Default order" />
+          <SelectValue>
+            {activeColumn ? activeColumn.columnDef.meta.label : "Default order"}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NO_SORT}>Default order</SelectItem>
