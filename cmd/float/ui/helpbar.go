@@ -7,33 +7,33 @@ import (
 
 // Key bindings used across contexts.
 var (
-	keyQuit       = key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit"))
-	keyTab        = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next tab"))
-	keyShiftTab   = key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev tab"))
-	keyHelp       = key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "toggle help"))
-	keyNav        = key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "navigate"))
-	keySwitch     = key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", "switch panel"))
-	keyAdd        = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add"))
-	keyEdit       = key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit"))
-	keyDelete     = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete"))
-	keyReview     = key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "review"))
-	keyFilter     = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter"))
-	keySplit      = key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "split"))
-	keyPeriod     = key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "period"))
-	keyRetry      = key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry"))
-	keyExpand     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "expand/collapse"))
-	keyEsc        = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
-	keyNextField  = key.NewBinding(key.WithKeys("tab", "enter"), key.WithHelp("tab/enter", "next field"))
-	keyPrevField  = key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev field"))
-	keyAddTag     = key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "add tag"))
-	keyAddPosting = key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "add posting"))
-	keyDelRow     = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "del row"))
-	keySubmit     = key.NewBinding(key.WithKeys("shift+enter"), key.WithHelp("shift+enter", "submit"))
-	keyConfirm    = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
-	keySearch     = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
-	keyStatusFilter    = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "cycle view"))
-	keyToggleChart     = key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "toggle chart"))
-	keyManageSection   = key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "switch section"))
+	keyQuit          = key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit"))
+	keyTab           = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next tab"))
+	keyShiftTab      = key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev tab"))
+	keyHelp          = key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "toggle help"))
+	keyNav           = key.NewBinding(key.WithKeys("j", "k"), key.WithHelp("j/k", "navigate"))
+	keySwitch        = key.NewBinding(key.WithKeys("h", "l"), key.WithHelp("h/l", "switch panel"))
+	keyAdd           = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add"))
+	keyEdit          = key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit"))
+	keyDelete        = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete"))
+	keyReview        = key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "review"))
+	keyFilter        = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter"))
+	keySplit         = key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "split"))
+	keyPeriod        = key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "period"))
+	keyRetry         = key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "retry"))
+	keyExpand        = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "expand/collapse"))
+	keyEsc           = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
+	keyNextField     = key.NewBinding(key.WithKeys("tab", "enter"), key.WithHelp("tab/enter", "next field"))
+	keyPrevField     = key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "prev field"))
+	keyAddTag        = key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "add tag"))
+	keyAddPosting    = key.NewBinding(key.WithKeys("ctrl+a"), key.WithHelp("ctrl+a", "add posting"))
+	keyDelRow        = key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "del row"))
+	keySubmit        = key.NewBinding(key.WithKeys("shift+enter"), key.WithHelp("shift+enter", "submit"))
+	keyConfirm       = key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm delete"))
+	keySearch        = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "search"))
+	keyStatusFilter  = key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "cycle view"))
+	keyToggleChart   = key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "toggle chart"))
+	keyManageSection = key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "switch section"))
 )
 
 // HomeChartKeyMap is for the home tab with the chart panel focused.
@@ -179,6 +179,29 @@ func (MonthlyKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
+// AssertionsListKeyMap is for the balance assertions tab in list mode.
+type AssertionsListKeyMap struct{}
+
+func (AssertionsListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyExpand, keyRetry, keyHelp}
+}
+func (AssertionsListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyExpand, keyRetry},
+	}
+}
+
+// AssertionFormKeyMap is for the balance assertion entry modal.
+type AssertionFormKeyMap struct{}
+
+func (AssertionFormKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyNextField, keyPrevField, keySubmit, keyEsc}
+}
+func (AssertionFormKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{keyNextField, keyPrevField, keySubmit, keyEsc}}
+}
+
 var (
 	keyPreview = key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "preview apply"))
 	keyApply   = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply selected"))
@@ -236,7 +259,6 @@ func (RulesPreviewKeyMap) FullHelp() [][]key.Binding {
 		{keyApply, keyEsc},
 	}
 }
-
 
 // ImportsListKeyMap is for the imports tab in list mode.
 type ImportsListKeyMap struct{}
@@ -399,13 +421,13 @@ func (PayeesAssignKeyMap) FullHelp() [][]key.Binding {
 }
 
 var (
-	keyFetchOne   = key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fetch"))
-	keyFetchAll   = key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "fetch all"))
-	keyUnlink     = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "unlink"))
-	keyImportSel  = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "import selected"))
-	keySelAllND   = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "select non-dup"))
-	keySelAllAll  = key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "select all"))
-	keySelNone    = key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "select none"))
+	keyFetchOne  = key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fetch"))
+	keyFetchAll  = key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "fetch all"))
+	keyUnlink    = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "unlink"))
+	keyImportSel = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "import selected"))
+	keySelAllND  = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "select non-dup"))
+	keySelAllAll = key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "select all"))
+	keySelNone   = key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "select none"))
 )
 
 // StripeListKeyMap is for the stripe sub-tab in account-list mode.
