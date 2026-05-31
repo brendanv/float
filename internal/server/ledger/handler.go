@@ -747,7 +747,7 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 		s := &floatv1.AccountAssertionStatus{
 			Account:                        account,
 			Type:                           string(accountType[account]),
-			Balance:                        toProtoAmounts(balByAccount[account]),
+			Balance:                        aggregateAmountsByCommodity(balByAccount[account]),
 			LastTransaction:                toProtoTransaction(*a.lastTxn),
 			TransactionsSinceLastAssertion: transactionsSinceLastAssertion,
 		}
@@ -1163,6 +1163,64 @@ func toProtoAmounts(amounts []hledger.Amount) []*floatv1.Amount {
 	result := make([]*floatv1.Amount, len(amounts))
 	for i, a := range amounts {
 		result[i] = toProtoAmount(a)
+	}
+	return result
+}
+
+// aggregateAmountsByCommodity sums amounts that share the same commodity using
+// exact integer arithmetic (DecimalMantissa / 10^DecimalPlaces) to avoid
+// float64 rounding errors that produce near-zero residuals for fully-liquidated
+// positions (e.g. 6e-14 instead of 0). Zero-balance commodities are omitted.
+func aggregateAmountsByCommodity(amounts []hledger.Amount) []*floatv1.Amount {
+	type exactQty struct {
+		mantissa int64
+		scale    int
+	}
+	totals := make(map[string]exactQty)
+	var order []string
+	for _, a := range amounts {
+		if _, seen := totals[a.Commodity]; !seen {
+			order = append(order, a.Commodity)
+			totals[a.Commodity] = exactQty{}
+		}
+		cur := totals[a.Commodity]
+		m := a.Quantity.DecimalMantissa
+		p := a.Quantity.DecimalPlaces
+		if p > cur.scale {
+			factor := int64(1)
+			for i := 0; i < p-cur.scale; i++ {
+				factor *= 10
+			}
+			cur.mantissa *= factor
+			cur.scale = p
+		} else if p < cur.scale {
+			factor := int64(1)
+			for i := 0; i < cur.scale-p; i++ {
+				factor *= 10
+			}
+			m *= factor
+		}
+		cur.mantissa += m
+		totals[a.Commodity] = cur
+	}
+	var result []*floatv1.Amount
+	for _, commodity := range order {
+		eq := totals[commodity]
+		if eq.mantissa == 0 {
+			continue
+		}
+		qty := float64(eq.mantissa)
+		if eq.scale > 0 {
+			divisor := float64(1)
+			for i := 0; i < eq.scale; i++ {
+				divisor *= 10
+			}
+			qty /= divisor
+		}
+		result = append(result, &floatv1.Amount{
+			Commodity: commodity,
+			Quantity:  fmt.Sprintf("%g", qty),
+		})
 	}
 	return result
 }
