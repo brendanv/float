@@ -240,7 +240,8 @@ type Transaction struct {
 	Currency     string
 	Description  string
 	TransactedAt time.Time
-	Status       string // "posted" or "pending"
+	PostedAt     time.Time // zero if not yet posted (status_transitions.posted_at)
+	Status       string    // "posted" or "pending"
 }
 
 func newClient(secretKey string) *stripe.Client {
@@ -373,7 +374,7 @@ func ListTransactions(ctx context.Context, secretKey, accountID string) ([]Trans
 		if err != nil {
 			return nil, fmt.Errorf("stripe: list transactions for %s: %w", accountID, err)
 		}
-		txns = append(txns, Transaction{
+		txn := Transaction{
 			ID:           t.ID,
 			AccountID:    accountID,
 			AmountCents:  t.Amount,
@@ -381,7 +382,11 @@ func ListTransactions(ctx context.Context, secretKey, accountID string) ([]Trans
 			Description:  t.Description,
 			TransactedAt: time.Unix(t.TransactedAt, 0).UTC(),
 			Status:       string(t.Status),
-		})
+		}
+		if t.StatusTransitions != nil && t.StatusTransitions.PostedAt > 0 {
+			txn.PostedAt = time.Unix(t.StatusTransitions.PostedAt, 0).UTC()
+		}
+		txns = append(txns, txn)
 	}
 	return txns, nil
 }

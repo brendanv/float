@@ -910,6 +910,10 @@ func TestImportStripeTransactions(t *testing.T) {
 	})
 
 	t.Run("imports selected transactions", func(t *testing.T) {
+		// transacted_at = 2025-05-10, posted_at = 2025-05-12 (2 days later).
+		// The imported transaction date must use transacted_at, not posted_at.
+		const txnTransactedAt = int64(1746835200) // 2025-05-10 00:00:00 UTC
+		const txnPostedAt = int64(1747008000)     // 2025-05-12 00:00:00 UTC
 		mux := http.NewServeMux()
 		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
 			writeStripeJSON(w, map[string]any{
@@ -918,14 +922,16 @@ func TestImportStripeTransactions(t *testing.T) {
 					map[string]any{
 						"id": "fca_txn_imp1", "object": "financial_connections.transaction",
 						"account": "fca_abc", "amount": int64(5000), "currency": "usd",
-						"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+						"description": "GROCERY STORE", "transacted_at": txnTransactedAt,
 						"status": "posted", "livemode": false,
+						"status_transitions": map[string]any{"posted_at": txnPostedAt},
 					},
 					map[string]any{
 						"id": "fca_txn_imp2", "object": "financial_connections.transaction",
 						"account": "fca_abc", "amount": int64(1200), "currency": "usd",
 						"description": "COFFEE SHOP", "transacted_at": int64(1746748800),
 						"status": "posted", "livemode": false,
+						"status_transitions": map[string]any{"posted_at": txnPostedAt},
 					},
 				},
 				"has_more": false, "url": "/v1/financial_connections/transactions",
@@ -958,6 +964,23 @@ func TestImportStripeTransactions(t *testing.T) {
 		}
 		if !strings.HasPrefix(result.ImportBatchId, "stripe-fca-abc/") {
 			t.Errorf("ImportBatchId = %q, expected prefix %q", result.ImportBatchId, "stripe-fca-abc/")
+		}
+
+		// Verify the imported transaction uses transacted_at as the date, not posted_at.
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		imported, err := c.Transactions(t.Context(), "tag:float-stripe-txn=fca_txn_imp1")
+		if err != nil {
+			t.Fatalf("query imported transaction: %v", err)
+		}
+		if len(imported) != 1 {
+			t.Fatalf("got %d transactions for fca_txn_imp1, want 1", len(imported))
+		}
+		if imported[0].Date != "2025-05-10" {
+			t.Errorf("imported date = %q, want %q (transacted_at date, not posted_at date %q)",
+				imported[0].Date, "2025-05-10", "2025-05-12")
 		}
 
 		configPath := filepath.Join(dir, "config.toml")

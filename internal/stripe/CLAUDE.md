@@ -18,7 +18,7 @@ Thin wrapper around the Stripe Financial Connections API (`github.com/stripe/str
 ## Types
 
 - `Account` — ID, DisplayName, Institution, Last4, Status (`"active"`, `"inactive"`, `"disconnected"`)
-- `Transaction` — ID, AccountID, AmountCents (positive = credit, negative = debit), Currency, Description, TransactedAt, Status (`"posted"` or `"pending"`)
+- `Transaction` — ID, AccountID, AmountCents (positive = credit, negative = debit), Currency, Description, TransactedAt, PostedAt (zero if not yet posted), Status (`"posted"` or `"pending"`)
 
 ## Notes
 

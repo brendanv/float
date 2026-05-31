@@ -278,7 +278,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
 			continue
 		}
-		ht := stripeTransactionToHledger(st, linked.HledgerAccount)
+		ht := stripeTransactionToHledger(st, linked.HledgerAccount, h.cfg.Location())
 		candidate := &floatv1.ImportCandidate{
 			SourceId: st.ID,
 		}
@@ -379,7 +379,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			if !stripeTxnSettled(st) {
 				continue
 			}
-			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
+			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, h.cfg.Location())
 
 			applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
 
@@ -488,7 +488,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 				if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
 					continue
 				}
-				ht := stripeTransactionToHledger(st, linked.HledgerAccount)
+				ht := stripeTransactionToHledger(st, linked.HledgerAccount, h.cfg.Location())
 				candidate := &floatv1.ImportCandidate{SourceId: st.ID}
 				if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
 					candidate.MatchedRuleId = r.ID
@@ -655,7 +655,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				if !stripeTxnSettled(st) {
 					continue
 				}
-				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID)
+				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, h.cfg.Location())
 
 				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
 
@@ -966,7 +966,19 @@ func importedStripeTxnIDs(txns []hledger.Transaction) map[string]bool {
 	return set
 }
 
-func stripeTransactionToHledger(t stripeClient.Transaction, hledgerAccount string) hledger.Transaction {
+// stripeTransactedAtDate converts a transacted_at timestamp to a calendar date
+// in loc. Using the local timezone avoids off-by-one-day errors for transactions
+// that occur in the evening when the user is west of UTC.
+func stripeTransactedAtDate(transactedAt time.Time, loc *time.Location) time.Time {
+	if loc == nil {
+		loc = time.UTC
+	}
+	local := transactedAt.In(loc)
+	y, m, d := local.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+func stripeTransactionToHledger(t stripeClient.Transaction, hledgerAccount string, loc *time.Location) hledger.Transaction {
 	amountDecimal := float64(t.AmountCents) / 100.0
 	currency := strings.ToUpper(t.Currency)
 
@@ -974,7 +986,7 @@ func stripeTransactionToHledger(t stripeClient.Transaction, hledgerAccount strin
 	counterQty := hledger.AmountQuantity{FloatingPoint: -amountDecimal, DecimalPlaces: 2}
 
 	return hledger.Transaction{
-		Date:        t.TransactedAt.Format("2006-01-02"),
+		Date:        stripeTransactedAtDate(t.TransactedAt, loc).Format("2006-01-02"),
 		Description: t.Description,
 		Postings: []hledger.Posting{
 			{
@@ -989,14 +1001,14 @@ func stripeTransactionToHledger(t stripeClient.Transaction, hledgerAccount strin
 	}
 }
 
-func stripeTransactionToInput(t stripeClient.Transaction, hledgerAccount, importBatchID string) journal.TransactionInput {
+func stripeTransactionToInput(t stripeClient.Transaction, hledgerAccount, importBatchID string, loc *time.Location) journal.TransactionInput {
 	amountDecimal := float64(t.AmountCents) / 100.0
 	currency := strings.ToUpper(t.Currency)
 	amountStr := fmt.Sprintf("%.2f", amountDecimal)
 	counterAmountStr := fmt.Sprintf("%.2f", -amountDecimal)
 
 	return journal.TransactionInput{
-		Date:        t.TransactedAt.UTC().Truncate(24 * time.Hour),
+		Date:        stripeTransactedAtDate(t.TransactedAt, loc),
 		Description: t.Description,
 		FloatMeta: map[string]string{
 			"float-import":     importBatchID,

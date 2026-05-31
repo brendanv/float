@@ -251,3 +251,59 @@ func TestRunDailyStripeImport_SkipsPendingTransactions(t *testing.T) {
 		t.Errorf("journal has %d copies of fca_txn_pending, want 0 (pending must not be imported)", len(pending))
 	}
 }
+
+// TestRunDailyStripeImport_UsesTransactedAtNotPostedAt verifies that the auto-import records
+// the transacted_at date on the hledger transaction, not the status_transitions.posted_at date.
+// These can differ when a transaction is authorized on one day but settles on a later day.
+func TestRunDailyStripeImport_UsesTransactedAtNotPostedAt(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	// transacted_at = 2025-05-10; posted_at = 2025-05-12 (2 days later).
+	stripeAutoImportMockAPI(t, "fca_dates", []map[string]any{
+		{
+			"id": "fca_txn_datecheck", "object": "financial_connections.transaction",
+			"account": "fca_dates", "amount": int64(-2000), "currency": "usd",
+			"description": "HARDWARE STORE",
+			"transacted_at": int64(1746835200), // 2025-05-10 00:00:00 UTC
+			"status":        "posted", "livemode": false,
+			"status_transitions": map[string]any{
+				"posted_at": int64(1747008000), // 2025-05-12 00:00:00 UTC
+			},
+		},
+	})
+
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 805, NumTxns: 1})
+	hl, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+
+	cfg := &config.Config{
+		Stripe: config.StripeConfig{
+			LinkedAccounts: []config.StripeLinkedAccount{
+				{StripeAccountID: "fca_dates", HledgerAccount: "assets:checking"},
+			},
+		},
+	}
+	h := mustHandlerWithConfig(t, dir, cfg)
+
+	imported, errs := serverledger.ExportedRunDailyStripeImport(h, t.Context())
+	if len(errs) != 0 {
+		t.Fatalf("auto-import errors: %v", errs)
+	}
+	if imported != 1 {
+		t.Errorf("imported = %d, want 1", imported)
+	}
+
+	txns, err := hl.Transactions(t.Context(), "tag:float-stripe-txn=fca_txn_datecheck")
+	if err != nil {
+		t.Fatalf("query transaction: %v", err)
+	}
+	if len(txns) != 1 {
+		t.Fatalf("got %d transactions for fca_txn_datecheck, want 1", len(txns))
+	}
+	if txns[0].Date != "2025-05-10" {
+		t.Errorf("imported date = %q, want %q (transacted_at date, not posted_at date %q)",
+			txns[0].Date, "2025-05-10", "2025-05-12")
+	}
+}

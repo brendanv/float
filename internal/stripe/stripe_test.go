@@ -278,6 +278,59 @@ func TestListTransactions(t *testing.T) {
 		}
 	})
 
+	t.Run("captures posted_at from status_transitions", func(t *testing.T) {
+		postedAt := txnTime.Add(48 * time.Hour) // 2 days after transacted_at
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/financial_connections/transactions", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, map[string]any{
+				"object": "list",
+				"data": []any{
+					map[string]any{
+						"id": "fca_txn_posted", "object": "financial_connections.transaction",
+						"account": "fca_test_abc", "amount": int64(1000), "currency": "usd",
+						"description": "Purchase", "transacted_at": txnTime.Unix(),
+						"status": "posted", "livemode": false,
+						"status_transitions": map[string]any{
+							"posted_at": postedAt.Unix(),
+						},
+					},
+					map[string]any{
+						"id": "fca_txn_pending", "object": "financial_connections.transaction",
+						"account": "fca_test_abc", "amount": int64(500), "currency": "usd",
+						"description": "Pending charge", "transacted_at": txnTime.Unix(),
+						"status": "pending", "livemode": false,
+						// no status_transitions for pending transactions
+					},
+				},
+				"has_more": false,
+				"url":      "/v1/financial_connections/transactions",
+			})
+		})
+		mockStripeBackend(t, mux)
+
+		txns, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
+		if err != nil {
+			t.Fatalf("ListTransactions: %v", err)
+		}
+		if len(txns) != 2 {
+			t.Fatalf("got %d transactions, want 2", len(txns))
+		}
+
+		posted := txns[0]
+		wantPostedAt := time.Unix(postedAt.Unix(), 0).UTC()
+		if !posted.PostedAt.Equal(wantPostedAt) {
+			t.Errorf("PostedAt = %v, want %v", posted.PostedAt, wantPostedAt)
+		}
+		if posted.PostedAt.Equal(posted.TransactedAt) {
+			t.Error("PostedAt should differ from TransactedAt in this test case")
+		}
+
+		pending := txns[1]
+		if !pending.PostedAt.IsZero() {
+			t.Errorf("PostedAt for pending transaction = %v, want zero", pending.PostedAt)
+		}
+	})
+
 	t.Run("does not send a transaction_refresh filter param", func(t *testing.T) {
 		var gotQuery string
 		mux := http.NewServeMux()

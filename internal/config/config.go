@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -54,6 +55,24 @@ type Config struct {
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 	AI           AIConfig           `toml:"ai"`
 	Stripe       StripeConfig       `toml:"stripe"`
+	// Timezone is an IANA timezone name (e.g. "America/New_York") used when
+	// converting Stripe transaction timestamps to calendar dates. Defaults to
+	// UTC when empty. Set this to your local timezone to avoid off-by-one-day
+	// errors for transactions that occur in the evening in your local time.
+	Timezone string `toml:"timezone"`
+}
+
+// Location returns the configured timezone as a *time.Location.
+// Returns time.UTC if Timezone is empty or unrecognized.
+func (c *Config) Location() *time.Location {
+	if c == nil || c.Timezone == "" {
+		return time.UTC
+	}
+	loc, err := time.LoadLocation(c.Timezone)
+	if err != nil {
+		return time.UTC
+	}
+	return loc
 }
 
 // Load parses config.toml at path and returns a *Config.
