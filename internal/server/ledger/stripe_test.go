@@ -129,7 +129,7 @@ func TestStripeTransactionToHledger(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ht := stripeTransactionToHledger(tc.txn, tc.hledgerAccount)
+			ht := stripeTransactionToHledger(tc.txn, tc.hledgerAccount, time.UTC)
 
 			if ht.Date != tc.wantDate {
 				t.Errorf("Date: got %q, want %q", ht.Date, tc.wantDate)
@@ -297,7 +297,7 @@ func TestStripeTransactionToInput(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			inp := stripeTransactionToInput(tc.txn, tc.hledgerAccount, batchID)
+			inp := stripeTransactionToInput(tc.txn, tc.hledgerAccount, batchID, time.UTC)
 
 			if !inp.Date.Equal(tc.wantDate) {
 				t.Errorf("Date: got %v, want %v", inp.Date, tc.wantDate)
@@ -342,6 +342,63 @@ func TestStripeTransactionToInput(t *testing.T) {
 			}
 			if counter.Quantity != tc.wantCounterQty {
 				t.Errorf("counter posting quantity: got %q, want %q", counter.Quantity, tc.wantCounterQty)
+			}
+		})
+	}
+}
+
+func TestStripeTransactedAtDate(t *testing.T) {
+	eastern, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Skipf("timezone data unavailable: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		transactedAt time.Time
+		loc          *time.Location
+		wantDate     string
+	}{
+		{
+			name:         "UTC — late evening stays same day",
+			transactedAt: time.Date(2026, 5, 10, 23, 0, 0, 0, time.UTC),
+			loc:          time.UTC,
+			wantDate:     "2026-05-10",
+		},
+		{
+			name: "Eastern — 11 PM UTC is still same day locally",
+			// 11 PM UTC = 7 PM EDT (UTC-4); local date is still May 10
+			transactedAt: time.Date(2026, 5, 10, 23, 0, 0, 0, time.UTC),
+			loc:          eastern,
+			wantDate:     "2026-05-10",
+		},
+		{
+			name: "Eastern — 1 AM UTC next day is previous day locally",
+			// 1 AM UTC May 11 = 9 PM EDT May 10; local date is May 10
+			transactedAt: time.Date(2026, 5, 11, 1, 0, 0, 0, time.UTC),
+			loc:          eastern,
+			wantDate:     "2026-05-10",
+		},
+		{
+			name: "UTC — 1 AM UTC next day stays next day",
+			// No timezone correction; UTC gives May 11
+			transactedAt: time.Date(2026, 5, 11, 1, 0, 0, 0, time.UTC),
+			loc:          time.UTC,
+			wantDate:     "2026-05-11",
+		},
+		{
+			name:         "nil loc falls back to UTC",
+			transactedAt: time.Date(2026, 5, 11, 1, 0, 0, 0, time.UTC),
+			loc:          nil,
+			wantDate:     "2026-05-11",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stripeTransactedAtDate(tc.transactedAt, tc.loc)
+			if got.Format("2006-01-02") != tc.wantDate {
+				t.Errorf("date = %q, want %q", got.Format("2006-01-02"), tc.wantDate)
 			}
 		})
 	}

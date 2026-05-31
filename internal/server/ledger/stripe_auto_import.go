@@ -177,7 +177,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	if err := h.lock.Do(ctx, "stripe daily auto-import", func() error {
 		for _, batch := range batches {
 			for _, st := range batch.newTxns {
-				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batch.batchID)
+				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batch.batchID, h.cfg.Location())
 				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
 				if _, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput); writeErr != nil {
 					return fmt.Errorf("write %s: %w", st.ID, writeErr)
