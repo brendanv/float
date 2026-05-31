@@ -8,7 +8,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, ChevronLeft, ChevronRight, X, Scale, Plus } from "lucide-react";
+import { Check, Loader2, Trash2, X, Scale, Plus } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -43,16 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@/components/ui/pagination";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { TablePagination } from "./table-pagination.jsx";
 import { cn } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -992,13 +983,6 @@ export function TransactionTable({
   }
 
   const pageRows = table.getRowModel().rows;
-  const { pageIndex } = table.getState().pagination;
-  const pageCount = table.getPageCount();
-  const total = rows.length;
-  const rangeStart = total === 0 ? 0 : pageIndex * pagination.pageSize + 1;
-  const rangeEnd = Math.min((pageIndex + 1) * pagination.pageSize, total);
-  const showPagination = total > 0;
-
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
   return (
@@ -1057,60 +1041,7 @@ export function TransactionTable({
         ))}
       </div>
 
-      {/* Pagination */}
-      {showPagination && (
-        <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Label className="whitespace-nowrap text-sm text-muted-foreground">Rows per page:</Label>
-            <NativeSelect
-              value={String(table.getState().pagination.pageSize)}
-              onChange={(e) => {
-                table.setPageSize(Number(e.target.value));
-                setPagination((p) => ({ ...p, pageIndex: 0 }));
-              }}
-              className="w-16"
-            >
-              <NativeSelectOption value="10">10</NativeSelectOption>
-              <NativeSelectOption value="25">25</NativeSelectOption>
-              <NativeSelectOption value="50">50</NativeSelectOption>
-              <NativeSelectOption value="100">100</NativeSelectOption>
-            </NativeSelect>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-sm text-muted-foreground">
-              {rangeStart}–{rangeEnd} of {total}
-            </span>
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <Button
-                    aria-label="Go to previous page"
-                    size="icon"
-                    variant="ghost"
-                    className="size-8"
-                    onClick={() => table.previousPage()}
-                    disabled={!table.getCanPreviousPage()}
-                  >
-                    <ChevronLeft className="size-4" />
-                  </Button>
-                </PaginationItem>
-                <PaginationItem>
-                  <Button
-                    aria-label="Go to next page"
-                    size="icon"
-                    variant="ghost"
-                    className="size-8"
-                    onClick={() => table.nextPage()}
-                    disabled={!table.getCanNextPage()}
-                  >
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        </div>
-      )}
+      <TablePagination table={table} />
     </div>
   );
 }
