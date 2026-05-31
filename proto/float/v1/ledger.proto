@@ -884,6 +884,18 @@ message SetAIPromptRequest {
 
 message SetAIPromptResponse {}
 
+message GetGeneralConfigRequest {}
+
+message GetGeneralConfigResponse {
+  string timezone = 1; // IANA timezone name, e.g. "America/New_York"; empty = UTC
+}
+
+message SetTimezoneRequest {
+  string timezone = 1; // IANA timezone name; empty string resets to UTC
+}
+
+message SetTimezoneResponse {}
+
 message RunHledgerQueryRequest {
   // The hledger command to run, e.g. "bal --depth 2 assets" or "print date:2024".
   // Do NOT include the hledger binary path or the -f <journal> flag — the server
@@ -1016,6 +1028,8 @@ service LedgerService {
   rpc SetAIPrompt(SetAIPromptRequest) returns (SetAIPromptResponse);
   rpc SetStripeCustomerId(SetStripeCustomerIdRequest) returns (SetStripeCustomerIdResponse);
   rpc SetStripeDailyImportEnabled(SetStripeDailyImportEnabledRequest) returns (SetStripeDailyImportEnabledResponse);
+  rpc GetGeneralConfig(GetGeneralConfigRequest) returns (GetGeneralConfigResponse);
+  rpc SetTimezone(SetTimezoneRequest) returns (SetTimezoneResponse);
 
   // Debug / Investigation
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);

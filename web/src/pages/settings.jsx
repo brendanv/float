@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { CheckCircle, XCircle, Circle, CreditCard, Repeat, ChevronDown, Bot } from "lucide-react";
+import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from "@/components/ui/native-select";
+import { CheckCircle, XCircle, Circle, CreditCard, Repeat, ChevronDown, Bot, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
@@ -76,6 +77,41 @@ export function SettingsPage() {
   function handleDailyImportToggle(checked) {
     setDailyImportError(null);
     setDailyImportMutation.mutate(checked === true);
+  }
+
+  // --- General Config (Timezone) ---
+  const { data: generalData, isLoading: generalLoading, error: generalFetchError } = useQuery({
+    queryKey: queryKeys.generalConfig(),
+    queryFn: () => ledgerClient.getGeneralConfig({}),
+  });
+
+  const [timezoneInput, setTimezoneInput] = useState(null); // null = not yet initialized
+  const [timezoneMutationError, setTimezoneMutationError] = useState(null);
+  const [timezoneSaved, setTimezoneSaved] = useState(false);
+
+  const setTimezoneMutation = useMutation({
+    mutationFn: (tz) => ledgerClient.setTimezone({ timezone: tz }),
+    onSuccess: () => {
+      setTimezoneSaved(true);
+      setTimezoneMutationError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.generalConfig() });
+      setTimeout(() => setTimezoneSaved(false), 3000);
+    },
+    onError: (err) => {
+      setTimezoneMutationError(err);
+      setTimezoneSaved(false);
+    },
+  });
+
+  if (generalData && timezoneInput === null) {
+    setTimezoneInput(generalData.timezone || "");
+  }
+
+  function handleTimezoneSave(e) {
+    e.preventDefault();
+    setTimezoneMutationError(null);
+    setTimezoneSaved(false);
+    setTimezoneMutation.mutate(timezoneInput);
   }
 
   // --- Alpha Vantage ---
@@ -201,6 +237,80 @@ export function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Settings" />
+
+      {/* General Settings card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="size-5" />
+            General
+          </CardTitle>
+          <CardDescription>
+            General settings that affect how float displays and processes your data.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {generalFetchError && <ErrorBanner error={generalFetchError} />}
+          {timezoneMutationError && <ErrorBanner error={timezoneMutationError} />}
+          {generalLoading && <Loading />}
+          {generalData && timezoneInput !== null && (
+            <Form onSubmit={handleTimezoneSave}>
+              <FormField
+                label="Timezone"
+                htmlFor="timezone"
+                description="Used when converting bank transaction timestamps to calendar dates. Set this to your local timezone to avoid off-by-one-day errors for transactions that occur in the evening."
+              >
+                <div className="flex gap-2 items-center flex-wrap">
+                  <NativeSelect
+                    id="timezone"
+                    value={timezoneInput}
+                    onChange={(e) => setTimezoneInput(e.target.value)}
+                  >
+                    <NativeSelectOption value="">UTC (default)</NativeSelectOption>
+                    <NativeSelectOptGroup label="United States">
+                      <NativeSelectOption value="America/New_York">America/New_York (Eastern)</NativeSelectOption>
+                      <NativeSelectOption value="America/Chicago">America/Chicago (Central)</NativeSelectOption>
+                      <NativeSelectOption value="America/Denver">America/Denver (Mountain)</NativeSelectOption>
+                      <NativeSelectOption value="America/Phoenix">America/Phoenix (Arizona)</NativeSelectOption>
+                      <NativeSelectOption value="America/Los_Angeles">America/Los_Angeles (Pacific)</NativeSelectOption>
+                      <NativeSelectOption value="America/Anchorage">America/Anchorage (Alaska)</NativeSelectOption>
+                      <NativeSelectOption value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</NativeSelectOption>
+                    </NativeSelectOptGroup>
+                    <NativeSelectOptGroup label="Europe">
+                      <NativeSelectOption value="Europe/London">Europe/London</NativeSelectOption>
+                      <NativeSelectOption value="Europe/Paris">Europe/Paris</NativeSelectOption>
+                      <NativeSelectOption value="Europe/Berlin">Europe/Berlin</NativeSelectOption>
+                      <NativeSelectOption value="Europe/Rome">Europe/Rome</NativeSelectOption>
+                      <NativeSelectOption value="Europe/Amsterdam">Europe/Amsterdam</NativeSelectOption>
+                      <NativeSelectOption value="Europe/Madrid">Europe/Madrid</NativeSelectOption>
+                      <NativeSelectOption value="Europe/Moscow">Europe/Moscow</NativeSelectOption>
+                    </NativeSelectOptGroup>
+                    <NativeSelectOptGroup label="Asia / Pacific">
+                      <NativeSelectOption value="Asia/Dubai">Asia/Dubai</NativeSelectOption>
+                      <NativeSelectOption value="Asia/Kolkata">Asia/Kolkata</NativeSelectOption>
+                      <NativeSelectOption value="Asia/Singapore">Asia/Singapore</NativeSelectOption>
+                      <NativeSelectOption value="Asia/Shanghai">Asia/Shanghai</NativeSelectOption>
+                      <NativeSelectOption value="Asia/Tokyo">Asia/Tokyo</NativeSelectOption>
+                      <NativeSelectOption value="Australia/Sydney">Australia/Sydney</NativeSelectOption>
+                      <NativeSelectOption value="Pacific/Auckland">Pacific/Auckland</NativeSelectOption>
+                    </NativeSelectOptGroup>
+                  </NativeSelect>
+                  <Button
+                    type="submit"
+                    isLoading={setTimezoneMutation.isPending}
+                    loadingText="Saving…"
+                  >
+                    Save
+                  </Button>
+                </div>
+              </FormField>
+              {timezoneSaved && (
+                <p className="text-xs text-success">Timezone saved.</p>
+              )}
+            </Form>
+          )}
+        </CardContent>
+      </Card>
 
       {/* AlphaVantage card */}
       <Card>

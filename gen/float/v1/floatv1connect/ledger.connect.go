@@ -230,6 +230,12 @@ const (
 	// LedgerServiceSetStripeDailyImportEnabledProcedure is the fully-qualified name of the
 	// LedgerService's SetStripeDailyImportEnabled RPC.
 	LedgerServiceSetStripeDailyImportEnabledProcedure = "/float.v1.LedgerService/SetStripeDailyImportEnabled"
+	// LedgerServiceGetGeneralConfigProcedure is the fully-qualified name of the LedgerService's
+	// GetGeneralConfig RPC.
+	LedgerServiceGetGeneralConfigProcedure = "/float.v1.LedgerService/GetGeneralConfig"
+	// LedgerServiceSetTimezoneProcedure is the fully-qualified name of the LedgerService's SetTimezone
+	// RPC.
+	LedgerServiceSetTimezoneProcedure = "/float.v1.LedgerService/SetTimezone"
 	// LedgerServiceRunHledgerQueryProcedure is the fully-qualified name of the LedgerService's
 	// RunHledgerQuery RPC.
 	LedgerServiceRunHledgerQueryProcedure = "/float.v1.LedgerService/RunHledgerQuery"
@@ -312,6 +318,8 @@ type LedgerServiceClient interface {
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
+	GetGeneralConfig(context.Context, *connect.Request[v1.GetGeneralConfigRequest]) (*connect.Response[v1.GetGeneralConfigResponse], error)
+	SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest]) (*connect.ServerStreamForClient[v1.StreamLogsResponse], error)
@@ -730,6 +738,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SetStripeDailyImportEnabled")),
 			connect.WithClientOptions(opts...),
 		),
+		getGeneralConfig: connect.NewClient[v1.GetGeneralConfigRequest, v1.GetGeneralConfigResponse](
+			httpClient,
+			baseURL+LedgerServiceGetGeneralConfigProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetGeneralConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		setTimezone: connect.NewClient[v1.SetTimezoneRequest, v1.SetTimezoneResponse](
+			httpClient,
+			baseURL+LedgerServiceSetTimezoneProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetTimezone")),
+			connect.WithClientOptions(opts...),
+		),
 		runHledgerQuery: connect.NewClient[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse](
 			httpClient,
 			baseURL+LedgerServiceRunHledgerQueryProcedure,
@@ -814,6 +834,8 @@ type ledgerServiceClient struct {
 	setAIPrompt                  *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
 	setStripeCustomerId          *connect.Client[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse]
 	setStripeDailyImportEnabled  *connect.Client[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse]
+	getGeneralConfig             *connect.Client[v1.GetGeneralConfigRequest, v1.GetGeneralConfigResponse]
+	setTimezone                  *connect.Client[v1.SetTimezoneRequest, v1.SetTimezoneResponse]
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
 	streamLogs                   *connect.Client[v1.StreamLogsRequest, v1.StreamLogsResponse]
 }
@@ -1153,6 +1175,16 @@ func (c *ledgerServiceClient) SetStripeDailyImportEnabled(ctx context.Context, r
 	return c.setStripeDailyImportEnabled.CallUnary(ctx, req)
 }
 
+// GetGeneralConfig calls float.v1.LedgerService.GetGeneralConfig.
+func (c *ledgerServiceClient) GetGeneralConfig(ctx context.Context, req *connect.Request[v1.GetGeneralConfigRequest]) (*connect.Response[v1.GetGeneralConfigResponse], error) {
+	return c.getGeneralConfig.CallUnary(ctx, req)
+}
+
+// SetTimezone calls float.v1.LedgerService.SetTimezone.
+func (c *ledgerServiceClient) SetTimezone(ctx context.Context, req *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error) {
+	return c.setTimezone.CallUnary(ctx, req)
+}
+
 // RunHledgerQuery calls float.v1.LedgerService.RunHledgerQuery.
 func (c *ledgerServiceClient) RunHledgerQuery(ctx context.Context, req *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
 	return c.runHledgerQuery.CallUnary(ctx, req)
@@ -1237,6 +1269,8 @@ type LedgerServiceHandler interface {
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
+	GetGeneralConfig(context.Context, *connect.Request[v1.GetGeneralConfigRequest]) (*connect.Response[v1.GetGeneralConfigResponse], error)
+	SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest], *connect.ServerStream[v1.StreamLogsResponse]) error
@@ -1651,6 +1685,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SetStripeDailyImportEnabled")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetGeneralConfigHandler := connect.NewUnaryHandler(
+		LedgerServiceGetGeneralConfigProcedure,
+		svc.GetGeneralConfig,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetGeneralConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceSetTimezoneHandler := connect.NewUnaryHandler(
+		LedgerServiceSetTimezoneProcedure,
+		svc.SetTimezone,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetTimezone")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceRunHledgerQueryHandler := connect.NewUnaryHandler(
 		LedgerServiceRunHledgerQueryProcedure,
 		svc.RunHledgerQuery,
@@ -1799,6 +1845,10 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceSetStripeCustomerIdHandler.ServeHTTP(w, r)
 		case LedgerServiceSetStripeDailyImportEnabledProcedure:
 			ledgerServiceSetStripeDailyImportEnabledHandler.ServeHTTP(w, r)
+		case LedgerServiceGetGeneralConfigProcedure:
+			ledgerServiceGetGeneralConfigHandler.ServeHTTP(w, r)
+		case LedgerServiceSetTimezoneProcedure:
+			ledgerServiceSetTimezoneHandler.ServeHTTP(w, r)
 		case LedgerServiceRunHledgerQueryProcedure:
 			ledgerServiceRunHledgerQueryHandler.ServeHTTP(w, r)
 		case LedgerServiceStreamLogsProcedure:
@@ -2078,6 +2128,14 @@ func (UnimplementedLedgerServiceHandler) SetStripeCustomerId(context.Context, *c
 
 func (UnimplementedLedgerServiceHandler) SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetStripeDailyImportEnabled is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetGeneralConfig(context.Context, *connect.Request[v1.GetGeneralConfigRequest]) (*connect.Response[v1.GetGeneralConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetGeneralConfig is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetTimezone is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
