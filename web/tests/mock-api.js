@@ -1224,6 +1224,9 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
+      case "GetGeneralConfig":
+        body = { timezone: "America/New_York" };
+        break;
       case "GetAIConfig":
         body = aiEnabled
           ? { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6", prompt: "My accounts use kebab-case. Groceries go under expenses:food:groceries.", enabled: true }
