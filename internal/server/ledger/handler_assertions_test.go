@@ -9,6 +9,63 @@ import (
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 )
 
+// writeInvestmentAssertionJournal writes a journal with an investment account
+// holding two lots of the same commodity at different cost bases, plus a full
+// liquidation, so the net position is zero. Returns the data dir.
+func writeInvestmentAssertionJournal(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	journal := `2026-01-01 (bb000001) Buy 10 VTSAX
+    assets:investments:brokerage    10 VTSAX @ $100
+    assets:checking                $-1000
+
+2026-01-15 (bb000002) Buy 5 more VTSAX
+    assets:investments:brokerage    5 VTSAX @ $110
+    assets:checking                $-550
+
+2026-02-01 (bb000003) Sell 10 VTSAX first lot
+    assets:investments:brokerage   -10 VTSAX @ $100
+    assets:checking                $1000
+
+2026-02-15 (bb000004) Sell 5 VTSAX second lot
+    assets:investments:brokerage    -5 VTSAX @ $110
+    assets:checking                $550
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(journal), 0o644); err != nil {
+		t.Fatalf("write journal: %v", err)
+	}
+	return dir
+}
+
+func TestGetBalanceAssertionStatus_ZeroInvestmentPosition(t *testing.T) {
+	dir := writeInvestmentAssertionJournal(t)
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetBalanceAssertionStatus(t.Context(), connect.NewRequest(&floatv1.GetBalanceAssertionStatusRequest{}))
+	if err != nil {
+		t.Fatalf("GetBalanceAssertionStatus: %v", err)
+	}
+
+	// Find the brokerage account.
+	var brokerage *floatv1.AccountAssertionStatus
+	for _, a := range resp.Msg.Accounts {
+		if a.Account == "assets:investments:brokerage" {
+			brokerage = a
+			break
+		}
+	}
+	if brokerage == nil {
+		t.Fatal("assets:investments:brokerage not found in response")
+	}
+
+	// The net VTSAX position is zero; it must not appear in the balance.
+	for _, amt := range brokerage.Balance {
+		if amt.Commodity == "VTSAX" {
+			t.Errorf("VTSAX balance should be omitted (net zero), got quantity %q", amt.Quantity)
+		}
+	}
+}
+
 // writeAssertionJournal writes a small journal with an asserted asset account,
 // an unasserted liability account, and non-asset/liability accounts that must be
 // excluded from the result. Returns the data dir.
