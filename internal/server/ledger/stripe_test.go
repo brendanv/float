@@ -102,6 +102,29 @@ func TestStripeTransactionToHledger(t *testing.T) {
 			wantCounterAmt: -10.00,
 			wantCounterAcc: "expenses:unknown",
 		},
+		{
+			// transacted_at (the bank's transaction date) is always used as the
+			// hledger date, not posted_at (when Stripe settled the transaction).
+			name: "transacted_at used as date, not posted_at",
+			txn: stripeClient.Transaction{
+				ID:           "fca_txn_dates",
+				AccountID:    "fca_acct1",
+				AmountCents:  500,
+				Currency:     "usd",
+				Description:  "Charge",
+				TransactedAt: base,                               // May 10
+				PostedAt:     base.Add(48 * time.Hour),           // May 12 (different!)
+				Status:       "posted",
+			},
+			hledgerAccount: "assets:checking",
+			wantDate:       "2026-05-10",
+			wantDesc:       "Charge",
+			wantStatus:     "",
+			wantMainAmt:    5.00,
+			wantMainComm:   "USD",
+			wantCounterAmt: -5.00,
+			wantCounterAcc: "expenses:unknown",
+		},
 	}
 
 	for _, tc := range tests {
@@ -248,6 +271,27 @@ func TestStripeTransactionToInput(t *testing.T) {
 			wantMainQty:    "8.00",
 			wantCounterQty: "-8.00",
 			wantMainComm:   "EUR",
+		},
+		{
+			// transacted_at (the bank's transaction date) is always used as the
+			// hledger date, not posted_at (when Stripe settled the transaction).
+			name: "transacted_at used as date, not posted_at",
+			txn: stripeClient.Transaction{
+				ID:           "fca_txn_dates",
+				AmountCents:  1000,
+				Currency:     "usd",
+				Description:  "Charge",
+				TransactedAt: base,                     // May 10
+				PostedAt:     base.Add(48 * time.Hour), // May 12 (different!)
+				Status:       "posted",
+			},
+			hledgerAccount: "assets:checking",
+			wantDate:       time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+			wantStatus:     "",
+			wantStripeTag:  "fca_txn_dates",
+			wantMainQty:    "10.00",
+			wantCounterQty: "-10.00",
+			wantMainComm:   "USD",
 		},
 	}
 
