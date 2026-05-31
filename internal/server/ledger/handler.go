@@ -290,6 +290,46 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 	}), nil
 }
 
+// exactQty accumulates a commodity quantity using exact integer arithmetic
+// (mantissa / 10^scale) to avoid float64 rounding errors that produce
+// near-zero residuals for fully-liquidated positions (e.g. 6e-14 instead of 0).
+type exactQty struct {
+	mantissa int64
+	scale    int
+}
+
+func (q *exactQty) add(mantissa int64, decimalPlaces int) {
+	m := mantissa
+	p := decimalPlaces
+	if p > q.scale {
+		factor := int64(1)
+		for i := 0; i < p-q.scale; i++ {
+			factor *= 10
+		}
+		q.mantissa *= factor
+		q.scale = p
+	} else if p < q.scale {
+		factor := int64(1)
+		for i := 0; i < q.scale-p; i++ {
+			factor *= 10
+		}
+		m *= factor
+	}
+	q.mantissa += m
+}
+
+func (q exactQty) float() float64 {
+	v := float64(q.mantissa)
+	if q.scale > 0 {
+		divisor := float64(1)
+		for i := 0; i < q.scale; i++ {
+			divisor *= 10
+		}
+		v /= divisor
+	}
+	return v
+}
+
 // currencySymbols is the set of commodity codes treated as plain fiat currency.
 // Accounts whose amounts consist only of these commodities are excluded from the
 // portfolio view — they are cash positions, not equity holdings.
@@ -339,15 +379,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	// lots. hledger returns a separate Amount per purchase lot when positions
 	// are built up at different prices (each lot has a distinct acost), so
 	// without aggregation every lot would appear as its own holding row.
-	//
-	// Use exact integer arithmetic (DecimalMantissa / 10^DecimalPlaces) to
-	// avoid float64 rounding errors that produce near-zero residuals like
-	// 6e-14 for fully-liquidated positions.
 	type holdingKey struct{ account, symbol string }
-	type exactQty struct {
-		mantissa int64
-		scale    int
-	}
 	type costBasis struct {
 		total    float64
 		currency string
@@ -365,23 +397,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 				holdingOrder = append(holdingOrder, k)
 			}
 			cur := aggregated[k]
-			m := amt.Quantity.DecimalMantissa
-			p := amt.Quantity.DecimalPlaces
-			if p > cur.scale {
-				factor := int64(1)
-				for i := 0; i < p-cur.scale; i++ {
-					factor *= 10
-				}
-				cur.mantissa *= factor
-				cur.scale = p
-			} else if p < cur.scale {
-				factor := int64(1)
-				for i := 0; i < cur.scale-p; i++ {
-					factor *= 10
-				}
-				m *= factor
-			}
-			cur.mantissa += m
+			cur.add(amt.Quantity.DecimalMantissa, amt.Quantity.DecimalPlaces)
 			aggregated[k] = cur
 
 			if c, err := amt.ParseCost(); err == nil && c != nil {
@@ -407,14 +423,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		if eq.mantissa == 0 {
 			continue
 		}
-		qty := float64(eq.mantissa)
-		if eq.scale > 0 {
-			divisor := float64(1)
-			for i := 0; i < eq.scale; i++ {
-				divisor *= 10
-			}
-			qty /= divisor
-		}
+		qty := eq.float()
 		holding := &floatv1.Holding{
 			Account:   k.account,
 			Symbol:    k.symbol,
@@ -1167,40 +1176,17 @@ func toProtoAmounts(amounts []hledger.Amount) []*floatv1.Amount {
 	return result
 }
 
-// aggregateAmountsByCommodity sums amounts that share the same commodity using
-// exact integer arithmetic (DecimalMantissa / 10^DecimalPlaces) to avoid
-// float64 rounding errors that produce near-zero residuals for fully-liquidated
-// positions (e.g. 6e-14 instead of 0). Zero-balance commodities are omitted.
+// aggregateAmountsByCommodity sums amounts that share the same commodity.
+// Zero-balance commodities are omitted from the result.
 func aggregateAmountsByCommodity(amounts []hledger.Amount) []*floatv1.Amount {
-	type exactQty struct {
-		mantissa int64
-		scale    int
-	}
 	totals := make(map[string]exactQty)
 	var order []string
 	for _, a := range amounts {
 		if _, seen := totals[a.Commodity]; !seen {
 			order = append(order, a.Commodity)
-			totals[a.Commodity] = exactQty{}
 		}
 		cur := totals[a.Commodity]
-		m := a.Quantity.DecimalMantissa
-		p := a.Quantity.DecimalPlaces
-		if p > cur.scale {
-			factor := int64(1)
-			for i := 0; i < p-cur.scale; i++ {
-				factor *= 10
-			}
-			cur.mantissa *= factor
-			cur.scale = p
-		} else if p < cur.scale {
-			factor := int64(1)
-			for i := 0; i < cur.scale-p; i++ {
-				factor *= 10
-			}
-			m *= factor
-		}
-		cur.mantissa += m
+		cur.add(a.Quantity.DecimalMantissa, a.Quantity.DecimalPlaces)
 		totals[a.Commodity] = cur
 	}
 	var result []*floatv1.Amount
@@ -1209,17 +1195,9 @@ func aggregateAmountsByCommodity(amounts []hledger.Amount) []*floatv1.Amount {
 		if eq.mantissa == 0 {
 			continue
 		}
-		qty := float64(eq.mantissa)
-		if eq.scale > 0 {
-			divisor := float64(1)
-			for i := 0; i < eq.scale; i++ {
-				divisor *= 10
-			}
-			qty /= divisor
-		}
 		result = append(result, &floatv1.Amount{
 			Commodity: commodity,
-			Quantity:  fmt.Sprintf("%g", qty),
+			Quantity:  fmt.Sprintf("%g", eq.float()),
 		})
 	}
 	return result
