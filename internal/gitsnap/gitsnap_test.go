@@ -215,7 +215,7 @@ func TestRestore_RevertsFiles(t *testing.T) {
 	}
 }
 
-func TestRestore_PreservesIgnoredFiles(t *testing.T) {
+func TestRestore_ConfigTrackedByGit(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()
 	repo, err := New(dir)
@@ -229,6 +229,9 @@ func TestRestore_PreservesIgnoredFiles(t *testing.T) {
 	if err := os.WriteFile(journalPath, []byte("version-A"), 0644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(configPath, []byte("[server]\nport=8080\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := repo.Commit(ctx, "commit A"); err != nil {
 		t.Fatalf("Commit A: %v", err)
 	}
@@ -238,7 +241,7 @@ func TestRestore_PreservesIgnoredFiles(t *testing.T) {
 	if err := os.WriteFile(journalPath, []byte("version-B"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(configPath, []byte("[server]\nport=8080\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte("[server]\nport=9090\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.Commit(ctx, "commit B"); err != nil {
@@ -249,8 +252,55 @@ func TestRestore_PreservesIgnoredFiles(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	if _, err := os.Stat(configPath); err != nil {
-		t.Errorf("config.toml deleted by restore: %v", err)
+	got, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile config.toml: %v", err)
+	}
+	if string(got) != "[server]\nport=8080\n" {
+		t.Errorf("config.toml not restored by git: got %q, want %q", got, "[server]\nport=8080\n")
+	}
+}
+
+func TestRestore_PreservesFloatKey(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	journalPath := filepath.Join(dir, "main.journal")
+	keyPath := filepath.Join(dir, "float.key")
+
+	if err := os.WriteFile(journalPath, []byte("version-A"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "commit A"); err != nil {
+		t.Fatalf("Commit A: %v", err)
+	}
+	snapsA, _ := repo.List(ctx, 1)
+	hashA := snapsA[0].Hash
+
+	if err := os.WriteFile(journalPath, []byte("version-B"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, []byte("secret-key-data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Commit(ctx, "commit B"); err != nil {
+		t.Fatalf("Commit B: %v", err)
+	}
+
+	if err := repo.Restore(ctx, hashA); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	got, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatalf("float.key deleted by restore: %v", err)
+	}
+	if string(got) != "secret-key-data" {
+		t.Errorf("float.key content changed by restore: got %q", got)
 	}
 }
 

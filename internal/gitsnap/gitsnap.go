@@ -55,6 +55,10 @@ func New(dir string) (*Repo, error) {
 		}
 	} else if err != nil {
 		return nil, fmt.Errorf("gitsnap: open: %w", err)
+	} else {
+		if err := writeGitignore(dir); err != nil {
+			return nil, fmt.Errorf("gitsnap: update gitignore: %w", err)
+		}
 	}
 	return &Repo{dir: dir, repo: r}, nil
 }
@@ -88,10 +92,7 @@ func initRepo(dir string) (*git.Repository, error) {
 
 func writeGitignore(dir string) error {
 	path := filepath.Join(dir, ".gitignore")
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-	return os.WriteFile(path, []byte("config.toml\nfloat.key\n"), 0600)
+	return os.WriteFile(path, []byte("float.key\n"), 0600)
 }
 
 func (r *Repo) Commit(_ context.Context, msg string) error {
@@ -154,7 +155,7 @@ func (r *Repo) List(_ context.Context, limit int) ([]Snapshot, error) {
 	return snaps, nil
 }
 
-var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key"}
+var preservedFiles = []string{"float.key", "ssh_host_key"}
 
 func (r *Repo) Restore(_ context.Context, hash string) error {
 	h := plumbing.NewHash(hash)

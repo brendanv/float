@@ -38,21 +38,21 @@ func (l *TxLock) Generation() uint64 {
 
 // Do executes the write protocol:
 //  1. Acquire mutex
-//  2. Snapshot all *.journal files in dataDir (in-memory)
+//  2. Snapshot all *.journal files and config.toml in dataDir (in-memory)
 //  3. Execute fn (caller writes files)
 //  4. Run hledger check to validate the journal
-//  5. On check failure: revert all journal files from snapshot, return error
+//  5. On check failure: revert all snapshotted files, return error
 //  6. On success: bump generation counter
 func (l *TxLock) Do(ctx context.Context, msg string, fn func() error) error {
 	logger := slogctx.FromContext(ctx)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	snap, err := snapshotJournalFiles(l.dataDir)
+	snap, err := snapshotFiles(l.dataDir)
 	if err != nil {
 		return fmt.Errorf("txlock: snapshot: %w", err)
 	}
-	logger.Debug("txlock: snapshotted journal files", "file_count", len(snap))
+	logger.Debug("txlock: snapshotted files", "file_count", len(snap))
 
 	if err := fn(); err != nil {
 		logger.Debug("txlock: reverting snapshot after write failure", "error", err)
@@ -88,10 +88,13 @@ func (l *TxLock) BumpGeneration() uint64 {
 	return l.gen.Add(1)
 }
 
-// snapshotJournalFiles records the content of every *.journal file under dataDir.
+// snapshotFiles records the content of every *.journal file and config.toml under dataDir.
 // The returned map is keyed by absolute path.
-func snapshotJournalFiles(dataDir string) (map[string][]byte, error) {
+func snapshotFiles(dataDir string) (map[string][]byte, error) {
 	snap := make(map[string][]byte)
+	if content, err := os.ReadFile(filepath.Join(dataDir, "config.toml")); err == nil {
+		snap[filepath.Join(dataDir, "config.toml")] = content
+	}
 	err := filepath.WalkDir(dataDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

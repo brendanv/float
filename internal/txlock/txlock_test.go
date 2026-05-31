@@ -223,6 +223,36 @@ func TestTxLock_Do_ExistingFileReverted(t *testing.T) {
 	}
 }
 
+func TestTxLock_Do_ConfigReverted(t *testing.T) {
+	// Verify that config.toml is reverted when fn fails.
+	dir := setupDataDir(t)
+	l := mustTxLock(t, dir)
+
+	originalConfig := "[server]\nport = 8080\n"
+	configPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(originalConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := l.Do(t.Context(), "test", func() error {
+		if err := os.WriteFile(configPath, []byte("[server]\nport = 9090\n"), 0644); err != nil {
+			return err
+		}
+		return errors.New("fn failed")
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	got, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(got) != originalConfig {
+		t.Errorf("config.toml not reverted: got %q, want %q", got, originalConfig)
+	}
+}
+
 func TestTxLock_Do_Concurrent(t *testing.T) {
 	// Two goroutines calling Do() concurrently must not corrupt the journal.
 	dir := setupDataDir(t)
