@@ -15,19 +15,30 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-function todayStr() {
+export function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function AddTransactionForm({ onSuccess }) {
+function defaultPostings(initialPostings) {
+  if (initialPostings && initialPostings.length >= 2) {
+    return initialPostings.map((p) => ({
+      account: p.account || "",
+      commodity: p.commodity || "",
+      quantity: p.quantity || "",
+    }));
+  }
+  return [
+    { account: "", commodity: "", quantity: "" },
+    { account: "", commodity: "", quantity: "" },
+  ];
+}
+
+export function AddTransactionForm({ onSuccess, initialValues }) {
   const queryClient = useQueryClient();
   const [date, setDate] = useState(todayStr);
-  const [description, setDescription] = useState("");
-  const [postings, setPostings] = useState([
-    { account: "", commodity: "", quantity: "" },
-    { account: "", commodity: "", quantity: "" },
-  ]);
+  const [description, setDescription] = useState(initialValues?.description || "");
+  const [postings, setPostings] = useState(() => defaultPostings(initialValues?.postings));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -102,7 +113,7 @@ function AddTransactionForm({ onSuccess }) {
   );
 }
 
-export function AddTransactionModal({ open, onOpenChange }) {
+export function AddTransactionModal({ open, onOpenChange, initialValues }) {
   const [success, setSuccess] = useState(false);
 
   function handleOpenChange(next) {
@@ -119,7 +130,7 @@ export function AddTransactionModal({ open, onOpenChange }) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent size="md" showCloseButton>
         <DialogHeader>
-          <DialogTitle>Add Transaction</DialogTitle>
+          <DialogTitle>{initialValues ? "Duplicate Transaction" : "Add Transaction"}</DialogTitle>
         </DialogHeader>
         {success ? (
           <div className="flex flex-col items-center gap-2 py-4 text-center">
@@ -127,7 +138,7 @@ export function AddTransactionModal({ open, onOpenChange }) {
             <p className="text-sm font-medium">Transaction added successfully!</p>
           </div>
         ) : (
-          <AddTransactionForm onSuccess={handleSuccess} />
+          <AddTransactionForm onSuccess={handleSuccess} initialValues={initialValues} />
         )}
       </DialogContent>
     </Dialog>

@@ -39,6 +39,8 @@ const SettingsPage = lazyPage(() => import("./pages/settings.jsx"), "SettingsPag
 const HledgerQueryPage = lazyPage(() => import("./pages/hledger-query.jsx"), "HledgerQueryPage");
 const ConnectionsPage = lazyPage(() => import("./pages/connections.jsx"), "ConnectionsPage");
 const LogsPage = lazyPage(() => import("./pages/logs.jsx"), "LogsPage");
+const TemplatesPage = lazyPage(() => import("./pages/templates.jsx"), "TemplatesPage");
+const BulkEntryPage = lazyPage(() => import("./pages/bulk-entry.jsx"), "BulkEntryPage");
 
 const rootRoute = createRootRoute({
   component: function Root() {
@@ -174,6 +176,21 @@ const logsRoute = createRoute({
   component: LogsPage,
 });
 
+const templatesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/templates",
+  component: TemplatesPage,
+});
+
+const bulkEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/bulk-entry",
+  validateSearch: (search) => ({
+    templateId: search.templateId ?? "",
+  }),
+  component: BulkEntryPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   transactionsRoute,
@@ -193,6 +210,8 @@ const routeTree = rootRoute.addChildren([
   hledgerQueryRoute,
   connectionsRoute,
   logsRoute,
+  templatesRoute,
+  bulkEntryRoute,
 ]);
 
 export const router = createRouter({

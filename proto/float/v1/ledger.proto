@@ -588,6 +588,53 @@ message DeleteRuleRequest {
 
 message DeleteRuleResponse {}
 
+// ---- Transaction Templates ----
+
+message TransactionTemplate {
+  string id = 1;
+  string name = 2;
+  string payee = 3;                    // optional default payee
+  string note = 4;                     // optional default note (after "|" in description)
+  repeated TemplatePosting postings = 5;
+  map<string, string> tags = 6;        // default tags applied to each transaction
+}
+
+message TemplatePosting {
+  string account = 1;
+  string commodity = 2;                // e.g. "USD"
+  string default_quantity = 3;         // empty = auto-balance posting
+  string comment = 4;
+}
+
+message ListTemplatesRequest {}
+
+message ListTemplatesResponse {
+  repeated TransactionTemplate templates = 1;
+}
+
+message AddTemplateRequest {
+  string name = 1;
+  string payee = 2;
+  string note = 3;
+  repeated TemplatePosting postings = 4;
+  map<string, string> tags = 5;
+}
+
+message UpdateTemplateRequest {
+  string id = 1;
+  string name = 2;
+  string payee = 3;
+  string note = 4;
+  repeated TemplatePosting postings = 5;
+  map<string, string> tags = 6;
+}
+
+message DeleteTemplateRequest {
+  string id = 1;
+}
+
+message DeleteTemplateResponse {}
+
 message PreviewApplyRulesRequest {
   repeated string rule_ids = 1; // empty = all rules
   repeated string query = 2;   // optional hledger query to filter transactions
@@ -1001,6 +1048,12 @@ service LedgerService {
   rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
   rpc PreviewApplyRules(PreviewApplyRulesRequest) returns (PreviewApplyRulesResponse);
   rpc ApplyRules(ApplyRulesRequest) returns (stream ApplyRulesResponse);
+
+  // Templates
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse);
+  rpc AddTemplate(AddTemplateRequest) returns (TransactionTemplate);
+  rpc UpdateTemplate(UpdateTemplateRequest) returns (TransactionTemplate);
+  rpc DeleteTemplate(DeleteTemplateRequest) returns (DeleteTemplateResponse);
 
   // Stripe Financial Connections
   rpc GetStripeConfig(GetStripeConfigRequest) returns (GetStripeConfigResponse);

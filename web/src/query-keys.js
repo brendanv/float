@@ -24,4 +24,5 @@ export const queryKeys = {
   generalConfig:        () => ["generalConfig"],
   stripeConfig:         () => ["stripeConfig"],
   stripeLinkedAccounts: () => ["stripeLinkedAccounts"],
+  templates:            () => ["templates"],
 };

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { AddTransactionModal } from "./add-transaction-modal.jsx";
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,7 +9,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, X, Scale, Plus } from "lucide-react";
+import { Check, Loader2, Trash2, X, Scale, Plus, Copy } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -398,6 +399,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
 
   const isDirty = JSON.stringify(postings) !== JSON.stringify(initialPostings);
 
@@ -451,27 +453,40 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
           <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onTagsChanged} />
         </FormField>
         <FormActions align="between">
-          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-            <DialogTrigger asChild>
-              <Button variant="destructive-ghost" size="xs" disabled={saving || deleting}>
-                <Trash2 data-icon="inline-start" /> Delete
-              </Button>
-            </DialogTrigger>
-            <DialogContent showCloseButton={false}>
-              <DialogHeader>
-                <DialogTitle>Delete transaction?</DialogTitle>
-                <DialogDescription>
-                  This will permanently remove &ldquo;{tx.description}&rdquo; from the journal. This cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-                <Button variant="destructive" onClick={handleDelete} isLoading={deleting}>
-                  Delete
+          <div className="flex gap-2">
+            <AddTransactionModal
+              open={duplicateOpen}
+              onOpenChange={setDuplicateOpen}
+              initialValues={{
+                description: tx.description,
+                postings: toFields(tx.postings),
+              }}
+            />
+            <Button variant="outline" size="xs" disabled={saving || deleting} onClick={() => setDuplicateOpen(true)}>
+              <Copy data-icon="inline-start" /> Duplicate
+            </Button>
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogTrigger asChild>
+                <Button variant="destructive-ghost" size="xs" disabled={saving || deleting}>
+                  <Trash2 data-icon="inline-start" /> Delete
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent showCloseButton={false}>
+                <DialogHeader>
+                  <DialogTitle>Delete transaction?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently remove &ldquo;{tx.description}&rdquo; from the journal. This cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+                  <Button variant="destructive" onClick={handleDelete} isLoading={deleting}>
+                    Delete
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
             <Button type="button" variant="outline" size="xs" onClick={cancel} disabled={!isDirty || saving || deleting}>
               Cancel
