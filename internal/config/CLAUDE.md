@@ -1,12 +1,31 @@
 # internal/config
 
-Loads and saves `config.toml` — the single configuration file for a float data directory.
+Loads and saves `config.toml`, the single configuration file for a float data directory. This package stores config data only; it does not perform auth, encryption, or passphrase hashing.
 
-- `Load(path string) (*Config, error)` — reads and decodes `config.toml`; returns error if missing or invalid TOML
-- `Save(path string, cfg *Config) error` — encodes and writes `config.toml` (not goroutine-safe; caller must hold a lock)
+## API
 
-Key types: `Config` (top-level), `ServerConfig` (port, defaults to 8080), `User` (name, role `"admin"`/`"viewer"`, argon2id passphrase hash), `BankProfile` (name, rules_file path), `StripeConfig` (holds `[]StripeLinkedAccount`), `StripeLinkedAccount` (StripeAccountID, HledgerAccount, DisplayName, LastFetchedAt RFC3339).
+- `Load(path string) (*Config, error)` — reads and decodes TOML; returns an error if the file is missing or invalid.
+- `Save(path string, cfg *Config) error` — writes TOML atomically using a temp file in the same directory plus `os.Rename`. Callers must hold `txlock` or another appropriate lock when saving shared config.
+- `(*Config).Location() *time.Location` — returns the configured IANA timezone or `time.UTC` when empty/invalid.
 
-`Save` writes atomically via a temp file + rename to prevent partial writes.
+## Config Shape
 
-Passphrase hashing (argon2id) is handled outside this package — `config` stores only the already-hashed value.
+Top-level `Config` fields:
+
+- `Server` — `port` and optional `ssh_port`.
+- `Users` — `name`, `role`, and `passphrase_hash`; currently persisted but not enforced by middleware.
+- `BankProfiles` — name plus hledger CSV `rules_file` path relative to the data dir.
+- `AlphaVantage` — `api_key` for price backfills.
+- `AI` — OpenRouter `model` override and user prompt guidelines.
+- `Stripe` — customer ID, daily import toggle/timestamp, and linked Financial Connections accounts.
+- `Timezone` — IANA timezone used when converting external timestamps (notably Stripe) to journal dates; defaults to UTC.
+
+## Stripe Config Notes
+
+`StripeLinkedAccount` stores the Stripe Financial Connections account ID, target hledger account, display name, and `last_fetched_at` (informational last import time). Institution names are fetched from Stripe at runtime rather than persisted here.
+
+## Boundaries
+
+- Passphrase hashing/verification is outside this package.
+- API handlers are responsible for validating user-supplied timezone/model/API-key values before saving.
+- Config mutations should normally happen inside `txlock.Do()` so cache generation and snapshots remain coherent with file changes.

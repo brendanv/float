@@ -1,21 +1,24 @@
 # internal/alphavantage
 
-Fetches historical market prices from the Alpha Vantage API. Used by the `LedgerService.FetchPrices` RPC to bulk-import commodity prices into `prices.journal`.
+Fetches historical market prices from the Alpha Vantage API. The ledger handler uses this package in the `BackfillPrices` RPC to bulk-create hledger `P` price directives in `prices.journal`.
 
 ## API
 
 - `NewClient(apiKey)` — creates a client with a 15-second HTTP timeout.
-- `FetchWeeklyPrices(ctx, symbol, startDate, endDate)` — fetches weekly closing prices for `symbol` (e.g. `"AAPL"`) in the date range `[startDate, endDate]` inclusive. Dates are `"YYYY-MM-DD"`. Results are sorted ascending by date.
+- `FetchWeeklyPrices(ctx, symbol, startDate, endDate)` — fetches weekly adjusted closing prices for `symbol` in the inclusive date range `[startDate, endDate]`. Dates are strings in `YYYY-MM-DD` format. Results are sorted ascending by date.
 
 ## Response
 
-Returns `[]WeeklyPrice`, each with:
-- `Date` — week-ending date (`"YYYY-MM-DD"`)
-- `Close` — closing price as a string (e.g. `"188.63"`)
-- `Currency` — currently hardcoded to `"$"` (Alpha Vantage doesn't return currency in the weekly endpoint)
+Returns `[]WeeklyPrice`:
+
+- `Date` — week-ending date (`YYYY-MM-DD`).
+- `Close` — closing price as a string, suitable for writing to `prices.journal`.
+- `Currency` — currently `USD`; Alpha Vantage's weekly endpoint does not return a per-symbol currency.
+
+## Configuration / Integration
+
+The API key is stored in `config.toml` under `[alpha_vantage].api_key` and can be viewed/updated through `GetAlphaVantageConfig` / `SetAlphaVantageApiKey`. `BackfillPrices` fetches prices, skips dates already present for the commodity, writes new prices inside `txlock.Do()`, and returns the written directives plus a skipped count.
 
 ## Notes
 
-Alpha Vantage free tier has rate limits (25 req/day). Returns an error if the response contains no data, which typically means an invalid symbol or exceeded rate limit.
-
-The API key is configured in `config.toml` (not yet exposed in the config schema — check `internal/config/` for the current field name).
+Alpha Vantage free-tier limits are low. If the response has no time-series data, this package returns an error that may indicate an invalid symbol, an exhausted quota, or an upstream API response shape change.

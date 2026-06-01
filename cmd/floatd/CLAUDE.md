@@ -1,32 +1,50 @@
 # cmd/floatd
 
-The main float server binary. Serves gRPC, gRPC-Web, and Connect protocols on the same HTTP/2 port, with the web UI embedded at `/`.
+The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP server and serves the embedded web UI at `/`. It can also host the TUI over SSH and starts a daily Stripe auto-import background loop.
 
 ## Startup Sequence
 
-1. Parse flags (`--data-dir`, `--addr`, `--verbose`)
-2. Load `config.toml` from the data directory
-3. Initialise `hledger.Client` (validates hledger binary and version)
-4. Initialise `txlock.TxLock` and `gitsnap.Repo`; call `RecoverUncommitted` to snapshot any dirty files left from a crash
-5. Run FID backfill (`journal.MigrateFIDs`) to assign codes to any legacy transactions
-6. Declare any undeclared accounts in `accounts.journal`
-7. Start the ConnectRPC HTTP/2 server (h2c — plain HTTP/2 without TLS)
-8. Optionally start the SSH TUI server (`ssh.go`) if `ssh_port` is configured
+1. Parse flags (`--data-dir`, `--addr`, `--verbose`).
+2. Configure structured logging. Logs go to stderr and through `internal/logstream` for the `StreamLogs` RPC.
+3. Load `<data-dir>/config.toml`.
+4. Choose the listen address from `--addr`, `config.server.port`, or `:8080`.
+5. Ensure `main.journal` exists, creating an empty file if missing.
+6. Initialize `hledger.Client` for `main.journal` (validates the pinned hledger version).
+7. Initialize `txlock.TxLock` and `gitsnap.Repo`; call `RecoverUncommitted` for crash leftovers and register the repo with `lock.SetSnap`.
+8. Run startup migrations inside txlock:
+   - `journal.MigrateFIDs` to assign transaction code fields.
+   - `journal.MigrateStripeTxnTag` to rename old `stripe-txn` tags to `float-stripe-txn`.
+   - `journal.EnsureCommodityDirective(..., "USD")`.
+   - account declaration bootstrap: ensure `accounts.journal`, ensure its include, and append currently undeclared accounts.
+9. Create the generation-aware cache, `LedgerService` handler, logging interceptor, h2c mux, and embedded web UI handler.
+10. Start optional Wish SSH server if `config.server.ssh_port` is set.
+11. Start `handler.StartDailyStripeImport(ctx)`.
+12. Serve HTTP until interrupted, then shut down gracefully.
 
 ## Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--data-dir` | (required) | Path to float data directory |
-| `--addr` | from config or `:8080` | Listen address |
-| `--verbose` | false | Enable debug logging (hledger commands, durations) |
+| `--data-dir` | required | Path to float data directory |
+| `--addr` | config port or `:8080` | Listen address override |
+| `--verbose` | false | Enable debug-level logging, including hledger command args/durations |
 
-Environment variable shortcuts: `FLOAT_DATA_DIR`, `FLOAT_ADDR` (set in `mise.toml` tasks).
+Environment variable shortcuts such as `FLOAT_DATA_DIR` and `FLOAT_ADDR` are defined by root `mise.toml` tasks, not read directly by `main.go`.
+
+## HTTP / API
+
+`floatd` registers the generated `LedgerService` handler at `/float.v1.LedgerService/*` with `middleware.NewLoggingInterceptor`. The same mux then falls through to `webui.Handler()` for static web assets, allowing the embedded app and API to share one origin.
+
+The server uses `h2c.NewHandler(..., &http2.Server{})`, so local clients can use HTTP/2 without TLS. There is currently no auth middleware.
 
 ## SSH TUI (`ssh.go`)
 
-When `server.ssh_port` is set in `config.toml`, `startSSHServer` launches a Wish-based SSH server that runs the `float` TUI for each connection. The host key is stored at `$FLOAT_DATA_DIR/ssh_host_key` (generated on first start, gitignored).
+When `server.ssh_port` is set, `startSSHServer` launches a Wish SSH server. Each SSH session creates a local h2c `LedgerServiceClient` pointed at the running `floatd` address and runs `ui.New(client)` with Bubble Tea. The host key is `$FLOAT_DATA_DIR/ssh_host_key` and is generated on first start.
+
+## Background Work
+
+`StartDailyStripeImport` runs in the server context. It checks config state and Stripe refresh throttles, fetches/imports new settled transactions for linked accounts, updates `LastDailyImportAt`, and logs per-account errors without crashing the server.
 
 ## Web UI
 
-The built web UI (`internal/webui/dist/`) is embedded via `internal/webui` and served at `/`. API requests to `/float.v1.LedgerService/*` are handled by the ConnectRPC mux before falling through to the static file handler.
+The built web UI is embedded by `internal/webui` from `internal/webui/dist/` when present. Development uses the Vite dev server in `web/`, which proxies API requests to `floatd`.

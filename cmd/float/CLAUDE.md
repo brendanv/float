@@ -1,6 +1,6 @@
 # cmd/float
 
-The float TUI client. Connects to a running `floatd` over HTTP/2 (h2c) and renders a terminal UI using Bubbletea.
+The end-user terminal UI client. It connects to a running `floatd` over plain HTTP/2 (h2c) using the generated ConnectRPC `LedgerServiceClient`, then renders a Bubble Tea UI.
 
 ## Usage
 
@@ -8,32 +8,43 @@ The float TUI client. Connects to a running `floatd` over HTTP/2 (h2c) and rende
 float --server localhost:8080   # default address
 ```
 
-The `--server` flag specifies the `host:port` of `floatd`. The client uses plain HTTP/2 without TLS (h2c).
+The `--server` flag is a `host:port` for `floatd`. The client builds an h2c HTTP client and uses `http://<server>`; TLS is not used by this binary.
 
 ## Architecture
 
-`main.go` creates a ConnectRPC `LedgerServiceClient` and passes it to `ui.New(client)`, which returns a Bubbletea `Model`. All gRPC calls are made inside the `ui/` package.
+`main.go` creates the ConnectRPC client and passes it to `ui.New(client)`. All RPC calls, state, rendering, key handling, and forms live in `cmd/float/ui/`.
+
+The root `ui.Model` owns the tab state, help model, theme, layout, and the per-tab models. Global keys:
+
+- `tab` / `shift+tab` switch tabs.
+- `?` toggles expanded help.
+- `q` / `ctrl+c` quit unless an active form or confirmation dialog is capturing keys.
 
 ## ui/ Package
 
-The TUI is a tabbed application (`ui/tabbar.go`, `ui/app.go`). Each tab is a Bubbletea component with its own update/view logic:
+Current top-level tabs:
 
-| File | Tab |
-|------|-----|
-| `hometab.go` | Dashboard with balance summary |
-| `transactions.go` | Transaction list with search/filter |
-| `accounttree.go`, `accountregister.go` | Account tree and drill-down register |
-| `trendstab.go`, `networth.go` | Net worth chart |
-| `importstab.go` | CSV import |
-| `pricestab.go` | Commodity prices |
-| `rulestab.go` | Auto-categorization rules |
-| `snapshotstab.go` | Journal snapshots |
-| `settingstab.go` | TUI settings |
-| `managetab.go`, `managertab.go` | Bulk transaction management |
-| `tagstab.go` | Tags overview |
+| Tab | Primary files | Purpose |
+|-----|---------------|---------|
+| Home | `hometab.go`, `transactions.go`, `addtx.go` | Dashboard, recent/searchable transactions, add/edit/delete transaction modal flows |
+| Accounts | `managertab.go`, `accounts.go`, `accounttree.go`, `accountregister.go` | Account tree plus focused account register |
+| Trends | `trendstab.go`, `networth.go`, `chartpanel.go`, `insights.go` | Net worth and trend visualizations |
+| Portfolio | `portfoliotab.go` | Investment holdings, prices, allocation, gain/loss |
+| Monthly | `monthlytab.go` | Income statement / monthly revenue-expense dashboard |
+| Assertions | `assertionstab.go` | Accounts ranked by balance-assertion drift; edit transaction to add assertions |
+| Manage | `managetab.go`, plus `importstab.go`, `rulestab.go`, `pricestab.go`, `snapshotstab.go`, `tagstab.go`, `payeestab.go`, `stripetab.go` | Bulk management, imports, rules, prices, snapshots, tags, payees, Stripe connections |
+| Settings | `settingstab.go`, `tuiconfig.go` | Theme and TUI settings |
 
-Supporting files: `fetch.go` (gRPC call helpers), `filter.go` (search/filter state), `layout.go` (responsive sizing), `period.go` (date range selection), `modal.go` (overlay dialogs), `addtx.go` (add transaction form), `style.go` (Lipgloss styles), `spinner.go`, `helpbar.go`, `panel.go`, `summary.go`.
+Supporting files:
+
+- `fetch.go` — shared RPC command helpers and message types.
+- `filter.go`, `presets.go`, `period.go` — search/filter/date-range state.
+- `layout.go`, `panel.go`, `summary.go`, `style.go`, `helpbar.go`, `spinner.go`, `modal.go` — shared layout and presentation utilities.
+
+## Theme / Config
+
+The TUI detects terminal background color and applies a saved theme loaded by `LoadTUITheme()`. Theme changes are persisted by `tuiconfig.go`.
 
 ## SSH Access
 
-The TUI can also be accessed via SSH when `floatd` has `ssh_port` configured. The `float` binary itself only does direct TCP connections — the SSH server is in `cmd/floatd/ssh.go`.
+The TUI can also be accessed over SSH when `floatd` has `server.ssh_port` configured. The SSH server lives in `cmd/floatd/ssh.go`; this binary only performs direct h2c client connections.
