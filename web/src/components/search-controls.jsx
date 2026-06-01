@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { DATE_PRESETS, QUICK_FILTERS, PAYEE_NONE } from "./search-presets.js";
+import { DATE_PRESETS, PAYEE_NONE } from "./search-presets.js";
 
 function pad2(n) {
   return n < 10 ? "0" + n : "" + n;
@@ -324,12 +324,11 @@ export function SearchControls({
   onTagChange,
   onPayeeChange,
   onSearchChange,
-  onQuickFilter,
+  onStatusChange,
   accounts,
   tags,
 }) {
-  const currentFilters = { dateFrom, dateTo, account, tag, status, payee };
-  const activeQuickFilter = QUICK_FILTERS.find(qf => qf.isActive(currentFilters));
+  const reviewFilter = payee === PAYEE_NONE ? "nopayee" : (status || "all");
 
   const hasActiveFilters = account || tag || payee || search;
 
@@ -355,47 +354,28 @@ export function SearchControls({
         <div className="flex items-center border-t border-border md:flex-1 md:border-t-0">
           <Separator orientation="vertical" className="hidden h-5 md:block" />
 
-          {onQuickFilter && (
-            <>
-              <Popover>
-                <PopoverTrigger
-                  render={
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex h-7 items-center gap-1 px-2.5 text-xs hover:bg-muted",
-                        activeQuickFilter?.label !== "All" ? "font-semibold" : "",
-                      )}
-                    >
-                      {activeQuickFilter?.label ?? "Filter"}
-                      <span className="text-xs opacity-40">▾</span>
-                    </button>
-                  }
-                />
-                <PopoverContent align="start" className="w-56 p-1">
-                  {QUICK_FILTERS.map(qf => {
-                    const isActive = qf.isActive(currentFilters);
-                    return (
-                      <button
-                        key={qf.label}
-                        type="button"
-                        className={cn(
-                          "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted",
-                          isActive && "font-semibold",
-                        )}
-                        onClick={() => onQuickFilter(qf.apply(currentFilters))}
-                        title={qf.description ?? qf.label}
-                      >
-                        {qf.label}
-                        {isActive && <Check className="size-3.5 text-primary" />}
-                      </button>
-                    );
-                  })}
-                </PopoverContent>
-              </Popover>
-              <Separator orientation="vertical" className="h-5" />
-            </>
-          )}
+          <NativeSelect
+            size="sm"
+            value={reviewFilter}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next === "nopayee") {
+                onStatusChange("");
+                onPayeeChange(PAYEE_NONE);
+                return;
+              }
+              onStatusChange(next === "all" ? "" : next);
+              if (payee === PAYEE_NONE) onPayeeChange("");
+            }}
+            className="[&>select]:border-0 [&>select]:bg-transparent [&>select]:shadow-none [&>select]:focus-visible:ring-0 [&>select:hover]:bg-muted dark:[&>select]:bg-transparent dark:[&>select:hover]:bg-muted"
+          >
+            <NativeSelectOption value="all">All</NativeSelectOption>
+            <NativeSelectOption value="reviewed">Reviewed</NativeSelectOption>
+            <NativeSelectOption value="unreviewed">Unreviewed</NativeSelectOption>
+            <NativeSelectOption value="nopayee">No payee set</NativeSelectOption>
+          </NativeSelect>
+
+          <Separator orientation="vertical" className="h-5" />
 
           <AccountCombobox
             value={account}

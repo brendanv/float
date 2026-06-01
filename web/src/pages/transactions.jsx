@@ -336,16 +336,6 @@ export function TransactionsPage() {
     queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
   }
 
-  function applyQuickFilter(filters) {
-    setDateFrom(filters.dateFrom);
-    setDateTo(filters.dateTo);
-    setAccount(filters.account);
-    setTag(filters.tag);
-    setStatus(filters.status);
-    setPayee(filters.payee);
-    setSelectedFids(new Set());
-  }
-
   const transactions = !isAccountMode ? (data?.transactions || []) : [];
   const registerRows = isAccountMode ? (data?.rows || []) : null;
   const bulkActionTransactions = isAccountMode ? (registerRows || []) : transactions;
@@ -378,7 +368,7 @@ export function TransactionsPage() {
         onTagChange={onFilterChange(setTag)}
         onPayeeChange={onFilterChange(setPayee)}
         onSearchChange={onFilterChange(setSearch)}
-        onQuickFilter={applyQuickFilter}
+        onStatusChange={onFilterChange(setStatus)}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
       />
