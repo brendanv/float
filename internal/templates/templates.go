@@ -2,7 +2,9 @@ package templates
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -37,7 +39,7 @@ const templatesFile = "templates.json"
 func Load(dataDir string) ([]Template, error) {
 	path := filepath.Join(dataDir, templatesFile)
 	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
