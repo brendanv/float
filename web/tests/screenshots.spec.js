@@ -173,14 +173,15 @@ test("accounts page - rename dialog confirm", async ({ page }) => {
   await page.screenshot({ path: "test-results/accounts-rename-confirm.png", fullPage: false });
 });
 
-test("transactions page - filter dropdown open", async ({ page }) => {
+test("transactions page - status filter select", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
-  // Click the quick filter dropdown button (last btn-ghost/btn-primary in the first row)
-  const filterBtn = page.locator("button").filter({ hasText: /^(All|Reviewed|Unreviewed|No payee set|Filter)\s*▾?$/ }).first();
-  await filterBtn.click();
+  const statusSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'Reviewed' }) }).first();
+  await expect(statusSelect).toHaveValue("all");
+  await statusSelect.selectOption("unreviewed");
+  await expect(statusSelect).toHaveValue("unreviewed");
   await page.waitForTimeout(150);
   await page.screenshot({ path: "test-results/transactions-filter-open.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 300 } });
 });
