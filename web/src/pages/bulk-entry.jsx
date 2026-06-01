@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, Fragment } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearch, useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2, CircleCheck, LayoutGrid } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { todayStr } from "../format.js";
 import { PageHeader } from "../components/page-header.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -13,15 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function addOneMonth(dateStr) {
   if (!dateStr) return todayStr();
   const d = new Date(dateStr + "T12:00:00");
+  const day = d.getDate();
+  d.setDate(1);
   d.setMonth(d.getMonth() + 1);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -52,6 +52,7 @@ function RowCell({ value, onChange, onKeyDown, inputRef, placeholder, type = "te
       ) : (
         <Input
           ref={inputRef}
+          data-bulk-cell
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -124,16 +125,28 @@ export function BulkEntryPage() {
 
   // Tab/Enter key handler for cell navigation
   function handleCellKey(e, rowIdx, colIdx, totalCols) {
-    if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey && colIdx === totalCols - 1)) {
-      if (rowIdx === rows.length - 1) {
-        e.preventDefault();
+    const isLastCol = colIdx === totalCols - 1;
+    const isLastRow = rowIdx === rows.length - 1;
+    if (e.key === "Tab" && !e.shiftKey && isLastCol && isLastRow) {
+      e.preventDefault();
+      addRow();
+      setTimeout(() => {
+        const inputs = document.querySelectorAll("[data-bulk-cell]");
+        inputs[(rowIdx + 1) * totalCols]?.focus();
+      }, 50);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (isLastRow) {
         addRow();
-        // Focus the first cell of new row on next tick
         setTimeout(() => {
           const inputs = document.querySelectorAll("[data-bulk-cell]");
-          const newRowStart = (rowIdx + 1) * totalCols;
-          inputs[newRowStart]?.focus();
+          inputs[(rowIdx + 1) * totalCols]?.focus();
         }, 50);
+      } else {
+        setTimeout(() => {
+          const inputs = document.querySelectorAll("[data-bulk-cell]");
+          inputs[(rowIdx + 1) * totalCols + colIdx]?.focus();
+        }, 0);
       }
     }
   }
@@ -305,11 +318,10 @@ export function BulkEntryPage() {
               </thead>
               <tbody>
                 {rows.map((row, rowIdx) => {
-                  const totalCols = 2 + postings.filter((p) => p.defaultQuantity !== "").length;
+                  const totalCols = 2 + postings.filter((p) => (p.defaultQuantity ?? "") !== "").length;
                   return (
-                    <>
+                    <Fragment key={row.id}>
                       <tr
-                        key={row.id}
                         className={cn(
                           row.submitted && "opacity-40",
                           row.error && "bg-destructive/5",
@@ -332,8 +344,6 @@ export function BulkEntryPage() {
                           className="min-w-40"
                         />
                         {postings.map((p, colIdx) => {
-                          const isAuto = !p.defaultQuantity && p.defaultQuantity !== undefined && p.defaultQuantity === "";
-                          // isAuto = the template posting has empty defaultQuantity (auto-balance)
                           const autoBalance = (p.defaultQuantity ?? "") === "";
                           return (
                             <RowCell
@@ -365,13 +375,13 @@ export function BulkEntryPage() {
                         </td>
                       </tr>
                       {row.error && (
-                        <tr key={row.id + "-err"}>
+                        <tr>
                           <td colSpan={3 + postings.length} className="border-b px-1.5 pb-1 text-xs text-destructive">
                             {row.error}
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

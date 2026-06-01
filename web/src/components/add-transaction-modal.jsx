@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { todayStr } from "../format.js";
 import { PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { ErrorBanner } from "./error-banner.jsx";
 import { Input } from "@/components/ui/input";
@@ -14,11 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-export function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function defaultPostings(initialPostings) {
   if (initialPostings && initialPostings.length >= 2) {
