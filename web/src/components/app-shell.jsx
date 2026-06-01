@@ -21,6 +21,8 @@ import {
   Link2,
   Logs,
   Scale,
+  LayoutGrid,
+  TableProperties,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -48,12 +50,14 @@ const NAV_FINANCES = [
   { href: "/monthly", label: "Monthly", icon: BarChart2 },
   { href: "/transactions", label: "Transactions", icon: List },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
+  { href: "/bulk-entry", label: "Bulk Entry", icon: LayoutGrid },
 ];
 
 const NAV_MANAGE = [
   { href: "/accounts", label: "Accounts", icon: BookOpen },
   { href: "/payees", label: "Payees", icon: Users },
   { href: "/rules", label: "Rules", icon: ListFilter },
+  { href: "/templates", label: "Templates", icon: TableProperties },
 ];
 
 const NAV_DATA_SOURCES = [

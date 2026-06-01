@@ -167,6 +167,18 @@ const (
 	// LedgerServiceApplyRulesProcedure is the fully-qualified name of the LedgerService's ApplyRules
 	// RPC.
 	LedgerServiceApplyRulesProcedure = "/float.v1.LedgerService/ApplyRules"
+	// LedgerServiceListTemplatesProcedure is the fully-qualified name of the LedgerService's
+	// ListTemplates RPC.
+	LedgerServiceListTemplatesProcedure = "/float.v1.LedgerService/ListTemplates"
+	// LedgerServiceAddTemplateProcedure is the fully-qualified name of the LedgerService's AddTemplate
+	// RPC.
+	LedgerServiceAddTemplateProcedure = "/float.v1.LedgerService/AddTemplate"
+	// LedgerServiceUpdateTemplateProcedure is the fully-qualified name of the LedgerService's
+	// UpdateTemplate RPC.
+	LedgerServiceUpdateTemplateProcedure = "/float.v1.LedgerService/UpdateTemplate"
+	// LedgerServiceDeleteTemplateProcedure is the fully-qualified name of the LedgerService's
+	// DeleteTemplate RPC.
+	LedgerServiceDeleteTemplateProcedure = "/float.v1.LedgerService/DeleteTemplate"
 	// LedgerServiceGetStripeConfigProcedure is the fully-qualified name of the LedgerService's
 	// GetStripeConfig RPC.
 	LedgerServiceGetStripeConfigProcedure = "/float.v1.LedgerService/GetStripeConfig"
@@ -294,6 +306,11 @@ type LedgerServiceClient interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest]) (*connect.ServerStreamForClient[v1.ApplyRulesResponse], error)
+	// Templates
+	ListTemplates(context.Context, *connect.Request[v1.ListTemplatesRequest]) (*connect.Response[v1.ListTemplatesResponse], error)
+	AddTemplate(context.Context, *connect.Request[v1.AddTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error)
+	UpdateTemplate(context.Context, *connect.Request[v1.UpdateTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error)
+	DeleteTemplate(context.Context, *connect.Request[v1.DeleteTemplateRequest]) (*connect.Response[v1.DeleteTemplateResponse], error)
 	// Stripe Financial Connections
 	GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error)
 	CreateStripeLinkSession(context.Context, *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error)
@@ -612,6 +629,30 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 			connect.WithClientOptions(opts...),
 		),
+		listTemplates: connect.NewClient[v1.ListTemplatesRequest, v1.ListTemplatesResponse](
+			httpClient,
+			baseURL+LedgerServiceListTemplatesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListTemplates")),
+			connect.WithClientOptions(opts...),
+		),
+		addTemplate: connect.NewClient[v1.AddTemplateRequest, v1.TransactionTemplate](
+			httpClient,
+			baseURL+LedgerServiceAddTemplateProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("AddTemplate")),
+			connect.WithClientOptions(opts...),
+		),
+		updateTemplate: connect.NewClient[v1.UpdateTemplateRequest, v1.TransactionTemplate](
+			httpClient,
+			baseURL+LedgerServiceUpdateTemplateProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UpdateTemplate")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteTemplate: connect.NewClient[v1.DeleteTemplateRequest, v1.DeleteTemplateResponse](
+			httpClient,
+			baseURL+LedgerServiceDeleteTemplateProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("DeleteTemplate")),
+			connect.WithClientOptions(opts...),
+		),
 		getStripeConfig: connect.NewClient[v1.GetStripeConfigRequest, v1.GetStripeConfigResponse](
 			httpClient,
 			baseURL+LedgerServiceGetStripeConfigProcedure,
@@ -813,6 +854,10 @@ type ledgerServiceClient struct {
 	deleteRule                   *connect.Client[v1.DeleteRuleRequest, v1.DeleteRuleResponse]
 	previewApplyRules            *connect.Client[v1.PreviewApplyRulesRequest, v1.PreviewApplyRulesResponse]
 	applyRules                   *connect.Client[v1.ApplyRulesRequest, v1.ApplyRulesResponse]
+	listTemplates                *connect.Client[v1.ListTemplatesRequest, v1.ListTemplatesResponse]
+	addTemplate                  *connect.Client[v1.AddTemplateRequest, v1.TransactionTemplate]
+	updateTemplate               *connect.Client[v1.UpdateTemplateRequest, v1.TransactionTemplate]
+	deleteTemplate               *connect.Client[v1.DeleteTemplateRequest, v1.DeleteTemplateResponse]
 	getStripeConfig              *connect.Client[v1.GetStripeConfigRequest, v1.GetStripeConfigResponse]
 	createStripeLinkSession      *connect.Client[v1.CreateStripeLinkSessionRequest, v1.CreateStripeLinkSessionResponse]
 	completeStripeLinking        *connect.Client[v1.CompleteStripeLinkingRequest, v1.CompleteStripeLinkingResponse]
@@ -1070,6 +1115,26 @@ func (c *ledgerServiceClient) ApplyRules(ctx context.Context, req *connect.Reque
 	return c.applyRules.CallServerStream(ctx, req)
 }
 
+// ListTemplates calls float.v1.LedgerService.ListTemplates.
+func (c *ledgerServiceClient) ListTemplates(ctx context.Context, req *connect.Request[v1.ListTemplatesRequest]) (*connect.Response[v1.ListTemplatesResponse], error) {
+	return c.listTemplates.CallUnary(ctx, req)
+}
+
+// AddTemplate calls float.v1.LedgerService.AddTemplate.
+func (c *ledgerServiceClient) AddTemplate(ctx context.Context, req *connect.Request[v1.AddTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error) {
+	return c.addTemplate.CallUnary(ctx, req)
+}
+
+// UpdateTemplate calls float.v1.LedgerService.UpdateTemplate.
+func (c *ledgerServiceClient) UpdateTemplate(ctx context.Context, req *connect.Request[v1.UpdateTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error) {
+	return c.updateTemplate.CallUnary(ctx, req)
+}
+
+// DeleteTemplate calls float.v1.LedgerService.DeleteTemplate.
+func (c *ledgerServiceClient) DeleteTemplate(ctx context.Context, req *connect.Request[v1.DeleteTemplateRequest]) (*connect.Response[v1.DeleteTemplateResponse], error) {
+	return c.deleteTemplate.CallUnary(ctx, req)
+}
+
 // GetStripeConfig calls float.v1.LedgerService.GetStripeConfig.
 func (c *ledgerServiceClient) GetStripeConfig(ctx context.Context, req *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error) {
 	return c.getStripeConfig.CallUnary(ctx, req)
@@ -1245,6 +1310,11 @@ type LedgerServiceHandler interface {
 	DeleteRule(context.Context, *connect.Request[v1.DeleteRuleRequest]) (*connect.Response[v1.DeleteRuleResponse], error)
 	PreviewApplyRules(context.Context, *connect.Request[v1.PreviewApplyRulesRequest]) (*connect.Response[v1.PreviewApplyRulesResponse], error)
 	ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest], *connect.ServerStream[v1.ApplyRulesResponse]) error
+	// Templates
+	ListTemplates(context.Context, *connect.Request[v1.ListTemplatesRequest]) (*connect.Response[v1.ListTemplatesResponse], error)
+	AddTemplate(context.Context, *connect.Request[v1.AddTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error)
+	UpdateTemplate(context.Context, *connect.Request[v1.UpdateTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error)
+	DeleteTemplate(context.Context, *connect.Request[v1.DeleteTemplateRequest]) (*connect.Response[v1.DeleteTemplateResponse], error)
 	// Stripe Financial Connections
 	GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error)
 	CreateStripeLinkSession(context.Context, *connect.Request[v1.CreateStripeLinkSessionRequest]) (*connect.Response[v1.CreateStripeLinkSessionResponse], error)
@@ -1559,6 +1629,30 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ApplyRules")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceListTemplatesHandler := connect.NewUnaryHandler(
+		LedgerServiceListTemplatesProcedure,
+		svc.ListTemplates,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListTemplates")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceAddTemplateHandler := connect.NewUnaryHandler(
+		LedgerServiceAddTemplateProcedure,
+		svc.AddTemplate,
+		connect.WithSchema(ledgerServiceMethods.ByName("AddTemplate")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceUpdateTemplateHandler := connect.NewUnaryHandler(
+		LedgerServiceUpdateTemplateProcedure,
+		svc.UpdateTemplate,
+		connect.WithSchema(ledgerServiceMethods.ByName("UpdateTemplate")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceDeleteTemplateHandler := connect.NewUnaryHandler(
+		LedgerServiceDeleteTemplateProcedure,
+		svc.DeleteTemplate,
+		connect.WithSchema(ledgerServiceMethods.ByName("DeleteTemplate")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceGetStripeConfigHandler := connect.NewUnaryHandler(
 		LedgerServiceGetStripeConfigProcedure,
 		svc.GetStripeConfig,
@@ -1803,6 +1897,14 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServicePreviewApplyRulesHandler.ServeHTTP(w, r)
 		case LedgerServiceApplyRulesProcedure:
 			ledgerServiceApplyRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceListTemplatesProcedure:
+			ledgerServiceListTemplatesHandler.ServeHTTP(w, r)
+		case LedgerServiceAddTemplateProcedure:
+			ledgerServiceAddTemplateHandler.ServeHTTP(w, r)
+		case LedgerServiceUpdateTemplateProcedure:
+			ledgerServiceUpdateTemplateHandler.ServeHTTP(w, r)
+		case LedgerServiceDeleteTemplateProcedure:
+			ledgerServiceDeleteTemplateHandler.ServeHTTP(w, r)
 		case LedgerServiceGetStripeConfigProcedure:
 			ledgerServiceGetStripeConfigHandler.ServeHTTP(w, r)
 		case LedgerServiceCreateStripeLinkSessionProcedure:
@@ -2044,6 +2146,22 @@ func (UnimplementedLedgerServiceHandler) PreviewApplyRules(context.Context, *con
 
 func (UnimplementedLedgerServiceHandler) ApplyRules(context.Context, *connect.Request[v1.ApplyRulesRequest], *connect.ServerStream[v1.ApplyRulesResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ApplyRules is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListTemplates(context.Context, *connect.Request[v1.ListTemplatesRequest]) (*connect.Response[v1.ListTemplatesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListTemplates is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) AddTemplate(context.Context, *connect.Request[v1.AddTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.AddTemplate is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UpdateTemplate(context.Context, *connect.Request[v1.UpdateTemplateRequest]) (*connect.Response[v1.TransactionTemplate], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdateTemplate is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) DeleteTemplate(context.Context, *connect.Request[v1.DeleteTemplateRequest]) (*connect.Response[v1.DeleteTemplateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.DeleteTemplate is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetStripeConfig(context.Context, *connect.Request[v1.GetStripeConfigRequest]) (*connect.Response[v1.GetStripeConfigResponse], error) {

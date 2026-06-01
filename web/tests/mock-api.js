@@ -826,6 +826,33 @@ export const mockRules = [
   },
 ];
 
+export const mockTemplates = [
+  {
+    id: "tmpl0001",
+    name: "Mortgage Payment",
+    payee: "Bank of America",
+    note: "Mortgage",
+    postings: [
+      { account: "assets:checking", commodity: "USD", defaultQuantity: "", comment: "" },
+      { account: "liabilities:mortgage:principal", commodity: "USD", defaultQuantity: "800.00", comment: "" },
+      { account: "liabilities:mortgage:interest", commodity: "USD", defaultQuantity: "600.00", comment: "" },
+      { account: "liabilities:mortgage:escrow", commodity: "USD", defaultQuantity: "100.00", comment: "" },
+    ],
+    tags: {},
+  },
+  {
+    id: "tmpl0002",
+    name: "Bi-weekly Paycheck",
+    payee: "Employer Inc",
+    note: "Salary",
+    postings: [
+      { account: "assets:checking", commodity: "USD", defaultQuantity: "3200.00", comment: "" },
+      { account: "income:salary", commodity: "USD", defaultQuantity: "", comment: "" },
+    ],
+    tags: {},
+  },
+];
+
 export const mockImportCandidates = [
   {
     transaction: {
@@ -1691,6 +1718,16 @@ export async function mockLedgerApi(
         break;
       case "ListRules":
         body = { rules: mockRules };
+        break;
+      case "ListTemplates":
+        body = { templates: mockTemplates };
+        break;
+      case "AddTemplate":
+      case "UpdateTemplate":
+        body = { id: "tmpl0003", name: reqBody.name, payee: reqBody.payee || "", note: reqBody.note || "", postings: reqBody.postings || [], tags: {} };
+        break;
+      case "DeleteTemplate":
+        body = {};
         break;
       case "AddRule":
         body = {
