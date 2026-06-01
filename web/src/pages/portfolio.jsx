@@ -27,7 +27,14 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { Stats15 } from "../components/stats-15.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   ChartContainer,
   ChartLegend,
@@ -43,9 +50,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+
+const PORTFOLIO_RANGES = [
+  { label: "1Y", value: "1y", months: 12 },
+  { label: "2Y", value: "2y", months: 24 },
+  { label: "5Y", value: "5y", months: 60 },
+  { label: "All", value: "all", months: null },
+];
 
 const CHART_COLORS = [
   "#6366f1",
@@ -228,6 +243,40 @@ function AllocationChart({ holdings }) {
   );
 }
 
+function TimeRangeSelector({ value, onChange }) {
+  return (
+    <div className="flex rounded-none border border-border bg-background p-0.5">
+      {PORTFOLIO_RANGES.map((range) => (
+        <Button
+          key={range.value}
+          type="button"
+          size="xs"
+          variant={value === range.value ? "secondary" : "ghost"}
+          className="min-w-9"
+          aria-pressed={value === range.value}
+          onClick={() => onChange(range.value)}
+        >
+          {range.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function PortfolioChartHeader({ timeRange, onTimeRangeChange }) {
+  return (
+    <CardHeader>
+      <CardTitle>Portfolio Value Over Time</CardTitle>
+      <CardDescription>
+        Limit the history window used for the chart and return metrics.
+      </CardDescription>
+      <CardAction>
+        <TimeRangeSelector value={timeRange} onChange={onTimeRangeChange} />
+      </CardAction>
+    </CardHeader>
+  );
+}
+
 function parseAmountValue(amount) {
   if (!amount) return null;
   const value = parseFloat(amount.quantity);
@@ -259,6 +308,12 @@ function subMonths(date, months) {
   const result = new Date(date);
   result.setMonth(result.getMonth() - months);
   return result.toISOString().slice(0, 10);
+}
+
+function beginDateForRange(rangeValue) {
+  const range = PORTFOLIO_RANGES.find((r) => r.value === rangeValue);
+  if (!range?.months) return "";
+  return subMonths(new Date(), range.months);
 }
 
 function calculateContributionAdjustedPeriod(start, end) {
@@ -377,7 +432,7 @@ function MultiPeriodReturns({ snapshots }) {
   );
 }
 
-function PortfolioChart({ snapshots }) {
+function PortfolioChart({ snapshots, timeRange, onTimeRangeChange }) {
   const hasCostBasis = useMemo(
     () => snapshots?.some((s) => s.costBasis),
     [snapshots],
@@ -386,9 +441,10 @@ function PortfolioChart({ snapshots }) {
   if (!snapshots || snapshots.length < 2) {
     return (
       <Card className="h-full">
-        <CardHeader>
-          <CardTitle>Portfolio Value Over Time</CardTitle>
-        </CardHeader>
+        <PortfolioChartHeader
+          timeRange={timeRange}
+          onTimeRangeChange={onTimeRangeChange}
+        />
         <CardContent>
           <p className="text-sm text-muted-foreground">
             Not enough snapshots to chart portfolio value.
@@ -415,9 +471,10 @@ function PortfolioChart({ snapshots }) {
 
   return (
     <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Portfolio Value Over Time</CardTitle>
-      </CardHeader>
+      <PortfolioChartHeader
+        timeRange={timeRange}
+        onTimeRangeChange={onTimeRangeChange}
+      />
       <CardContent>
         <ChartContainer config={chartConfig} className="h-80 w-full">
           <LineChart
@@ -701,6 +758,11 @@ const columns = [
 export function PortfolioPage() {
   const [accountPrefix, setAccountPrefix] = useState("");
   const [sorting, setSorting] = useState([{ id: "currentValue", desc: true }]);
+  const [timeRange, setTimeRange] = useState("all");
+  const timeseriesBegin = useMemo(
+    () => beginDateForRange(timeRange),
+    [timeRange],
+  );
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.portfolioHoldings(accountPrefix),
@@ -708,8 +770,12 @@ export function PortfolioPage() {
   });
 
   const { data: tsData } = useQuery({
-    queryKey: queryKeys.portfolioTimeseries(accountPrefix),
-    queryFn: () => ledgerClient.getPortfolioTimeseries({ accountPrefix }),
+    queryKey: queryKeys.portfolioTimeseries(accountPrefix, timeseriesBegin),
+    queryFn: () =>
+      ledgerClient.getPortfolioTimeseries({
+        accountPrefix,
+        begin: timeseriesBegin,
+      }),
   });
 
   const holdings = data?.holdings ?? [];
@@ -849,7 +915,11 @@ export function PortfolioPage() {
           )}
 
           <div className="col-span-12 xl:col-span-8">
-            <PortfolioChart snapshots={snapshots} />
+            <PortfolioChart
+              snapshots={snapshots}
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+            />
           </div>
 
           <div className="col-span-12 xl:col-span-4 flex flex-col gap-6">
