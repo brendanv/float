@@ -1,7 +1,16 @@
 import { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import {
   useReactTable,
   getCoreRowModel,
@@ -39,8 +48,16 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 const CHART_COLORS = [
-  "#6366f1", "#22d3ee", "#f59e0b", "#34d399", "#f43f5e",
-  "#a78bfa", "#38bdf8", "#fb923c", "#4ade80", "#e879f9",
+  "#6366f1",
+  "#22d3ee",
+  "#f59e0b",
+  "#34d399",
+  "#f43f5e",
+  "#a78bfa",
+  "#38bdf8",
+  "#fb923c",
+  "#4ade80",
+  "#e879f9",
 ];
 
 function formatLabel(dateStr) {
@@ -49,7 +66,20 @@ function formatLabel(dateStr) {
   const year = parts[0];
   const month = parseInt(parts[1], 10);
   if (!month) return dateStr;
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   return `${months[month - 1]} '${year.slice(2)}`;
 }
 
@@ -63,7 +93,10 @@ function SortIcon({ column }) {
 function SortableHeader({ column, children, className }) {
   return (
     <button
-      className={cn("flex items-center gap-0.5 hover:text-foreground transition-colors", className)}
+      className={cn(
+        "flex items-center gap-0.5 hover:text-foreground transition-colors",
+        className,
+      )}
       onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
     >
       {children}
@@ -81,7 +114,9 @@ function AllocationChart({ holdings }) {
           <CardTitle>Allocation</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No valued holdings available.</p>
+          <p className="text-sm text-muted-foreground">
+            No valued holdings available.
+          </p>
         </CardContent>
       </Card>
     );
@@ -95,7 +130,10 @@ function AllocationChart({ holdings }) {
   }));
 
   const chartConfig = Object.fromEntries(
-    valued.map((h, i) => [h.symbol, { label: h.symbol, color: CHART_COLORS[i % CHART_COLORS.length] }])
+    valued.map((h, i) => [
+      h.symbol,
+      { label: h.symbol, color: CHART_COLORS[i % CHART_COLORS.length] },
+    ]),
   );
 
   return (
@@ -105,7 +143,10 @@ function AllocationChart({ holdings }) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-          <ChartContainer config={chartConfig} className="mx-auto h-52 w-52 flex-shrink-0">
+          <ChartContainer
+            config={chartConfig}
+            className="mx-auto h-52 w-52 flex-shrink-0"
+          >
             <PieChart>
               <ChartTooltip
                 content={
@@ -116,11 +157,22 @@ function AllocationChart({ holdings }) {
                       const pct = h?.portfolioPct?.toFixed(1) ?? "0.0";
                       return (
                         <>
-                          <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: chartConfig[name]?.color }} />
+                          <div
+                            className="shrink-0 rounded-[2px] h-2.5 w-2.5"
+                            style={{
+                              backgroundColor: chartConfig[name]?.color,
+                            }}
+                          />
                           <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                            <span className="text-muted-foreground">{name}</span>
+                            <span className="text-muted-foreground">
+                              {name}
+                            </span>
                             <span className="font-mono font-medium tabular-nums">
-                              {formatCurrency(h.currentValue.quantity, h.currentValue.commodity)} ({pct}%)
+                              {formatCurrency(
+                                h.currentValue.quantity,
+                                h.currentValue.commodity,
+                              )}{" "}
+                              ({pct}%)
                             </span>
                           </div>
                         </>
@@ -146,15 +198,26 @@ function AllocationChart({ holdings }) {
           </ChartContainer>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             {chartData.map((item, i) => (
-              <div key={item.symbol} className="flex items-center gap-2 text-sm">
+              <div
+                key={item.symbol}
+                className="flex items-center gap-2 text-sm"
+              >
                 <div
                   className="h-2.5 w-2.5 flex-shrink-0 rounded-sm"
-                  style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                  style={{
+                    backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                  }}
                 />
-                <span className="min-w-0 flex-1 font-mono font-semibold">{item.symbol}</span>
-                <span className="font-mono tabular-nums">{formatCurrency(item.value.toString(), item.commodity)}</span>
+                <span className="min-w-0 flex-1 font-mono font-semibold">
+                  {item.symbol}
+                </span>
+                <span className="font-mono tabular-nums">
+                  {formatCurrency(item.value.toString(), item.commodity)}
+                </span>
                 <span className="w-12 text-right text-xs text-muted-foreground">
-                  {item.portfolioPct > 0 ? `${item.portfolioPct.toFixed(1)}%` : ""}
+                  {item.portfolioPct > 0
+                    ? `${item.portfolioPct.toFixed(1)}%`
+                    : ""}
                 </span>
               </div>
             ))}
@@ -163,6 +226,12 @@ function AllocationChart({ holdings }) {
       </CardContent>
     </Card>
   );
+}
+
+function parseAmountValue(amount) {
+  if (!amount) return null;
+  const value = parseFloat(amount.quantity);
+  return Number.isFinite(value) ? value : null;
 }
 
 function findSnapshotAtOrBefore(sorted, targetDate) {
@@ -174,46 +243,120 @@ function findSnapshotAtOrBefore(sorted, targetDate) {
   return result;
 }
 
-function MultiPeriodReturns({ snapshots }) {
-  const items = useMemo(() => {
-    if (!snapshots?.length) return [];
-    const sorted = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
-    const latest = sorted[sorted.length - 1];
-    if (!latest?.totalValue) return [];
+function sortedValuedSnapshots(snapshots) {
+  return (snapshots ?? [])
+    .filter((s) => s.totalValue && s.costBasis)
+    .map((s) => ({
+      ...s,
+      totalValueNum: parseAmountValue(s.totalValue),
+      costBasisNum: parseAmountValue(s.costBasis),
+    }))
+    .filter((s) => s.totalValueNum !== null && s.costBasisNum !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
 
-    const currentVal = parseFloat(latest.totalValue.quantity);
-    const currency = latest.totalValue.commodity;
-    const latestDate = new Date(latest.date + "T00:00:00");
+function subMonths(date, months) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() - months);
+  return result.toISOString().slice(0, 10);
+}
 
-    function subMonths(d, n) {
-      const r = new Date(d);
-      r.setMonth(r.getMonth() - n);
-      return r.toISOString().slice(0, 10);
+function calculateContributionAdjustedPeriod(start, end) {
+  if (!start || !end || start.date === end.date) return null;
+
+  const netContributions = end.costBasisNum - start.costBasisNum;
+  const marketChange = end.totalValueNum - start.totalValueNum;
+  const investmentGain = marketChange - netContributions;
+
+  // Use net invested capital as the return base: beginning value plus positive
+  // contributions made during the period. Withdrawals reduce gain but do not
+  // shrink the denominator below beginning value. This keeps the metric focused
+  // on performance instead of deposit timing without pretending to be an exact
+  // daily time-weighted return.
+  const returnBase = start.totalValueNum + Math.max(netContributions, 0);
+  if (returnBase <= 0) return null;
+
+  return {
+    netContributions,
+    investmentGain,
+    returnPct: (investmentGain / returnBase) * 100,
+    currency: end.totalValue.commodity,
+  };
+}
+
+function buildPortfolioPerformance(snapshots, holdings) {
+  const sorted = sortedValuedSnapshots(snapshots);
+  const latest = sorted[sorted.length - 1];
+
+  if (latest) {
+    return {
+      netContributions: latest.costBasisNum,
+      investmentGain: latest.totalValueNum - latest.costBasisNum,
+      currency: latest.totalValue.commodity,
+      source: "timeseries",
+    };
+  }
+
+  let currentValue = 0;
+  let costBasis = 0;
+  let sawValue = false;
+  let sawBasis = false;
+  let currency = "USD";
+
+  for (const holding of holdings ?? []) {
+    const value = parseAmountValue(holding.currentValue);
+    if (value !== null) {
+      currentValue += value;
+      currency = holding.currentValue.commodity;
+      sawValue = true;
     }
 
+    const basis = parseAmountValue(holding.bookValue);
+    if (basis !== null) {
+      costBasis += basis;
+      currency = holding.bookValue.commodity;
+      sawBasis = true;
+    }
+  }
+
+  if (!sawValue || !sawBasis) return null;
+  return {
+    netContributions: costBasis,
+    investmentGain: currentValue - costBasis,
+    currency,
+    source: "holdings",
+  };
+}
+
+function MultiPeriodReturns({ snapshots }) {
+  const items = useMemo(() => {
+    const sorted = sortedValuedSnapshots(snapshots);
+    const latest = sorted[sorted.length - 1];
+    if (!latest) return [];
+
+    const latestDate = new Date(latest.date + "T00:00:00");
     const periodDefs = [
-      { label: "1 Month", date: subMonths(latestDate, 1) },
-      { label: "3 Months", date: subMonths(latestDate, 3) },
+      { label: "1M", date: subMonths(latestDate, 1) },
+      { label: "3M", date: subMonths(latestDate, 3) },
       { label: "YTD", date: `${latestDate.getFullYear()}-01-01` },
-      { label: "All Time", date: sorted[0].date },
     ];
 
-    return periodDefs.map(({ label, date }) => {
-      const snap = findSnapshotAtOrBefore(sorted, date);
-      if (!snap?.totalValue || snap.date === latest.date) return null;
-      const startVal = parseFloat(snap.totalValue.quantity);
-      if (startVal === 0) return null;
-      const gain = currentVal - startVal;
-      const pct = (gain / startVal) * 100;
-      const positive = gain >= 0;
-      const sign = positive ? "+" : "";
-      return {
-        label,
-        value: `${sign}${formatCurrency(gain.toFixed(2), currency)}`,
-        percentage: `${sign}${pct.toFixed(1)}%`,
-        positive,
-      };
-    }).filter(Boolean);
+    return periodDefs
+      .map(({ label, date }) => {
+        const start = findSnapshotAtOrBefore(sorted, date);
+        const period = calculateContributionAdjustedPeriod(start, latest);
+        if (!period) return null;
+
+        const gainSign = period.investmentGain >= 0 ? "+" : "";
+        const pctSign = period.returnPct >= 0 ? "+" : "";
+        return {
+          label,
+          value: `${gainSign}${formatCurrency(period.investmentGain.toFixed(2), period.currency)}`,
+          percentage: `${pctSign}${period.returnPct.toFixed(1)}%`,
+          positive: period.investmentGain >= 0,
+        };
+      })
+      .filter(Boolean);
   }, [snapshots]);
 
   if (!items.length) return null;
@@ -221,9 +364,13 @@ function MultiPeriodReturns({ snapshots }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Returns</CardTitle>
+        <CardTitle>Cash-flow Adjusted Returns</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Period gain excludes net deposits and withdrawals, so returns reflect
+          investment performance rather than cash movement.
+        </p>
         <Stats15 items={items} />
       </CardContent>
     </Card>
@@ -233,7 +380,7 @@ function MultiPeriodReturns({ snapshots }) {
 function PortfolioChart({ snapshots }) {
   const hasCostBasis = useMemo(
     () => snapshots?.some((s) => s.costBasis),
-    [snapshots]
+    [snapshots],
   );
 
   if (!snapshots || snapshots.length < 2) {
@@ -243,7 +390,9 @@ function PortfolioChart({ snapshots }) {
           <CardTitle>Portfolio Value Over Time</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Not enough snapshots to chart portfolio value.</p>
+          <p className="text-sm text-muted-foreground">
+            Not enough snapshots to chart portfolio value.
+          </p>
         </CardContent>
       </Card>
     );
@@ -252,12 +401,16 @@ function PortfolioChart({ snapshots }) {
   const chartData = snapshots.map((s) => ({
     date: formatLabel(s.date),
     marketValue: s.totalValue ? parseFloat(s.totalValue.quantity) : null,
-    ...(hasCostBasis && { costBasis: s.costBasis ? parseFloat(s.costBasis.quantity) : null }),
+    ...(hasCostBasis && {
+      costBasis: s.costBasis ? parseFloat(s.costBasis.quantity) : null,
+    }),
   }));
 
   const chartConfig = {
     marketValue: { label: "Market Value", color: "var(--chart-1)" },
-    ...(hasCostBasis && { costBasis: { label: "Cost Basis", color: "var(--chart-2)" } }),
+    ...(hasCostBasis && {
+      costBasis: { label: "Cost Basis", color: "var(--chart-2)" },
+    }),
   };
 
   return (
@@ -292,10 +445,17 @@ function PortfolioChart({ snapshots }) {
                 <ChartTooltipContent
                   formatter={(value, name, item) => (
                     <>
-                      <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: item.color }} />
+                      <div
+                        className="shrink-0 rounded-[2px] h-2.5 w-2.5"
+                        style={{ backgroundColor: item.color }}
+                      />
                       <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                        <span className="text-muted-foreground">{chartConfig[name]?.label ?? name}</span>
-                        <span className="font-mono font-medium tabular-nums">{formatCurrency(value?.toString(), "USD")}</span>
+                        <span className="text-muted-foreground">
+                          {chartConfig[name]?.label ?? name}
+                        </span>
+                        <span className="font-mono font-medium tabular-nums">
+                          {formatCurrency(value?.toString(), "USD")}
+                        </span>
                       </div>
                     </>
                   )}
@@ -349,40 +509,57 @@ const columns = [
       <SortableHeader column={column}>Account</SortableHeader>
     ),
     cell: (info) => (
-      <span className="font-mono text-xs text-muted-foreground">{info.getValue()}</span>
+      <span className="font-mono text-xs text-muted-foreground">
+        {info.getValue()}
+      </span>
     ),
     sortingFn: "alphanumeric",
   }),
   columnHelper.accessor("quantity", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">Quantity</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        Quantity
+      </SortableHeader>
     ),
     cell: (info) => (
       <span className="block text-right font-mono">{info.getValue()}</span>
     ),
-    sortingFn: (a, b) => parseFloat(a.original.quantity) - parseFloat(b.original.quantity),
+    sortingFn: (a, b) =>
+      parseFloat(a.original.quantity) - parseFloat(b.original.quantity),
   }),
   columnHelper.accessor("latestPrice", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">Latest Price</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        Latest Price
+      </SortableHeader>
     ),
     cell: (info) => {
       const v = info.getValue();
       return (
         <span className="block text-right font-mono">
-          {v ? formatCurrency(v.quantity, v.commodity) : <span className="text-muted-foreground">—</span>}
+          {v ? (
+            formatCurrency(v.quantity, v.commodity)
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
         </span>
       );
     },
     sortingFn: (a, b) => {
-      const av = a.original.latestPrice ? parseFloat(a.original.latestPrice.quantity) : -Infinity;
-      const bv = b.original.latestPrice ? parseFloat(b.original.latestPrice.quantity) : -Infinity;
+      const av = a.original.latestPrice
+        ? parseFloat(a.original.latestPrice.quantity)
+        : -Infinity;
+      const bv = b.original.latestPrice
+        ? parseFloat(b.original.latestPrice.quantity)
+        : -Infinity;
       return av - bv;
     },
   }),
   columnHelper.accessor("priceDate", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">Price Date</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        Price Date
+      </SortableHeader>
     ),
     cell: (info) => (
       <span className="block text-right font-mono text-xs text-muted-foreground">
@@ -393,25 +570,38 @@ const columns = [
   }),
   columnHelper.accessor("currentValue", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">Current Value</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        Current Value
+      </SortableHeader>
     ),
     cell: (info) => {
       const v = info.getValue();
       return (
-        <span className={cn("block text-right font-mono font-semibold", !v && "text-muted-foreground")}>
+        <span
+          className={cn(
+            "block text-right font-mono font-semibold",
+            !v && "text-muted-foreground",
+          )}
+        >
           {v ? formatCurrency(v.quantity, v.commodity) : "—"}
         </span>
       );
     },
     sortingFn: (a, b) => {
-      const av = a.original.currentValue ? parseFloat(a.original.currentValue.quantity) : -Infinity;
-      const bv = b.original.currentValue ? parseFloat(b.original.currentValue.quantity) : -Infinity;
+      const av = a.original.currentValue
+        ? parseFloat(a.original.currentValue.quantity)
+        : -Infinity;
+      const bv = b.original.currentValue
+        ? parseFloat(b.original.currentValue.quantity)
+        : -Infinity;
       return av - bv;
     },
   }),
   columnHelper.accessor("bookValue", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">Book Value</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        Book Value
+      </SortableHeader>
     ),
     cell: (info) => {
       const v = info.getValue();
@@ -422,14 +612,20 @@ const columns = [
       );
     },
     sortingFn: (a, b) => {
-      const av = a.original.bookValue ? parseFloat(a.original.bookValue.quantity) : -Infinity;
-      const bv = b.original.bookValue ? parseFloat(b.original.bookValue.quantity) : -Infinity;
+      const av = a.original.bookValue
+        ? parseFloat(a.original.bookValue.quantity)
+        : -Infinity;
+      const bv = b.original.bookValue
+        ? parseFloat(b.original.bookValue.quantity)
+        : -Infinity;
       return av - bv;
     },
   }),
   columnHelper.accessor("unrealizedGain", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">Unrealized Gain</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        Unrealized Gain
+      </SortableHeader>
     ),
     cell: (info) => {
       const v = info.getValue();
@@ -441,27 +637,44 @@ const columns = [
       );
     },
     sortingFn: (a, b) => {
-      const av = a.original.unrealizedGain ? parseFloat(a.original.unrealizedGain.quantity) : -Infinity;
-      const bv = b.original.unrealizedGain ? parseFloat(b.original.unrealizedGain.quantity) : -Infinity;
+      const av = a.original.unrealizedGain
+        ? parseFloat(a.original.unrealizedGain.quantity)
+        : -Infinity;
+      const bv = b.original.unrealizedGain
+        ? parseFloat(b.original.unrealizedGain.quantity)
+        : -Infinity;
       return av - bv;
     },
   }),
   columnHelper.accessor("unrealizedGainPct", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">Gain %</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        Gain %
+      </SortableHeader>
     ),
     cell: (info) => {
       const v = info.getValue();
-      const hasGain = info.row.original.unrealizedGain !== null && info.row.original.unrealizedGain !== undefined;
+      const hasGain =
+        info.row.original.unrealizedGain !== null &&
+        info.row.original.unrealizedGain !== undefined;
       return (
-        <span className={cn("block text-right font-mono", gainClass(hasGain ? v : null))}>
+        <span
+          className={cn(
+            "block text-right font-mono",
+            gainClass(hasGain ? v : null),
+          )}
+        >
           {hasGain ? `${v >= 0 ? "+" : ""}${v.toFixed(2)}%` : "—"}
         </span>
       );
     },
     sortingFn: (a, b) => {
-      const hasA = a.original.unrealizedGain !== null && a.original.unrealizedGain !== undefined;
-      const hasB = b.original.unrealizedGain !== null && b.original.unrealizedGain !== undefined;
+      const hasA =
+        a.original.unrealizedGain !== null &&
+        a.original.unrealizedGain !== undefined;
+      const hasB =
+        b.original.unrealizedGain !== null &&
+        b.original.unrealizedGain !== undefined;
       const av = hasA ? (a.original.unrealizedGainPct ?? 0) : -Infinity;
       const bv = hasB ? (b.original.unrealizedGainPct ?? 0) : -Infinity;
       return av - bv;
@@ -469,7 +682,9 @@ const columns = [
   }),
   columnHelper.accessor("portfolioPct", {
     header: ({ column }) => (
-      <SortableHeader column={column} className="ml-auto">% of Portfolio</SortableHeader>
+      <SortableHeader column={column} className="ml-auto">
+        % of Portfolio
+      </SortableHeader>
     ),
     cell: (info) => {
       const v = info.getValue();
@@ -504,17 +719,10 @@ export function PortfolioPage() {
   const valuedCount = holdings.filter((h) => h.currentValue).length;
   const unvaluedCount = holdings.length - valuedCount;
 
-  const totalGain = useMemo(() => {
-    let sum = null;
-    let currency = "USD";
-    for (const h of holdings) {
-      if (h.unrealizedGain) {
-        sum = (sum ?? 0) + parseFloat(h.unrealizedGain.quantity);
-        currency = h.unrealizedGain.commodity;
-      }
-    }
-    return sum !== null ? { value: sum, currency } : null;
-  }, [holdings]);
+  const performance = useMemo(
+    () => buildPortfolioPerformance(snapshots, holdings),
+    [snapshots, holdings],
+  );
 
   const table = useReactTable({
     data: holdings,
@@ -527,9 +735,15 @@ export function PortfolioPage() {
 
   return (
     <Page>
-      <PageHeader title="Investment Portfolio" description="Holdings, allocation, performance, and valuation coverage.">
+      <PageHeader
+        title="Investment Portfolio"
+        description="Holdings, allocation, contribution-adjusted performance, and valuation coverage."
+      >
         <div className="flex items-end gap-2">
-          <Label htmlFor="account-prefix" className="whitespace-nowrap text-xs text-muted-foreground">
+          <Label
+            htmlFor="account-prefix"
+            className="whitespace-nowrap text-xs text-muted-foreground"
+          >
             Account prefix
           </Label>
           <Input
@@ -550,8 +764,8 @@ export function PortfolioPage() {
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">
               No non-currency commodity holdings found under{" "}
-              <code>{accountPrefix || "assets"}</code>.
-              Record investment transactions with commodity amounts (e.g.{" "}
+              <code>{accountPrefix || "assets"}</code>. Record investment
+              transactions with commodity amounts (e.g.{" "}
               <code>10 AAPL @ 175 USD</code>) to see your portfolio here.
             </p>
           </CardContent>
@@ -560,7 +774,7 @@ export function PortfolioPage() {
 
       {data && holdings.length > 0 && (
         <DashboardGrid>
-          <div className="col-span-12 md:col-span-4">
+          <div className="col-span-12 md:col-span-6 xl:col-span-3">
             <MetricCard
               title="Total Value"
               value={
@@ -571,27 +785,65 @@ export function PortfolioPage() {
               description={asOfDate ? `As of ${asOfDate}` : undefined}
             />
           </div>
-          <div className="col-span-12 md:col-span-4">
+          <div className="col-span-12 md:col-span-6 xl:col-span-3">
+            <MetricCard
+              title="Net Contributions"
+              value={
+                performance
+                  ? formatCurrency(
+                      performance.netContributions.toFixed(2),
+                      performance.currency,
+                    )
+                  : "—"
+              }
+              description={
+                performance
+                  ? "Deposits minus withdrawals"
+                  : "No cost basis data"
+              }
+            />
+          </div>
+          <div className="col-span-12 md:col-span-6 xl:col-span-3">
+            <MetricCard
+              title="Investment Gain"
+              value={
+                performance
+                  ? formatCurrency(
+                      performance.investmentGain.toFixed(2),
+                      performance.currency,
+                    )
+                  : "—"
+              }
+              valueClassName={
+                performance ? gainClass(performance.investmentGain) : undefined
+              }
+              description={
+                performance
+                  ? "Value change excluding cash flows"
+                  : "No cost basis data"
+              }
+            />
+          </div>
+          <div className="col-span-12 md:col-span-6 xl:col-span-3">
             <MetricCard
               title="Holdings"
               value={holdings.length}
-              description={unvaluedCount > 0 ? `${unvaluedCount} without price data` : "All holdings valued"}
-            />
-          </div>
-          <div className="col-span-12 md:col-span-4">
-            <MetricCard
-              title="Unrealized Gain"
-              value={totalGain !== null ? formatCurrency(totalGain.value.toString(), totalGain.currency) : "—"}
-              valueClassName={totalGain !== null ? gainClass(totalGain.value) : undefined}
-              description={totalGain !== null ? (totalGain.value >= 0 ? "Total gain" : "Total loss") : "No cost basis data"}
+              description={
+                unvaluedCount > 0
+                  ? `${unvaluedCount} without price data`
+                  : "All holdings valued"
+              }
             />
           </div>
 
           {unvaluedCount > 0 && (
             <Card className="col-span-12 border-destructive/30 bg-destructive/5">
               <CardContent className="py-4 text-sm text-destructive">
-                {unvaluedCount} holding{unvaluedCount > 1 ? "s" : ""} missing price data.{" "}
-                <Link to="/prices" className="underline">Add prices →</Link>
+                {unvaluedCount} holding{unvaluedCount > 1 ? "s" : ""} missing
+                price data.{" "}
+                <Link to="/prices" className="underline">
+                  Add prices →
+                </Link>
               </CardContent>
             </Card>
           )}
@@ -618,7 +870,10 @@ export function PortfolioPage() {
                         <TableHead key={header.id}>
                           {header.isPlaceholder
                             ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
                         </TableHead>
                       ))}
                     </TableRow>
@@ -629,7 +884,10 @@ export function PortfolioPage() {
                     <TableRow key={row.id}>
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
                         </TableCell>
                       ))}
                     </TableRow>

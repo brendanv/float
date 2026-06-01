@@ -7,7 +7,12 @@ export const mockAccounts = [
   { name: "checking", fullName: "assets:checking", type: "A", depth: 2 },
   { name: "savings", fullName: "assets:savings", type: "A", depth: 2 },
   { name: "liabilities", fullName: "liabilities", type: "L", depth: 1 },
-  { name: "creditcard", fullName: "liabilities:creditcard", type: "L", depth: 2 },
+  {
+    name: "creditcard",
+    fullName: "liabilities:creditcard",
+    type: "L",
+    depth: 2,
+  },
   { name: "expenses", fullName: "expenses", type: "C", depth: 1 },
   { name: "groceries", fullName: "expenses:groceries", type: "C", depth: 2 },
   { name: "dining", fullName: "expenses:dining", type: "C", depth: 2 },
@@ -19,30 +24,90 @@ export const mockAccounts = [
 ];
 
 export const mockBalanceRows = [
-  { fullName: "assets", displayName: "assets", amounts: [{ commodity: "USD", quantity: "12450.00" }] },
-  { fullName: "liabilities", displayName: "liabilities", amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
-  { fullName: "expenses", displayName: "expenses", amounts: [{ commodity: "USD", quantity: "1840.00" }] },
-  { fullName: "income", displayName: "income", amounts: [{ commodity: "USD", quantity: "-5200.00" }] },
+  {
+    fullName: "assets",
+    displayName: "assets",
+    amounts: [{ commodity: "USD", quantity: "12450.00" }],
+  },
+  {
+    fullName: "liabilities",
+    displayName: "liabilities",
+    amounts: [{ commodity: "USD", quantity: "-1230.00" }],
+  },
+  {
+    fullName: "expenses",
+    displayName: "expenses",
+    amounts: [{ commodity: "USD", quantity: "1840.00" }],
+  },
+  {
+    fullName: "income",
+    displayName: "income",
+    amounts: [{ commodity: "USD", quantity: "-5200.00" }],
+  },
 ];
 
 export const mockAccountBalanceRows = [
-  { fullName: "assets:checking", displayName: "checking", amounts: [{ commodity: "USD", quantity: "8450.00" }] },
-  { fullName: "assets:savings", displayName: "savings", amounts: [{ commodity: "USD", quantity: "4000.00" }] },
-  { fullName: "liabilities:creditcard", displayName: "creditcard", amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
+  {
+    fullName: "assets:checking",
+    displayName: "checking",
+    amounts: [{ commodity: "USD", quantity: "8450.00" }],
+  },
+  {
+    fullName: "assets:savings",
+    displayName: "savings",
+    amounts: [{ commodity: "USD", quantity: "4000.00" }],
+  },
+  {
+    fullName: "liabilities:creditcard",
+    displayName: "creditcard",
+    amounts: [{ commodity: "USD", quantity: "-1230.00" }],
+  },
 ];
 
 export const mockExpenseBalanceRows = [
-  { fullName: "expenses:rent", displayName: "rent", amounts: [{ commodity: "USD", quantity: "1500.00" }] },
-  { fullName: "expenses:groceries", displayName: "groceries", amounts: [{ commodity: "USD", quantity: "450.00" }] },
-  { fullName: "expenses:dining", displayName: "dining", amounts: [{ commodity: "USD", quantity: "210.00" }] },
-  { fullName: "expenses:utilities", displayName: "utilities", amounts: [{ commodity: "USD", quantity: "175.00" }] },
-  { fullName: "expenses:subscriptions", displayName: "subscriptions", amounts: [{ commodity: "USD", quantity: "57.43" }] },
-  { fullName: "expenses:transport", displayName: "transport", amounts: [{ commodity: "USD", quantity: "57.45" }] },
-  { fullName: "expenses:shopping", displayName: "shopping", amounts: [{ commodity: "USD", quantity: "34.99" }] },
+  {
+    fullName: "expenses:rent",
+    displayName: "rent",
+    amounts: [{ commodity: "USD", quantity: "1500.00" }],
+  },
+  {
+    fullName: "expenses:groceries",
+    displayName: "groceries",
+    amounts: [{ commodity: "USD", quantity: "450.00" }],
+  },
+  {
+    fullName: "expenses:dining",
+    displayName: "dining",
+    amounts: [{ commodity: "USD", quantity: "210.00" }],
+  },
+  {
+    fullName: "expenses:utilities",
+    displayName: "utilities",
+    amounts: [{ commodity: "USD", quantity: "175.00" }],
+  },
+  {
+    fullName: "expenses:subscriptions",
+    displayName: "subscriptions",
+    amounts: [{ commodity: "USD", quantity: "57.43" }],
+  },
+  {
+    fullName: "expenses:transport",
+    displayName: "transport",
+    amounts: [{ commodity: "USD", quantity: "57.45" }],
+  },
+  {
+    fullName: "expenses:shopping",
+    displayName: "shopping",
+    amounts: [{ commodity: "USD", quantity: "34.99" }],
+  },
 ];
 
 export const mockRevenueBalanceRows = [
-  { fullName: "income:salary", displayName: "salary", amounts: [{ commodity: "USD", quantity: "5200.00" }] },
+  {
+    fullName: "income:salary",
+    displayName: "salary",
+    amounts: [{ commodity: "USD", quantity: "5200.00" }],
+  },
 ];
 
 export const mockTransactions = [
@@ -55,8 +120,14 @@ export const mockTransactions = [
     status: "Pending",
     stripeTransactionId: "txn_3OxKLM2eZvKYlo2C0abc1234",
     postings: [
-      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "87.43" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-87.43" }] },
+      {
+        account: "expenses:groceries",
+        amounts: [{ commodity: "USD", quantity: "87.43" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-87.43" }],
+      },
     ],
     tags: { reimbursable: "" },
   },
@@ -68,10 +139,22 @@ export const mockTransactions = [
     note: "mixed run",
     status: "Pending",
     postings: [
-      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "62.40" }] },
-      { account: "expenses:household", amounts: [{ commodity: "USD", quantity: "31.10" }] },
-      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "12.25" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-105.75" }] },
+      {
+        account: "expenses:groceries",
+        amounts: [{ commodity: "USD", quantity: "62.40" }],
+      },
+      {
+        account: "expenses:household",
+        amounts: [{ commodity: "USD", quantity: "31.10" }],
+      },
+      {
+        account: "expenses:dining",
+        amounts: [{ commodity: "USD", quantity: "12.25" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-105.75" }],
+      },
     ],
     tags: {},
   },
@@ -84,8 +167,14 @@ export const mockTransactions = [
     status: "Pending",
     stripeTransactionId: "txn_3OxKLM2eZvKYlo2C0def5678",
     postings: [
-      { account: "expenses:shopping", amounts: [{ commodity: "USD", quantity: "34.99" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-34.99" }] },
+      {
+        account: "expenses:shopping",
+        amounts: [{ commodity: "USD", quantity: "34.99" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-34.99" }],
+      },
     ],
     tags: { project: "home-office", reimbursable: "" },
   },
@@ -97,8 +186,14 @@ export const mockTransactions = [
     note: "March salary",
     status: "Cleared",
     postings: [
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "5200.00" }] },
-      { account: "income:salary", amounts: [{ commodity: "USD", quantity: "-5200.00" }] },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "5200.00" }],
+      },
+      {
+        account: "income:salary",
+        amounts: [{ commodity: "USD", quantity: "-5200.00" }],
+      },
     ],
     tags: {},
   },
@@ -110,8 +205,14 @@ export const mockTransactions = [
     note: "lunch",
     status: "Pending",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "14.75" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-14.75" }] },
+      {
+        account: "expenses:dining",
+        amounts: [{ commodity: "USD", quantity: "14.75" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-14.75" }],
+      },
     ],
     tags: {},
   },
@@ -123,8 +224,14 @@ export const mockTransactions = [
     note: "morning coffee",
     status: "Cleared",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "6.50" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-6.50" }] },
+      {
+        account: "expenses:dining",
+        amounts: [{ commodity: "USD", quantity: "6.50" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-6.50" }],
+      },
     ],
     tags: {},
   },
@@ -134,8 +241,14 @@ export const mockTransactions = [
     description: "Metro Transit",
     status: "Cleared",
     postings: [
-      { account: "expenses:transport", amounts: [{ commodity: "USD", quantity: "3.25" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-3.25" }] },
+      {
+        account: "expenses:transport",
+        amounts: [{ commodity: "USD", quantity: "3.25" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-3.25" }],
+      },
     ],
     tags: {},
   },
@@ -145,8 +258,14 @@ export const mockTransactions = [
     description: "Electric Bill",
     status: "Cleared",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "95.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-95.00" }] },
+      {
+        account: "expenses:utilities",
+        amounts: [{ commodity: "USD", quantity: "95.00" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-95.00" }],
+      },
     ],
     tags: {},
   },
@@ -156,8 +275,14 @@ export const mockTransactions = [
     description: "Unknown Merchant",
     status: "Cleared",
     postings: [
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-25.00" }] },
-      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "25.00" }] },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-25.00" }],
+      },
+      {
+        account: "expenses:unknown",
+        amounts: [{ commodity: "USD", quantity: "25.00" }],
+      },
     ],
     tags: {},
   },
@@ -167,8 +292,14 @@ export const mockTransactions = [
     description: "Cash Withdrawal",
     status: "Cleared",
     postings: [
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-100.00" }] },
-      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "100.00" }] },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-100.00" }],
+      },
+      {
+        account: "expenses:unknown",
+        amounts: [{ commodity: "USD", quantity: "100.00" }],
+      },
     ],
     tags: {},
   },
@@ -178,8 +309,14 @@ export const mockTransactions = [
     description: "Unknown Merchant",
     status: "Cleared",
     postings: [
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-38.50" }] },
-      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "38.50" }] },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-38.50" }],
+      },
+      {
+        account: "expenses:unknown",
+        amounts: [{ commodity: "USD", quantity: "38.50" }],
+      },
     ],
     tags: {},
   },
@@ -193,7 +330,13 @@ export const mockTransactions = [
     postings: [
       {
         account: "assets:investments:aapl",
-        amounts: [{ commodity: "AAPL", quantity: "10", cost: { commodity: "USD", quantity: "175.00", isTotal: false } }],
+        amounts: [
+          {
+            commodity: "AAPL",
+            quantity: "10",
+            cost: { commodity: "USD", quantity: "175.00", isTotal: false },
+          },
+        ],
       },
       {
         account: "assets:checking",
@@ -211,8 +354,14 @@ export const mockTransactions = [
     note: "produce run",
     status: "Pending",
     postings: [
-      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "62.18" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-62.18" }] },
+      {
+        account: "expenses:groceries",
+        amounts: [{ commodity: "USD", quantity: "62.18" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-62.18" }],
+      },
     ],
     tags: {},
   },
@@ -222,8 +371,14 @@ export const mockTransactions = [
     description: "Rent Payment",
     status: "Cleared",
     postings: [
-      { account: "expenses:rent", amounts: [{ commodity: "USD", quantity: "1500.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-1500.00" }] },
+      {
+        account: "expenses:rent",
+        amounts: [{ commodity: "USD", quantity: "1500.00" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-1500.00" }],
+      },
     ],
     tags: {},
   },
@@ -233,8 +388,14 @@ export const mockTransactions = [
     description: "Netflix",
     status: "Cleared",
     postings: [
-      { account: "expenses:subscriptions", amounts: [{ commodity: "USD", quantity: "17.99" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-17.99" }] },
+      {
+        account: "expenses:subscriptions",
+        amounts: [{ commodity: "USD", quantity: "17.99" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-17.99" }],
+      },
     ],
     tags: { auto: "yes" },
   },
@@ -244,8 +405,14 @@ export const mockTransactions = [
     description: "Gas Station",
     status: "Cleared",
     postings: [
-      { account: "expenses:transport", amounts: [{ commodity: "USD", quantity: "54.20" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-54.20" }] },
+      {
+        account: "expenses:transport",
+        amounts: [{ commodity: "USD", quantity: "54.20" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-54.20" }],
+      },
     ],
     tags: {},
   },
@@ -257,8 +424,14 @@ export const mockTransactions = [
     note: "household supplies",
     status: "Cleared",
     postings: [
-      { account: "expenses:household", amounts: [{ commodity: "USD", quantity: "43.57" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-43.57" }] },
+      {
+        account: "expenses:household",
+        amounts: [{ commodity: "USD", quantity: "43.57" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-43.57" }],
+      },
     ],
     tags: { reimbursable: "" },
   },
@@ -268,8 +441,14 @@ export const mockTransactions = [
     description: "Spotify",
     status: "Cleared",
     postings: [
-      { account: "expenses:subscriptions", amounts: [{ commodity: "USD", quantity: "10.99" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-10.99" }] },
+      {
+        account: "expenses:subscriptions",
+        amounts: [{ commodity: "USD", quantity: "10.99" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-10.99" }],
+      },
     ],
     tags: { auto: "yes" },
   },
@@ -281,8 +460,14 @@ export const mockTransactions = [
     note: "team lunch",
     status: "Cleared",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "38.50" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-38.50" }] },
+      {
+        account: "expenses:dining",
+        amounts: [{ commodity: "USD", quantity: "38.50" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-38.50" }],
+      },
     ],
     tags: { reimbursable: "" },
   },
@@ -292,8 +477,14 @@ export const mockTransactions = [
     description: "Internet Bill",
     status: "Cleared",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "79.99" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-79.99" }] },
+      {
+        account: "expenses:utilities",
+        amounts: [{ commodity: "USD", quantity: "79.99" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-79.99" }],
+      },
     ],
     tags: {},
   },
@@ -305,8 +496,14 @@ export const mockTransactions = [
     note: "weekly shop",
     status: "Pending",
     postings: [
-      { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "91.33" }] },
-      { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "-91.33" }] },
+      {
+        account: "expenses:groceries",
+        amounts: [{ commodity: "USD", quantity: "91.33" }],
+      },
+      {
+        account: "liabilities:creditcard",
+        amounts: [{ commodity: "USD", quantity: "-91.33" }],
+      },
     ],
     tags: {},
   },
@@ -316,50 +513,221 @@ export const mockTransactions = [
     description: "Phone Bill",
     status: "Cleared",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "45.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-45.00" }] },
+      {
+        account: "expenses:utilities",
+        amounts: [{ commodity: "USD", quantity: "45.00" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-45.00" }],
+      },
     ],
     tags: {},
   },
 ];
 
 export const mockPrices = [
-  { pid: "a1b2c3d4", date: "2026-01-02", commodity: "AAPL", price: { commodity: "USD", quantity: "182.63" } },
-  { pid: "b2c3d4e5", date: "2026-01-02", commodity: "MSFT", price: { commodity: "USD", quantity: "425.22" } },
-  { pid: "b2c3d4e6", date: "2026-01-02", commodity: "GOOG", price: { commodity: "USD", quantity: "193.45" } },
-  { pid: "c3d4e5f6", date: "2026-02-03", commodity: "AAPL", price: { commodity: "USD", quantity: "188.44" } },
-  { pid: "d4e5f6a7", date: "2026-02-03", commodity: "MSFT", price: { commodity: "USD", quantity: "415.10" } },
-  { pid: "d4e5f6a8", date: "2026-02-03", commodity: "GOOG", price: { commodity: "USD", quantity: "197.82" } },
-  { pid: "e5f6a7b8", date: "2026-03-01", commodity: "AAPL", price: { commodity: "USD", quantity: "178.50" } },
-  { pid: "f6a7b8c9", date: "2026-03-01", commodity: "MSFT", price: { commodity: "USD", quantity: "398.75" } },
-  { pid: "f6a7b8ca", date: "2026-03-01", commodity: "GOOG", price: { commodity: "USD", quantity: "185.20" } },
-  { pid: "g7b8c9d1", date: "2026-03-15", commodity: "AAPL", price: { commodity: "USD", quantity: "181.10" } },
-  { pid: "g7b8c9d2", date: "2026-03-15", commodity: "MSFT", price: { commodity: "USD", quantity: "402.30" } },
-  { pid: "g7b8c9d3", date: "2026-03-15", commodity: "GOOG", price: { commodity: "USD", quantity: "187.65" } },
-  { pid: "h8c9d1e2", date: "2026-04-01", commodity: "AAPL", price: { commodity: "USD", quantity: "175.90" } },
-  { pid: "h8c9d1e3", date: "2026-04-01", commodity: "MSFT", price: { commodity: "USD", quantity: "391.44" } },
-  { pid: "h8c9d1e4", date: "2026-04-01", commodity: "GOOG", price: { commodity: "USD", quantity: "180.11" } },
-  { pid: "i9d1e2f3", date: "2026-04-15", commodity: "AAPL", price: { commodity: "USD", quantity: "172.30" } },
-  { pid: "i9d1e2f4", date: "2026-04-15", commodity: "MSFT", price: { commodity: "USD", quantity: "385.60" } },
-  { pid: "i9d1e2f5", date: "2026-04-15", commodity: "GOOG", price: { commodity: "USD", quantity: "176.40" } },
-  { pid: "j1e2f3g4", date: "2026-05-01", commodity: "AAPL", price: { commodity: "USD", quantity: "179.88" } },
-  { pid: "j1e2f3g5", date: "2026-05-01", commodity: "MSFT", price: { commodity: "USD", quantity: "412.77" } },
-  { pid: "j1e2f3g6", date: "2026-05-01", commodity: "GOOG", price: { commodity: "USD", quantity: "184.32" } },
+  {
+    pid: "a1b2c3d4",
+    date: "2026-01-02",
+    commodity: "AAPL",
+    price: { commodity: "USD", quantity: "182.63" },
+  },
+  {
+    pid: "b2c3d4e5",
+    date: "2026-01-02",
+    commodity: "MSFT",
+    price: { commodity: "USD", quantity: "425.22" },
+  },
+  {
+    pid: "b2c3d4e6",
+    date: "2026-01-02",
+    commodity: "GOOG",
+    price: { commodity: "USD", quantity: "193.45" },
+  },
+  {
+    pid: "c3d4e5f6",
+    date: "2026-02-03",
+    commodity: "AAPL",
+    price: { commodity: "USD", quantity: "188.44" },
+  },
+  {
+    pid: "d4e5f6a7",
+    date: "2026-02-03",
+    commodity: "MSFT",
+    price: { commodity: "USD", quantity: "415.10" },
+  },
+  {
+    pid: "d4e5f6a8",
+    date: "2026-02-03",
+    commodity: "GOOG",
+    price: { commodity: "USD", quantity: "197.82" },
+  },
+  {
+    pid: "e5f6a7b8",
+    date: "2026-03-01",
+    commodity: "AAPL",
+    price: { commodity: "USD", quantity: "178.50" },
+  },
+  {
+    pid: "f6a7b8c9",
+    date: "2026-03-01",
+    commodity: "MSFT",
+    price: { commodity: "USD", quantity: "398.75" },
+  },
+  {
+    pid: "f6a7b8ca",
+    date: "2026-03-01",
+    commodity: "GOOG",
+    price: { commodity: "USD", quantity: "185.20" },
+  },
+  {
+    pid: "g7b8c9d1",
+    date: "2026-03-15",
+    commodity: "AAPL",
+    price: { commodity: "USD", quantity: "181.10" },
+  },
+  {
+    pid: "g7b8c9d2",
+    date: "2026-03-15",
+    commodity: "MSFT",
+    price: { commodity: "USD", quantity: "402.30" },
+  },
+  {
+    pid: "g7b8c9d3",
+    date: "2026-03-15",
+    commodity: "GOOG",
+    price: { commodity: "USD", quantity: "187.65" },
+  },
+  {
+    pid: "h8c9d1e2",
+    date: "2026-04-01",
+    commodity: "AAPL",
+    price: { commodity: "USD", quantity: "175.90" },
+  },
+  {
+    pid: "h8c9d1e3",
+    date: "2026-04-01",
+    commodity: "MSFT",
+    price: { commodity: "USD", quantity: "391.44" },
+  },
+  {
+    pid: "h8c9d1e4",
+    date: "2026-04-01",
+    commodity: "GOOG",
+    price: { commodity: "USD", quantity: "180.11" },
+  },
+  {
+    pid: "i9d1e2f3",
+    date: "2026-04-15",
+    commodity: "AAPL",
+    price: { commodity: "USD", quantity: "172.30" },
+  },
+  {
+    pid: "i9d1e2f4",
+    date: "2026-04-15",
+    commodity: "MSFT",
+    price: { commodity: "USD", quantity: "385.60" },
+  },
+  {
+    pid: "i9d1e2f5",
+    date: "2026-04-15",
+    commodity: "GOOG",
+    price: { commodity: "USD", quantity: "176.40" },
+  },
+  {
+    pid: "j1e2f3g4",
+    date: "2026-05-01",
+    commodity: "AAPL",
+    price: { commodity: "USD", quantity: "179.88" },
+  },
+  {
+    pid: "j1e2f3g5",
+    date: "2026-05-01",
+    commodity: "MSFT",
+    price: { commodity: "USD", quantity: "412.77" },
+  },
+  {
+    pid: "j1e2f3g6",
+    date: "2026-05-01",
+    commodity: "GOOG",
+    price: { commodity: "USD", quantity: "184.32" },
+  },
 ];
 
 export const mockNetWorthSnapshots = [
-  { date: "2025-04-01", assets: [{ commodity: "USD", quantity: "9200.00" }], liabilities: [{ commodity: "USD", quantity: "-1100.00" }], netWorth: [{ commodity: "USD", quantity: "8100.00" }] },
-  { date: "2025-05-01", assets: [{ commodity: "USD", quantity: "9450.00" }], liabilities: [{ commodity: "USD", quantity: "-1050.00" }], netWorth: [{ commodity: "USD", quantity: "8400.00" }] },
-  { date: "2025-06-01", assets: [{ commodity: "USD", quantity: "9600.00" }], liabilities: [{ commodity: "USD", quantity: "-1000.00" }], netWorth: [{ commodity: "USD", quantity: "8600.00" }] },
-  { date: "2025-07-01", assets: [{ commodity: "USD", quantity: "9800.00" }], liabilities: [{ commodity: "USD", quantity: "-980.00" }], netWorth: [{ commodity: "USD", quantity: "8820.00" }] },
-  { date: "2025-08-01", assets: [{ commodity: "USD", quantity: "10100.00" }], liabilities: [{ commodity: "USD", quantity: "-950.00" }], netWorth: [{ commodity: "USD", quantity: "9150.00" }] },
-  { date: "2025-09-01", assets: [{ commodity: "USD", quantity: "10350.00" }], liabilities: [{ commodity: "USD", quantity: "-920.00" }], netWorth: [{ commodity: "USD", quantity: "9430.00" }] },
-  { date: "2025-10-01", assets: [{ commodity: "USD", quantity: "10600.00" }], liabilities: [{ commodity: "USD", quantity: "-900.00" }], netWorth: [{ commodity: "USD", quantity: "9700.00" }] },
-  { date: "2025-11-01", assets: [{ commodity: "USD", quantity: "10850.00" }], liabilities: [{ commodity: "USD", quantity: "-870.00" }], netWorth: [{ commodity: "USD", quantity: "9980.00" }] },
-  { date: "2025-12-01", assets: [{ commodity: "USD", quantity: "11100.00" }], liabilities: [{ commodity: "USD", quantity: "-840.00" }], netWorth: [{ commodity: "USD", quantity: "10260.00" }] },
-  { date: "2026-01-01", assets: [{ commodity: "USD", quantity: "11500.00" }], liabilities: [{ commodity: "USD", quantity: "-1230.00" }], netWorth: [{ commodity: "USD", quantity: "10270.00" }] },
-  { date: "2026-02-01", assets: [{ commodity: "USD", quantity: "11800.00" }], liabilities: [{ commodity: "USD", quantity: "-1230.00" }], netWorth: [{ commodity: "USD", quantity: "10570.00" }] },
-  { date: "2026-03-01", assets: [{ commodity: "USD", quantity: "12450.00" }], liabilities: [{ commodity: "USD", quantity: "-1230.00" }], netWorth: [{ commodity: "USD", quantity: "11220.00" }] },
+  {
+    date: "2025-04-01",
+    assets: [{ commodity: "USD", quantity: "9200.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-1100.00" }],
+    netWorth: [{ commodity: "USD", quantity: "8100.00" }],
+  },
+  {
+    date: "2025-05-01",
+    assets: [{ commodity: "USD", quantity: "9450.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-1050.00" }],
+    netWorth: [{ commodity: "USD", quantity: "8400.00" }],
+  },
+  {
+    date: "2025-06-01",
+    assets: [{ commodity: "USD", quantity: "9600.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-1000.00" }],
+    netWorth: [{ commodity: "USD", quantity: "8600.00" }],
+  },
+  {
+    date: "2025-07-01",
+    assets: [{ commodity: "USD", quantity: "9800.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-980.00" }],
+    netWorth: [{ commodity: "USD", quantity: "8820.00" }],
+  },
+  {
+    date: "2025-08-01",
+    assets: [{ commodity: "USD", quantity: "10100.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-950.00" }],
+    netWorth: [{ commodity: "USD", quantity: "9150.00" }],
+  },
+  {
+    date: "2025-09-01",
+    assets: [{ commodity: "USD", quantity: "10350.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-920.00" }],
+    netWorth: [{ commodity: "USD", quantity: "9430.00" }],
+  },
+  {
+    date: "2025-10-01",
+    assets: [{ commodity: "USD", quantity: "10600.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-900.00" }],
+    netWorth: [{ commodity: "USD", quantity: "9700.00" }],
+  },
+  {
+    date: "2025-11-01",
+    assets: [{ commodity: "USD", quantity: "10850.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-870.00" }],
+    netWorth: [{ commodity: "USD", quantity: "9980.00" }],
+  },
+  {
+    date: "2025-12-01",
+    assets: [{ commodity: "USD", quantity: "11100.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-840.00" }],
+    netWorth: [{ commodity: "USD", quantity: "10260.00" }],
+  },
+  {
+    date: "2026-01-01",
+    assets: [{ commodity: "USD", quantity: "11500.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-1230.00" }],
+    netWorth: [{ commodity: "USD", quantity: "10270.00" }],
+  },
+  {
+    date: "2026-02-01",
+    assets: [{ commodity: "USD", quantity: "11800.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-1230.00" }],
+    netWorth: [{ commodity: "USD", quantity: "10570.00" }],
+  },
+  {
+    date: "2026-03-01",
+    assets: [{ commodity: "USD", quantity: "12450.00" }],
+    liabilities: [{ commodity: "USD", quantity: "-1230.00" }],
+    netWorth: [{ commodity: "USD", quantity: "11220.00" }],
+  },
 ];
 
 export const mockBankProfiles = [
@@ -424,10 +792,38 @@ export const mockAccountRegisterRows = [
 ];
 
 export const mockRules = [
-  { id: "aabb1122", pattern: "AMAZON|amazon\\.com", payee: "Amazon", account: "expenses:shopping", tags: {}, priority: 5 },
-  { id: "ccdd3344", pattern: "STARBUCKS|starbucks", payee: "Starbucks", account: "expenses:dining", tags: { category: "coffee" }, priority: 10 },
-  { id: "eeff5566", pattern: "^(WHOLE FOODS|Whole Foods)", payee: "Whole Foods Market", account: "expenses:groceries", tags: {}, priority: 15 },
-  { id: "aabb7788", pattern: "NETFLIX", payee: "Netflix", account: "expenses:subscriptions", tags: { auto: "yes" }, priority: 20 },
+  {
+    id: "aabb1122",
+    pattern: "AMAZON|amazon\\.com",
+    payee: "Amazon",
+    account: "expenses:shopping",
+    tags: {},
+    priority: 5,
+  },
+  {
+    id: "ccdd3344",
+    pattern: "STARBUCKS|starbucks",
+    payee: "Starbucks",
+    account: "expenses:dining",
+    tags: { category: "coffee" },
+    priority: 10,
+  },
+  {
+    id: "eeff5566",
+    pattern: "^(WHOLE FOODS|Whole Foods)",
+    payee: "Whole Foods Market",
+    account: "expenses:groceries",
+    tags: {},
+    priority: 15,
+  },
+  {
+    id: "aabb7788",
+    pattern: "NETFLIX",
+    payee: "Netflix",
+    account: "expenses:subscriptions",
+    tags: { auto: "yes" },
+    priority: 20,
+  },
 ];
 
 export const mockImportCandidates = [
@@ -437,8 +833,14 @@ export const mockImportCandidates = [
       date: "2026-03-28",
       description: "AMAZON.COM PURCHASE",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-42.99" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "42.99" }] },
+        {
+          account: "assets:checking",
+          amounts: [{ commodity: "USD", quantity: "-42.99" }],
+        },
+        {
+          account: "expenses:unknown",
+          amounts: [{ commodity: "USD", quantity: "42.99" }],
+        },
       ],
       tags: {},
     },
@@ -451,8 +853,14 @@ export const mockImportCandidates = [
       date: "2026-03-27",
       description: "STARBUCKS #4821",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-6.75" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "6.75" }] },
+        {
+          account: "assets:checking",
+          amounts: [{ commodity: "USD", quantity: "-6.75" }],
+        },
+        {
+          account: "expenses:unknown",
+          amounts: [{ commodity: "USD", quantity: "6.75" }],
+        },
       ],
       tags: {},
     },
@@ -465,8 +873,14 @@ export const mockImportCandidates = [
       date: "2026-03-26",
       description: "Whole Foods Market",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-87.43" }] },
-        { account: "expenses:groceries", amounts: [{ commodity: "USD", quantity: "87.43" }] },
+        {
+          account: "assets:checking",
+          amounts: [{ commodity: "USD", quantity: "-87.43" }],
+        },
+        {
+          account: "expenses:groceries",
+          amounts: [{ commodity: "USD", quantity: "87.43" }],
+        },
       ],
       tags: {},
     },
@@ -479,8 +893,14 @@ export const mockImportCandidates = [
       date: "2026-03-25",
       description: "MONTHLY GAS BILL",
       postings: [
-        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-84.00" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "84.00" }] },
+        {
+          account: "assets:checking",
+          amounts: [{ commodity: "USD", quantity: "-84.00" }],
+        },
+        {
+          account: "expenses:unknown",
+          amounts: [{ commodity: "USD", quantity: "84.00" }],
+        },
       ],
       tags: {},
     },
@@ -500,8 +920,16 @@ export const mockAccountDeclarations = [
   { aid: "g7b8c9d0", name: "expenses:subscriptions", hasPostings: false },
   { aid: "h8c9d0e1", name: "expenses:transport", hasPostings: true },
   { aid: "i9d0e1f2", name: "expenses:utilities", hasPostings: false },
-  { aid: "l1a2b3c4", name: "expenses:housing:mortgage:principal", hasPostings: true },
-  { aid: "m2b3c4d5", name: "expenses:housing:mortgage:interest", hasPostings: true },
+  {
+    aid: "l1a2b3c4",
+    name: "expenses:housing:mortgage:principal",
+    hasPostings: true,
+  },
+  {
+    aid: "m2b3c4d5",
+    name: "expenses:housing:mortgage:interest",
+    hasPostings: true,
+  },
   { aid: "n3c4d5e6", name: "expenses:housing:insurance", hasPostings: false },
   { aid: "j0e1f2a3", name: "income:salary", hasPostings: true },
   { aid: "k1f2a3b4", name: "liabilities:creditcard", hasPostings: true },
@@ -512,26 +940,26 @@ export const mockPortfolioHoldings = {
     {
       account: "assets:investments:aapl",
       symbol: "AAPL",
-      quantity: "10",
+      quantity: "40",
       latestPrice: { commodity: "USD", quantity: "178.50" },
-      currentValue: { commodity: "USD", quantity: "1785.00" },
-      portfolioPct: 46.4,
+      currentValue: { commodity: "USD", quantity: "7140.00" },
+      portfolioPct: 64.2,
       priceDate: "2026-03-01",
-      bookValue: { commodity: "USD", quantity: "1750.00" },
-      unrealizedGain: { commodity: "USD", quantity: "35.00" },
-      unrealizedGainPct: 2.0,
+      bookValue: { commodity: "USD", quantity: "4000.00" },
+      unrealizedGain: { commodity: "USD", quantity: "3140.00" },
+      unrealizedGainPct: 78.5,
     },
     {
       account: "assets:investments:msft",
       symbol: "MSFT",
-      quantity: "5",
-      latestPrice: { commodity: "USD", quantity: "398.75" },
-      currentValue: { commodity: "USD", quantity: "1993.75" },
-      portfolioPct: 51.8,
+      quantity: "10",
+      latestPrice: { commodity: "USD", quantity: "398.00" },
+      currentValue: { commodity: "USD", quantity: "3980.00" },
+      portfolioPct: 35.8,
       priceDate: "2026-03-01",
-      bookValue: { commodity: "USD", quantity: "2000.00" },
-      unrealizedGain: { commodity: "USD", quantity: "-6.25" },
-      unrealizedGainPct: -0.31,
+      bookValue: { commodity: "USD", quantity: "3200.00" },
+      unrealizedGain: { commodity: "USD", quantity: "780.00" },
+      unrealizedGainPct: 24.38,
     },
     {
       account: "assets:investments:voo",
@@ -546,35 +974,111 @@ export const mockPortfolioHoldings = {
       unrealizedGainPct: 0,
     },
   ],
-  totalValue: { commodity: "USD", quantity: "3778.75" },
+  totalValue: { commodity: "USD", quantity: "11120.00" },
   asOfDate: "2026-03-01",
 };
 
 export const mockPortfolioTimeseries = {
   snapshots: [
-    { date: "2025-03-01", totalValue: { commodity: "USD", quantity: "7510.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-04-01", totalValue: { commodity: "USD", quantity: "7820.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-05-01", totalValue: { commodity: "USD", quantity: "8130.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-06-01", totalValue: { commodity: "USD", quantity: "7940.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-07-01", totalValue: { commodity: "USD", quantity: "8450.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-08-01", totalValue: { commodity: "USD", quantity: "8820.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-09-01", totalValue: { commodity: "USD", quantity: "8640.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-10-01", totalValue: { commodity: "USD", quantity: "9180.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-11-01", totalValue: { commodity: "USD", quantity: "9560.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2025-12-01", totalValue: { commodity: "USD", quantity: "9820.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2026-01-01", totalValue: { commodity: "USD", quantity: "10240.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2026-02-01", totalValue: { commodity: "USD", quantity: "9980.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2026-03-01", totalValue: { commodity: "USD", quantity: "10650.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2026-04-01", totalValue: { commodity: "USD", quantity: "10390.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
-    { date: "2026-05-01", totalValue: { commodity: "USD", quantity: "11120.00" }, costBasis: { commodity: "USD", quantity: "7500.00" } },
+    {
+      date: "2025-03-01",
+      totalValue: { commodity: "USD", quantity: "7510.00" },
+      costBasis: { commodity: "USD", quantity: "6000.00" },
+    },
+    {
+      date: "2025-04-01",
+      totalValue: { commodity: "USD", quantity: "7820.00" },
+      costBasis: { commodity: "USD", quantity: "6000.00" },
+    },
+    {
+      date: "2025-05-01",
+      totalValue: { commodity: "USD", quantity: "8130.00" },
+      costBasis: { commodity: "USD", quantity: "6000.00" },
+    },
+    {
+      date: "2025-06-01",
+      totalValue: { commodity: "USD", quantity: "7940.00" },
+      costBasis: { commodity: "USD", quantity: "6000.00" },
+    },
+    {
+      date: "2025-07-01",
+      totalValue: { commodity: "USD", quantity: "8450.00" },
+      costBasis: { commodity: "USD", quantity: "6500.00" },
+    },
+    {
+      date: "2025-08-01",
+      totalValue: { commodity: "USD", quantity: "8820.00" },
+      costBasis: { commodity: "USD", quantity: "6500.00" },
+    },
+    {
+      date: "2025-09-01",
+      totalValue: { commodity: "USD", quantity: "8640.00" },
+      costBasis: { commodity: "USD", quantity: "6500.00" },
+    },
+    {
+      date: "2025-10-01",
+      totalValue: { commodity: "USD", quantity: "9180.00" },
+      costBasis: { commodity: "USD", quantity: "6500.00" },
+    },
+    {
+      date: "2025-11-01",
+      totalValue: { commodity: "USD", quantity: "9560.00" },
+      costBasis: { commodity: "USD", quantity: "6500.00" },
+    },
+    {
+      date: "2025-12-01",
+      totalValue: { commodity: "USD", quantity: "9820.00" },
+      costBasis: { commodity: "USD", quantity: "6500.00" },
+    },
+    {
+      date: "2026-01-01",
+      totalValue: { commodity: "USD", quantity: "10240.00" },
+      costBasis: { commodity: "USD", quantity: "7000.00" },
+    },
+    {
+      date: "2026-02-01",
+      totalValue: { commodity: "USD", quantity: "9980.00" },
+      costBasis: { commodity: "USD", quantity: "7000.00" },
+    },
+    {
+      date: "2026-03-01",
+      totalValue: { commodity: "USD", quantity: "10650.00" },
+      costBasis: { commodity: "USD", quantity: "7000.00" },
+    },
+    {
+      date: "2026-04-01",
+      totalValue: { commodity: "USD", quantity: "10390.00" },
+      costBasis: { commodity: "USD", quantity: "6900.00" },
+    },
+    {
+      date: "2026-05-01",
+      totalValue: { commodity: "USD", quantity: "11120.00" },
+      costBasis: { commodity: "USD", quantity: "7200.00" },
+    },
   ],
 };
 
 export const mockImports = [
-  { importBatchId: "2026-03-28-a1b2c3d4", date: "2026-03-28", transactionCount: 3 },
-  { importBatchId: "2026-03-15-b2c3d4e5", date: "2026-03-15", transactionCount: 5 },
-  { importBatchId: "2026-02-28-c3d4e5f6", date: "2026-02-28", transactionCount: 8 },
-  { importBatchId: "2026-01-31-d4e5f6a7", date: "2026-01-31", transactionCount: 12 },
+  {
+    importBatchId: "2026-03-28-a1b2c3d4",
+    date: "2026-03-28",
+    transactionCount: 3,
+  },
+  {
+    importBatchId: "2026-03-15-b2c3d4e5",
+    date: "2026-03-15",
+    transactionCount: 5,
+  },
+  {
+    importBatchId: "2026-02-28-c3d4e5f6",
+    date: "2026-02-28",
+    transactionCount: 8,
+  },
+  {
+    importBatchId: "2026-01-31-d4e5f6a7",
+    date: "2026-01-31",
+    transactionCount: 12,
+  },
 ];
 
 export const mockSnapshots = [
@@ -685,8 +1189,14 @@ export const mockImportedTransactions = [
     date: "2026-03-28",
     description: "AMAZON.COM PURCHASE",
     postings: [
-      { account: "expenses:shopping", amounts: [{ commodity: "USD", quantity: "42.99" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-42.99" }] },
+      {
+        account: "expenses:shopping",
+        amounts: [{ commodity: "USD", quantity: "42.99" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-42.99" }],
+      },
     ],
     tags: {},
     status: "Pending",
@@ -696,8 +1206,14 @@ export const mockImportedTransactions = [
     date: "2026-03-28",
     description: "STARBUCKS #4821",
     postings: [
-      { account: "expenses:dining", amounts: [{ commodity: "USD", quantity: "6.75" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-6.75" }] },
+      {
+        account: "expenses:dining",
+        amounts: [{ commodity: "USD", quantity: "6.75" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-6.75" }],
+      },
     ],
     tags: {},
     status: "Pending",
@@ -707,8 +1223,14 @@ export const mockImportedTransactions = [
     date: "2026-03-27",
     description: "MONTHLY GAS BILL",
     postings: [
-      { account: "expenses:utilities", amounts: [{ commodity: "USD", quantity: "84.00" }] },
-      { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-84.00" }] },
+      {
+        account: "expenses:utilities",
+        amounts: [{ commodity: "USD", quantity: "84.00" }],
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-84.00" }],
+      },
     ],
     tags: {},
     status: "Pending",
@@ -770,8 +1292,14 @@ export const mockStripeImportCandidates = [
       date: "2026-05-10",
       description: "STARBUCKS #1234",
       postings: [
-        { account: "assets:checking:chase", amounts: [{ commodity: "USD", quantity: "-6.75" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "6.75" }] },
+        {
+          account: "assets:checking:chase",
+          amounts: [{ commodity: "USD", quantity: "-6.75" }],
+        },
+        {
+          account: "expenses:unknown",
+          amounts: [{ commodity: "USD", quantity: "6.75" }],
+        },
       ],
       tags: {},
     },
@@ -783,8 +1311,14 @@ export const mockStripeImportCandidates = [
       date: "2026-05-08",
       description: "ELECTRIC BILL",
       postings: [
-        { account: "assets:checking:chase", amounts: [{ commodity: "USD", quantity: "-95.00" }] },
-        { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "95.00" }] },
+        {
+          account: "assets:checking:chase",
+          amounts: [{ commodity: "USD", quantity: "-95.00" }],
+        },
+        {
+          account: "expenses:unknown",
+          amounts: [{ commodity: "USD", quantity: "95.00" }],
+        },
       ],
       tags: {},
     },
@@ -797,9 +1331,18 @@ function makeAmountList(quantity) {
 }
 
 const MOCK_IS_PERIODS = [
-  "2025-04-01","2025-05-01","2025-06-01","2025-07-01",
-  "2025-08-01","2025-09-01","2025-10-01","2025-11-01",
-  "2025-12-01","2026-01-01","2026-02-01","2026-03-01",
+  "2025-04-01",
+  "2025-05-01",
+  "2025-06-01",
+  "2025-07-01",
+  "2025-08-01",
+  "2025-09-01",
+  "2025-10-01",
+  "2025-11-01",
+  "2025-12-01",
+  "2026-01-01",
+  "2026-02-01",
+  "2026-03-01",
 ];
 
 export const mockIncomeStatementTimeseries = {
@@ -807,63 +1350,93 @@ export const mockIncomeStatementTimeseries = {
   rows: [
     // Revenues section
     {
-      displayName: "salary", fullName: "income:salary", indent: 1,
-      section: "Revenues", isTotal: false,
+      displayName: "salary",
+      fullName: "income:salary",
+      indent: 1,
+      section: "Revenues",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("-5200.00")),
       totalAmounts: [{ commodity: "USD", quantity: "-62400.00" }],
     },
     {
-      displayName: "Total Revenues", fullName: "", indent: 0,
-      section: "Revenues", isTotal: true,
+      displayName: "Total Revenues",
+      fullName: "",
+      indent: 0,
+      section: "Revenues",
+      isTotal: true,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("-5200.00")),
       totalAmounts: [],
     },
     // Expenses section
     {
-      displayName: "expenses", fullName: "expenses", indent: 0,
-      section: "Expenses", isTotal: false,
+      displayName: "expenses",
+      fullName: "expenses",
+      indent: 0,
+      section: "Expenses",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2340.43")),
       totalAmounts: [{ commodity: "USD", quantity: "28085.16" }],
     },
     {
-      displayName: "groceries", fullName: "expenses:groceries", indent: 1,
-      section: "Expenses", isTotal: false,
+      displayName: "groceries",
+      fullName: "expenses:groceries",
+      indent: 1,
+      section: "Expenses",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("450.00")),
       totalAmounts: [{ commodity: "USD", quantity: "5400.00" }],
     },
     {
-      displayName: "dining", fullName: "expenses:dining", indent: 1,
-      section: "Expenses", isTotal: false,
+      displayName: "dining",
+      fullName: "expenses:dining",
+      indent: 1,
+      section: "Expenses",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("210.00")),
       totalAmounts: [{ commodity: "USD", quantity: "2520.00" }],
     },
     {
-      displayName: "utilities", fullName: "expenses:utilities", indent: 1,
-      section: "Expenses", isTotal: false,
+      displayName: "utilities",
+      fullName: "expenses:utilities",
+      indent: 1,
+      section: "Expenses",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("95.00")),
       totalAmounts: [{ commodity: "USD", quantity: "1140.00" }],
     },
     {
-      displayName: "rent", fullName: "expenses:rent", indent: 1,
-      section: "Expenses", isTotal: false,
+      displayName: "rent",
+      fullName: "expenses:rent",
+      indent: 1,
+      section: "Expenses",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("1500.00")),
       totalAmounts: [{ commodity: "USD", quantity: "18000.00" }],
     },
     {
-      displayName: "subscriptions", fullName: "expenses:subscriptions", indent: 1,
-      section: "Expenses", isTotal: false,
+      displayName: "subscriptions",
+      fullName: "expenses:subscriptions",
+      indent: 1,
+      section: "Expenses",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("57.43")),
       totalAmounts: [{ commodity: "USD", quantity: "689.16" }],
     },
     {
-      displayName: "transport", fullName: "expenses:transport", indent: 1,
-      section: "Expenses", isTotal: false,
+      displayName: "transport",
+      fullName: "expenses:transport",
+      indent: 1,
+      section: "Expenses",
+      isTotal: false,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("28.00")),
       totalAmounts: [{ commodity: "USD", quantity: "336.00" }],
     },
     {
-      displayName: "Total Expenses", fullName: "", indent: 0,
-      section: "Expenses", isTotal: true,
+      displayName: "Total Expenses",
+      fullName: "",
+      indent: 0,
+      section: "Expenses",
+      isTotal: true,
       perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2340.43")),
       totalAmounts: [],
     },
@@ -889,7 +1462,16 @@ function encodeConnectStreamingBody(messages) {
   return Buffer.concat(parts);
 }
 
-export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarations, portfolioHoldings, stripeEnabled = true, aiEnabled = true } = {}) {
+export async function mockLedgerApi(
+  page,
+  {
+    accountRegisterRows,
+    accountDeclarations,
+    portfolioHoldings,
+    stripeEnabled = true,
+    aiEnabled = true,
+  } = {},
+) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
     const method = url.split("/").pop();
@@ -930,9 +1512,33 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
               account: "assets:investments:brokerage",
               type: "A",
               balance: [
-                { commodity: "AAPL", quantity: "10", cost: { quantity: "150.00", commodity: "USD", isTotal: false } },
-                { commodity: "AAPL", quantity: "5", cost: { quantity: "170.00", commodity: "USD", isTotal: false } },
-                { commodity: "GOOGL", quantity: "3", cost: { quantity: "175.00", commodity: "USD", isTotal: false } },
+                {
+                  commodity: "AAPL",
+                  quantity: "10",
+                  cost: {
+                    quantity: "150.00",
+                    commodity: "USD",
+                    isTotal: false,
+                  },
+                },
+                {
+                  commodity: "AAPL",
+                  quantity: "5",
+                  cost: {
+                    quantity: "170.00",
+                    commodity: "USD",
+                    isTotal: false,
+                  },
+                },
+                {
+                  commodity: "GOOGL",
+                  quantity: "3",
+                  cost: {
+                    quantity: "175.00",
+                    commodity: "USD",
+                    isTotal: false,
+                  },
+                },
                 { commodity: "USD", quantity: "1842.30" },
               ],
               lastAssertionDate: "2025-08-15",
@@ -957,12 +1563,17 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         let rows;
         if (isExpense) rows = mockExpenseBalanceRows;
         else if (isRevenue) rows = mockRevenueBalanceRows;
-        else rows = reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows;
+        else
+          rows = reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows;
         body = { report: { rows } };
         break;
       }
       case "ListPayees": {
-        const allPayees = [...new Set(mockTransactions.filter((tx) => tx.payee).map((tx) => tx.payee))].sort();
+        const allPayees = [
+          ...new Set(
+            mockTransactions.filter((tx) => tx.payee).map((tx) => tx.payee),
+          ),
+        ].sort();
         body = { payees: allPayees };
         break;
       }
@@ -974,21 +1585,35 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
             txs = txs.filter((tx) => !tx.payee);
           } else if (token.startsWith("payee:")) {
             const payeeFilter = token.slice("payee:".length).toLowerCase();
-            txs = txs.filter((tx) => tx.payee && tx.payee.toLowerCase().includes(payeeFilter));
+            txs = txs.filter(
+              (tx) => tx.payee && tx.payee.toLowerCase().includes(payeeFilter),
+            );
           } else if (token.startsWith("code:")) {
             const fidFilter = token.slice("code:".length).toLowerCase();
-            txs = txs.filter((tx) => tx.fid && tx.fid.toLowerCase().startsWith(fidFilter));
+            txs = txs.filter(
+              (tx) => tx.fid && tx.fid.toLowerCase().startsWith(fidFilter),
+            );
           }
           if (token.startsWith("acct:")) {
             const acctFilter = token.slice("acct:".length).toLowerCase();
-            txs = txs.filter((tx) => tx.postings && tx.postings.some((p) => p.account.toLowerCase().includes(acctFilter)));
+            txs = txs.filter(
+              (tx) =>
+                tx.postings &&
+                tx.postings.some((p) =>
+                  p.account.toLowerCase().includes(acctFilter),
+                ),
+            );
           }
         }
         body = { transactions: txs };
         break;
       }
       case "GetAccountRegister":
-        body = { rows: accountRegisterRows ?? mockAccountRegisterRows, total: (accountRegisterRows ?? mockAccountRegisterRows).length, hasNext: false };
+        body = {
+          rows: accountRegisterRows ?? mockAccountRegisterRows,
+          total: (accountRegisterRows ?? mockAccountRegisterRows).length,
+          hasNext: false,
+        };
         break;
       case "GetNetWorthTimeseries":
         body = { snapshots: mockNetWorthSnapshots };
@@ -1015,16 +1640,27 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         body = { profiles: mockBankProfiles };
         break;
       case "CreateBankProfile":
-        body = { profile: { name: reqBody.name, rulesFile: reqBody.rulesFile } };
+        body = {
+          profile: { name: reqBody.name, rulesFile: reqBody.rulesFile },
+        };
         break;
       case "GetBankProfileContent":
         body = {
-          rulesFile: mockBankProfiles.find((p) => p.name === reqBody.name)?.rulesFile ?? "rules/chase.rules",
-          rulesContent: btoa("# hledger CSV import rules\nskip 1\nfields date, description, amount\naccount1 assets:checking\n"),
+          rulesFile:
+            mockBankProfiles.find((p) => p.name === reqBody.name)?.rulesFile ??
+            "rules/chase.rules",
+          rulesContent: btoa(
+            "# hledger CSV import rules\nskip 1\nfields date, description, amount\naccount1 assets:checking\n",
+          ),
         };
         break;
       case "UpdateBankProfile":
-        body = { profile: { name: reqBody.newName || reqBody.name, rulesFile: "rules/chase.rules" } };
+        body = {
+          profile: {
+            name: reqBody.newName || reqBody.name,
+            rulesFile: "rules/chase.rules",
+          },
+        };
         break;
       case "DeleteBankProfile":
         body = {};
@@ -1039,11 +1675,17 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         body = { imports: mockImports };
         break;
       case "GetImportedTransactions":
-        body = { transactions: mockImportedTransactions, total: mockImportedTransactions.length, hasNext: false };
+        body = {
+          transactions: mockImportedTransactions,
+          total: mockImportedTransactions.length,
+          hasNext: false,
+        };
         break;
       case "GetImportFile":
         body = {
-          csvContent: btoa("Date,Description,Amount\n2026-03-28,AMAZON.COM PURCHASE,-42.99\n2026-03-28,STARBUCKS #4821,-6.75\n2026-03-27,MONTHLY GAS BILL,-84.00\n"),
+          csvContent: btoa(
+            "Date,Description,Amount\n2026-03-28,AMAZON.COM PURCHASE,-42.99\n2026-03-28,STARBUCKS #4821,-6.75\n2026-03-27,MONTHLY GAS BILL,-84.00\n",
+          ),
           filename: (reqBody.importBatchId || "2026-03-28-a1b2c3d4") + ".csv",
         };
         break;
@@ -1051,10 +1693,28 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         body = { rules: mockRules };
         break;
       case "AddRule":
-        body = { rule: { id: "new00001", pattern: reqBody.pattern, payee: reqBody.payee, account: reqBody.account, tags: reqBody.tags || {}, priority: reqBody.priority || 0 } };
+        body = {
+          rule: {
+            id: "new00001",
+            pattern: reqBody.pattern,
+            payee: reqBody.payee,
+            account: reqBody.account,
+            tags: reqBody.tags || {},
+            priority: reqBody.priority || 0,
+          },
+        };
         break;
       case "UpdateRule":
-        body = { rule: { id: reqBody.id, pattern: reqBody.pattern, payee: reqBody.payee, account: reqBody.account, tags: reqBody.tags || {}, priority: reqBody.priority || 0 } };
+        body = {
+          rule: {
+            id: reqBody.id,
+            pattern: reqBody.pattern,
+            payee: reqBody.payee,
+            account: reqBody.account,
+            tags: reqBody.tags || {},
+            priority: reqBody.priority || 0,
+          },
+        };
         break;
       case "DeleteRule":
         body = {};
@@ -1068,8 +1728,10 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "AskQuestion":
         body = {
           hledgerArgs: "balance expenses:groceries date:lastmonth",
-          answer: "You spent $450.00 on groceries last month. This includes $287.34 at Whole Foods Market and $162.66 at other grocery stores.",
-          rawOutput: "               $450.00  expenses:groceries\n--------------------\n               $450.00",
+          answer:
+            "You spent $450.00 on groceries last month. This includes $287.34 at Whole Foods Market and $162.66 at other grocery stores.",
+          rawOutput:
+            "               $450.00  expenses:groceries\n--------------------\n               $450.00",
           querySuccess: true,
         };
         break;
@@ -1081,7 +1743,8 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
               payee: "Amazon",
               account: "expenses:shopping",
               tags: {},
-              reasoning: "Multiple transactions with 'AMAZON' in the description, all categorized inconsistently. A single rule would normalize these.",
+              reasoning:
+                "Multiple transactions with 'AMAZON' in the description, all categorized inconsistently. A single rule would normalize these.",
               exampleFids: ["a1b2c3d4", "e5f6g7h8", "i9j0k1l2"],
             },
             {
@@ -1089,7 +1752,8 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
               payee: "Starbucks",
               account: "expenses:food:coffee",
               tags: {},
-              reasoning: "Recurring Starbucks purchases appearing as unreviewed. Clear merchant pattern with consistent spend category.",
+              reasoning:
+                "Recurring Starbucks purchases appearing as unreviewed. Clear merchant pattern with consistent spend category.",
               exampleFids: ["m3n4o5p6", "q7r8s9t0"],
             },
             {
@@ -1097,7 +1761,8 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
               payee: "Whole Foods",
               account: "expenses:food:groceries",
               tags: {},
-              reasoning: "Whole Foods purchases appear regularly. Pattern covers both POS description variants.",
+              reasoning:
+                "Whole Foods purchases appear regularly. Pattern covers both POS description variants.",
               exampleFids: ["u1v2w3x4"],
             },
           ],
@@ -1116,7 +1781,14 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         body = { prices: mockPrices };
         break;
       case "AddPrice":
-        body = { price: { pid: "new00001", date: reqBody.date || "2026-03-28", commodity: reqBody.commodity, price: { commodity: reqBody.currency, quantity: reqBody.quantity } } };
+        body = {
+          price: {
+            pid: "new00001",
+            date: reqBody.date || "2026-03-28",
+            commodity: reqBody.commodity,
+            price: { commodity: reqBody.currency, quantity: reqBody.quantity },
+          },
+        };
         break;
       case "DeletePrice":
         body = {};
@@ -1124,8 +1796,24 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
       case "BackfillPrices":
         body = {
           prices: [
-            { pid: "", date: "2026-01-06", commodity: reqBody.commodity || "AAPL", price: { commodity: reqBody.currency || "USD", quantity: "185.00" } },
-            { pid: "", date: "2026-01-13", commodity: reqBody.commodity || "AAPL", price: { commodity: reqBody.currency || "USD", quantity: "183.50" } },
+            {
+              pid: "",
+              date: "2026-01-06",
+              commodity: reqBody.commodity || "AAPL",
+              price: {
+                commodity: reqBody.currency || "USD",
+                quantity: "185.00",
+              },
+            },
+            {
+              pid: "",
+              date: "2026-01-13",
+              commodity: reqBody.commodity || "AAPL",
+              price: {
+                commodity: reqBody.currency || "USD",
+                quantity: "183.50",
+              },
+            },
           ],
           skippedCount: 1,
         };
@@ -1138,8 +1826,22 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetStripeConfig":
         body = stripeEnabled
-          ? { enabled: true, publishableKey: "pk_test_mock_key", linkedAccountCount: mockStripeLinkedAccounts.length, customerId: "cus_mock1234567890", dailyImportEnabled: true, lastDailyImportAt: "2026-05-15T08:30:00Z" }
-          : { enabled: false, publishableKey: "", linkedAccountCount: 0, customerId: "", dailyImportEnabled: false, lastDailyImportAt: "" };
+          ? {
+              enabled: true,
+              publishableKey: "pk_test_mock_key",
+              linkedAccountCount: mockStripeLinkedAccounts.length,
+              customerId: "cus_mock1234567890",
+              dailyImportEnabled: true,
+              lastDailyImportAt: "2026-05-15T08:30:00Z",
+            }
+          : {
+              enabled: false,
+              publishableKey: "",
+              linkedAccountCount: 0,
+              customerId: "",
+              dailyImportEnabled: false,
+              lastDailyImportAt: "",
+            };
         break;
       case "SetStripeCustomerId":
         body = {};
@@ -1178,8 +1880,14 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
                     date: "2026-05-11",
                     description: "DIRECT DEPOSIT PAYROLL",
                     postings: [
-                      { account: "assets:savings:bofa", amounts: [{ commodity: "USD", quantity: "2500.00" }] },
-                      { account: "expenses:unknown", amounts: [{ commodity: "USD", quantity: "-2500.00" }] },
+                      {
+                        account: "assets:savings:bofa",
+                        amounts: [{ commodity: "USD", quantity: "2500.00" }],
+                      },
+                      {
+                        account: "expenses:unknown",
+                        amounts: [{ commodity: "USD", quantity: "-2500.00" }],
+                      },
                     ],
                     tags: {},
                   },
@@ -1203,16 +1911,60 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
           status: 200,
           contentType: "application/connect+json",
           body: encodeConnectStreamingBody([
-            { payload: { case: "progress", value: { stripeAccountId: acctId, status: "starting", attempt: 0, elapsedSeconds: "0", refreshId: "", message: "starting refresh" } } },
-            { payload: { case: "result", value: { stripeAccountId: acctId, refreshId: "trr_mock123", succeeded: true, errorMessage: "" } } },
+            {
+              payload: {
+                case: "progress",
+                value: {
+                  stripeAccountId: acctId,
+                  status: "starting",
+                  attempt: 0,
+                  elapsedSeconds: "0",
+                  refreshId: "",
+                  message: "starting refresh",
+                },
+              },
+            },
+            {
+              payload: {
+                case: "result",
+                value: {
+                  stripeAccountId: acctId,
+                  refreshId: "trr_mock123",
+                  succeeded: true,
+                  errorMessage: "",
+                },
+              },
+            },
           ]),
         });
         return;
       }
       case "RefreshAllStripeAccounts": {
         const messages = mockStripeLinkedAccounts.flatMap((acct) => [
-          { payload: { case: "progress", value: { stripeAccountId: acct.stripeAccountId, status: "starting", attempt: 0, elapsedSeconds: "0", refreshId: "", message: "starting refresh" } } },
-          { payload: { case: "result", value: { stripeAccountId: acct.stripeAccountId, refreshId: "trr_mock123", succeeded: true, errorMessage: "" } } },
+          {
+            payload: {
+              case: "progress",
+              value: {
+                stripeAccountId: acct.stripeAccountId,
+                status: "starting",
+                attempt: 0,
+                elapsedSeconds: "0",
+                refreshId: "",
+                message: "starting refresh",
+              },
+            },
+          },
+          {
+            payload: {
+              case: "result",
+              value: {
+                stripeAccountId: acct.stripeAccountId,
+                refreshId: "trr_mock123",
+                succeeded: true,
+                errorMessage: "",
+              },
+            },
+          },
         ]);
         await route.fulfill({
           status: 200,
@@ -1229,8 +1981,19 @@ export async function mockLedgerApi(page, { accountRegisterRows, accountDeclarat
         break;
       case "GetAIConfig":
         body = aiEnabled
-          ? { model: "anthropic/claude-sonnet-4-6", effectiveModel: "anthropic/claude-sonnet-4-6", prompt: "My accounts use kebab-case. Groceries go under expenses:food:groceries.", enabled: true }
-          : { model: "", effectiveModel: "anthropic/claude-3-haiku", prompt: "", enabled: false };
+          ? {
+              model: "anthropic/claude-sonnet-4-6",
+              effectiveModel: "anthropic/claude-sonnet-4-6",
+              prompt:
+                "My accounts use kebab-case. Groceries go under expenses:food:groceries.",
+              enabled: true,
+            }
+          : {
+              model: "",
+              effectiveModel: "anthropic/claude-3-haiku",
+              prompt: "",
+              enabled: false,
+            };
         break;
       case "ListSnapshots":
         body = { snapshots: mockSnapshots };
