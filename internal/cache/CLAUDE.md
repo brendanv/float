@@ -1,24 +1,28 @@
 # internal/cache
 
-Generation-aware in-memory cache for hledger query results. Sits between `internal/server/ledger` handlers and the hledger wrapper.
+Generation-aware in-memory cache for hledger query results. It sits between `internal/server/ledger` handlers and the hledger wrapper.
 
 ## How It Works
 
-`Cache[T]` stores entries in generation-keyed tiers. Each call to `Get` checks the current generation (from `txlock.TxLock.Generation`). When the generation advances (after any write), all prior-generation tiers are pruned on the next store, effectively invalidating the entire cache. There is no partial invalidation.
+`Cache[T]` stores entries under the current generation returned by a caller-provided function, normally `txlock.TxLock.Generation`. A successful write bumps the generation, so old entries are ignored and pruned on the next store. There is no partial invalidation.
 
-Concurrent calls for the same key+generation share a single `singleflight` flight — only one hledger invocation fires regardless of how many goroutines race.
+Concurrent calls for the same `key@generation` share one `singleflight` load. Calls at different generations do not share results.
 
 ## API
 
 ```go
-c := cache.New[any](lock.Generation)     // pass generation func from txlock
-val, err := c.Get(ctx, key, loadFn)      // cache hit or call loadFn
+c := cache.New[any](lock.Generation)
+val, err := c.Get(ctx, key, loadFn)
 ```
 
-Cache keys are produced by the handler's helper functions (`transactionsKey`, `balancesKey`, etc.) which sort query args for determinism.
+`Get` returns a cached value when present; otherwise it calls `loadFn(ctx)`, stores the result for the generation observed before the load, and returns it. Load errors are not cached.
 
-Pass `nil` for the cache in `Handler` to bypass caching entirely (useful in tests).
+## Integration
+
+Cache keys are built by `internal/server/ledger` helpers (`transactionsKey`, `balancesKey`, `balancesValuedKey`, `accountRegisterKey`, etc.). Query-token keys are sorted for determinism, so equivalent query slices share cache entries.
+
+Pass `nil` as the handler cache to bypass caching in tests or specialized callers.
 
 ## Concurrency
 
-`sync.RWMutex` guards tier map reads/writes. `singleflight.Group` is scoped per `key@genN` so callers at different generations never share a load result.
+A `sync.RWMutex` guards the generation-tiered map. `singleflight.Group` deduplicates loads. Cache values are not deep-copied; callers should treat cached values as read-only.

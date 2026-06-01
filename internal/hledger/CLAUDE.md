@@ -1,44 +1,59 @@
 # internal/hledger
 
-Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — never reimplement hledger logic in other packages.
+Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — other packages should call these methods rather than parsing journal files or reimplementing hledger reports.
 
 ## Key Types
 
-- `Client` — wraps the hledger binary and a journal file path. Constructed with `New(bin, journal)` (validates binary exists and version matches `1.52`) or `NewWithRunner(bin, journal, runner)` for testing with a stub.
-- `Transaction` — parsed hledger transaction with `FID` (code field), `Payee`/`Note` (split from description on `|`), and `FloatMeta` (hidden `float-*` tags) as derived fields.
-- `BalanceReport`, `BalanceRow` — result of `hledger bal -O json`.
-- `RegisterRow` — one posting row from `hledger reg -O json`.
-- `AregisterRow` — one transaction row from `hledger areg -O json` with `Change` and `Balance`.
-- `AccountNode` — account tree node; `Children` populated only when `Accounts(tree=true)`.
-- `BalanceSheetTimeseries` — monthly net worth data from `hledger bs`.
+- `Client` — wraps the hledger binary, the main journal path, and a command runner. `New(bin, journal)` resolves the binary and validates the pinned version (`1.52`). `NewWithRunner` injects a stub runner for tests.
+- `Transaction` — parsed hledger transaction. Derived fields include `FID` from the transaction code, `Payee`/`Note` split on the first `|`, and `FloatMeta` for hidden `float-*` tags.
+- `Posting`, `Amount`, `CostJSON`, `BalanceAssertion` — typed forms of hledger JSON posting/amount data, including cost annotations and simple balance assertions.
+- `BalanceReport`, `BalanceRow` — `hledger bal -O json` output.
+- `RegisterRow` — `hledger reg -O json`, one row per posting.
+- `AregisterRow` — `hledger areg -O json`, one row per transaction touching the focused account, with change and running balance computed by hledger.
+- `AccountNode` — account tree/flat node from `hledger accounts --types`.
+- `BalanceSheetTimeseries` — monthly balance sheet/net worth data from `hledger bs`.
+- `IncomeStatementTimeseries`, `ISSubreport`, `ISRow` — monthly income statement data from `hledger is`.
 - `CheckError` — returned by `Check()` when `hledger check` exits non-zero; `.Output` contains stderr.
 
 ## Client Methods
 
 | Method | hledger command | Notes |
 |--------|----------------|-------|
-| `Balances(ctx, depth, query...)` | `hledger bal -O json` | depth=0 omits `--depth` |
-| `BalanceSheetTimeseries(ctx, begin, end)` | `hledger bs --monthly --historical -O json` | for net worth chart |
-| `Register(ctx, query...)` | `hledger reg -O json` | one row per posting |
-| `Aregister(ctx, account, query...)` | `hledger areg -O json` | one row per transaction |
-| `Accounts(ctx, tree)` | `hledger accounts --types` | tree=true populates Children |
-| `UnusedAccounts(ctx)` | `hledger accounts --unused` | declared but no postings |
-| `UndeclaredAccounts(ctx)` | `hledger accounts --undeclared` | used but not declared |
-| `Tags(ctx)` | `hledger tags` | excludes internal `fid` tag |
-| `Payees(ctx)` | `hledger payees` | unique payee list |
-| `Transactions(ctx, query...)` | `hledger print -O json` | full transaction objects |
-| `PrintCSV(ctx, csvFile, rulesFile)` | `hledger print -O json --rules-file` | import preview; no journal needed |
-| `PrintText(ctx, journalFile)` | `hledger print -f` | canonicalize transaction text |
-| `Check(ctx)` | `hledger check` | nil on success, `*CheckError` on failure |
-| `Version(ctx)` | `hledger --version` | returns version string |
-| `RunRaw(ctx, args...)` | arbitrary | escape hatch for debugging only |
+| `Balances(ctx, depth, query...)` | `bal -O json` | depth=0 omits `--depth` |
+| `BalancesValued(ctx, valueSpec, depth, query...)` | `bal --infer-market-prices --value=<spec> -O json` | market-valued balances, e.g. `now,USD` |
+| `BalancesCost(ctx, depth, query...)` | `bal -B -O json` | cost-basis balances |
+| `BalanceSheetTimeseries(ctx, begin, end)` | `bs --monthly --historical --layout=bare --infer-market-prices --value=end,USD -O json` | net worth timeseries |
+| `IncomeStatementTimeseries(ctx, begin, end)` | `is --monthly --tree -O json` | revenue/expense monthly dashboard |
+| `PortfolioTimeseries(ctx, accounts, begin)` | `bs ... --value=end,USD` | portfolio value for explicit holding accounts |
+| `PortfolioCostBasisTimeseries(ctx, accounts, begin)` | `bs ... --value=then,USD` | portfolio cost-basis timeseries |
+| `Register(ctx, query...)` | `reg -O json` | flat posting rows |
+| `Aregister(ctx, account, query...)` | `areg -O json` | account-focused transaction rows |
+| `Accounts(ctx, tree)` | `accounts --types [--tree]` | tree=true populates children |
+| `UnusedAccounts(ctx)` | `accounts --unused` | declared but unused accounts |
+| `UndeclaredAccounts(ctx)` | `accounts --undeclared` | used but not declared accounts |
+| `Tags(ctx)` | `tags` | excludes the legacy/internal `fid` tag |
+| `Payees(ctx)` | `payees desc:.*[|].*` | payees only for descriptions containing `|` |
+| `Transactions(ctx, query...)` | `print -O json` | full transaction objects with source positions |
+| `PrintCSV(ctx, csvFile, rulesFile)` | `print -O json --rules-file <rules> -f <csv>` | CSV import preview; no journal file is written |
+| `PrintText(ctx, journalFile)` | `print -f <temp> -I` | canonical text formatting; ignores assertions until full `hledger check` |
+| `RunQuery(ctx, argsStr)` | `-f <journal> <shell-like args>` | debug/query UI; caller must not include `hledger` or `-f` |
+| `RunRaw(ctx, args...)` | arbitrary | escape hatch for CLI/debug only |
+| `Check(ctx)` | `check -f <journal>` | validation gate for txlock |
+| `Version(ctx)` | `--version` | returns parsed version |
+
+## Parsing / Semantics
+
+Parsing helpers translate hledger's heterogeneous JSON arrays into typed structs. They also enrich transactions with FID/payee/note/hidden-meta fields. Cost annotations are kept as raw JSON on `Amount` and parsed lazily by `Amount.ParseCost()`.
+
+`RunQuery` uses a deliberately small shell splitter that supports single and double quotes but not shell expansion or escapes. It automatically prepends `-f <journal>`.
 
 ## Testing
 
-Integration tests in `hledger_test.go` run the real hledger binary against fixture files in `testdata/`. Use `NewWithRunner` to inject a stub runner when testing callers of this package.
+Integration tests in `hledger_test.go` run the real hledger binary against fixture files in `testdata/`. Use `NewWithRunner` for unit tests of callers that should not execute hledger.
 
 ## Constants / Tags
 
-- `FIDLen = 8` — length of a float transaction ID
-- `HiddenMetaPrefix = "float-"` — prefix for internal metadata tags (filtered from gRPC API)
-- `AccountType*` constants — hledger account type letters (A, L, E, R, X, C, V)
+- `supportedVersion = "1.52"` — startup fails if the installed hledger differs.
+- `FIDLen = 8` — length of a float transaction code.
+- `HiddenMetaPrefix = "float-"` — internal metadata tag prefix filtered from user-facing APIs.
+- `AccountType*` constants mirror hledger account type letters (`A`, `L`, `E`, `R`, `X`, `C`, `V`).
