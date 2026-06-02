@@ -534,6 +534,13 @@ export function ImportPage() {
   const [editingProfile, setEditingProfile] = useState(null);
   const [deletingProfile, setDeletingProfile] = useState(null);
 
+  const sortedProfiles = useMemo(() =>
+    [...(profilesData?.profiles ?? [])].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    ),
+    [profilesData?.profiles]
+  );
+
   function handleProfileUpdated(profile) {
     queryClient.invalidateQueries({ queryKey: queryKeys.bankProfiles() });
     if (selectedProfile === editingProfile?.name) {
@@ -751,7 +758,7 @@ export function ImportPage() {
                     className="flex-1"
                   >
                     <NativeSelectOption value="">{profilesLoading ? "Loading…" : "Select profile…"}</NativeSelectOption>
-                    {(profilesData?.profiles ?? []).map((p) => (
+                    {sortedProfiles.map((p) => (
                       <NativeSelectOption key={p.name} value={p.name}>{p.name}</NativeSelectOption>
                     ))}
                   </NativeSelect>
@@ -780,7 +787,7 @@ export function ImportPage() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => setEditingProfile(
-                                profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                                sortedProfiles.find((p) => p.name === selectedProfile) ?? null
                               )}
                             >
                               <Pencil />
@@ -797,7 +804,7 @@ export function ImportPage() {
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => setDeletingProfile(
-                                profilesData?.profiles?.find((p) => p.name === selectedProfile) ?? null
+                                sortedProfiles.find((p) => p.name === selectedProfile) ?? null
                               )}
                             >
                               <Trash2 />
