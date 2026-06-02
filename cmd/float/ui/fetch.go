@@ -935,3 +935,33 @@ func CompleteStripeLinkingCmd(client floatv1connect.LedgerServiceClient, in *flo
 		return StripeCompleteLinkingMsg{Err: err}
 	}
 }
+
+type TemplatesMsg struct {
+	Templates []*floatv1.TransactionTemplate
+	Err       error
+}
+
+type DeleteTemplateMsg struct {
+	Err error
+}
+
+func FetchTemplates(client floatv1connect.LedgerServiceClient) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
+		resp, err := client.ListTemplates(ctx, connect.NewRequest(&floatv1.ListTemplatesRequest{}))
+		if err != nil {
+			return TemplatesMsg{Err: err}
+		}
+		return TemplatesMsg{Templates: resp.Msg.Templates}
+	}
+}
+
+func DeleteTemplateCmd(client floatv1connect.LedgerServiceClient, id string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := rpcContext()
+		defer cancel()
+		_, err := client.DeleteTemplate(ctx, connect.NewRequest(&floatv1.DeleteTemplateRequest{Id: id}))
+		return DeleteTemplateMsg{Err: err}
+	}
+}
