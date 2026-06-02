@@ -10,7 +10,7 @@ function Table({
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-xs", className)}
+        className={cn("w-max min-w-full caption-bottom text-xs", className)}
         {...props} />
     </div>
   );

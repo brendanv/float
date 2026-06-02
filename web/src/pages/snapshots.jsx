@@ -55,7 +55,7 @@ function FileDiffBlock({ file }) {
       ? `${file.oldPath} → ${file.path}`
       : file.path;
   return (
-    <div className="rounded-md border">
+    <div className="min-w-0 overflow-hidden rounded-md border">
       <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-mono">
         <ChangeBadge type={file.changeType} />
         <span className="truncate">{label}</span>
@@ -154,6 +154,7 @@ export function SnapshotsPage() {
           {fetchError && <ErrorBanner error={fetchError} />}
           {snapshotsData && (
             snapshotsData.snapshots?.length > 0 ? (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -194,6 +195,7 @@ export function SnapshotsPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             ) : (
               <EmptyState
                 icon={History}

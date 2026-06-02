@@ -154,7 +154,7 @@ export function MonthlyDashboardPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+              <table className="border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-border">
                     <th
