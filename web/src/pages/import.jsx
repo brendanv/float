@@ -7,7 +7,7 @@ import {
   getFilteredRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { Plus, CircleCheck, Pencil, Trash2, Tag, Upload } from "lucide-react";
+import { Plus, CircleCheck, Pencil, Trash2, Tag, Upload, ClipboardPaste } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -510,6 +510,8 @@ export function ImportPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState("");
   const [csvFile, setCsvFile] = useState(null);
+  const [showPasteInput, setShowPasteInput] = useState(false);
+  const [csvPasteText, setCsvPasteText] = useState("");
   const [candidates, setCandidates] = useState(null);
   const [csvData, setCsvData] = useState(null);
   const [previewing, setPreviewing] = useState(false);
@@ -541,14 +543,19 @@ export function ImportPage() {
 
   async function handlePreview(e) {
     e.preventDefault();
-    if (!csvFile || !selectedProfile) return;
+    if ((!csvFile && !csvPasteText) || !selectedProfile) return;
     setPreviewError(null);
     setImportResult(null);
     setCandidates(null);
     setPreviewing(true);
     try {
-      const bytes = await csvFile.arrayBuffer();
-      const csvBytes = new Uint8Array(bytes);
+      let csvBytes;
+      if (showPasteInput && csvPasteText) {
+        csvBytes = new TextEncoder().encode(csvPasteText);
+      } else {
+        const bytes = await csvFile.arrayBuffer();
+        csvBytes = new Uint8Array(bytes);
+      }
       setCsvData(csvBytes);
       const res = await ledgerClient.previewImport({
         csvData: csvBytes,
@@ -796,57 +803,85 @@ export function ImportPage() {
                   )}
                 </div>
               </FormField>
-            <div
-              className={cn(
-                "mt-4 border-2 border-dashed rounded-md p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
-                isDragging
-                  ? "border-primary bg-primary/5"
-                  : csvFile
-                  ? "border-primary/40 bg-muted/30"
-                  : "border-border hover:border-primary/50 hover:bg-muted/30"
-              )}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false); }}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragging(false);
-                const dropped = Array.from(e.dataTransfer.files).find(
-                  (f) => f.name.endsWith(".csv") || f.type === "text/csv"
-                );
-                if (dropped) setCsvFile(dropped);
-              }}
-            >
-              <div className="mb-3 bg-muted rounded-full p-3">
-                <Upload className="size-5 text-muted-foreground" data-icon />
+            {!showPasteInput ? (
+              <div
+                className={cn(
+                  "mt-4 border-2 border-dashed rounded-md p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
+                  isDragging
+                    ? "border-primary bg-primary/5"
+                    : csvFile
+                    ? "border-primary/40 bg-muted/30"
+                    : "border-border hover:border-primary/50 hover:bg-muted/30"
+                )}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const dropped = Array.from(e.dataTransfer.files).find(
+                    (f) => f.name.endsWith(".csv") || f.type === "text/csv"
+                  );
+                  if (dropped) setCsvFile(dropped);
+                }}
+              >
+                <div className="mb-3 bg-muted rounded-full p-3">
+                  <Upload className="size-5 text-muted-foreground" data-icon />
+                </div>
+                {csvFile ? (
+                  <>
+                    <p className="text-sm font-medium text-foreground truncate max-w-xs">{csvFile.name}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{Math.round(csvFile.size / 1024)} KB</p>
+                    <p className="text-xs text-primary mt-2">Click to change file</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-foreground">Drop your CSV file here</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      or <span className="text-primary font-medium">click to browse</span>
+                    </p>
+                  </>
+                )}
+                <input
+                  ref={fileInputRef}
+                  id="csv-file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => setCsvFile(e.target.files[0] || null)}
+                />
               </div>
-              {csvFile ? (
-                <>
-                  <p className="text-sm font-medium text-foreground truncate max-w-xs">{csvFile.name}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{Math.round(csvFile.size / 1024)} KB</p>
-                  <p className="text-xs text-primary mt-2">Click to change file</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-medium text-foreground">Drop your CSV file here</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    or <span className="text-primary font-medium">click to browse</span>
-                  </p>
-                </>
-              )}
-              <input
-                ref={fileInputRef}
-                id="csv-file"
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={(e) => setCsvFile(e.target.files[0] || null)}
-              />
-            </div>
-            <FormActions>
+            ) : (
+              <div className="mt-4">
+                <Textarea
+                  placeholder="Paste CSV content here…"
+                  className="font-mono text-xs min-h-48 resize-y"
+                  value={csvPasteText}
+                  onChange={(e) => setCsvPasteText(e.target.value)}
+                />
+              </div>
+            )}
+            <FormActions align="between">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowPasteInput((v) => !v);
+                  setCsvFile(null);
+                  setCsvPasteText("");
+                }}
+                className="text-muted-foreground gap-1.5"
+              >
+                {showPasteInput ? (
+                  <><Upload className="size-3.5" /> Upload a file instead</>
+                ) : (
+                  <><ClipboardPaste className="size-3.5" /> Paste CSV instead</>
+                )}
+              </Button>
               <Button
                 type="submit"
-                disabled={!csvFile || !selectedProfile}
+                disabled={(!csvFile && !csvPasteText) || !selectedProfile}
                 isLoading={previewing}
                 loadingText="Previewing…"
               >

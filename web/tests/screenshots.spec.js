@@ -324,6 +324,16 @@ test("import page", async ({ page }) => {
   await page.screenshot({ path: "test-results/import.png", fullPage: true });
 });
 
+test("import page - paste CSV mode", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector("select, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  // Click the "Paste CSV instead" toggle
+  await page.locator("button", { hasText: "Paste CSV instead" }).click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/import-paste-csv.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 600 } });
+});
+
 test("import page - profile selected with edit delete buttons", async ({ page }) => {
   await page.goto("/#/import");
   await page.waitForSelector('[data-testid="select-trigger"], button[role="combobox"], [role="combobox"]', { timeout: 5000 }).catch(() => {});
