@@ -602,6 +602,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 	}
 
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
+	importBatchID := "stripe-all/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	var importedFIDs []string
 	importedAccounts := make(map[string]bool)
 
@@ -641,8 +642,6 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				}
 				return errMsg
 			}
-
-			importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 
 			for _, txnID := range sel.StripeTransactionIds {
 				if importedStripeTxnSet[txnID] {
