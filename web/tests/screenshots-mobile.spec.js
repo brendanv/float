@@ -41,3 +41,19 @@ test("prices page mobile", async ({ page }) => {
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/mobile-prices.png", fullPage: true });
 });
+
+test("import page mobile", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector("select, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/mobile-import.png", fullPage: true });
+});
+
+test("import page paste CSV mode mobile", async ({ page }) => {
+  await page.goto("/#/import");
+  await page.waitForSelector("select, .loading", { timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.locator("button", { hasText: "Paste CSV instead" }).click();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: "test-results/mobile-import-paste-csv.png", fullPage: true });
+});

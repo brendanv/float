@@ -861,7 +861,7 @@ export function ImportPage() {
                 />
               </div>
             )}
-            <div className="mt-2 flex justify-end">
+            <FormActions align="between">
               <Button
                 type="button"
                 variant="ghost"
@@ -879,8 +879,6 @@ export function ImportPage() {
                   <><ClipboardPaste className="size-3.5" /> Paste CSV instead</>
                 )}
               </Button>
-            </div>
-            <FormActions>
               <Button
                 type="submit"
                 disabled={(!csvFile && !csvPasteText) || !selectedProfile}
