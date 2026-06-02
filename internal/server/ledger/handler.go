@@ -933,6 +933,95 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 	}), nil
 }
 
+func (h *Handler) AddTransactions(ctx context.Context, req *connect.Request[floatv1.AddTransactionsRequest]) (*connect.Response[floatv1.AddTransactionsResponse], error) {
+	if len(req.Msg.Transactions) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("at least one transaction is required"))
+	}
+
+	inputs := make([]journal.TransactionInput, 0, len(req.Msg.Transactions))
+	for i, t := range req.Msg.Transactions {
+		if t.Description == "" {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("transaction %d: description is required", i))
+		}
+		if len(t.Postings) < 2 {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("transaction %d: at least 2 postings are required", i))
+		}
+		for j, p := range t.Postings {
+			if p.Account == "" {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("transaction %d posting %d: account is required", i, j))
+			}
+		}
+
+		var date time.Time
+		if t.Date == "" {
+			date = time.Now().UTC().Truncate(24 * time.Hour)
+		} else {
+			var err error
+			date, err = time.Parse("2006-01-02", t.Date)
+			if err != nil {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("transaction %d: invalid date %q: must be YYYY-MM-DD", i, t.Date))
+			}
+		}
+
+		postings := make([]journal.PostingInput, len(t.Postings))
+		for j, p := range t.Postings {
+			postings[j] = journal.PostingInput{
+				Account:          p.Account,
+				Commodity:        p.Commodity,
+				Quantity:         p.Quantity,
+				Comment:          p.Comment,
+				Cost:             protoToJournalCost(p.Cost),
+				BalanceAssertion: protoToJournalAssertion(p.BalanceAssertion),
+			}
+		}
+		desc := t.Description
+		if t.Payee != "" {
+			desc = t.Payee + " | " + desc
+		}
+		inputs = append(inputs, journal.TransactionInput{
+			Date:        date,
+			Description: desc,
+			Comment:     t.Comment,
+			Tags:        t.Tags,
+			Postings:    postings,
+			Status:      "Cleared",
+		})
+	}
+
+	fids := make([]string, 0, len(inputs))
+	err := h.lock.Do(ctx, fmt.Sprintf("add %d transactions", len(inputs)), func() error {
+		for _, input := range inputs {
+			fid, e := journal.AppendTransaction(ctx, h.hl, h.dataDir, input)
+			if e != nil {
+				return e
+			}
+			fids = append(fids, fid)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, rpcErr(ctx, err, "add transactions failed")
+	}
+
+	txns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(fids))
+	if err != nil {
+		return nil, rpcErr(ctx, err, "fetch new transactions failed")
+	}
+	byFID := make(map[string]hledger.Transaction, len(txns))
+	for _, t := range txns {
+		byFID[t.FID] = t
+	}
+	result := make([]*floatv1.Transaction, 0, len(fids))
+	for _, fid := range fids {
+		if t, ok := byFID[fid]; ok {
+			result = append(result, toProtoTransaction(t))
+		}
+	}
+	return connect.NewResponse(&floatv1.AddTransactionsResponse{
+		Transactions: result,
+	}), nil
+}
+
 func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[floatv1.UpdateTransactionRequest]) (*connect.Response[floatv1.UpdateTransactionResponse], error) {
 	fid := req.Msg.Fid
 	if fid == "" {
