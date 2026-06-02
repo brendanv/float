@@ -40,6 +40,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -210,11 +217,11 @@ function CreateProfileModal({ open, onCreated, onClose }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent size="lg" className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create Bank Profile</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <ResponsiveDialogContent size="lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Create Bank Profile</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <Form onSubmit={handleSubmit}>
           {error && <ErrorBanner error={error} />}
           <FormRow cols={2}>
@@ -340,7 +347,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
             />
           </FormField>
 
-          <DialogFooter>
+          <ResponsiveDialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button
               type="submit"
@@ -350,10 +357,10 @@ function CreateProfileModal({ open, onCreated, onClose }) {
             >
               Create Profile
             </Button>
-          </DialogFooter>
+          </ResponsiveDialogFooter>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 
@@ -394,11 +401,11 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent size="lg">
-        <DialogHeader>
-          <DialogTitle>Edit Bank Profile</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <ResponsiveDialogContent size="lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Edit Bank Profile</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         {loading ? (
           <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
         ) : (
@@ -425,16 +432,16 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
                 onChange={(e) => setRulesContent(e.target.value)}
               />
             </FormField>
-            <DialogFooter>
+            <ResponsiveDialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
               <Button type="submit" isLoading={saving} loadingText="Saving…">
                 Save Changes
               </Button>
-            </DialogFooter>
+            </ResponsiveDialogFooter>
           </Form>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 
