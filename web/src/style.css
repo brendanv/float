@@ -217,3 +217,21 @@
     font-size: 16px;
   }
 }
+
+/*
+ * Mobile WebKit gives native date inputs a large intrinsic control width.
+ * Keep the control and its internal date value shrinkable so it cannot push
+ * finance form cards wider than the viewport.
+ */
+input[type="date"] {
+  max-width: 100%;
+  min-width: 0;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-width: 0;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  flex-shrink: 0;
+}
