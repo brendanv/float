@@ -283,7 +283,7 @@ export function PricesPage() {
       <PageCard title="Add Price">
         <Form onSubmit={handleSubmit}>
           {formError && <ErrorBanner error={formError} />}
-          <FormRow cols={4}>
+          <FormRow cols={4} className="sm:grid-cols-2 lg:grid-cols-4">
             <FormField label="Date" htmlFor="price-date">
               <Input
                 id="price-date"
@@ -354,7 +354,7 @@ export function PricesPage() {
               )}
             </div>
           )}
-          <FormRow cols={4}>
+          <FormRow cols={4} className="sm:grid-cols-2 lg:grid-cols-4">
             <FormField label="Commodity / Commodities" htmlFor="backfill-commodities">
               <Input
                 id="backfill-commodities"
