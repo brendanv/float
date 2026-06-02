@@ -527,6 +527,7 @@ export function RulesPage() {
           )}
           {rulesData && rules.length > 0 && (
             <>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -570,6 +571,7 @@ export function RulesPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
               <TablePagination table={table} pageSizeOptions={[5, 10, 25, 50]} />
             </>
           )}
@@ -624,7 +626,7 @@ export function RulesPage() {
             )}
           </DrawerHeader>
           {applyPreviews && applyPreviews.length > 0 && (
-            <div className="overflow-y-auto px-4">
+            <div className="overflow-x-auto overflow-y-auto px-4">
               <Table>
                 <TableHeader>
                   <TableRow>

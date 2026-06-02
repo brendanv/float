@@ -216,6 +216,7 @@ function CandidatesTable({ candidates, selectedIds, onToggle, showAccount }) {
   });
 
   return (
+    <div className="overflow-x-auto">
     <Table>
       <TableHeader>
         {table.getHeaderGroups().map((headerGroup) => (
@@ -249,6 +250,7 @@ function CandidatesTable({ candidates, selectedIds, onToggle, showAccount }) {
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 }
 

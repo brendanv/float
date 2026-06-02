@@ -329,6 +329,7 @@ export function PayeesPage() {
                 <p className="text-sm text-muted-foreground">No payees found.</p>
               ) : (
                 <>
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       {payeeTable.getHeaderGroups().map((hg) => (
@@ -358,6 +359,7 @@ export function PayeesPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                   <TablePagination table={payeeTable} />
                 </>
               )}
@@ -416,6 +418,7 @@ export function PayeesPage() {
                     </p>
                   ) : (
                     <>
+                      <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           {descTable.getHeaderGroups().map((hg) => (
@@ -448,6 +451,7 @@ export function PayeesPage() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                       <TablePagination table={descTable} />
                     </>
                   )}

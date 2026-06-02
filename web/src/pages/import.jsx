@@ -959,7 +959,7 @@ export function ImportPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto p-0">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (

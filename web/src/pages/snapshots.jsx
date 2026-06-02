@@ -154,6 +154,7 @@ export function SnapshotsPage() {
           {fetchError && <ErrorBanner error={fetchError} />}
           {snapshotsData && (
             snapshotsData.snapshots?.length > 0 ? (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -194,6 +195,7 @@ export function SnapshotsPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             ) : (
               <EmptyState
                 icon={History}

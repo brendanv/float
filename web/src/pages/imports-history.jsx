@@ -143,6 +143,7 @@ function ImportsTable({ imports, onViewFile }) {
 
   return (
     <>
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -182,6 +183,7 @@ function ImportsTable({ imports, onViewFile }) {
           ))}
         </TableBody>
       </Table>
+      </div>
       <TablePagination table={table} />
     </>
   );

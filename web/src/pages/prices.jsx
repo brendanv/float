@@ -116,7 +116,7 @@ function PriceHistoryTable({ prices, onDelete }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor="filter-commodity" className="whitespace-nowrap text-sm">
           Filter by commodity:
         </Label>
@@ -129,10 +129,11 @@ function PriceHistoryTable({ prices, onDelete }) {
             setCommodityFilter(e.target.value);
             setPagination((p) => ({ ...p, pageIndex: 0 }));
           }}
-          className="h-8 w-40"
+          className="h-8 w-40 min-w-0"
         />
       </div>
 
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -168,6 +169,7 @@ function PriceHistoryTable({ prices, onDelete }) {
           )}
         </TableBody>
       </Table>
+      </div>
 
       <TablePagination table={table} />
     </div>

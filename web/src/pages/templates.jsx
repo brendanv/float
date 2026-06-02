@@ -385,6 +385,7 @@ export function TemplatesPage() {
             />
           ) : (
             <>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((hg) => (
@@ -412,6 +413,7 @@ export function TemplatesPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
               <TablePagination table={table} />
             </>
           )}

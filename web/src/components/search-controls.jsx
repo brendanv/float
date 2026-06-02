@@ -154,10 +154,10 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" })
       />
       <PopoverContent
         align={align}
-        className="w-auto flex-row gap-0 p-0"
+        className={cn("w-auto gap-0 p-0", isMobile ? "flex-col" : "flex-row")}
       >
         {/* Presets sidebar */}
-        <div className="flex min-w-[140px] flex-col border-r p-2">
+        <div className={cn("flex flex-col p-2", isMobile ? "border-b" : "min-w-[140px] border-r")}>
           <p className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">Presets</p>
           {DATE_PRESETS.map((p) => {
             const { from, to } = p.fn();

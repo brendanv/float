@@ -225,7 +225,7 @@ export function BalanceAssertionsPage() {
           description="No asset or liability accounts with transactions were found."
         />
       ) : (
-        <PageCard contentClassName="p-0">
+        <PageCard contentClassName="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
