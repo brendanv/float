@@ -157,63 +157,51 @@ export function BulkEntryPage() {
     setSubmitting(true);
 
     const postings = selectedTemplate?.postings ?? [];
+
+    // Validate all rows client-side first
     let anyError = false;
-
-    const updatedRows = [...rows];
-    for (let i = 0; i < updatedRows.length; i++) {
-      const row = updatedRows[i];
+    const validatedRows = rows.map((row) => {
       if (!row.date || !row.description.trim()) {
-        updatedRows[i] = { ...row, error: "Date and description are required." };
         anyError = true;
-        continue;
+        return { ...row, error: "Date and description are required." };
       }
+      if (postings.length < 2) {
+        anyError = true;
+        return { ...row, error: "Select a template to define postings." };
+      }
+      return { ...row, error: null };
+    });
 
-      // Build postings list
-      let txnPostings;
-      if (postings.length >= 2) {
-        txnPostings = postings.map((p) => ({
-          account: p.account,
-          commodity: p.commodity || "USD",
-          quantity: row.amounts[p.account] ?? "",
-        }));
-      } else {
-        // No template: try to build from amounts (freeform not fully supported in bulk entry without template)
-        updatedRows[i] = { ...row, error: "Select a template to define postings." };
-        anyError = true;
-        continue;
-      }
-
-      try {
-        await ledgerClient.addTransaction({
-          date: row.date,
-          description: row.description.trim(),
-          postings: txnPostings.map((p) => ({
-            account: p.account,
-            commodity: p.quantity ? p.commodity : "",
-            quantity: p.quantity,
-          })),
-        });
-        updatedRows[i] = { ...row, submitted: true, error: null };
-      } catch (err) {
-        updatedRows[i] = { ...row, error: err.message || String(err) };
-        anyError = true;
-      }
-      setRows([...updatedRows]);
+    if (anyError) {
+      setRows(validatedRows);
+      setSubmitting(false);
+      return;
     }
 
-    setSubmitting(false);
+    // Build all transactions for a single batch RPC call
+    const transactions = rows.map((row) => ({
+      date: row.date,
+      description: row.description.trim(),
+      postings: postings.map((p) => ({
+        account: p.account,
+        commodity: row.amounts[p.account] ? (p.commodity || "USD") : "",
+        quantity: row.amounts[p.account] ?? "",
+      })),
+    }));
 
-    if (!anyError) {
+    try {
+      await ledgerClient.addTransactions({ transactions });
+      setRows(rows.map((r) => ({ ...r, submitted: true, error: null })));
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
       queryClient.invalidateQueries({ queryKey: ["balances"] });
       queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
       setAllDone(true);
-    } else {
-      // Invalidate even on partial success
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["balances"] });
+    } catch (err) {
+      setGlobalError(err.message || String(err));
     }
+
+    setSubmitting(false);
   }
 
   const pendingCount = rows.filter((r) => !r.submitted).length;

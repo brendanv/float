@@ -21,7 +21,7 @@ func BatchDeleteTransactions(ctx context.Context, client *hledger.Client, fids [
 	}
 	total := int32(len(fids))
 
-	txns, err := client.Transactions(ctx, buildFIDQuery(fids))
+	txns, err := client.Transactions(ctx, BuildFIDQuery(fids))
 	if err != nil {
 		return fmt.Errorf("journal: batch delete: lookup: %w", err)
 	}
@@ -75,9 +75,9 @@ func BatchDeleteTransactions(ctx context.Context, client *hledger.Client, fids [
 	return nil
 }
 
-// buildFIDQuery constructs an hledger query matching any of the given FIDs.
+// BuildFIDQuery constructs an hledger query matching any of the given FIDs.
 // For multiple FIDs, uses a regex alternation: code:^(fid1|fid2|...)$
-func buildFIDQuery(fids []string) string {
+func BuildFIDQuery(fids []string) string {
 	if len(fids) == 1 {
 		return "code:" + fids[0]
 	}
