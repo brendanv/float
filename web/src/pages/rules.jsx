@@ -393,6 +393,7 @@ export function RulesPage() {
                       value={field.state.value}
                       onChange={(v) => field.handleChange(v)}
                       accounts={accountsData?.accounts ?? []}
+                      includeAccountPrefixes={["expenses", "income"]}
                       placeholder="expenses:shopping"
                     />
                   </FormField>
@@ -406,6 +407,7 @@ export function RulesPage() {
                       value={field.state.value}
                       onChange={(v) => field.handleChange(v)}
                       accounts={accountsData?.accounts ?? []}
+                      includeAccountPrefixes={["assets", "liabilities"]}
                       placeholder="all accounts"
                     />
                   </FormField>
