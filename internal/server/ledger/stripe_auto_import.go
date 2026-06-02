@@ -144,10 +144,10 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	type accountBatch struct {
 		linked  config.StripeLinkedAccount
 		newTxns []stripeClient.Transaction
-		batchID string
 	}
 
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
+	batchID := "stripe-auto/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	var batches []accountBatch
 	for i, linked := range eligible {
 		if fetched[i].err != nil {
@@ -168,7 +168,6 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		batches = append(batches, accountBatch{
 			linked:  linked,
 			newTxns: newTxns,
-			batchID: "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID(),
 		})
 	}
 
@@ -177,7 +176,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	if err := h.lock.Do(ctx, "stripe daily auto-import", func() error {
 		for _, batch := range batches {
 			for _, st := range batch.newTxns {
-				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batch.batchID, h.cfg.Location())
+				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batchID, h.cfg.Location())
 				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
 				if _, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput); writeErr != nil {
 					return fmt.Errorf("write %s: %w", st.ID, writeErr)
