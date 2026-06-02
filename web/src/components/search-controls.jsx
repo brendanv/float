@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { filterAndSortAccountNames } from "@/lib/accounts";
 import { DATE_PRESETS, PAYEE_NONE } from "./search-presets.js";
 
 function pad2(n) {
@@ -261,6 +262,7 @@ function DebouncedSearch({ value, onChange }) {
 
 function AccountCombobox({ value, onChange, accounts }) {
   const [open, setOpen] = useState(false);
+  const accountOptions = filterAndSortAccountNames(accounts);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -293,14 +295,14 @@ function AccountCombobox({ value, onChange, accounts }) {
               >
                 All accounts
               </CommandItem>
-              {(accounts || []).map((a) => (
+              {accountOptions.map((accountName) => (
                 <CommandItem
-                  key={a.fullName}
-                  value={a.fullName}
-                  onSelect={() => { onChange(a.fullName); setOpen(false); }}
-                  data-checked={value === a.fullName ? "true" : undefined}
+                  key={accountName}
+                  value={accountName}
+                  onSelect={() => { onChange(accountName); setOpen(false); }}
+                  data-checked={value === accountName ? "true" : undefined}
                 >
-                  {a.fullName}
+                  {accountName}
                 </CommandItem>
               ))}
             </CommandGroup>

@@ -2,10 +2,25 @@ import { X, Plus, Tag, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
+import { filterAndSortAccountNames } from "@/lib/accounts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function AccountInput({ value, onChange, accounts, placeholder = "Account", id, className }) {
-  const options = (accounts || []).map((a) => a.fullName);
+export function AccountInput({
+  value,
+  onChange,
+  accounts,
+  placeholder = "Account",
+  id,
+  className,
+  includePrefixes = [],
+  excludePrefixes = [],
+  includeAccountPrefixes = includePrefixes,
+  excludeAccountPrefixes = excludePrefixes,
+}) {
+  const options = filterAndSortAccountNames(accounts, {
+    includePrefixes: includeAccountPrefixes,
+    excludePrefixes: excludeAccountPrefixes,
+  });
   return (
     <Combobox
       id={id}

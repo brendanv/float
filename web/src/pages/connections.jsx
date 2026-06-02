@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { filterAndSortAccountNames } from "../lib/accounts.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
@@ -66,6 +67,9 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
   }
 
   const allMapped = fcAccounts.every((a) => mappings[a.id]?.hledgerAccount);
+  const accountOptions = filterAndSortAccountNames(accountDeclarations, {
+    includePrefixes: ["assets", "liabilities"],
+  });
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -106,7 +110,7 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
                 <Combobox
                   value={mappings[a.id]?.hledgerAccount || ""}
                   onChange={(v) => setMapping(a.id, "hledgerAccount", v)}
-                  options={(accountDeclarations ?? []).map((d) => d.name)}
+                  options={accountOptions}
                   placeholder="Select account…"
                   searchPlaceholder="Search accounts…"
                   emptyMessage="No matching account."
