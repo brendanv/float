@@ -17,6 +17,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from "@/components/ui/native-select";
 import { CheckCircle, XCircle, Circle, CreditCard, Repeat, ChevronDown, Bot, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useInitializedState } from "../hooks/use-initialized-state.js";
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -85,7 +86,7 @@ export function SettingsPage() {
     queryFn: () => ledgerClient.getGeneralConfig({}),
   });
 
-  const [timezoneInput, setTimezoneInput] = useState(null); // null = not yet initialized
+  const [timezoneInput, setTimezoneInput] = useInitializedState(generalData?.timezone || "", !!generalData);
   const [timezoneMutationError, setTimezoneMutationError] = useState(null);
   const [timezoneSaved, setTimezoneSaved] = useState(false);
 
@@ -102,10 +103,6 @@ export function SettingsPage() {
       setTimezoneSaved(false);
     },
   });
-
-  if (generalData && timezoneInput === null) {
-    setTimezoneInput(generalData.timezone || "");
-  }
 
   function handleTimezoneSave(e) {
     e.preventDefault();
@@ -193,7 +190,7 @@ export function SettingsPage() {
   }
 
   // --- AI Prompt ---
-  const [promptInput, setPromptInput] = useState(null); // null = not yet initialized from server
+  const [promptInput, setPromptInput] = useInitializedState(aiData?.prompt ?? "", !!aiData);
   const [promptMutationError, setPromptMutationError] = useState(null);
   const [promptSaved, setPromptSaved] = useState(false);
 
@@ -211,11 +208,6 @@ export function SettingsPage() {
     },
   });
 
-  // Initialise textarea from server data once loaded (only on first load).
-  if (aiData && promptInput === null) {
-    setPromptInput(aiData.prompt ?? "");
-  }
-
   function handlePromptSave(e) {
     e.preventDefault();
     setPromptMutationError(null);
@@ -224,15 +216,8 @@ export function SettingsPage() {
   }
 
   // --- Collapsible state (null = not yet initialized; defaults to open only when enabled) ---
-  const [stripeOpen, setStripeOpen] = useState(null);
-  const [aiOpen, setAiOpen] = useState(null);
-
-  if (stripeData && stripeOpen === null) {
-    setStripeOpen(stripeData.enabled);
-  }
-  if (aiData && aiOpen === null) {
-    setAiOpen(aiData.enabled);
-  }
+  const [stripeOpen, setStripeOpen] = useInitializedState(stripeData?.enabled ?? false, !!stripeData);
+  const [aiOpen, setAiOpen] = useInitializedState(aiData?.enabled ?? false, !!aiData);
 
   return (
     <div className="flex flex-col gap-6">
