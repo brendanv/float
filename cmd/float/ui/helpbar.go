@@ -420,6 +420,34 @@ func (PayeesAssignKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{keySetPayee, keyEsc}}
 }
 
+var keyOpenDetail = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details"))
+
+// TemplatesListKeyMap is for the templates tab in list mode.
+type TemplatesListKeyMap struct{}
+
+func (TemplatesListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyTab, keyNav, keyOpenDetail, keyDelete, keyHelp}
+}
+func (TemplatesListKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyNav, keyOpenDetail, keyDelete, keyRetry},
+	}
+}
+
+// TemplatesDetailKeyMap is for the templates tab detail view.
+type TemplatesDetailKeyMap struct{}
+
+func (TemplatesDetailKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{keyQuit, keyDelete, keyBack, keyHelp}
+}
+func (TemplatesDetailKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyDelete, keyBack},
+	}
+}
+
 var (
 	keyFetchOne  = key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fetch"))
 	keyFetchAll  = key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "fetch all"))
