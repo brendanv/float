@@ -9,14 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogClose,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 
@@ -121,16 +121,16 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
   const canAnalyze = sourceType !== "account" || accountName.trim().length > 0;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+    <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-2xl">
         {step === "source" && (
           <>
-            <DialogHeader>
-              <DialogTitle>Suggest Rules</DialogTitle>
-              <DialogDescription>
+            <ResponsiveDialogHeader>
+              <ResponsiveDialogTitle>Suggest Rules</ResponsiveDialogTitle>
+              <ResponsiveDialogDescription>
                 Choose which transactions to analyze for rule suggestions.
-              </DialogDescription>
-            </DialogHeader>
+              </ResponsiveDialogDescription>
+            </ResponsiveDialogHeader>
             <div className="flex flex-col gap-4">
               {error && <ErrorBanner error={error} />}
               <FormField label="Transaction source">
@@ -155,10 +155,10 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
                 </FormField>
               )}
             </div>
-            <DialogFooter>
-              <DialogClose asChild>
+            <ResponsiveDialogFooter>
+              <ResponsiveDialogClose asChild>
                 <Button variant="outline" size="sm" disabled={loading}>Cancel</Button>
-              </DialogClose>
+              </ResponsiveDialogClose>
               <Button
                 size="sm"
                 onClick={handleAnalyze}
@@ -168,20 +168,20 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
               >
                 Analyze
               </Button>
-            </DialogFooter>
+            </ResponsiveDialogFooter>
           </>
         )}
 
         {step === "suggestions" && (
           <>
-            <DialogHeader>
-              <DialogTitle>Suggested Rules</DialogTitle>
-              <DialogDescription>
+            <ResponsiveDialogHeader>
+              <ResponsiveDialogTitle>Suggested Rules</ResponsiveDialogTitle>
+              <ResponsiveDialogDescription>
                 {suggestions.length === 0
                   ? "No rules could be suggested for the selected transactions."
                   : `${suggestions.length} rule(s) suggested. Select the ones you'd like to create.`}
-              </DialogDescription>
-            </DialogHeader>
+              </ResponsiveDialogDescription>
+            </ResponsiveDialogHeader>
             {suggestions.length > 0 && (
               <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
                 <div className="flex items-center gap-2 border-b pb-1">
@@ -245,13 +245,13 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
               </div>
             )}
             {saveError && <ErrorBanner error={saveError} />}
-            <DialogFooter>
+            <ResponsiveDialogFooter>
               <Button variant="ghost" size="sm" onClick={() => setStep("source")} disabled={saving}>
                 ← Back
               </Button>
-              <DialogClose asChild>
+              <ResponsiveDialogClose asChild>
                 <Button variant="outline" size="sm" disabled={saving}>Cancel</Button>
-              </DialogClose>
+              </ResponsiveDialogClose>
               {suggestions.length > 0 && (
                 <Button
                   size="sm"
@@ -263,10 +263,10 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
                   Add {selected.size} Rule(s)
                 </Button>
               )}
-            </DialogFooter>
+            </ResponsiveDialogFooter>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

@@ -10,11 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 
 function defaultPostings(initialPostings) {
   if (initialPostings && initialPostings.length >= 2) {
@@ -123,11 +123,11 @@ export function AddTransactionModal({ open, onOpenChange, initialValues }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent size="md" showCloseButton>
-        <DialogHeader>
-          <DialogTitle>{initialValues ? "Duplicate Transaction" : "Add Transaction"}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
+      <ResponsiveDialogContent size="md" showCloseButton>
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{initialValues ? "Duplicate Transaction" : "Add Transaction"}</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         {success ? (
           <div className="flex flex-col items-center gap-2 py-4 text-center">
             <CircleCheck className="size-12 text-success" />
@@ -136,7 +136,7 @@ export function AddTransactionModal({ open, onOpenChange, initialValues }) {
         ) : (
           <AddTransactionForm onSuccess={handleSuccess} initialValues={initialValues} />
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

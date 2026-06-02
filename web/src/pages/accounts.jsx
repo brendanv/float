@@ -17,13 +17,13 @@ import { Button } from "@/components/ui/button";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 
 function buildTree(declarations) {
   const byName = new Map(declarations.map((d) => [d.name, d]));
@@ -400,15 +400,15 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm" showCloseButton>
-        <DialogHeader>
-          <DialogTitle>Rename Account</DialogTitle>
-          <DialogDescription>
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent size="sm" showCloseButton>
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Rename Account</ResponsiveDialogTitle>
+          <ResponsiveDialogDescription>
             Renames an account in the declaration file and across every posting in your
             journal history.
-          </DialogDescription>
-        </DialogHeader>
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
         {error && <ErrorBanner error={error} />}
         {step === "input" ? (
           <Form onSubmit={handleContinue}>
@@ -431,12 +431,12 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
                 className="font-mono"
               />
             </FormField>
-            <DialogFooter>
+            <ResponsiveDialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit">Continue</Button>
-            </DialogFooter>
+            </ResponsiveDialogFooter>
           </Form>
         ) : (
           <div className="flex flex-col gap-4">
@@ -452,7 +452,7 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
               The change is committed to the snapshot history and cannot be undone except by
               restoring a snapshot.
             </p>
-            <DialogFooter>
+            <ResponsiveDialogFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -469,10 +469,10 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
               >
                 Confirm Rename
               </Button>
-            </DialogFooter>
+            </ResponsiveDialogFooter>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

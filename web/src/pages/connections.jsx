@@ -42,12 +42,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 
 function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, onClose }) {
   const [mappings, setMappings] = useState(() =>
@@ -80,11 +80,11 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Map Linked Accounts</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <ResponsiveDialogContent className="sm:max-w-lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>Map Linked Accounts</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         <Form onSubmit={handleSubmit}>
           {error && <ErrorBanner error={error} />}
           <p className="text-xs text-muted-foreground">
@@ -114,7 +114,7 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
               </FormField>
             </div>
           ))}
-          <DialogFooter>
+          <ResponsiveDialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button
               type="submit"
@@ -124,10 +124,10 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
             >
               Save
             </Button>
-          </DialogFooter>
+          </ResponsiveDialogFooter>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 
