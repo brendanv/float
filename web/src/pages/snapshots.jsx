@@ -92,7 +92,7 @@ function SnapshotDiffDialog({ hash, open, onOpenChange }) {
             Diff {hash?.slice(0, 12)}
           </DialogTitle>
         </DialogHeader>
-        <div className="mt-2 flex max-h-[70vh] min-w-0 flex-col gap-4 overflow-y-auto">
+        <div className="mt-2 max-h-[70vh] min-w-0 space-y-4 overflow-y-auto">
           {isLoading && <Loading />}
           {error && <ErrorBanner error={error} />}
           {data && data.files?.length === 0 && (
