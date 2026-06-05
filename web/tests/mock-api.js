@@ -1492,6 +1492,7 @@ function encodeConnectStreamingBody(messages) {
 export async function mockLedgerApi(
   page,
   {
+    transactions: transactionsOverride,
     accountRegisterRows,
     accountDeclarations,
     portfolioHoldings,
@@ -1605,7 +1606,7 @@ export async function mockLedgerApi(
         break;
       }
       case "ListTransactions": {
-        let txs = mockTransactions;
+        let txs = transactionsOverride ?? mockTransactions;
         const query = reqBody.query || [];
         for (const token of query) {
           if (token === "not:desc:.*[|].*") {

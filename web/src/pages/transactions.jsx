@@ -10,6 +10,7 @@ import { TransactionTable } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { inlineEditKeyHandler } from "../components/inline-edit.jsx";
+import { AccountInput } from "../components/posting-fields.jsx";
 import { Page } from "../components/page.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,19 +25,24 @@ import {
 } from "@/components/ui/dialog";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 
-function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSelection }) {
-  const [mode, setMode] = useState("idle"); // 'idle' | 'add-tag' | 'remove-tag' | 'set-payee'
+function BulkActionBar({ selectedFids, transactions, accounts, onActionComplete, onClearSelection }) {
+  const [mode, setMode] = useState("idle"); // 'idle' | 'add-tag' | 'remove-tag' | 'set-payee' | 'set-unknown-account'
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
   const [tagKey, setTagKey] = useState("");
   const [tagValue, setTagValue] = useState("");
   const [removeTagKey, setRemoveTagKey] = useState("");
   const [payee, setPayee] = useState("");
+  const [unknownAccount, setUnknownAccount] = useState("");
   const [error, setError] = useState(null);
 
   const selectedTxs = transactions.filter((tx) => selectedFids.has(tx.fid));
   const count = selectedTxs.length;
   const fids = selectedTxs.map((tx) => tx.fid);
+
+  const allHaveUnknown = selectedTxs.length > 0 && selectedTxs.every((tx) =>
+    (tx.postings || []).some((p) => p.account.toLowerCase().includes("unknown"))
+  );
 
   // Collect union of all tag keys across selected transactions
   const availableTagKeys = [...new Set(selectedTxs.flatMap((tx) => Object.keys(tx.tags || {})))].sort();
@@ -47,6 +53,7 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
     setTagValue("");
     setRemoveTagKey("");
     setPayee("");
+    setUnknownAccount("");
     setError(null);
   }
 
@@ -81,6 +88,11 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
   function bulkSetPayee() {
     if (!payee.trim()) return;
     return runBulk([{ operation: { case: "setPayee", value: { payee: payee.trim() } } }]);
+  }
+
+  function bulkUpdateUnknownAccount() {
+    if (!unknownAccount.trim()) return;
+    return runBulk([{ operation: { case: "updateUnknownAccount", value: { account: unknownAccount.trim() } } }]);
   }
 
   async function bulkDelete() {
@@ -150,6 +162,16 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
           >
             Set payee
           </Button>
+          {allHaveUnknown && (
+            <Button
+              variant="ghost"
+              size="xs"
+              disabled={working}
+              onClick={() => setMode("set-unknown-account")}
+            >
+              Update unknown account
+            </Button>
+          )}
           <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <DialogTrigger asChild>
               <Button
@@ -236,6 +258,24 @@ function BulkActionBar({ selectedFids, transactions, onActionComplete, onClearSe
             autoFocus
           />
           <Button variant="ghost" size="icon-xs" disabled={!payee.trim()} isLoading={working} onClick={bulkSetPayee} title="Apply">
+            <Check className="size-3" />
+          </Button>
+          <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
+            <X className="size-3" />
+          </Button>
+        </>
+      )}
+
+      {mode === "set-unknown-account" && (
+        <>
+          <AccountInput
+            value={unknownAccount}
+            onChange={setUnknownAccount}
+            accounts={accounts}
+            placeholder="Account"
+            className="h-6 w-56"
+          />
+          <Button variant="ghost" size="icon-xs" disabled={!unknownAccount.trim()} isLoading={working} onClick={bulkUpdateUnknownAccount} title="Apply">
             <Check className="size-3" />
           </Button>
           <Button variant="ghost" size="icon-xs" disabled={working} onClick={cancelMode} title="Cancel">
@@ -380,6 +420,7 @@ export function TransactionsPage() {
             <BulkActionBar
               selectedFids={selectedFids}
               transactions={bulkActionTransactions}
+              accounts={accountsData?.accounts || []}
               onActionComplete={onBulkActionComplete}
               onClearSelection={() => setSelectedFids(new Set())}
             />
