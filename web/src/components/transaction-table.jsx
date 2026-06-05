@@ -9,7 +9,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Loader2, Trash2, X, Scale, Plus, Copy } from "lucide-react";
+import { Check, Loader2, Trash2, X, Scale, Plus, Copy, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import {
   Dialog,
@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { TablePagination } from "./table-pagination.jsx";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -917,6 +918,69 @@ const registerColumns = [
   balanceColumn,
 ];
 
+// ── mobile sort controls ───────────────────────────────────────────────────
+
+const TRANSACTION_SORT_FIELDS = [
+  { id: "date", label: "Date" },
+  { id: "description", label: "Description" },
+  { id: "from", label: "From" },
+  { id: "to", label: "To" },
+  { id: "amount", label: "Amount" },
+];
+
+const REGISTER_SORT_FIELDS = [
+  { id: "date", label: "Date" },
+  { id: "description", label: "Description" },
+  { id: "change", label: "Change" },
+  { id: "balance", label: "Balance" },
+];
+
+function MobileSortControls({ sorting, onSortingChange, isRegisterMode }) {
+  const fields = isRegisterMode ? REGISTER_SORT_FIELDS : TRANSACTION_SORT_FIELDS;
+  const active = sorting[0];
+
+  function handleFieldChange(e) {
+    const id = e.target.value;
+    if (!id) {
+      onSortingChange([]);
+    } else {
+      onSortingChange([{ id, desc: active?.desc ?? false }]);
+    }
+  }
+
+  function toggleDirection() {
+    if (!active) return;
+    onSortingChange([{ id: active.id, desc: !active.desc }]);
+  }
+
+  return (
+    <div className="mb-2 flex items-center gap-2 sm:hidden">
+      <span className="shrink-0 text-xs text-muted-foreground">Sort by</span>
+      <NativeSelect size="sm" value={active?.id ?? ""} onChange={handleFieldChange}>
+        <NativeSelectOption value="">Default</NativeSelectOption>
+        {fields.map((f) => (
+          <NativeSelectOption key={f.id} value={f.id}>{f.label}</NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        disabled={!active}
+        onClick={toggleDirection}
+        title={active ? (active.desc ? "Descending — click to sort ascending" : "Ascending — click to sort descending") : "No sort active"}
+      >
+        {!active ? (
+          <ArrowUpDown className="size-3" />
+        ) : active.desc ? (
+          <ArrowDown className="size-3" />
+        ) : (
+          <ArrowUp className="size-3" />
+        )}
+      </Button>
+    </div>
+  );
+}
+
 // ── main component ─────────────────────────────────────────────────────────
 
 export function TransactionTable({
@@ -1037,6 +1101,13 @@ export function TransactionTable({
           </TableBody>
         </Table>
       </div>
+
+      {/* Mobile sort controls */}
+      <MobileSortControls
+        sorting={sorting}
+        onSortingChange={setSorting}
+        isRegisterMode={isRegisterMode}
+      />
 
       {/* Mobile cards */}
       <div className="-mx-4 flex flex-col gap-2 sm:hidden">
