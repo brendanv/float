@@ -344,6 +344,10 @@ message ClearPayeeOperation {}
 
 message DeleteOperation {}
 
+message UpdateUnknownAccountOperation {
+  string account = 1; // replacement account name for postings whose account contains "unknown"
+}
+
 message BulkEditOperation {
   oneof operation {
     MarkReviewedOperation mark_reviewed = 1;
@@ -352,6 +356,7 @@ message BulkEditOperation {
     SetPayeeOperation set_payee = 4;
     ClearPayeeOperation clear_payee = 5;
     DeleteOperation delete = 6;
+    UpdateUnknownAccountOperation update_unknown_account = 7;
   }
 }
 

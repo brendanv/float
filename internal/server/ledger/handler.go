@@ -1575,6 +1575,10 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 			}
 		case *floatv1.BulkEditOperation_ClearPayee:
 			// no additional validation needed
+		case *floatv1.BulkEditOperation_UpdateUnknownAccount:
+			if v.UpdateUnknownAccount.Account == "" {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("operation %d: update_unknown_account account must not be empty", i))
+			}
 		case *floatv1.BulkEditOperation_Delete:
 			deleteOp = true
 		default:
@@ -1632,6 +1636,13 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 						note = *t.Note
 					}
 					input.Description = note
+				case *floatv1.BulkEditOperation_UpdateUnknownAccount:
+					newAcct := v.UpdateUnknownAccount.Account
+					for i, p := range input.Postings {
+						if strings.Contains(strings.ToLower(p.Account), "unknown") {
+							input.Postings[i].Account = newAcct
+						}
+					}
 				}
 			}
 
@@ -2696,11 +2707,16 @@ func bulkEditMessage(fids []string, ops []*floatv1.BulkEditOperation) string {
 			return "clear payee on transaction " + fid
 		case *floatv1.BulkEditOperation_Delete:
 			return "delete transaction " + fid
+		case *floatv1.BulkEditOperation_UpdateUnknownAccount:
+			return fmt.Sprintf("update unknown account to %q in transaction %s", v.UpdateUnknownAccount.Account, fid)
 		}
 	}
 	if len(ops) == 1 {
 		if _, ok := ops[0].Operation.(*floatv1.BulkEditOperation_Delete); ok {
 			return fmt.Sprintf("delete %d transactions", len(fids))
+		}
+		if v, ok := ops[0].Operation.(*floatv1.BulkEditOperation_UpdateUnknownAccount); ok {
+			return fmt.Sprintf("update unknown account to %q in %d transactions", v.UpdateUnknownAccount.Account, len(fids))
 		}
 	}
 	return fmt.Sprintf("bulk edit %d transactions", len(fids))
