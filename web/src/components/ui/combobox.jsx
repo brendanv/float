@@ -84,9 +84,10 @@ export function Combobox({
           </button>
         }
       />
-      <PopoverContent align="start" className="w-(--anchor-width) p-0">
+      <PopoverContent align="start" className="min-w-(--anchor-width) p-0">
         <Command>
           <CommandInput
+            autoFocus
             placeholder={searchPlaceholder ?? `Search…`}
             value={search}
             onValueChange={setSearch}
