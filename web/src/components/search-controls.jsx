@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Check, X, Search, CalendarDays } from "lucide-react";
+import { Check, X, Search, CalendarDays, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile.js";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -329,6 +329,9 @@ export function SearchControls({
   onStatusChange,
   accounts,
   tags,
+  sorting,
+  onSortingChange,
+  sortFields,
 }) {
   const reviewFilter = payee === PAYEE_NONE ? "nopayee" : (status || "all");
 
@@ -337,13 +340,46 @@ export function SearchControls({
   return (
     <div className="mb-4 flex flex-col">
       <div className="flex flex-col border border-border md:flex-row md:items-center">
-        {/* Row 1 on mobile: date picker + search */}
+        {/* Row 1 on mobile: date picker + sort (mobile only) + search */}
         <div className="flex items-center">
           <DateRangePicker
             dateFrom={dateFrom}
             dateTo={dateTo}
             onChange={onDateRangeChange}
           />
+          {sortFields && sorting && onSortingChange && (
+            <div className="flex shrink-0 items-center md:hidden">
+              <Separator orientation="vertical" className="h-5" />
+              <NativeSelect
+                size="sm"
+                value={sorting[0]?.id ?? ""}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (!id) { onSortingChange([]); }
+                  else { onSortingChange([{ id, desc: sorting[0]?.desc ?? false }]); }
+                }}
+                className="[&>select]:border-0 [&>select]:bg-transparent [&>select]:shadow-none [&>select]:focus-visible:ring-0 [&>select:hover]:bg-muted dark:[&>select]:bg-transparent dark:[&>select:hover]:bg-muted"
+              >
+                <NativeSelectOption value="">Default</NativeSelectOption>
+                {sortFields.map((f) => (
+                  <NativeSelectOption key={f.id} value={f.id}>{f.label}</NativeSelectOption>
+                ))}
+              </NativeSelect>
+              {sorting[0] ? (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="shrink-0"
+                  onClick={() => onSortingChange([{ id: sorting[0].id, desc: !sorting[0].desc }])}
+                  title={sorting[0].desc ? "Descending — click for ascending" : "Ascending — click for descending"}
+                >
+                  {sorting[0].desc ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />}
+                </Button>
+              ) : (
+                <ArrowUpDown className="mx-1 size-3 shrink-0 text-muted-foreground/40" />
+              )}
+            </div>
+          )}
           {onSearchChange && (
             <div className="flex flex-1 items-center md:hidden">
               <Separator orientation="vertical" className="h-5" />

@@ -6,7 +6,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { SearchControls } from "../components/search-controls.jsx";
 import { DATE_PRESETS, PAYEE_NONE } from "../components/search-presets.js";
-import { TransactionTable } from "../components/transaction-table.jsx";
+import { TransactionTable, TRANSACTION_SORT_FIELDS, REGISTER_SORT_FIELDS } from "../components/transaction-table.jsx";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { inlineEditKeyHandler } from "../components/inline-edit.jsx";
@@ -274,6 +274,7 @@ export function TransactionsPage() {
   const [payee, setPayee] = useState(routeSearch.payee || "");
   const [search, setSearch] = useState(routeSearch.search || "");
   const [selectedFids, setSelectedFids] = useState(new Set());
+  const [sorting, setSorting] = useState([]);
 
   const isAccountMode = !!account;
 
@@ -371,6 +372,9 @@ export function TransactionsPage() {
         onStatusChange={onFilterChange(setStatus)}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
+        sorting={sorting}
+        onSortingChange={setSorting}
+        sortFields={isAccountMode ? REGISTER_SORT_FIELDS : TRANSACTION_SORT_FIELDS}
       />
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}
@@ -393,6 +397,8 @@ export function TransactionsPage() {
             accounts={accountsData?.accounts || []}
             selectedFids={selectedFids}
             onSelectionChange={setSelectedFids}
+            sorting={sorting}
+            onSortingChange={setSorting}
           />
         </>
       )}
