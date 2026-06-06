@@ -62,6 +62,16 @@ const PORTFOLIO_RANGES = [
   { label: "All", value: "all", months: null },
 ];
 
+const STALE_PRICE_DAYS = 30;
+const VERY_STALE_PRICE_DAYS = 90;
+
+function daysSinceDate(dateStr) {
+  if (!dateStr) return null;
+  const then = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  return Math.floor((now - then) / (1000 * 60 * 60 * 24));
+}
+
 const CHART_COLORS = [
   "#6366f1",
   "#22d3ee",
@@ -618,11 +628,28 @@ const columns = [
         Price Date
       </SortableHeader>
     ),
-    cell: (info) => (
-      <span className="block text-right font-mono text-xs text-muted-foreground">
-        {info.getValue() || "—"}
-      </span>
-    ),
+    cell: (info) => {
+      const dateStr = info.getValue();
+      if (!dateStr) {
+        return (
+          <span className="block text-right font-mono text-xs text-muted-foreground">
+            —
+          </span>
+        );
+      }
+      const days = daysSinceDate(dateStr);
+      const staleClass =
+        days !== null && days > VERY_STALE_PRICE_DAYS
+          ? "text-destructive"
+          : days !== null && days > STALE_PRICE_DAYS
+            ? "text-amber-500 dark:text-amber-400"
+            : "text-muted-foreground";
+      return (
+        <span className={cn("block text-right font-mono text-xs", staleClass)}>
+          {dateStr}
+        </span>
+      );
+    },
     sortingFn: "alphanumeric",
   }),
   columnHelper.accessor("currentValue", {
@@ -784,6 +811,10 @@ export function PortfolioPage() {
   const snapshots = tsData?.snapshots ?? [];
   const valuedCount = holdings.filter((h) => h.currentValue).length;
   const unvaluedCount = holdings.length - valuedCount;
+  const staleCount = holdings.filter((h) => {
+    const days = daysSinceDate(h.priceDate);
+    return h.currentValue && days !== null && days > STALE_PRICE_DAYS;
+  }).length;
 
   const performance = useMemo(
     () => buildPortfolioPerformance(snapshots, holdings),
@@ -884,9 +915,11 @@ export function PortfolioPage() {
                 performance ? gainClass(performance.investmentGain) : undefined
               }
               description={
-                performance
-                  ? "Value change excluding cash flows"
-                  : "No cost basis data"
+                performance && performance.netContributions > 0
+                  ? `Value change excluding cash flows (${performance.investmentGain >= 0 ? "+" : ""}${((performance.investmentGain / performance.netContributions) * 100).toFixed(1)}%)`
+                  : performance
+                    ? "Value change excluding cash flows"
+                    : "No cost basis data"
               }
             />
           </div>
@@ -909,6 +942,18 @@ export function PortfolioPage() {
                 price data.{" "}
                 <Link to="/prices" className="underline">
                   Add prices →
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {staleCount > 0 && (
+            <Card className="col-span-12 border-amber-500/30 bg-amber-500/5">
+              <CardContent className="py-4 text-sm text-amber-600 dark:text-amber-400">
+                {staleCount} holding{staleCount > 1 ? "s" : ""} with price data
+                older than 30 days.{" "}
+                <Link to="/prices" className="underline">
+                  Update prices →
                 </Link>
               </CardContent>
             </Card>
