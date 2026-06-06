@@ -218,6 +218,15 @@ func cachedAccounts(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 	})
 }
 
+const unusedAccountsKey = "unusedaccounts"
+
+// cachedUnusedAccounts fetches unused account names from cache or hledger.
+func cachedUnusedAccounts(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) ([]string, error) {
+	return cachedGet(ctx, c, unusedAccountsKey, func(ctx context.Context) ([]string, error) {
+		return hl.UnusedAccounts(ctx)
+	})
+}
+
 func paginate[T any](items []T, offset, limit int32) ([]T, int32, bool) {
 	total := int32(len(items))
 	if offset > 0 {
@@ -1461,7 +1470,7 @@ func (h *Handler) ListAccountDeclarations(ctx context.Context, _ *connect.Reques
 	if err != nil {
 		return nil, rpcErr(ctx, err, "list account declarations failed")
 	}
-	unused, err := h.hl.UnusedAccounts(ctx)
+	unused, err := cachedUnusedAccounts(ctx, h.cache, h.hl)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "unused accounts failed")
 	}
@@ -1659,16 +1668,21 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		return nil, rpcErr(ctx, err, "bulk edit transactions failed")
 	}
 
+	editedTxns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(req.Msg.Fids))
+	if err != nil {
+		return nil, rpcErr(ctx, err, "bulk edit: fetch after update failed")
+	}
+	editedByFID := make(map[string]*floatv1.Transaction, len(editedTxns))
+	for _, t := range editedTxns {
+		editedByFID[t.FID] = toProtoTransaction(t)
+	}
 	results := make([]*floatv1.Transaction, 0, len(req.Msg.Fids))
 	for _, fid := range req.Msg.Fids {
-		txns, err := h.hl.Transactions(ctx, "code:"+fid)
-		if err != nil {
-			return nil, rpcErr(ctx, err, "bulk edit: fetch after update failed", "fid", fid)
-		}
-		if len(txns) == 0 {
+		t, ok := editedByFID[fid]
+		if !ok {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("transaction %s not found after bulk edit", fid))
 		}
-		results = append(results, toProtoTransaction(txns[0]))
+		results = append(results, t)
 	}
 	return connect.NewResponse(&floatv1.BulkEditTransactionsResponse{Transactions: results}), nil
 }
@@ -2613,7 +2627,7 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 		rulesList = filterRules(rulesList, req.Msg.RuleIds)
 	}
 
-	txns, err := h.hl.Transactions(ctx, req.Msg.Query...)
+	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
 	if err != nil {
 		return rpcErr(ctx, err, "fetch transactions failed")
 	}
