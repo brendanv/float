@@ -185,11 +185,13 @@ type NetWorthMsg struct {
 	Err       error
 }
 
-func FetchNetWorth(client floatv1connect.LedgerServiceClient) tea.Cmd {
+func FetchNetWorth(client floatv1connect.LedgerServiceClient, begin string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := rpcContext()
 		defer cancel()
-		resp, err := client.GetNetWorthTimeseries(ctx, connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{}))
+		resp, err := client.GetNetWorthTimeseries(ctx, connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{
+			Begin: begin,
+		}))
 		if err != nil {
 			return NetWorthMsg{Err: err}
 		}
