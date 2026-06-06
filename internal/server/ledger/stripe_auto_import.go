@@ -171,17 +171,39 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		})
 	}
 
+	if h.afterDailyImportPreFetch != nil {
+		h.afterDailyImportPreFetch()
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	totalImported := 0
+	perAccountImported := make(map[string]int)
 	if err := h.lock.Do(ctx, "stripe daily auto-import", func() error {
+		// Refresh the imported-ID set inside the lock so that transactions written by a
+		// concurrent operation (e.g. a manual ImportStripeTransactions) between our
+		// pre-lock dedup and lock acquisition are not written a second time. This mirrors
+		// the in-lock re-check performed by the manual import RPCs.
+		freshExisting, freshErr := h.hl.Transactions(ctx)
+		if freshErr != nil {
+			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+		}
+		for id := range importedStripeTxnIDs(freshExisting) {
+			stripeTxnSet[id] = true
+		}
+
 		for _, batch := range batches {
 			for _, st := range batch.newTxns {
+				if stripeTxnSet[st.ID] {
+					continue
+				}
 				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batchID, h.cfg.Location())
 				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
 				if _, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput); writeErr != nil {
 					return fmt.Errorf("write %s: %w", st.ID, writeErr)
 				}
+				stripeTxnSet[st.ID] = true
 				totalImported++
+				perAccountImported[batch.linked.StripeAccountID]++
 			}
 			for j, la := range h.cfg.Stripe.LinkedAccounts {
 				if la.StripeAccountID == batch.linked.StripeAccountID {
@@ -198,12 +220,9 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	}
 
 	for _, batch := range batches {
-		for _, st := range batch.newTxns {
-			stripeTxnSet[st.ID] = true
-		}
 		logger.InfoContext(ctx, "daily stripe import: account imported",
 			"account", batch.linked.StripeAccountID,
-			"imported", len(batch.newTxns),
+			"imported", perAccountImported[batch.linked.StripeAccountID],
 		)
 	}
 

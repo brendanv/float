@@ -48,6 +48,10 @@ type Handler struct {
 	// in ImportStripeTransactions. Used in tests to simulate a concurrent import.
 	// Nil in production.
 	afterImportPreFetch func()
+	// afterDailyImportPreFetch is called between the pre-lock dedup phase and lock
+	// acquisition in runDailyStripeImport. Used in tests to simulate a concurrent
+	// import landing in the race window. Nil in production.
+	afterDailyImportPreFetch func()
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
