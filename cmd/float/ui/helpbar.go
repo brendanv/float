@@ -157,11 +157,12 @@ func (ManagerRegisterKeyMap) FullHelp() [][]key.Binding {
 type TrendsKeyMap struct{}
 
 func (TrendsKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{keyQuit, keyTab, keyHelp}
+	return []key.Binding{keyQuit, keyTab, keyPeriod, keyHelp}
 }
 func (TrendsKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{keyQuit, keyTab, keyShiftTab, keyHelp},
+		{keyPeriod},
 	}
 }
 

@@ -51,6 +51,11 @@ func (p *NetWorthPanel) SetData(snapshots []*floatv1.NetWorthSnapshot) {
 	p.state = stateLoaded
 }
 
+func (p *NetWorthPanel) Reset() {
+	p.snapshots = nil
+	p.state = stateLoading
+}
+
 func (p *NetWorthPanel) Update(msg tea.Msg) tea.Cmd {
 	return p.handleSpinnerTick(msg)
 }
