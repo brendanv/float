@@ -104,9 +104,7 @@ func (m ManagerTab) SetSize(w, h int) ManagerTab {
 
 	// Right inner — tree and register both fill the full height.
 	m.rightInnerW, m.rightInnerH = innerSize(m.rightWidth, h, m.styles.FocusedBorder)
-	m.tree.width = m.rightInnerW
-	m.tree.height = m.rightInnerH
-	m.tree.clampOffset()
+	m.tree.SetSize(m.rightInnerW, m.rightInnerH)
 	m.register.SetSize(m.rightInnerW, m.rightInnerH)
 	m.addTxForm.SetSize(m.width, m.height)
 

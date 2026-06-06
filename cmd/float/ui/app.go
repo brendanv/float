@@ -105,7 +105,7 @@ func (m *Model) resizeAll() {
 	m.helpModel.SetWidth(m.width)
 	helpRendered := m.helpModel.View(m.activeKeyMap())
 	helpH := lipgloss.Height(helpRendered)
-	layout := CalcLayout(m.width, m.height, helpH)
+	layout := CalcLayout(m.height, helpH)
 	m.home = m.home.SetSize(m.width, layout.ContentHeight)
 	m.manager = m.manager.SetSize(m.width, layout.ContentHeight)
 	m.trends = m.trends.SetSize(m.width, layout.ContentHeight)
