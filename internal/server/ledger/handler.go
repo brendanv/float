@@ -376,6 +376,32 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		}
 	}
 
+	// Build symbol→lastTxDate from transactions in the portfolio accounts.
+	// A transaction date is a valid proxy for price: you know the price on any
+	// day you bought or sold the commodity. This fills in price dates for
+	// commodities (e.g. 401k funds) that have no P directives.
+	lastTxDateByCommodity := make(map[string]string)
+	if txns, txErr := cachedTransactions(ctx, h.cache, h.hl, query); txErr != nil {
+		logger.WarnContext(ctx, "could not load transactions for last purchase dates", "error", txErr)
+	} else {
+		for _, txn := range txns {
+			for _, p := range txn.Postings {
+				for _, amt := range p.Amounts {
+					if currencySymbols[amt.Commodity] {
+						continue
+					}
+					date := txn.Date
+					if p.Date != nil && *p.Date != "" {
+						date = *p.Date
+					}
+					if date > lastTxDateByCommodity[amt.Commodity] {
+						lastTxDateByCommodity[amt.Commodity] = date
+					}
+				}
+			}
+		}
+	}
+
 	// Aggregate raw amounts by (account, commodity), summing quantities across
 	// lots. hledger returns a separate Amount per purchase lot when positions
 	// are built up at different prices (each lot has a distinct acost), so
@@ -425,11 +451,15 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			continue
 		}
 		qty := eq.float()
+		priceDate := latestPriceInfo[k.symbol].date
+		if txDate := lastTxDateByCommodity[k.symbol]; txDate > priceDate {
+			priceDate = txDate
+		}
 		holding := &floatv1.Holding{
-			Account:   k.account,
-			Symbol:    k.symbol,
-			Quantity:  fmt.Sprintf("%g", qty),
-			PriceDate: latestPriceInfo[k.symbol].date,
+			Account:  k.account,
+			Symbol:   k.symbol,
+			Quantity: fmt.Sprintf("%g", qty),
+			PriceDate: priceDate,
 		}
 
 		// Compute CurrentValue and LatestPrice from the price list.
