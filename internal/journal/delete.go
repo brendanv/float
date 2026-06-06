@@ -104,6 +104,9 @@ func DeleteTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 	}
 
 	txn := txns[0]
+	if len(txn.SourcePos) == 0 || txn.SourcePos[0].File == "" {
+		return fmt.Errorf("journal: delete: fid %q has no source position", fid)
+	}
 	sourceFile := txn.SourcePos[0].File
 	sourceLine := txn.SourcePos[0].Line // 1-indexed header line
 

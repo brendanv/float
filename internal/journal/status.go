@@ -33,6 +33,9 @@ func UpdateTransactionStatus(ctx context.Context, client *hledger.Client, dataDi
 	}
 
 	t := txns[0]
+	if len(t.SourcePos) == 0 || t.SourcePos[0].File == "" {
+		return fmt.Errorf("journal: update-status: fid %q has no source position", fid)
+	}
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
 	input, err := InputFromTransaction(t)

@@ -33,6 +33,9 @@ func UpdateTransactionDate(ctx context.Context, client *hledger.Client, dataDir,
 	}
 
 	t := txns[0]
+	if len(t.SourcePos) == 0 || t.SourcePos[0].File == "" {
+		return hledger.Transaction{}, fmt.Errorf("journal: update-date: fid %q has no source position", fid)
+	}
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
 	input, err := InputFromTransaction(t)
