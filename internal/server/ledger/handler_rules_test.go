@@ -63,6 +63,30 @@ func TestAddRuleHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid_pattern_returns_invalid_argument", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 611, NumTxns: 1})
+		h := mustRealHandler(t, dir)
+		_, err := h.AddRule(t.Context(), connect.NewRequest(&floatv1.AddRuleRequest{
+			Rules: []*floatv1.RuleInput{
+				{Pattern: "[invalid"},
+			},
+		}))
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("code = %v, want InvalidArgument", connect.CodeOf(err))
+		}
+		// The broken rule must not have been persisted.
+		loaded, loadErr := rules.Load(dir)
+		if loadErr != nil {
+			t.Fatalf("rules.Load: %v", loadErr)
+		}
+		if len(loaded) != 0 {
+			t.Errorf("got %d rules persisted, want 0 (invalid rule must be rejected)", len(loaded))
+		}
+	})
+
 	t.Run("single_rule_saved", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 62, NumTxns: 1})
 		h := mustRealHandler(t, dir)

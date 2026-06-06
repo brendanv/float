@@ -192,6 +192,71 @@ func TestRunDailyStripeImport_NoDuplicateWhenRuleApplied(t *testing.T) {
 	}
 }
 
+// TestRunDailyStripeImport_NoDuplicateOnConcurrentImport verifies that the auto-import
+// re-checks already-imported Stripe IDs inside the txlock. It simulates a concurrent
+// manual import landing in the race window between the pre-lock dedup and lock
+// acquisition (via the afterDailyImportPreFetch hook). Without the in-lock re-check the
+// auto-import would write a second copy of the same Stripe transaction.
+func TestRunDailyStripeImport_NoDuplicateOnConcurrentImport(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	stripeAutoImportMockAPI(t, "fca_race", []map[string]any{
+		{
+			"id": "fca_txn_race", "object": "financial_connections.transaction",
+			"account": "fca_race", "amount": int64(-1234), "currency": "usd",
+			"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+			"status": "posted", "livemode": false,
+		},
+	})
+
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 806, NumTxns: 1})
+	hl, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+
+	cfg := &config.Config{
+		Stripe: config.StripeConfig{
+			LinkedAccounts: []config.StripeLinkedAccount{
+				{StripeAccountID: "fca_race", HledgerAccount: "assets:checking"},
+			},
+		},
+	}
+	h := mustHandlerWithConfig(t, dir, cfg)
+
+	// Simulate a concurrent manual import writing the same Stripe transaction after the
+	// auto-import built its pre-lock dedup set but before it acquired the lock.
+	serverledger.ExportedSetAfterDailyImportPreFetch(h, func() {
+		if _, err := journal.AppendTransaction(t.Context(), hl, dir, journal.TransactionInput{
+			Date:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+			Description: "GROCERY STORE",
+			FloatMeta:   map[string]string{"float-stripe-txn": "fca_txn_race"},
+			Postings: []journal.PostingInput{
+				{Account: "assets:checking", Commodity: "USD", Quantity: "-12.34"},
+				{Account: "expenses:groceries", Commodity: "USD", Quantity: "12.34"},
+			},
+		}); err != nil {
+			t.Errorf("concurrent import write: %v", err)
+		}
+	})
+
+	imported, errs := serverledger.ExportedRunDailyStripeImport(h, t.Context())
+	if len(errs) != 0 {
+		t.Fatalf("auto-import errors: %v", errs)
+	}
+	if imported != 0 {
+		t.Errorf("imported = %d, want 0: auto-import must skip a transaction written by a concurrent import inside the lock", imported)
+	}
+
+	txns, err := hl.Transactions(t.Context(), "tag:float-stripe-txn=fca_txn_race")
+	if err != nil {
+		t.Fatalf("query transactions: %v", err)
+	}
+	if len(txns) != 1 {
+		t.Errorf("journal has %d copies of fca_txn_race, want 1 (no duplicate from the race)", len(txns))
+	}
+}
+
 // TestRunDailyStripeImport_SkipsPendingTransactions verifies that pending Stripe transactions
 // are never written to the journal — only posted transactions are imported.
 func TestRunDailyStripeImport_SkipsPendingTransactions(t *testing.T) {

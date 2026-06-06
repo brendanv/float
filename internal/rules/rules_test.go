@@ -48,6 +48,36 @@ func TestMatch(t *testing.T) {
 	}
 }
 
+func TestCompilePattern(t *testing.T) {
+	// A valid pattern compiles, is case-insensitive, and returns the cached
+	// *regexp.Regexp instance on repeated calls.
+	re1, err := CompilePattern("starbucks")
+	if err != nil {
+		t.Fatalf("CompilePattern(valid) error: %v", err)
+	}
+	if !re1.MatchString("STARBUCKS #42") {
+		t.Error("compiled pattern is not case-insensitive")
+	}
+	re2, err := CompilePattern("starbucks")
+	if err != nil {
+		t.Fatalf("CompilePattern(valid) second call error: %v", err)
+	}
+	if re1 != re2 {
+		t.Error("CompilePattern did not return the cached instance on repeated calls")
+	}
+
+	// An invalid pattern returns an error, and the error is cached (same error
+	// value) rather than recompiled each time.
+	_, err1 := CompilePattern("[invalid")
+	if err1 == nil {
+		t.Fatal("CompilePattern(invalid) = nil error, want compile error")
+	}
+	_, err2 := CompilePattern("[invalid")
+	if err2 != err1 {
+		t.Errorf("CompilePattern(invalid) errors differ across calls: %v vs %v", err1, err2)
+	}
+}
+
 func TestMatchPriority(t *testing.T) {
 	// Lower priority number = higher priority (matched first).
 	// Caller must pass rules already sorted by priority (as Load() does).

@@ -48,6 +48,10 @@ type Handler struct {
 	// in ImportStripeTransactions. Used in tests to simulate a concurrent import.
 	// Nil in production.
 	afterImportPreFetch func()
+	// afterDailyImportPreFetch is called between the pre-lock dedup phase and lock
+	// acquisition in runDailyStripeImport. Used in tests to simulate a concurrent
+	// import landing in the race window. Nil in production.
+	afterDailyImportPreFetch func()
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
@@ -2427,6 +2431,9 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 		if r.Pattern == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pattern is required"))
 		}
+		if _, err := rules.CompilePattern(r.Pattern); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid pattern %q: %w", r.Pattern, err))
+		}
 		patterns[i] = r.Pattern
 	}
 
@@ -2527,6 +2534,9 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 	}
 	if req.Msg.Pattern == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("pattern is required"))
+	}
+	if _, err := rules.CompilePattern(req.Msg.Pattern); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid pattern %q: %w", req.Msg.Pattern, err))
 	}
 
 	var updated rules.Rule

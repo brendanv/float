@@ -20,3 +20,10 @@ func ExportedSetAfterImportAllPreFetch(h *Handler, fn func()) {
 func ExportedSetAfterImportPreFetch(h *Handler, fn func()) {
 	h.afterImportPreFetch = fn
 }
+
+// ExportedSetAfterDailyImportPreFetch installs a hook that is called between the
+// pre-lock dedup phase and the lock acquisition in runDailyStripeImport. Use this in
+// tests to simulate a concurrent import in the race window between dedup and lock.
+func ExportedSetAfterDailyImportPreFetch(h *Handler, fn func()) {
+	h.afterDailyImportPreFetch = fn
+}

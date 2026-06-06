@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // Rule is a categorization rule that matches transactions by description and
@@ -60,6 +61,39 @@ func Save(dataDir string, rules []Rule) error {
 	return nil
 }
 
+// patternCache memoizes compiled rule patterns. Match is called once per
+// transaction during imports and rule application, so without caching the same
+// handful of patterns would be recompiled thousands of times. Go's regexp
+// engine is RE2-based, so compiled expressions are safe to share across
+// goroutines. Both successful and failed compiles are cached. The key space is
+// bounded by the number of distinct rule patterns, so no eviction is needed.
+var (
+	patternCacheMu sync.RWMutex
+	patternCache   = make(map[string]compiledPattern)
+)
+
+type compiledPattern struct {
+	re  *regexp.Regexp
+	err error
+}
+
+// CompilePattern compiles pattern as a case-insensitive regular expression,
+// returning a cached result on repeated calls with the same pattern. Use this
+// everywhere a rule pattern is compiled so the cache is shared.
+func CompilePattern(pattern string) (*regexp.Regexp, error) {
+	patternCacheMu.RLock()
+	c, ok := patternCache[pattern]
+	patternCacheMu.RUnlock()
+	if ok {
+		return c.re, c.err
+	}
+	re, err := regexp.Compile("(?i)" + pattern)
+	patternCacheMu.Lock()
+	patternCache[pattern] = compiledPattern{re: re, err: err}
+	patternCacheMu.Unlock()
+	return re, err
+}
+
 // Match iterates rules in priority order and returns the first rule whose
 // pattern matches description (case-insensitive) and whose MatchAccount (if
 // set) is a prefix of account. Returns nil if no rule matches.
@@ -73,7 +107,7 @@ func Match(rules []Rule, description, account string) *Rule {
 		if r.MatchAccount != "" && !strings.HasPrefix(account, r.MatchAccount) {
 			continue
 		}
-		re, err := regexp.Compile("(?i)" + r.Pattern)
+		re, err := CompilePattern(r.Pattern)
 		if err != nil {
 			continue
 		}
