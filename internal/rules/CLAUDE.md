@@ -19,7 +19,8 @@ Rules are stored as JSON in `<data-dir>/rules.json`.
 
 - `Load(dataDir)` — read `rules.json`; missing file returns an empty slice. Results are sorted by priority.
 - `Save(dataDir, rules)` — write `rules.json`; call inside `txlock.Do()`.
-- `Match(rules, description, account)` — return the first matching rule after regex and optional source-account checks.
+- `CompilePattern(pattern)` — compile a pattern as a cached case-insensitive `*regexp.Regexp`. Use this everywhere a rule pattern is compiled (Match, AI suggestion validation, RPC input validation) so the compile cache is shared and the `(?i)` convention stays consistent. Go's regexp is RE2 (linear-time).
+- `Match(rules, description, account)` — return the first matching rule after regex and optional source-account checks. Uses `CompilePattern`, so patterns are compiled once and reused across the per-transaction calls made during imports.
 - `Preview(rules, transactions)` — produce `RuleMatch` entries without writing. Skips transactions without a FID or with no effective changes.
 - `Apply(ctx, client, dataDir, matches)` — apply all matches and return count. Must be called inside `txlock.Do()`.
 - `ApplyBatch(ctx, client, dataDir, matches, onProgress)` — batched variant that emits progress callbacks and writes grouped replacements per source file.

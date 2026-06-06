@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/brendanv/float/internal/rules"
 )
 
 // TxnSummary is a condensed transaction for the AI prompt.
@@ -138,7 +139,7 @@ If no suitable account exists, use an empty string for account.
 			continue
 		}
 		// Validate the pattern compiles before returning it.
-		if _, err := regexp.Compile("(?i)" + r.Pattern); err != nil {
+		if _, err := rules.CompilePattern(r.Pattern); err != nil {
 			continue
 		}
 		results = append(results, SuggestedRule{
