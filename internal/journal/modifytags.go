@@ -27,6 +27,9 @@ func ModifyTags(ctx context.Context, client *hledger.Client, dataDir, fid string
 	}
 
 	t := txns[0]
+	if len(t.SourcePos) == 0 || t.SourcePos[0].File == "" {
+		return fmt.Errorf("journal: modify-tags: fid %q has no source position", fid)
+	}
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
 	input, err := InputFromTransaction(t)
@@ -62,6 +65,9 @@ func ModifyFloatMeta(ctx context.Context, client *hledger.Client, dataDir, fid s
 	}
 
 	t := txns[0]
+	if len(t.SourcePos) == 0 || t.SourcePos[0].File == "" {
+		return fmt.Errorf("journal: modify-hidden-meta: fid %q has no source position", fid)
+	}
 	src := &SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 
 	input, err := InputFromTransaction(t)
