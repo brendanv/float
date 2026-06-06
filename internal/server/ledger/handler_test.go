@@ -3110,3 +3110,109 @@ P 2026-01-25 GOOG 120.00 USD
 		t.Errorf("GOOG UnrealizedGain = %v, want 100.00 USD", goog.UnrealizedGain)
 	}
 }
+
+func TestGetPortfolioHoldings_PriceDateFallsBackToLastTxDate(t *testing.T) {
+	dir := t.TempDir()
+
+	main := `; float main journal
+account assets:investments:vtsax
+account assets:checking
+
+include 2026/01.journal
+`
+	// No prices.journal — simulates a 401k fund with no market price data.
+	txns := `2026-05-01 Biweekly contribution
+    assets:investments:vtsax    2 VTSAX @ 100.00 USD
+    assets:checking            -200.00 USD
+
+2026-05-15 Biweekly contribution
+    assets:investments:vtsax    2 VTSAX @ 102.00 USD
+    assets:checking            -204.00 USD
+`
+
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(txns), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetPortfolioHoldings(t.Context(), connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioHoldings: %v", err)
+	}
+
+	var vtsax *floatv1.Holding
+	for _, holding := range resp.Msg.Holdings {
+		if holding.Symbol == "VTSAX" {
+			vtsax = holding
+		}
+	}
+	if vtsax == nil {
+		t.Fatalf("VTSAX not found in holdings")
+	}
+
+	// No P directive exists; PriceDate should be the last transaction date.
+	if vtsax.PriceDate != "2026-05-15" {
+		t.Errorf("PriceDate = %q, want %q (last transaction date)", vtsax.PriceDate, "2026-05-15")
+	}
+}
+
+func TestGetPortfolioHoldings_PriceDatePrefersNewerPriceDirective(t *testing.T) {
+	dir := t.TempDir()
+
+	main := `; float main journal
+account assets:investments:aapl
+account assets:checking
+
+include prices.journal
+include 2026/01.journal
+`
+	// Price directive is newer than last transaction.
+	prices := `P 2026-02-01 AAPL 210.00 USD
+`
+	txns := `2026-01-05 Buy AAPL
+    assets:investments:aapl    10 AAPL @ 150.00 USD
+    assets:checking           -1500.00 USD
+`
+
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "prices.journal"), []byte(prices), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(txns), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetPortfolioHoldings(t.Context(), connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioHoldings: %v", err)
+	}
+
+	var aapl *floatv1.Holding
+	for _, holding := range resp.Msg.Holdings {
+		if holding.Symbol == "AAPL" {
+			aapl = holding
+		}
+	}
+	if aapl == nil {
+		t.Fatalf("AAPL not found in holdings")
+	}
+
+	// Price directive (2026-02-01) is newer than last transaction (2026-01-05).
+	if aapl.PriceDate != "2026-02-01" {
+		t.Errorf("PriceDate = %q, want %q (price directive date)", aapl.PriceDate, "2026-02-01")
+	}
+}
