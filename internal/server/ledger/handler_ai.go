@@ -13,6 +13,7 @@ import (
 	"github.com/brendanv/float/internal/ai"
 	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/rules"
 	"github.com/brendanv/float/internal/slogctx"
 )
@@ -126,12 +127,9 @@ func (h *Handler) SuggestRules(ctx context.Context, req *connect.Request[floatv1
 	// Fetch the target transactions.
 	var txns []hledger.Transaction
 	if len(req.Msg.Fids) > 0 {
-		for _, fid := range req.Msg.Fids {
-			t, err := h.hl.Transactions(ctx, "code:"+fid)
-			if err != nil {
-				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("fetch transaction %s: %w", fid, err))
-			}
-			txns = append(txns, t...)
+		txns, err = cachedTransactions(ctx, h.cache, h.hl, []string{journal.BuildFIDQuery(req.Msg.Fids)})
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("fetch transactions: %w", err))
 		}
 	} else {
 		query := req.Msg.Query
@@ -139,7 +137,7 @@ func (h *Handler) SuggestRules(ctx context.Context, req *connect.Request[floatv1
 			// Default: unreviewed (not-cleared) transactions.
 			query = "not:status:*"
 		}
-		txns, err = h.hl.Transactions(ctx, query)
+		txns, err = cachedTransactions(ctx, h.cache, h.hl, []string{query})
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("fetch transactions: %w", err))
 		}
@@ -180,7 +178,7 @@ func (h *Handler) SuggestRules(ctx context.Context, req *connect.Request[floatv1
 	}
 
 	// Provide the full account list so the AI can suggest valid account names.
-	accounts, err := h.hl.Accounts(ctx, false)
+	accounts, err := cachedAccounts(ctx, h.cache, h.hl)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("fetch accounts: %w", err))
 	}
@@ -223,7 +221,7 @@ func (h *Handler) TranslateQuery(ctx context.Context, req *connect.Request[float
 		return nil, err
 	}
 
-	accounts, err := h.hl.Accounts(ctx, false)
+	accounts, err := cachedAccounts(ctx, h.cache, h.hl)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("fetch accounts: %w", err))
 	}
@@ -259,7 +257,7 @@ func (h *Handler) AskQuestion(ctx context.Context, req *connect.Request[floatv1.
 		return nil, err
 	}
 
-	accounts, err := h.hl.Accounts(ctx, false)
+	accounts, err := cachedAccounts(ctx, h.cache, h.hl)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("fetch accounts: %w", err))
 	}
