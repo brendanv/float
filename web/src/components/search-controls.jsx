@@ -96,7 +96,7 @@ function inclusiveToExclusiveTo(inclusive) {
   return fmtDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
-export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" }) {
+export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", embedded = false }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
   const [month, setMonth] = useState(() => {
@@ -145,11 +145,18 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start" })
         render={
           <button
             type="button"
-            className="flex h-8 items-center gap-2 rounded-none border border-border px-3 text-sm font-medium hover:bg-muted"
+            className={cn(
+              "flex items-center gap-2 hover:bg-muted",
+              embedded
+                ? "h-7 px-2.5 text-xs"
+                : "h-8 rounded-none border border-border px-3 text-sm font-medium",
+            )}
           >
-            <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+            <CalendarDays
+              className={cn("shrink-0 text-muted-foreground", embedded ? "size-3.5" : "size-4")}
+            />
             <span className="whitespace-nowrap">{formatDateRange(dateFrom, dateTo)}</span>
-            <span className="text-xs opacity-40">▾</span>
+            <span className="shrink-0 text-xs opacity-40">▾</span>
           </button>
         }
       />
@@ -260,7 +267,7 @@ function DebouncedSearch({ value, onChange }) {
   );
 }
 
-function AccountCombobox({ value, onChange, accounts }) {
+function AccountCombobox({ value, onChange, accounts, className }) {
   const [open, setOpen] = useState(false);
   const accountOptions = filterAndSortAccountNames(accounts);
 
@@ -273,12 +280,13 @@ function AccountCombobox({ value, onChange, accounts }) {
             role="combobox"
             aria-expanded={open}
             className={cn(
-              "flex h-7 items-center gap-1 px-2.5 text-xs hover:bg-muted",
+              "flex h-7 items-center justify-between gap-1 px-2.5 text-xs hover:bg-muted",
               value ? "font-semibold" : "",
+              className,
             )}
           >
             <span className="truncate">{value || "All accounts"}</span>
-            <span className="text-xs opacity-40">▾</span>
+            <span className="shrink-0 text-xs opacity-40">▾</span>
           </button>
         }
       />
@@ -334,6 +342,11 @@ export function SearchControls({
 
   const hasActiveFilters = account || tag || payee || search;
 
+  // On mobile the filter row splits its width evenly between the three
+  // dropdowns so nothing overflows; on desktop each control sizes to content.
+  const selectClasses =
+    "min-w-0 flex-1 md:flex-none [&>select]:w-full [&>select]:border-0 [&>select]:bg-transparent [&>select]:shadow-none [&>select]:focus-visible:ring-0 [&>select:hover]:bg-muted dark:[&>select]:bg-transparent dark:[&>select:hover]:bg-muted";
+
   return (
     <div className="mb-4 flex flex-col">
       <div className="flex flex-col border border-border md:flex-row md:items-center">
@@ -343,6 +356,7 @@ export function SearchControls({
             dateFrom={dateFrom}
             dateTo={dateTo}
             onChange={onDateRangeChange}
+            embedded
           />
           {onSearchChange && (
             <div className="flex flex-1 items-center md:hidden">
@@ -369,7 +383,7 @@ export function SearchControls({
               onStatusChange(next === "all" ? "" : next);
               if (payee === PAYEE_NONE) onPayeeChange("");
             }}
-            className="[&>select]:border-0 [&>select]:bg-transparent [&>select]:shadow-none [&>select]:focus-visible:ring-0 [&>select:hover]:bg-muted dark:[&>select]:bg-transparent dark:[&>select:hover]:bg-muted"
+            className={selectClasses}
           >
             <NativeSelectOption value="all">All</NativeSelectOption>
             <NativeSelectOption value="reviewed">Reviewed</NativeSelectOption>
@@ -383,6 +397,7 @@ export function SearchControls({
             value={account}
             onChange={onAccountChange}
             accounts={accounts}
+            className="min-w-0 flex-1 md:flex-none"
           />
 
           <Separator orientation="vertical" className="h-5" />
@@ -391,7 +406,7 @@ export function SearchControls({
             size="sm"
             value={tag || "__any__"}
             onChange={(e) => onTagChange(e.target.value === "__any__" ? "" : e.target.value)}
-            className="[&>select]:border-0 [&>select]:bg-transparent [&>select]:shadow-none [&>select]:focus-visible:ring-0 [&>select:hover]:bg-muted dark:[&>select]:bg-transparent dark:[&>select:hover]:bg-muted"
+            className={selectClasses}
           >
             <NativeSelectOption value="__any__">Any tag</NativeSelectOption>
             {(tags || []).map((t) => (
