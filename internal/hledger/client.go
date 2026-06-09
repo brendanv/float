@@ -181,7 +181,7 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 // Check runs `hledger check -f <journal>`.
 // Returns nil on exit 0. Returns *CheckError (with full stderr) on exit non-0.
 func (c *Client) Check(ctx context.Context) error {
-	_, stderr, err := c.run(ctx, "check", "-f", c.journal)
+	_, stderr, err := c.run(ctx, "check", "--infer-costs", "-f", c.journal)
 	if err != nil {
 		return &CheckError{Output: string(stderr)}
 	}
@@ -450,7 +450,7 @@ func (c *Client) Payees(ctx context.Context) ([]string, error) {
 // contains only the draft transaction, not the full journal history; the full
 // journal check happens at txlock commit time.
 func (c *Client) PrintText(ctx context.Context, journalFile string) (string, error) {
-	printArgs := []string{"print", "-f", journalFile, "-I"}
+	printArgs := []string{"print", "--infer-costs", "-f", journalFile, "-I"}
 	stdout, stderr, err := c.run(ctx, printArgs...)
 	if err != nil {
 		return "", cmdError(c.bin, printArgs, stderr, fmt.Errorf("hledger print: %w", err))
@@ -475,7 +475,7 @@ func (c *Client) Transactions(ctx context.Context, query ...string) ([]Transacti
 // PrintCSV runs `hledger print -O json --rules-file <rulesFile> -f <csvFile>`.
 // Used for import preview — no journal file is needed/written.
 func (c *Client) PrintCSV(ctx context.Context, csvFile, rulesFile string) ([]Transaction, error) {
-	args := []string{"print", "-O", "json", "--rules-file", rulesFile, "-f", csvFile}
+	args := []string{"print", "--infer-costs", "-O", "json", "--rules-file", rulesFile, "-f", csvFile}
 
 	stdout, stderr, err := c.run(ctx, args...)
 	if err != nil {

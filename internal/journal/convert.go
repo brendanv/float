@@ -2,6 +2,7 @@ package journal
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 			if cost != nil {
 				pi.Cost = &CostInput{
 					Commodity: cost.Contents.Commodity,
-					Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
+					Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, math.Abs(cost.Contents.Quantity.FloatingPoint)),
 					IsTotal:   cost.Tag == "TotalCost",
 				}
 			}
