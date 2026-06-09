@@ -440,6 +440,7 @@ message GetSnapshotDiffResponse {
 message BankProfile {
   string name = 1;
   string rules_file = 2; // relative path in data dir
+  bool skip_rules = 3;   // skip float categorization rules on import
 }
 
 message ListBankProfilesRequest {}
@@ -452,6 +453,7 @@ message CreateBankProfileRequest {
   string name = 1;         // display name for the profile
   string rules_file = 2;  // relative path in data dir, e.g. "rules/chase.rules"
   bytes rules_content = 3; // content to write to the rules file
+  bool skip_rules = 4;     // skip float categorization rules on import
 }
 
 message CreateBankProfileResponse {
@@ -468,9 +470,10 @@ message GetBankProfileContentResponse {
 }
 
 message UpdateBankProfileRequest {
-  string name = 1;         // current profile name (identifier)
-  string new_name = 2;     // new display name (empty = no change)
-  bytes rules_content = 3; // new rules file content (empty = no change)
+  string name = 1;              // current profile name (identifier)
+  string new_name = 2;          // new display name (empty = no change)
+  bytes rules_content = 3;      // new rules file content (empty = no change)
+  optional bool skip_rules = 4; // update skip_rules flag (omit to leave unchanged)
 }
 
 message UpdateBankProfileResponse {

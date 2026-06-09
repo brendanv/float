@@ -151,6 +151,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
   const [columnMappings, setColumnMappings] = useState([]);
   const [dateFormat, setDateFormat] = useState("%Y-%m-%d");
   const [rulesContent, setRulesContent] = useState(buildRulesContent({}));
+  const [skipRules, setSkipRules] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -207,6 +208,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
         name,
         rulesFile: rulesFilePath,
         rulesContent: new TextEncoder().encode(rulesContent),
+        skipRules,
       });
       onCreated(res.profile);
     } catch (err) {
@@ -255,6 +257,13 @@ function CreateProfileModal({ open, onCreated, onClose }) {
               />
             </FormField>
           </FormRow>
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="skip-rules" checked={skipRules} onCheckedChange={setSkipRules} />
+            <Label htmlFor="skip-rules" className="text-sm cursor-pointer">
+              Skip float categorization rules on import
+            </Label>
+          </div>
 
           {/* CSV column mapping */}
           <FormField
@@ -367,6 +376,7 @@ function CreateProfileModal({ open, onCreated, onClose }) {
 function EditProfileModal({ profile, open, onUpdated, onClose }) {
   const [name, setName] = useState(profile?.name ?? "");
   const [rulesContent, setRulesContent] = useState("");
+  const [skipRules, setSkipRules] = useState(profile?.skipRules ?? false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -374,6 +384,7 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
   useEffect(() => {
     if (!open || !profile) return;
     setName(profile.name);
+    setSkipRules(profile.skipRules ?? false);
     setError(null);
     setLoading(true);
     ledgerClient.getBankProfileContent({ name: profile.name })
@@ -391,6 +402,7 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
         name: profile.name,
         newName: name !== profile.name ? name : "",
         rulesContent: new TextEncoder().encode(rulesContent),
+        skipRules,
       });
       onUpdated(res.profile);
     } catch (err) {
@@ -432,6 +444,12 @@ function EditProfileModal({ profile, open, onUpdated, onClose }) {
                 onChange={(e) => setRulesContent(e.target.value)}
               />
             </FormField>
+            <div className="flex items-center gap-2">
+              <Checkbox id="edit-skip-rules" checked={skipRules} onCheckedChange={setSkipRules} />
+              <Label htmlFor="edit-skip-rules" className="text-sm cursor-pointer">
+                Skip float categorization rules on import
+              </Label>
+            </div>
             <ResponsiveDialogFooter>
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
               <Button type="submit" isLoading={saving} loadingText="Saving…">

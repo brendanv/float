@@ -1969,7 +1969,7 @@ func (h *Handler) ListBankProfiles(_ context.Context, _ *connect.Request[floatv1
 	}
 	out := make([]*floatv1.BankProfile, len(h.cfg.BankProfiles))
 	for i, p := range h.cfg.BankProfiles {
-		out[i] = &floatv1.BankProfile{Name: p.Name, RulesFile: p.RulesFile}
+		out[i] = &floatv1.BankProfile{Name: p.Name, RulesFile: p.RulesFile, SkipRules: p.SkipRules}
 	}
 	return connect.NewResponse(&floatv1.ListBankProfilesResponse{Profiles: out}), nil
 }
@@ -2002,7 +2002,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 		}
 	}
 
-	newProfile := config.BankProfile{Name: req.Msg.Name, RulesFile: cleaned}
+	newProfile := config.BankProfile{Name: req.Msg.Name, RulesFile: cleaned, SkipRules: req.Msg.SkipRules}
 	err := h.lock.Do(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), func() error {
 		// Write rules file if content provided.
 		if len(req.Msg.RulesContent) > 0 {
@@ -2029,7 +2029,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "created bank profile", "name", req.Msg.Name, "rules_file", cleaned)
 	return connect.NewResponse(&floatv1.CreateBankProfileResponse{
-		Profile: &floatv1.BankProfile{Name: newProfile.Name, RulesFile: newProfile.RulesFile},
+		Profile: &floatv1.BankProfile{Name: newProfile.Name, RulesFile: newProfile.RulesFile, SkipRules: newProfile.SkipRules},
 	}), nil
 }
 
@@ -2104,6 +2104,9 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 		}
 
 		h.cfg.BankProfiles[idx].Name = newName
+		if req.Msg.SkipRules != nil {
+			h.cfg.BankProfiles[idx].SkipRules = *req.Msg.SkipRules
+		}
 		updated = h.cfg.BankProfiles[idx]
 
 		if err := config.Save(h.configPath, h.cfg); err != nil {
@@ -2121,7 +2124,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated bank profile", "name", updated.Name)
 	return connect.NewResponse(&floatv1.UpdateBankProfileResponse{
-		Profile: &floatv1.BankProfile{Name: updated.Name, RulesFile: updated.RulesFile},
+		Profile: &floatv1.BankProfile{Name: updated.Name, RulesFile: updated.RulesFile, SkipRules: updated.SkipRules},
 	}), nil
 }
 
@@ -2228,16 +2231,18 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	out := make([]*floatv1.ImportCandidate, len(candidates))
 	for i, c := range candidates {
 		candidate := &floatv1.ImportCandidate{}
-		if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
-			candidate.MatchedRuleId = r.ID
-			// Apply rule transformations so the preview reflects what will actually be imported.
-			if r.Payee != "" {
-				c.Description = r.Payee + " | " + c.Description
-			}
-			if r.Account != "" && len(c.Postings) == 2 {
-				for j, p := range c.Postings {
-					if !isAssetOrLiabilityAccount(p.Account) {
-						c.Postings[j].Account = r.Account
+		if !profile.SkipRules {
+			if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
+				candidate.MatchedRuleId = r.ID
+				// Apply rule transformations so the preview reflects what will actually be imported.
+				if r.Payee != "" {
+					c.Description = r.Payee + " | " + c.Description
+				}
+				if r.Account != "" && len(c.Postings) == 2 {
+					for j, p := range c.Postings {
+						if !isAssetOrLiabilityAccount(p.Account) {
+							c.Postings[j].Account = r.Account
+						}
 					}
 				}
 			}
@@ -2319,28 +2324,30 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			txInput.FloatMeta["float-import"] = importBatchID
 
 			// Apply float rules during import.
-			if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
-				if r.Payee != "" {
-					note := txInput.Description
-					txInput.Description = r.Payee + " | " + note
-				}
-				if r.Account != "" && len(c.Postings) == 2 {
-					for j, p := range txInput.Postings {
-						if !isAssetOrLiabilityAccount(p.Account) {
-							txInput.Postings[j].Account = r.Account
+			if !profile.SkipRules {
+				if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
+					if r.Payee != "" {
+						note := txInput.Description
+						txInput.Description = r.Payee + " | " + note
+					}
+					if r.Account != "" && len(c.Postings) == 2 {
+						for j, p := range txInput.Postings {
+							if !isAssetOrLiabilityAccount(p.Account) {
+								txInput.Postings[j].Account = r.Account
+							}
 						}
 					}
-				}
-				if len(r.Tags) > 0 {
-					if txInput.Tags == nil {
-						txInput.Tags = make(map[string]string)
+					if len(r.Tags) > 0 {
+						if txInput.Tags == nil {
+							txInput.Tags = make(map[string]string)
+						}
+						for k, v := range r.Tags {
+							txInput.Tags[k] = v
+						}
 					}
-					for k, v := range r.Tags {
-						txInput.Tags[k] = v
+					if r.AutoReviewed {
+						txInput.Status = "Cleared"
 					}
-				}
-				if r.AutoReviewed {
-					txInput.Status = "Cleared"
 				}
 			}
 

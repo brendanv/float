@@ -23,6 +23,7 @@ type User struct {
 type BankProfile struct {
 	Name      string `toml:"name"`
 	RulesFile string `toml:"rules_file"` // relative to data dir
+	SkipRules bool   `toml:"skip_rules"`
 }
 
 type AlphaVantageConfig struct {

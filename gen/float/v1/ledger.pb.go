@@ -4586,7 +4586,8 @@ func (x *GetSnapshotDiffResponse) GetFiles() []*FileDiff {
 type BankProfile struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	RulesFile     string                 `protobuf:"bytes,2,opt,name=rules_file,json=rulesFile,proto3" json:"rules_file,omitempty"` // relative path in data dir
+	RulesFile     string                 `protobuf:"bytes,2,opt,name=rules_file,json=rulesFile,proto3" json:"rules_file,omitempty"`  // relative path in data dir
+	SkipRules     bool                   `protobuf:"varint,3,opt,name=skip_rules,json=skipRules,proto3" json:"skip_rules,omitempty"` // skip float categorization rules on import
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4633,6 +4634,13 @@ func (x *BankProfile) GetRulesFile() string {
 		return x.RulesFile
 	}
 	return ""
+}
+
+func (x *BankProfile) GetSkipRules() bool {
+	if x != nil {
+		return x.SkipRules
+	}
+	return false
 }
 
 type ListBankProfilesRequest struct {
@@ -4720,6 +4728,7 @@ type CreateBankProfileRequest struct {
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                                     // display name for the profile
 	RulesFile     string                 `protobuf:"bytes,2,opt,name=rules_file,json=rulesFile,proto3" json:"rules_file,omitempty"`          // relative path in data dir, e.g. "rules/chase.rules"
 	RulesContent  []byte                 `protobuf:"bytes,3,opt,name=rules_content,json=rulesContent,proto3" json:"rules_content,omitempty"` // content to write to the rules file
+	SkipRules     bool                   `protobuf:"varint,4,opt,name=skip_rules,json=skipRules,proto3" json:"skip_rules,omitempty"`         // skip float categorization rules on import
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4773,6 +4782,13 @@ func (x *CreateBankProfileRequest) GetRulesContent() []byte {
 		return x.RulesContent
 	}
 	return nil
+}
+
+func (x *CreateBankProfileRequest) GetSkipRules() bool {
+	if x != nil {
+		return x.SkipRules
+	}
+	return false
 }
 
 type CreateBankProfileResponse struct {
@@ -4920,6 +4936,7 @@ type UpdateBankProfileRequest struct {
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`                                     // current profile name (identifier)
 	NewName       string                 `protobuf:"bytes,2,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`                // new display name (empty = no change)
 	RulesContent  []byte                 `protobuf:"bytes,3,opt,name=rules_content,json=rulesContent,proto3" json:"rules_content,omitempty"` // new rules file content (empty = no change)
+	SkipRules     *bool                  `protobuf:"varint,4,opt,name=skip_rules,json=skipRules,proto3,oneof" json:"skip_rules,omitempty"`   // update skip_rules flag (omit to leave unchanged)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4973,6 +4990,13 @@ func (x *UpdateBankProfileRequest) GetRulesContent() []byte {
 		return x.RulesContent
 	}
 	return nil
+}
+
+func (x *UpdateBankProfileRequest) GetSkipRules() bool {
+	if x != nil && x.SkipRules != nil {
+		return *x.SkipRules
+	}
+	return false
 }
 
 type UpdateBankProfileResponse struct {
@@ -10922,19 +10946,23 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\"W\n" +
 	"\x17GetSnapshotDiffResponse\x12\x12\n" +
 	"\x04hash\x18\x01 \x01(\tR\x04hash\x12(\n" +
-	"\x05files\x18\x02 \x03(\v2\x12.float.v1.FileDiffR\x05files\"@\n" +
+	"\x05files\x18\x02 \x03(\v2\x12.float.v1.FileDiffR\x05files\"_\n" +
 	"\vBankProfile\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
-	"rules_file\x18\x02 \x01(\tR\trulesFile\"\x19\n" +
+	"rules_file\x18\x02 \x01(\tR\trulesFile\x12\x1d\n" +
+	"\n" +
+	"skip_rules\x18\x03 \x01(\bR\tskipRules\"\x19\n" +
 	"\x17ListBankProfilesRequest\"M\n" +
 	"\x18ListBankProfilesResponse\x121\n" +
-	"\bprofiles\x18\x01 \x03(\v2\x15.float.v1.BankProfileR\bprofiles\"r\n" +
+	"\bprofiles\x18\x01 \x03(\v2\x15.float.v1.BankProfileR\bprofiles\"\x91\x01\n" +
 	"\x18CreateBankProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
 	"rules_file\x18\x02 \x01(\tR\trulesFile\x12#\n" +
-	"\rrules_content\x18\x03 \x01(\fR\frulesContent\"L\n" +
+	"\rrules_content\x18\x03 \x01(\fR\frulesContent\x12\x1d\n" +
+	"\n" +
+	"skip_rules\x18\x04 \x01(\bR\tskipRules\"L\n" +
 	"\x19CreateBankProfileResponse\x12/\n" +
 	"\aprofile\x18\x01 \x01(\v2\x15.float.v1.BankProfileR\aprofile\"2\n" +
 	"\x1cGetBankProfileContentRequest\x12\x12\n" +
@@ -10942,11 +10970,14 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x1dGetBankProfileContentResponse\x12\x1d\n" +
 	"\n" +
 	"rules_file\x18\x01 \x01(\tR\trulesFile\x12#\n" +
-	"\rrules_content\x18\x02 \x01(\fR\frulesContent\"n\n" +
+	"\rrules_content\x18\x02 \x01(\fR\frulesContent\"\xa1\x01\n" +
 	"\x18UpdateBankProfileRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
 	"\bnew_name\x18\x02 \x01(\tR\anewName\x12#\n" +
-	"\rrules_content\x18\x03 \x01(\fR\frulesContent\"L\n" +
+	"\rrules_content\x18\x03 \x01(\fR\frulesContent\x12\"\n" +
+	"\n" +
+	"skip_rules\x18\x04 \x01(\bH\x00R\tskipRules\x88\x01\x01B\r\n" +
+	"\v_skip_rules\"L\n" +
 	"\x19UpdateBankProfileResponse\x12/\n" +
 	"\aprofile\x18\x01 \x01(\v2\x15.float.v1.BankProfileR\aprofile\"Z\n" +
 	"\x18DeleteBankProfileRequest\x12\x12\n" +
@@ -11931,6 +11962,7 @@ func file_float_v1_ledger_proto_init() {
 		(*BulkDeleteTransactionsResponse_Progress)(nil),
 		(*BulkDeleteTransactionsResponse_Result)(nil),
 	}
+	file_float_v1_ledger_proto_msgTypes[91].OneofWrappers = []any{}
 	file_float_v1_ledger_proto_msgTypes[101].OneofWrappers = []any{
 		(*ImportTransactionsResponse_Progress)(nil),
 		(*ImportTransactionsResponse_Result)(nil),
