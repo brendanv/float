@@ -933,7 +933,7 @@ export function TransactionTable({
 }) {
   const [expanded, setExpanded] = useState({});
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
-  const [sorting, setSorting] = useState([]);
+  const [sorting, setSorting] = useState([{ id: "date", desc: true }]);
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
   const isRegisterMode = !!registerRows;
