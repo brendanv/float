@@ -524,7 +524,7 @@ export function ImportPage() {
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState(null);
   const [selectedIndices, setSelectedIndices] = useState(new Set());
-  const [sorting, setSorting] = useState([]);
+  const [sorting, setSorting] = useState([{ id: "date", desc: true }]);
   const [ruleFilter, setRuleFilter] = useState("all");
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
