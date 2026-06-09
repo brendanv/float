@@ -38,7 +38,9 @@ export function formatBalanceAssertion(ba) {
 
 export function formatAmounts(amounts) {
   if (!amounts || amounts.length === 0) return "";
-  return amounts.map((a) => formatCurrency(a.quantity, a.commodity) + formatCost(a.cost)).join(", ");
+  const nonZero = amounts.filter((a) => parseFloat(a.quantity) !== 0);
+  const display = nonZero.length > 0 ? nonZero : amounts;
+  return display.map((a) => formatCurrency(a.quantity, a.commodity) + formatCost(a.cost)).join(", ");
 }
 
 export function formatDate(dateStr) {
