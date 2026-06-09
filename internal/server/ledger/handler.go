@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1496,6 +1497,136 @@ func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[float
 	return connect.NewResponse(&floatv1.BackfillPricesResponse{
 		Prices:       out,
 		SkippedCount: skippedCount,
+	}), nil
+}
+
+func (h *Handler) GeneratePricesFromCost(ctx context.Context, req *connect.Request[floatv1.GeneratePricesFromCostRequest]) (*connect.Response[floatv1.GeneratePricesFromCostResponse], error) {
+	prefix := req.Msg.AccountPrefix
+	if prefix == "" {
+		prefix = "assets"
+	}
+
+	existing, err := journal.ListPrices(h.dataDir)
+	if err != nil {
+		return nil, rpcErr(ctx, err, "generate prices from cost: list existing failed")
+	}
+	// Track the most recent price date per commodity. An empty string means no
+	// existing prices, so all purchase transactions qualify. A non-empty date
+	// means only transactions strictly newer than that date qualify (catching up
+	// after prices have gone stale).
+	latestPriceDateByCommodity := make(map[string]string, len(existing))
+	for _, p := range existing {
+		if p.Date > latestPriceDateByCommodity[p.Commodity] {
+			latestPriceDateByCommodity[p.Commodity] = p.Date
+		}
+	}
+
+	txns, err := cachedTransactions(ctx, h.cache, h.hl, []string{prefix})
+	if err != nil {
+		return nil, rpcErr(ctx, err, "generate prices from cost: load transactions failed")
+	}
+
+	seen := make(map[string]map[string]bool)
+	var toWrite []struct {
+		date      string
+		commodity string
+		unitPrice float64
+		currency  string
+	}
+
+	for _, txn := range txns {
+		for _, p := range txn.Postings {
+			for _, amt := range p.Amounts {
+				if currencySymbols[amt.Commodity] {
+					continue
+				}
+				c, cerr := amt.ParseCost()
+				if cerr != nil || c == nil {
+					continue
+				}
+				var unitPrice float64
+				switch c.Tag {
+				case "UnitCost":
+					unitPrice = c.Contents.Quantity.FloatingPoint
+				case "TotalCost":
+					if q := amt.Quantity.FloatingPoint; q != 0 {
+						unitPrice = c.Contents.Quantity.FloatingPoint / math.Abs(q)
+					}
+				}
+				if unitPrice <= 0 {
+					continue
+				}
+				date := txn.Date
+				if p.Date != nil && *p.Date != "" {
+					date = *p.Date
+				}
+				if date <= latestPriceDateByCommodity[amt.Commodity] {
+					continue
+				}
+				if _, ok := seen[amt.Commodity]; !ok {
+					seen[amt.Commodity] = make(map[string]bool)
+				}
+				if seen[amt.Commodity][date] {
+					continue
+				}
+				seen[amt.Commodity][date] = true
+				toWrite = append(toWrite, struct {
+					date      string
+					commodity string
+					unitPrice float64
+					currency  string
+				}{date, amt.Commodity, unitPrice, c.Contents.Commodity})
+			}
+		}
+	}
+
+	// Count commodities with existing prices that produced no new entries
+	// (their prices are already up to date relative to recent purchases).
+	generatedCommodities := make(map[string]bool)
+	for _, pw := range toWrite {
+		generatedCommodities[pw.commodity] = true
+	}
+	var skippedCommodities int32
+	for commodity, latestDate := range latestPriceDateByCommodity {
+		if latestDate != "" && !generatedCommodities[commodity] {
+			skippedCommodities++
+		}
+	}
+
+	if len(toWrite) == 0 {
+		return connect.NewResponse(&floatv1.GeneratePricesFromCostResponse{
+			SkippedCommodities: skippedCommodities,
+		}), nil
+	}
+
+	sort.Slice(toWrite, func(i, j int) bool {
+		if toWrite[i].commodity != toWrite[j].commodity {
+			return toWrite[i].commodity < toWrite[j].commodity
+		}
+		return toWrite[i].date < toWrite[j].date
+	})
+
+	var added []journal.Price
+	if err := h.lock.Do(ctx, "generate prices from cost", func() error {
+		for _, pw := range toWrite {
+			pid, e := journal.AppendPrice(h.dataDir, pw.date, pw.commodity, fmt.Sprintf("%.2f", pw.unitPrice), pw.currency)
+			if e != nil {
+				return e
+			}
+			added = append(added, journal.Price{PID: pid, Date: pw.date, Commodity: pw.commodity, Quantity: fmt.Sprintf("%.2f", pw.unitPrice), Currency: pw.currency})
+		}
+		return nil
+	}); err != nil {
+		return nil, rpcErr(ctx, err, "generate prices from cost: write failed")
+	}
+
+	out := make([]*floatv1.PriceDirective, len(added))
+	for i, p := range added {
+		out[i] = toProtoPriceDirective(p)
+	}
+	return connect.NewResponse(&floatv1.GeneratePricesFromCostResponse{
+		AddedPrices:        out,
+		SkippedCommodities: skippedCommodities,
 	}), nil
 }
 

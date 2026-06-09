@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CartesianGrid,
   Line,
@@ -790,6 +790,14 @@ export function PortfolioPage() {
     () => beginDateForRange(timeRange),
     [timeRange],
   );
+  const queryClient = useQueryClient();
+  const generateMutation = useMutation({
+    mutationFn: () => ledgerClient.generatePricesFromCost({ accountPrefix }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.portfolioHoldings(accountPrefix) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.portfolioTimeseries(accountPrefix, timeseriesBegin) });
+    },
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.portfolioHoldings(accountPrefix),
@@ -937,24 +945,52 @@ export function PortfolioPage() {
 
           {unvaluedCount > 0 && (
             <Card className="col-span-12 border-destructive/30 bg-destructive/5">
-              <CardContent className="py-4 text-sm text-destructive">
-                {unvaluedCount} holding{unvaluedCount > 1 ? "s" : ""} missing
-                price data.{" "}
-                <Link to="/prices" className="underline">
-                  Add prices →
-                </Link>
+              <CardContent className="py-4 text-sm text-destructive flex items-center gap-4 flex-wrap">
+                <span>
+                  {unvaluedCount} holding{unvaluedCount > 1 ? "s" : ""} missing
+                  price data.{" "}
+                  <Link to="/prices" className="underline">
+                    Add prices →
+                  </Link>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  disabled={generateMutation.isPending}
+                  onClick={() => generateMutation.mutate()}
+                >
+                  {generateMutation.isPending ? "Generating…" : "Generate from purchases"}
+                </Button>
+                {generateMutation.isError && (
+                  <span className="text-xs">{generateMutation.error?.message ?? "Failed"}</span>
+                )}
               </CardContent>
             </Card>
           )}
 
           {staleCount > 0 && (
             <Card className="col-span-12 border-amber-500/30 bg-amber-500/5">
-              <CardContent className="py-4 text-sm text-amber-600 dark:text-amber-400">
-                {staleCount} holding{staleCount > 1 ? "s" : ""} with price data
-                older than 30 days.{" "}
-                <Link to="/prices" className="underline">
-                  Update prices →
-                </Link>
+              <CardContent className="py-4 text-sm text-amber-600 dark:text-amber-400 flex items-center gap-4 flex-wrap">
+                <span>
+                  {staleCount} holding{staleCount > 1 ? "s" : ""} with price data
+                  older than 30 days.{" "}
+                  <Link to="/prices" className="underline">
+                    Update prices →
+                  </Link>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                  disabled={generateMutation.isPending}
+                  onClick={() => generateMutation.mutate()}
+                >
+                  {generateMutation.isPending ? "Generating…" : "Generate from purchases"}
+                </Button>
+                {generateMutation.isError && (
+                  <span className="text-xs">{generateMutation.error?.message ?? "Failed"}</span>
+                )}
               </CardContent>
             </Card>
           )}

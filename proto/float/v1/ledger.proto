@@ -287,6 +287,15 @@ message BackfillPricesResponse {
   int32 skipped_count = 2;            // dates already present, not written
 }
 
+message GeneratePricesFromCostRequest {
+  string account_prefix = 1; // optional; defaults to "assets"
+}
+
+message GeneratePricesFromCostResponse {
+  repeated PriceDirective added_prices = 1;
+  int32 skipped_commodities = 2; // commodities skipped because they already have P directives
+}
+
 message AccountDeclaration {
   reserved 1;
   reserved "aid";
@@ -1032,6 +1041,7 @@ service LedgerService {
   rpc AddPrice(AddPriceRequest) returns (AddPriceResponse);
   rpc DeletePrice(DeletePriceRequest) returns (DeletePriceResponse);
   rpc BackfillPrices(BackfillPricesRequest) returns (BackfillPricesResponse);
+  rpc GeneratePricesFromCost(GeneratePricesFromCostRequest) returns (GeneratePricesFromCostResponse);
   rpc ListAccountDeclarations(ListAccountDeclarationsRequest) returns (ListAccountDeclarationsResponse);
   rpc DeclareAccount(DeclareAccountRequest) returns (DeclareAccountResponse);
   rpc DeleteAccountDeclaration(DeleteAccountDeclarationRequest) returns (DeleteAccountDeclarationResponse);
