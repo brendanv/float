@@ -168,7 +168,7 @@ function usePortfolioExclusions() {
   return { excludedSymbols, excludedAccountPrefixes, totalExclusions, update, isPending: updateMutation.isPending };
 }
 
-function ExclusionsDialog({ open, onOpenChange }) {
+function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountPrefixChange }) {
   const { excludedSymbols, excludedAccountPrefixes, update, isPending } = usePortfolioExclusions();
   const [newSymbol, setNewSymbol] = useState("");
   const [newPrefix, setNewPrefix] = useState("");
@@ -199,14 +199,28 @@ function ExclusionsDialog({ open, onOpenChange }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="md">
         <DialogHeader>
-          <DialogTitle>Portfolio Exclusions</DialogTitle>
+          <DialogTitle>Portfolio Filters</DialogTitle>
           <DialogDescription>
-            Excluded commodities and accounts are hidden from holdings, charts, and totals.
+            Scope and exclusions applied to holdings, charts, and totals.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-5">
           <div>
+            <Label htmlFor="dialog-account-prefix" className="mb-2 block">Account Scope</Label>
+            <Input
+              id="dialog-account-prefix"
+              className="h-8 w-full font-mono text-sm"
+              placeholder="assets (default)"
+              value={accountPrefix}
+              onChange={(e) => onAccountPrefixChange(e.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Show only holdings under this account prefix, e.g. <code className="font-mono">assets:investments</code>.
+            </p>
+          </div>
+
+          <div className="border-t border-border pt-4">
             <Label className="mb-2 block">Excluded Commodities</Label>
             <div className="flex gap-2 mb-2">
               <Input
@@ -976,6 +990,7 @@ export function PortfolioPage() {
   });
 
   const { excludedSymbols, excludedAccountPrefixes, totalExclusions, update: updateExclusions } = usePortfolioExclusions();
+  const activeFilterCount = (accountPrefix ? 1 : 0) + totalExclusions;
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.portfolioHoldings(accountPrefix),
@@ -1025,40 +1040,30 @@ export function PortfolioPage() {
 
   return (
     <Page>
-      <ExclusionsDialog open={exclusionsOpen} onOpenChange={setExclusionsOpen} />
+      <ExclusionsDialog
+        open={exclusionsOpen}
+        onOpenChange={setExclusionsOpen}
+        accountPrefix={accountPrefix}
+        onAccountPrefixChange={setAccountPrefix}
+      />
       <PageHeader
         title="Investment Portfolio"
         description="Holdings, allocation, contribution-adjusted performance, and valuation coverage."
       >
-        <div className="flex items-end gap-2">
-          <Label
-            htmlFor="account-prefix"
-            className="whitespace-nowrap text-xs text-muted-foreground"
-          >
-            Account prefix
-          </Label>
-          <Input
-            id="account-prefix"
-            className="h-8 w-48 text-sm font-mono"
-            placeholder="assets"
-            value={accountPrefix}
-            onChange={(e) => setAccountPrefix(e.target.value)}
-          />
-          <Button
-            variant={totalExclusions > 0 ? "secondary" : "outline"}
-            size="sm"
-            className="h-8 gap-1.5"
-            onClick={() => setExclusionsOpen(true)}
-          >
-            <FunnelIcon size={14} />
-            Exclusions
-            {totalExclusions > 0 && (
-              <Badge variant="default" className="h-4 px-1 text-[10px]">
-                {totalExclusions}
-              </Badge>
-            )}
-          </Button>
-        </div>
+        <Button
+          variant={activeFilterCount > 0 ? "secondary" : "outline"}
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={() => setExclusionsOpen(true)}
+        >
+          <FunnelIcon size={14} />
+          Filters
+          {activeFilterCount > 0 && (
+            <Badge variant="default" className="h-4 px-1 text-[10px]">
+              {activeFilterCount}
+            </Badge>
+          )}
+        </Button>
       </PageHeader>
 
       {isLoading && <Loading />}
