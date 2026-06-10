@@ -3226,6 +3226,7 @@ func (h *Handler) GetPortfolioSettings(ctx context.Context, _ *connect.Request[f
 	resp := &floatv1.GetPortfolioSettingsResponse{
 		ExcludedSymbols:         h.cfg.Portfolio.ExcludedSymbols,
 		ExcludedAccountPrefixes: h.cfg.Portfolio.ExcludedAccountPrefixes,
+		DefaultAccountPrefix:    h.cfg.Portfolio.DefaultAccountPrefix,
 	}
 	if resp.ExcludedSymbols == nil {
 		resp.ExcludedSymbols = []string{}
@@ -3248,6 +3249,7 @@ func (h *Handler) UpdatePortfolioSettings(ctx context.Context, req *connect.Requ
 	err := h.lock.Do(ctx, "update portfolio settings", func() error {
 		h.cfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols
 		h.cfg.Portfolio.ExcludedAccountPrefixes = req.Msg.ExcludedAccountPrefixes
+		h.cfg.Portfolio.DefaultAccountPrefix = req.Msg.DefaultAccountPrefix
 		if err := config.Save(h.configPath, h.cfg); err != nil {
 			h.cfg.Portfolio = oldPortfolio
 			return fmt.Errorf("save config: %w", err)

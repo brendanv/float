@@ -10198,6 +10198,7 @@ type GetPortfolioSettingsResponse struct {
 	state                   protoimpl.MessageState `protogen:"open.v1"`
 	ExcludedSymbols         []string               `protobuf:"bytes,1,rep,name=excluded_symbols,json=excludedSymbols,proto3" json:"excluded_symbols,omitempty"`                           // commodity codes excluded from portfolio views
 	ExcludedAccountPrefixes []string               `protobuf:"bytes,2,rep,name=excluded_account_prefixes,json=excludedAccountPrefixes,proto3" json:"excluded_account_prefixes,omitempty"` // account prefixes excluded from portfolio views
+	DefaultAccountPrefix    string                 `protobuf:"bytes,3,opt,name=default_account_prefix,json=defaultAccountPrefix,proto3" json:"default_account_prefix,omitempty"`          // default account scope filter applied on page load
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -10246,10 +10247,18 @@ func (x *GetPortfolioSettingsResponse) GetExcludedAccountPrefixes() []string {
 	return nil
 }
 
+func (x *GetPortfolioSettingsResponse) GetDefaultAccountPrefix() string {
+	if x != nil {
+		return x.DefaultAccountPrefix
+	}
+	return ""
+}
+
 type UpdatePortfolioSettingsRequest struct {
 	state                   protoimpl.MessageState `protogen:"open.v1"`
 	ExcludedSymbols         []string               `protobuf:"bytes,1,rep,name=excluded_symbols,json=excludedSymbols,proto3" json:"excluded_symbols,omitempty"`                           // commodity codes to exclude; replaces existing list
 	ExcludedAccountPrefixes []string               `protobuf:"bytes,2,rep,name=excluded_account_prefixes,json=excludedAccountPrefixes,proto3" json:"excluded_account_prefixes,omitempty"` // account prefixes to exclude; replaces existing list
+	DefaultAccountPrefix    string                 `protobuf:"bytes,3,opt,name=default_account_prefix,json=defaultAccountPrefix,proto3" json:"default_account_prefix,omitempty"`          // default account scope filter applied on page load
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -10296,6 +10305,13 @@ func (x *UpdatePortfolioSettingsRequest) GetExcludedAccountPrefixes() []string {
 		return x.ExcludedAccountPrefixes
 	}
 	return nil
+}
+
+func (x *UpdatePortfolioSettingsRequest) GetDefaultAccountPrefix() string {
+	if x != nil {
+		return x.DefaultAccountPrefix
+	}
+	return ""
 }
 
 type UpdatePortfolioSettingsResponse struct {
@@ -11496,13 +11512,15 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x12SetTimezoneRequest\x12\x1a\n" +
 	"\btimezone\x18\x01 \x01(\tR\btimezone\"\x15\n" +
 	"\x13SetTimezoneResponse\"\x1d\n" +
-	"\x1bGetPortfolioSettingsRequest\"\x85\x01\n" +
+	"\x1bGetPortfolioSettingsRequest\"\xbb\x01\n" +
 	"\x1cGetPortfolioSettingsResponse\x12)\n" +
 	"\x10excluded_symbols\x18\x01 \x03(\tR\x0fexcludedSymbols\x12:\n" +
-	"\x19excluded_account_prefixes\x18\x02 \x03(\tR\x17excludedAccountPrefixes\"\x87\x01\n" +
+	"\x19excluded_account_prefixes\x18\x02 \x03(\tR\x17excludedAccountPrefixes\x124\n" +
+	"\x16default_account_prefix\x18\x03 \x01(\tR\x14defaultAccountPrefix\"\xbd\x01\n" +
 	"\x1eUpdatePortfolioSettingsRequest\x12)\n" +
 	"\x10excluded_symbols\x18\x01 \x03(\tR\x0fexcludedSymbols\x12:\n" +
-	"\x19excluded_account_prefixes\x18\x02 \x03(\tR\x17excludedAccountPrefixes\"!\n" +
+	"\x19excluded_account_prefixes\x18\x02 \x03(\tR\x17excludedAccountPrefixes\x124\n" +
+	"\x16default_account_prefix\x18\x03 \x01(\tR\x14defaultAccountPrefix\"!\n" +
 	"\x1fUpdatePortfolioSettingsResponse\",\n" +
 	"\x16RunHledgerQueryRequest\x12\x12\n" +
 	"\x04args\x18\x01 \x01(\tR\x04args\"\x86\x01\n" +

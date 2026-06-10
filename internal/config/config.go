@@ -52,6 +52,7 @@ type StripeConfig struct {
 type PortfolioConfig struct {
 	ExcludedSymbols         []string `toml:"excluded_symbols"`
 	ExcludedAccountPrefixes []string `toml:"excluded_account_prefixes"`
+	DefaultAccountPrefix    string   `toml:"default_account_prefix"`
 }
 
 type Config struct {

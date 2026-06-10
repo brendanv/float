@@ -1863,7 +1863,7 @@ export async function mockLedgerApi(
         body = mockPortfolioTimeseries;
         break;
       case "GetPortfolioSettings":
-        body = { excludedSymbols: [], excludedAccountPrefixes: [] };
+        body = { excludedSymbols: [], excludedAccountPrefixes: [], defaultAccountPrefix: "" };
         break;
       case "UpdatePortfolioSettings":
         body = {};
