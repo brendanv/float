@@ -140,7 +140,7 @@ function SortableHeader({ column, children, className }) {
   );
 }
 
-function usePortfolioExclusions() {
+function usePortfolioSettings() {
   const queryClient = useQueryClient();
 
   const { data: settings } = useQuery({
@@ -157,52 +157,47 @@ function usePortfolioExclusions() {
     },
   });
 
-  const excludedSymbols = settings?.excludedSymbols ?? [];
-  const excludedAccountPrefixes = settings?.excludedAccountPrefixes ?? [];
-  const defaultAccountPrefix = settings?.defaultAccountPrefix ?? "";
-  const totalExclusions = excludedSymbols.length + excludedAccountPrefixes.length;
-
-  function update(symbols, prefixes, defaultPrefix) {
-    updateMutation.mutate({
-      excludedSymbols: symbols,
-      excludedAccountPrefixes: prefixes,
-      defaultAccountPrefix: defaultPrefix,
-    });
-  }
-
-  return { excludedSymbols, excludedAccountPrefixes, defaultAccountPrefix, totalExclusions, update, isPending: updateMutation.isPending, isLoaded: settings !== undefined };
+  return {
+    defaults: settings
+      ? {
+          accountPrefix: settings.defaultAccountPrefix ?? "",
+          excludedSymbols: settings.excludedSymbols ?? [],
+          excludedAccountPrefixes: settings.excludedAccountPrefixes ?? [],
+        }
+      : null,
+    persist: updateMutation.mutate,
+    isPending: updateMutation.isPending,
+  };
 }
 
-function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountPrefixChange }) {
-  const { excludedSymbols, excludedAccountPrefixes, update, isPending } = usePortfolioExclusions();
+function ExclusionsDialog({ open, onOpenChange, accountPrefix, excludedSymbols, excludedAccountPrefixes, onUpdate, isPending }) {
   const [newSymbol, setNewSymbol] = useState("");
   const [newPrefix, setNewPrefix] = useState("");
 
   function addSymbol() {
     const s = newSymbol.trim().toUpperCase();
     if (!s || excludedSymbols.includes(s)) return;
-    update([...excludedSymbols, s], excludedAccountPrefixes, accountPrefix);
+    onUpdate([...excludedSymbols, s], excludedAccountPrefixes, accountPrefix);
     setNewSymbol("");
   }
 
   function removeSymbol(sym) {
-    update(excludedSymbols.filter((s) => s !== sym), excludedAccountPrefixes, accountPrefix);
+    onUpdate(excludedSymbols.filter((s) => s !== sym), excludedAccountPrefixes, accountPrefix);
   }
 
   function addPrefix() {
     const s = newPrefix.trim();
     if (!s || excludedAccountPrefixes.includes(s)) return;
-    update(excludedSymbols, [...excludedAccountPrefixes, s], accountPrefix);
+    onUpdate(excludedSymbols, [...excludedAccountPrefixes, s], accountPrefix);
     setNewPrefix("");
   }
 
   function removePrefix(prefix) {
-    update(excludedSymbols, excludedAccountPrefixes.filter((p) => p !== prefix), accountPrefix);
+    onUpdate(excludedSymbols, excludedAccountPrefixes.filter((p) => p !== prefix), accountPrefix);
   }
 
   function handleAccountPrefixChange(value) {
-    onAccountPrefixChange(value);
-    update(excludedSymbols, excludedAccountPrefixes, value);
+    onUpdate(excludedSymbols, excludedAccountPrefixes, value);
   }
 
   return (
@@ -983,7 +978,9 @@ const columns = [
 
 export function PortfolioPage() {
   const [accountPrefix, setAccountPrefix] = useState("");
-  const [prefixInitialized, setPrefixInitialized] = useState(false);
+  const [excludedSymbols, setExcludedSymbols] = useState([]);
+  const [excludedAccountPrefixes, setExcludedAccountPrefixes] = useState([]);
+  const [filtersInitialized, setFiltersInitialized] = useState(false);
   const [sorting, setSorting] = useState([{ id: "currentValue", desc: true }]);
   const [timeRange, setTimeRange] = useState("all");
   const [exclusionsOpen, setExclusionsOpen] = useState(false);
@@ -1000,15 +997,29 @@ export function PortfolioPage() {
     },
   });
 
-  const { excludedSymbols, excludedAccountPrefixes, defaultAccountPrefix, totalExclusions, update: updateExclusions, isLoaded } = usePortfolioExclusions();
+  const { defaults, persist: persistSettings, isPending: settingsPending } = usePortfolioSettings();
 
   useEffect(() => {
-    if (isLoaded && !prefixInitialized) {
-      setAccountPrefix(defaultAccountPrefix);
-      setPrefixInitialized(true);
+    if (defaults && !filtersInitialized) {
+      setAccountPrefix(defaults.accountPrefix);
+      setExcludedSymbols(defaults.excludedSymbols);
+      setExcludedAccountPrefixes(defaults.excludedAccountPrefixes);
+      setFiltersInitialized(true);
     }
-  }, [isLoaded, defaultAccountPrefix, prefixInitialized]);
-  const activeFilterCount = (accountPrefix ? 1 : 0) + totalExclusions;
+  }, [defaults, filtersInitialized]);
+
+  function updateFilters(newSymbols, newPrefixes, newAccountPrefix) {
+    setExcludedSymbols(newSymbols);
+    setExcludedAccountPrefixes(newPrefixes);
+    setAccountPrefix(newAccountPrefix);
+    persistSettings({
+      excludedSymbols: newSymbols,
+      excludedAccountPrefixes: newPrefixes,
+      defaultAccountPrefix: newAccountPrefix,
+    });
+  }
+
+  const activeFilterCount = (accountPrefix ? 1 : 0) + excludedSymbols.length + excludedAccountPrefixes.length;
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.portfolioHoldings(accountPrefix),
@@ -1042,7 +1053,7 @@ export function PortfolioPage() {
 
   function handleExcludeSymbol(symbol) {
     if (!excludedSymbols.includes(symbol)) {
-      updateExclusions([...excludedSymbols, symbol], excludedAccountPrefixes, accountPrefix);
+      updateFilters([...excludedSymbols, symbol], excludedAccountPrefixes, accountPrefix);
     }
   }
 
@@ -1062,7 +1073,10 @@ export function PortfolioPage() {
         open={exclusionsOpen}
         onOpenChange={setExclusionsOpen}
         accountPrefix={accountPrefix}
-        onAccountPrefixChange={setAccountPrefix}
+        excludedSymbols={excludedSymbols}
+        excludedAccountPrefixes={excludedAccountPrefixes}
+        onUpdate={updateFilters}
+        isPending={settingsPending}
       />
       <PageHeader
         title="Investment Portfolio"
