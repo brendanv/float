@@ -49,6 +49,11 @@ type StripeConfig struct {
 	LinkedAccounts     []StripeLinkedAccount `toml:"linked_accounts"`
 }
 
+type PortfolioConfig struct {
+	ExcludedSymbols         []string `toml:"excluded_symbols"`
+	ExcludedAccountPrefixes []string `toml:"excluded_account_prefixes"`
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	Users        []User             `toml:"users"`
@@ -56,6 +61,7 @@ type Config struct {
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 	AI           AIConfig           `toml:"ai"`
 	Stripe       StripeConfig       `toml:"stripe"`
+	Portfolio    PortfolioConfig    `toml:"portfolio"`
 	// Timezone is an IANA timezone name (e.g. "America/New_York") used when
 	// converting Stripe transaction timestamps to calendar dates. Defaults to
 	// UTC when empty. Set this to your local timezone to avoid off-by-one-day

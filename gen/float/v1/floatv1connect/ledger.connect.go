@@ -254,6 +254,12 @@ const (
 	// LedgerServiceSetTimezoneProcedure is the fully-qualified name of the LedgerService's SetTimezone
 	// RPC.
 	LedgerServiceSetTimezoneProcedure = "/float.v1.LedgerService/SetTimezone"
+	// LedgerServiceGetPortfolioSettingsProcedure is the fully-qualified name of the LedgerService's
+	// GetPortfolioSettings RPC.
+	LedgerServiceGetPortfolioSettingsProcedure = "/float.v1.LedgerService/GetPortfolioSettings"
+	// LedgerServiceUpdatePortfolioSettingsProcedure is the fully-qualified name of the LedgerService's
+	// UpdatePortfolioSettings RPC.
+	LedgerServiceUpdatePortfolioSettingsProcedure = "/float.v1.LedgerService/UpdatePortfolioSettings"
 	// LedgerServiceRunHledgerQueryProcedure is the fully-qualified name of the LedgerService's
 	// RunHledgerQuery RPC.
 	LedgerServiceRunHledgerQueryProcedure = "/float.v1.LedgerService/RunHledgerQuery"
@@ -345,6 +351,8 @@ type LedgerServiceClient interface {
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
 	GetGeneralConfig(context.Context, *connect.Request[v1.GetGeneralConfigRequest]) (*connect.Response[v1.GetGeneralConfigResponse], error)
 	SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error)
+	GetPortfolioSettings(context.Context, *connect.Request[v1.GetPortfolioSettingsRequest]) (*connect.Response[v1.GetPortfolioSettingsResponse], error)
+	UpdatePortfolioSettings(context.Context, *connect.Request[v1.UpdatePortfolioSettingsRequest]) (*connect.Response[v1.UpdatePortfolioSettingsResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest]) (*connect.ServerStreamForClient[v1.StreamLogsResponse], error)
@@ -811,6 +819,18 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SetTimezone")),
 			connect.WithClientOptions(opts...),
 		),
+		getPortfolioSettings: connect.NewClient[v1.GetPortfolioSettingsRequest, v1.GetPortfolioSettingsResponse](
+			httpClient,
+			baseURL+LedgerServiceGetPortfolioSettingsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetPortfolioSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		updatePortfolioSettings: connect.NewClient[v1.UpdatePortfolioSettingsRequest, v1.UpdatePortfolioSettingsResponse](
+			httpClient,
+			baseURL+LedgerServiceUpdatePortfolioSettingsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UpdatePortfolioSettings")),
+			connect.WithClientOptions(opts...),
+		),
 		runHledgerQuery: connect.NewClient[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse](
 			httpClient,
 			baseURL+LedgerServiceRunHledgerQueryProcedure,
@@ -903,6 +923,8 @@ type ledgerServiceClient struct {
 	setStripeDailyImportEnabled  *connect.Client[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse]
 	getGeneralConfig             *connect.Client[v1.GetGeneralConfigRequest, v1.GetGeneralConfigResponse]
 	setTimezone                  *connect.Client[v1.SetTimezoneRequest, v1.SetTimezoneResponse]
+	getPortfolioSettings         *connect.Client[v1.GetPortfolioSettingsRequest, v1.GetPortfolioSettingsResponse]
+	updatePortfolioSettings      *connect.Client[v1.UpdatePortfolioSettingsRequest, v1.UpdatePortfolioSettingsResponse]
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
 	streamLogs                   *connect.Client[v1.StreamLogsRequest, v1.StreamLogsResponse]
 }
@@ -1282,6 +1304,16 @@ func (c *ledgerServiceClient) SetTimezone(ctx context.Context, req *connect.Requ
 	return c.setTimezone.CallUnary(ctx, req)
 }
 
+// GetPortfolioSettings calls float.v1.LedgerService.GetPortfolioSettings.
+func (c *ledgerServiceClient) GetPortfolioSettings(ctx context.Context, req *connect.Request[v1.GetPortfolioSettingsRequest]) (*connect.Response[v1.GetPortfolioSettingsResponse], error) {
+	return c.getPortfolioSettings.CallUnary(ctx, req)
+}
+
+// UpdatePortfolioSettings calls float.v1.LedgerService.UpdatePortfolioSettings.
+func (c *ledgerServiceClient) UpdatePortfolioSettings(ctx context.Context, req *connect.Request[v1.UpdatePortfolioSettingsRequest]) (*connect.Response[v1.UpdatePortfolioSettingsResponse], error) {
+	return c.updatePortfolioSettings.CallUnary(ctx, req)
+}
+
 // RunHledgerQuery calls float.v1.LedgerService.RunHledgerQuery.
 func (c *ledgerServiceClient) RunHledgerQuery(ctx context.Context, req *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
 	return c.runHledgerQuery.CallUnary(ctx, req)
@@ -1375,6 +1407,8 @@ type LedgerServiceHandler interface {
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
 	GetGeneralConfig(context.Context, *connect.Request[v1.GetGeneralConfigRequest]) (*connect.Response[v1.GetGeneralConfigResponse], error)
 	SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error)
+	GetPortfolioSettings(context.Context, *connect.Request[v1.GetPortfolioSettingsRequest]) (*connect.Response[v1.GetPortfolioSettingsResponse], error)
+	UpdatePortfolioSettings(context.Context, *connect.Request[v1.UpdatePortfolioSettingsRequest]) (*connect.Response[v1.UpdatePortfolioSettingsResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest], *connect.ServerStream[v1.StreamLogsResponse]) error
@@ -1837,6 +1871,18 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SetTimezone")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetPortfolioSettingsHandler := connect.NewUnaryHandler(
+		LedgerServiceGetPortfolioSettingsProcedure,
+		svc.GetPortfolioSettings,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetPortfolioSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceUpdatePortfolioSettingsHandler := connect.NewUnaryHandler(
+		LedgerServiceUpdatePortfolioSettingsProcedure,
+		svc.UpdatePortfolioSettings,
+		connect.WithSchema(ledgerServiceMethods.ByName("UpdatePortfolioSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceRunHledgerQueryHandler := connect.NewUnaryHandler(
 		LedgerServiceRunHledgerQueryProcedure,
 		svc.RunHledgerQuery,
@@ -2001,6 +2047,10 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetGeneralConfigHandler.ServeHTTP(w, r)
 		case LedgerServiceSetTimezoneProcedure:
 			ledgerServiceSetTimezoneHandler.ServeHTTP(w, r)
+		case LedgerServiceGetPortfolioSettingsProcedure:
+			ledgerServiceGetPortfolioSettingsHandler.ServeHTTP(w, r)
+		case LedgerServiceUpdatePortfolioSettingsProcedure:
+			ledgerServiceUpdatePortfolioSettingsHandler.ServeHTTP(w, r)
 		case LedgerServiceRunHledgerQueryProcedure:
 			ledgerServiceRunHledgerQueryHandler.ServeHTTP(w, r)
 		case LedgerServiceStreamLogsProcedure:
@@ -2312,6 +2362,14 @@ func (UnimplementedLedgerServiceHandler) GetGeneralConfig(context.Context, *conn
 
 func (UnimplementedLedgerServiceHandler) SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetTimezone is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetPortfolioSettings(context.Context, *connect.Request[v1.GetPortfolioSettingsRequest]) (*connect.Response[v1.GetPortfolioSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetPortfolioSettings is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UpdatePortfolioSettings(context.Context, *connect.Request[v1.UpdatePortfolioSettingsRequest]) (*connect.Response[v1.UpdatePortfolioSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdatePortfolioSettings is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {

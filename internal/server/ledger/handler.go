@@ -364,6 +364,16 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	}
 	query := []string{prefix}
 
+	var excludedSymbols map[string]bool
+	var excludedAccountPrefixes []string
+	if h.cfg != nil {
+		excludedSymbols = make(map[string]bool, len(h.cfg.Portfolio.ExcludedSymbols))
+		for _, s := range h.cfg.Portfolio.ExcludedSymbols {
+			excludedSymbols[s] = true
+		}
+		excludedAccountPrefixes = h.cfg.Portfolio.ExcludedAccountPrefixes
+	}
+
 	// Raw balances provide the original commodity quantities.
 	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, query)
 	if err != nil {
@@ -429,8 +439,14 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	costByHolding := make(map[holdingKey]costBasis)
 	var holdingOrder []holdingKey
 	for _, row := range raw.Rows {
+		if isExcludedAccount(row.FullName, excludedAccountPrefixes) {
+			continue
+		}
 		for _, amt := range row.Amounts {
 			if currencySymbols[amt.Commodity] {
+				continue
+			}
+			if excludedSymbols[amt.Commodity] {
 				continue
 			}
 			k := holdingKey{row.FullName, amt.Commodity}
@@ -564,6 +580,16 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 		prefix = "assets"
 	}
 
+	var tsExcludedSymbols map[string]bool
+	var tsExcludedAccountPrefixes []string
+	if h.cfg != nil {
+		tsExcludedSymbols = make(map[string]bool, len(h.cfg.Portfolio.ExcludedSymbols))
+		for _, s := range h.cfg.Portfolio.ExcludedSymbols {
+			tsExcludedSymbols[s] = true
+		}
+		tsExcludedAccountPrefixes = h.cfg.Portfolio.ExcludedAccountPrefixes
+	}
+
 	// Determine which accounts under the prefix actually hold non-currency
 	// commodities (equities, funds, etc.). This mirrors the GetPortfolioHoldings
 	// filter so that cash accounts like checking/savings are excluded from the
@@ -575,8 +601,11 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 	seen := make(map[string]bool)
 	var investmentAccounts []string
 	for _, row := range raw.Rows {
+		if isExcludedAccount(row.FullName, tsExcludedAccountPrefixes) {
+			continue
+		}
 		for _, amt := range row.Amounts {
-			if !currencySymbols[amt.Commodity] && !seen[row.FullName] {
+			if !currencySymbols[amt.Commodity] && !tsExcludedSymbols[amt.Commodity] && !seen[row.FullName] {
 				investmentAccounts = append(investmentAccounts, row.FullName)
 				seen[row.FullName] = true
 			}
@@ -3178,4 +3207,57 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated alphavantage api key")
 	return connect.NewResponse(&floatv1.SetAlphaVantageApiKeyResponse{}), nil
+}
+
+// isExcludedAccount returns true if account matches any of the given prefixes exactly or as a path component.
+func isExcludedAccount(account string, prefixes []string) bool {
+	for _, p := range prefixes {
+		if account == p || strings.HasPrefix(account, p+":") {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Handler) GetPortfolioSettings(ctx context.Context, _ *connect.Request[floatv1.GetPortfolioSettingsRequest]) (*connect.Response[floatv1.GetPortfolioSettingsResponse], error) {
+	if h.cfg == nil {
+		return connect.NewResponse(&floatv1.GetPortfolioSettingsResponse{}), nil
+	}
+	resp := &floatv1.GetPortfolioSettingsResponse{
+		ExcludedSymbols:         h.cfg.Portfolio.ExcludedSymbols,
+		ExcludedAccountPrefixes: h.cfg.Portfolio.ExcludedAccountPrefixes,
+	}
+	if resp.ExcludedSymbols == nil {
+		resp.ExcludedSymbols = []string{}
+	}
+	if resp.ExcludedAccountPrefixes == nil {
+		resp.ExcludedAccountPrefixes = []string{}
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (h *Handler) UpdatePortfolioSettings(ctx context.Context, req *connect.Request[floatv1.UpdatePortfolioSettingsRequest]) (*connect.Response[floatv1.UpdatePortfolioSettingsResponse], error) {
+	if h.cfg == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	oldPortfolio := h.cfg.Portfolio
+	err := h.lock.Do(ctx, "update portfolio settings", func() error {
+		h.cfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols
+		h.cfg.Portfolio.ExcludedAccountPrefixes = req.Msg.ExcludedAccountPrefixes
+		if err := config.Save(h.configPath, h.cfg); err != nil {
+			h.cfg.Portfolio = oldPortfolio
+			return fmt.Errorf("save config: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, rpcErr(ctx, err, "update portfolio settings failed")
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "updated portfolio settings")
+	return connect.NewResponse(&floatv1.UpdatePortfolioSettingsResponse{}), nil
 }

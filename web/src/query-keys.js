@@ -19,6 +19,7 @@ export const queryKeys = {
   noPayeeTransactions:  () => ["noPayeeTransactions"],
   portfolioHoldings:    (accountPrefix = "") => ["portfolioHoldings", accountPrefix],
   portfolioTimeseries:  (accountPrefix = "", begin = "") => ["portfolioTimeseries", accountPrefix, begin],
+  portfolioSettings:    () => ["portfolioSettings"],
   alphaVantageConfig:   () => ["alphaVantageConfig"],
   aiConfig:             () => ["aiConfig"],
   generalConfig:        () => ["generalConfig"],
