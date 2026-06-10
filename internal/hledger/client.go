@@ -269,15 +269,16 @@ func (c *Client) PortfolioTimeseries(ctx context.Context, accounts []string, beg
 }
 
 // PortfolioCostBasisTimeseries runs `hledger bs --monthly --historical --layout=bare
-// --infer-market-prices --value=then,USD -O json -f <journal> [accounts...] [date:begin..]`
-// using --value=then to price each transaction at market rates at transaction time,
-// giving the historical cost basis of the portfolio.
+// -B -O json -f <journal> [accounts...] [date:begin..]`
+// using -B to convert amounts to their cost using the @ / @@ annotations recorded at
+// purchase time. This matches the acost-based book value that GetPortfolioHoldings
+// computes from the raw balance output.
 // accounts must be non-empty; begin is an optional "YYYY-MM-DD" string.
 func (c *Client) PortfolioCostBasisTimeseries(ctx context.Context, accounts []string, begin string) (*BalanceSheetTimeseries, error) {
 	args := []string{
 		"bs", "-O", "json", "-f", c.journal,
 		"--monthly", "--historical", "--layout=bare",
-		"--infer-market-prices", "--value=then,USD",
+		"-B",
 	}
 	args = append(args, accounts...)
 	if begin != "" {
