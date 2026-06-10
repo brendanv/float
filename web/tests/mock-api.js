@@ -1862,6 +1862,12 @@ export async function mockLedgerApi(
       case "GetPortfolioTimeseries":
         body = mockPortfolioTimeseries;
         break;
+      case "GetPortfolioSettings":
+        body = { excludedSymbols: [], excludedAccountPrefixes: [] };
+        break;
+      case "UpdatePortfolioSettings":
+        body = {};
+        break;
       case "GetStripeConfig":
         body = stripeEnabled
           ? {

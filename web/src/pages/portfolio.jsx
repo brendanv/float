@@ -19,6 +19,7 @@ import {
   createColumnHelper,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { XIcon, FunnelIcon } from "@phosphor-icons/react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { formatCurrency } from "../format.js";
@@ -50,6 +51,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,6 +137,165 @@ function SortableHeader({ column, children, className }) {
       {children}
       <SortIcon column={column} />
     </button>
+  );
+}
+
+function usePortfolioExclusions() {
+  const queryClient = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: queryKeys.portfolioSettings(),
+    queryFn: () => ledgerClient.getPortfolioSettings({}),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data) => ledgerClient.updatePortfolioSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.portfolioSettings() });
+      queryClient.invalidateQueries({ queryKey: ["portfolioHoldings"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolioTimeseries"] });
+    },
+  });
+
+  const excludedSymbols = settings?.excludedSymbols ?? [];
+  const excludedAccountPrefixes = settings?.excludedAccountPrefixes ?? [];
+  const totalExclusions = excludedSymbols.length + excludedAccountPrefixes.length;
+
+  function update(symbols, prefixes) {
+    updateMutation.mutate({ excludedSymbols: symbols, excludedAccountPrefixes: prefixes });
+  }
+
+  return { excludedSymbols, excludedAccountPrefixes, totalExclusions, update, isPending: updateMutation.isPending };
+}
+
+function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountPrefixChange }) {
+  const { excludedSymbols, excludedAccountPrefixes, update, isPending } = usePortfolioExclusions();
+  const [newSymbol, setNewSymbol] = useState("");
+  const [newPrefix, setNewPrefix] = useState("");
+
+  function addSymbol() {
+    const s = newSymbol.trim().toUpperCase();
+    if (!s || excludedSymbols.includes(s)) return;
+    update([...excludedSymbols, s], excludedAccountPrefixes);
+    setNewSymbol("");
+  }
+
+  function removeSymbol(sym) {
+    update(excludedSymbols.filter((s) => s !== sym), excludedAccountPrefixes);
+  }
+
+  function addPrefix() {
+    const s = newPrefix.trim();
+    if (!s || excludedAccountPrefixes.includes(s)) return;
+    update(excludedSymbols, [...excludedAccountPrefixes, s]);
+    setNewPrefix("");
+  }
+
+  function removePrefix(prefix) {
+    update(excludedSymbols, excludedAccountPrefixes.filter((p) => p !== prefix));
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="md">
+        <DialogHeader>
+          <DialogTitle>Portfolio Filters</DialogTitle>
+          <DialogDescription>
+            Scope and exclusions applied to holdings, charts, and totals.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-5">
+          <div>
+            <Label htmlFor="dialog-account-prefix" className="mb-2 block">Account Scope</Label>
+            <Input
+              id="dialog-account-prefix"
+              className="h-8 w-full font-mono text-sm"
+              placeholder="assets (default)"
+              value={accountPrefix}
+              onChange={(e) => onAccountPrefixChange(e.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Show only holdings under this account prefix, e.g. <code className="font-mono">assets:investments</code>.
+            </p>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <Label className="mb-2 block">Excluded Commodities</Label>
+            <div className="flex gap-2 mb-2">
+              <Input
+                className="h-8 flex-1 font-mono text-sm"
+                placeholder="e.g. HOUSE, BTC"
+                value={newSymbol}
+                onChange={(e) => setNewSymbol(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSymbol(); } }}
+                disabled={isPending}
+              />
+              <Button size="sm" onClick={addSymbol} disabled={isPending || !newSymbol.trim()}>
+                Add
+              </Button>
+            </div>
+            {excludedSymbols.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No excluded commodities.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {excludedSymbols.map((sym) => (
+                  <Badge key={sym} variant="secondary" className="gap-1 font-mono pr-1">
+                    {sym}
+                    <button
+                      type="button"
+                      className="ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
+                      onClick={() => removeSymbol(sym)}
+                      disabled={isPending}
+                    >
+                      <XIcon size={10} />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label className="mb-2 block">Excluded Account Prefixes</Label>
+            <div className="flex gap-2 mb-2">
+              <Input
+                className="h-8 flex-1 font-mono text-sm"
+                placeholder="e.g. assets:property"
+                value={newPrefix}
+                onChange={(e) => setNewPrefix(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPrefix(); } }}
+                disabled={isPending}
+              />
+              <Button size="sm" onClick={addPrefix} disabled={isPending || !newPrefix.trim()}>
+                Add
+              </Button>
+            </div>
+            {excludedAccountPrefixes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No excluded account prefixes.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {excludedAccountPrefixes.map((prefix) => (
+                  <Badge key={prefix} variant="secondary" className="gap-1 font-mono pr-1">
+                    {prefix}
+                    <button
+                      type="button"
+                      className="ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
+                      onClick={() => removePrefix(prefix)}
+                      disabled={isPending}
+                    >
+                      <XIcon size={10} />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter showCloseButton />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -780,12 +949,33 @@ const columns = [
     },
     sortingFn: "basic",
   }),
+  columnHelper.display({
+    id: "actions",
+    cell: (info) => {
+      const { onExcludeSymbol } = info.table.options.meta ?? {};
+      const symbol = info.row.original.symbol;
+      if (!onExcludeSymbol) return null;
+      return (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="opacity-0 group-hover/row:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+          title={`Exclude ${symbol} from portfolio`}
+          onClick={() => onExcludeSymbol(symbol)}
+        >
+          <XIcon size={12} className="mr-1" />
+          Exclude
+        </Button>
+      );
+    },
+  }),
 ];
 
 export function PortfolioPage() {
   const [accountPrefix, setAccountPrefix] = useState("");
   const [sorting, setSorting] = useState([{ id: "currentValue", desc: true }]);
   const [timeRange, setTimeRange] = useState("all");
+  const [exclusionsOpen, setExclusionsOpen] = useState(false);
   const timeseriesBegin = useMemo(
     () => beginDateForRange(timeRange),
     [timeRange],
@@ -798,6 +988,9 @@ export function PortfolioPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.portfolioTimeseries(accountPrefix, timeseriesBegin) });
     },
   });
+
+  const { excludedSymbols, excludedAccountPrefixes, totalExclusions, update: updateExclusions } = usePortfolioExclusions();
+  const activeFilterCount = (accountPrefix ? 1 : 0) + totalExclusions;
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.portfolioHoldings(accountPrefix),
@@ -829,6 +1022,12 @@ export function PortfolioPage() {
     [snapshots, holdings],
   );
 
+  function handleExcludeSymbol(symbol) {
+    if (!excludedSymbols.includes(symbol)) {
+      updateExclusions([...excludedSymbols, symbol], excludedAccountPrefixes);
+    }
+  }
+
   const table = useReactTable({
     data: holdings,
     columns,
@@ -836,29 +1035,35 @@ export function PortfolioPage() {
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    meta: { onExcludeSymbol: handleExcludeSymbol },
   });
 
   return (
     <Page>
+      <ExclusionsDialog
+        open={exclusionsOpen}
+        onOpenChange={setExclusionsOpen}
+        accountPrefix={accountPrefix}
+        onAccountPrefixChange={setAccountPrefix}
+      />
       <PageHeader
         title="Investment Portfolio"
         description="Holdings, allocation, contribution-adjusted performance, and valuation coverage."
       >
-        <div className="flex items-end gap-2">
-          <Label
-            htmlFor="account-prefix"
-            className="whitespace-nowrap text-xs text-muted-foreground"
-          >
-            Account prefix
-          </Label>
-          <Input
-            id="account-prefix"
-            className="h-8 w-48 text-sm font-mono"
-            placeholder="assets"
-            value={accountPrefix}
-            onChange={(e) => setAccountPrefix(e.target.value)}
-          />
-        </div>
+        <Button
+          variant={activeFilterCount > 0 ? "secondary" : "outline"}
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={() => setExclusionsOpen(true)}
+        >
+          <FunnelIcon size={14} />
+          Filters
+          {activeFilterCount > 0 && (
+            <Badge variant="default" className="h-4 px-1 text-[10px]">
+              {activeFilterCount}
+            </Badge>
+          )}
+        </Button>
       </PageHeader>
 
       {isLoading && <Loading />}
@@ -1032,7 +1237,7 @@ export function PortfolioPage() {
                 </TableHeader>
                 <TableBody>
                   {table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} className="group/row">
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
                           {flexRender(
