@@ -532,44 +532,65 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		holdings = append(holdings, holding)
 	}
 
-	// Sum total value, compute allocation percentages, and track as_of_date.
-	var totalValue float64
-	var baseCurrency string
+	// Sum total value per currency, compute allocation percentages, and track as_of_date.
+	// Holdings can be priced in different currencies (e.g. USD funds alongside GBP or EUR
+	// funds), so we must not add quantities across currencies.
+	totalByCurrency := make(map[string]float64)
+	var currencyOrder []string
 	var asOfDate string
 	for _, h := range holdings {
 		if h.CurrentValue != nil {
 			v, _ := strconv.ParseFloat(h.CurrentValue.Quantity, 64)
-			totalValue += v
-			baseCurrency = h.CurrentValue.Commodity
+			curr := h.CurrentValue.Commodity
+			if _, seen := totalByCurrency[curr]; !seen {
+				currencyOrder = append(currencyOrder, curr)
+			}
+			totalByCurrency[curr] += v
 		}
 		if h.PriceDate > asOfDate {
 			asOfDate = h.PriceDate
 		}
 	}
 
-	if totalValue > 0 {
-		for _, h := range holdings {
-			if h.CurrentValue != nil {
+	// PortfolioPct is meaningful only within a single currency: each holding's share
+	// of the total for its own currency.
+	for _, h := range holdings {
+		if h.CurrentValue != nil {
+			curr := h.CurrentValue.Commodity
+			if total := totalByCurrency[curr]; total > 0 {
 				v, _ := strconv.ParseFloat(h.CurrentValue.Quantity, 64)
-				h.PortfolioPct = v / totalValue * 100
+				h.PortfolioPct = v / total * 100
 			}
 		}
-		sort.Slice(holdings, func(i, j int) bool {
-			var vi, vj float64
-			if holdings[i].CurrentValue != nil {
-				vi, _ = strconv.ParseFloat(holdings[i].CurrentValue.Quantity, 64)
-			}
-			if holdings[j].CurrentValue != nil {
-				vj, _ = strconv.ParseFloat(holdings[j].CurrentValue.Quantity, 64)
-			}
-			return vi > vj
-		})
 	}
 
+	sort.Slice(holdings, func(i, j int) bool {
+		var vi, vj float64
+		if holdings[i].CurrentValue != nil {
+			vi, _ = strconv.ParseFloat(holdings[i].CurrentValue.Quantity, 64)
+		}
+		if holdings[j].CurrentValue != nil {
+			vj, _ = strconv.ParseFloat(holdings[j].CurrentValue.Quantity, 64)
+		}
+		return vi > vj
+	})
+
 	resp := &floatv1.GetPortfolioHoldingsResponse{Holdings: holdings, AsOfDate: asOfDate}
-	if totalValue > 0 {
-		resp.TotalValue = &floatv1.Amount{Commodity: baseCurrency, Quantity: fmt.Sprintf("%.2f", totalValue)}
+
+	// Build per-currency subtotals in first-seen order.
+	for _, curr := range currencyOrder {
+		if total := totalByCurrency[curr]; total > 0 {
+			resp.CurrencyTotals = append(resp.CurrencyTotals, &floatv1.Amount{
+				Commodity: curr,
+				Quantity:  fmt.Sprintf("%.2f", total),
+			})
+		}
 	}
+	// Only expose a single TotalValue when all valued holdings share one currency.
+	if len(resp.CurrencyTotals) == 1 {
+		resp.TotalValue = resp.CurrencyTotals[0]
+	}
+
 	return connect.NewResponse(resp), nil
 }
 
