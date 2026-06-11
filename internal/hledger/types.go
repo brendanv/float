@@ -3,6 +3,8 @@ package hledger
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 // FIDLen is the length in characters of a float transaction ID (fid tag).
@@ -17,6 +19,25 @@ type AmountQuantity struct {
 	DecimalMantissa int64   `json:"decimalMantissa"`
 	DecimalPlaces   int     `json:"decimalPlaces"`
 	FloatingPoint   float64 `json:"floatingPoint"`
+}
+
+// Format returns the quantity as a decimal string derived from
+// DecimalMantissa and DecimalPlaces, avoiding float64 rounding errors.
+func (q AmountQuantity) Format() string {
+	if q.DecimalPlaces == 0 {
+		return strconv.FormatInt(q.DecimalMantissa, 10)
+	}
+	sign := ""
+	m := q.DecimalMantissa
+	if m < 0 {
+		sign = "-"
+		m = -m
+	}
+	s := strconv.FormatInt(m, 10)
+	if len(s) <= q.DecimalPlaces {
+		return sign + "0." + strings.Repeat("0", q.DecimalPlaces-len(s)) + s
+	}
+	return sign + s[:len(s)-q.DecimalPlaces] + "." + s[len(s)-q.DecimalPlaces:]
 }
 
 type Amount struct {
