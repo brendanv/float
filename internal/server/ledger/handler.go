@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -37,7 +38,7 @@ type Handler struct {
 	configPath     string
 	cache          *cache.Cache[any] // nil = bypass cache
 	snap           *gitsnap.Repo
-	cfg            *config.Config
+	cfg            atomic.Pointer[config.Config]
 	logBroadcaster *logstream.Broadcaster
 	// AIBaseURL overrides the OpenRouter API endpoint. Set in tests only.
 	AIBaseURL string
@@ -56,7 +57,16 @@ type Handler struct {
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
-	return &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, cfg: cfg, logBroadcaster: broadcaster}
+	h := &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, logBroadcaster: broadcaster}
+	h.cfg.Store(cfg)
+	return h
+}
+
+// loadCfg returns the current config snapshot. Readers call this once per
+// request and work from the returned pointer; writers use h.cfg.Store inside
+// lock.Do to publish a new immutable snapshot.
+func (h *Handler) loadCfg() *config.Config {
+	return h.cfg.Load()
 }
 
 func (h *Handler) RunHledgerQuery(ctx context.Context, req *connect.Request[floatv1.RunHledgerQueryRequest]) (*connect.Response[floatv1.RunHledgerQueryResponse], error) {
@@ -364,14 +374,15 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	}
 	query := []string{prefix}
 
+	cfg := h.loadCfg()
 	var excludedSymbols map[string]bool
 	var excludedAccountPrefixes []string
-	if h.cfg != nil {
-		excludedSymbols = make(map[string]bool, len(h.cfg.Portfolio.ExcludedSymbols))
-		for _, s := range h.cfg.Portfolio.ExcludedSymbols {
+	if cfg != nil {
+		excludedSymbols = make(map[string]bool, len(cfg.Portfolio.ExcludedSymbols))
+		for _, s := range cfg.Portfolio.ExcludedSymbols {
 			excludedSymbols[s] = true
 		}
-		excludedAccountPrefixes = h.cfg.Portfolio.ExcludedAccountPrefixes
+		excludedAccountPrefixes = cfg.Portfolio.ExcludedAccountPrefixes
 	}
 
 	// Raw balances provide the original commodity quantities.
@@ -580,14 +591,15 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 		prefix = "assets"
 	}
 
+	cfg := h.loadCfg()
 	var tsExcludedSymbols map[string]bool
 	var tsExcludedAccountPrefixes []string
-	if h.cfg != nil {
-		tsExcludedSymbols = make(map[string]bool, len(h.cfg.Portfolio.ExcludedSymbols))
-		for _, s := range h.cfg.Portfolio.ExcludedSymbols {
+	if cfg != nil {
+		tsExcludedSymbols = make(map[string]bool, len(cfg.Portfolio.ExcludedSymbols))
+		for _, s := range cfg.Portfolio.ExcludedSymbols {
 			tsExcludedSymbols[s] = true
 		}
-		tsExcludedAccountPrefixes = h.cfg.Portfolio.ExcludedAccountPrefixes
+		tsExcludedAccountPrefixes = cfg.Portfolio.ExcludedAccountPrefixes
 	}
 
 	// Determine which accounts under the prefix actually hold non-currency
@@ -1472,11 +1484,12 @@ func (h *Handler) BackfillPrices(ctx context.Context, req *connect.Request[float
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("end_date must not be before start_date"))
 	}
 
-	if h.cfg == nil || h.cfg.AlphaVantage.APIKey == "" {
+	cfg := h.loadCfg()
+	if cfg == nil || cfg.AlphaVantage.APIKey == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("alpha_vantage.api_key is not configured"))
 	}
 
-	av := alphavantage.NewClient(h.cfg.AlphaVantage.APIKey)
+	av := alphavantage.NewClient(cfg.AlphaVantage.APIKey)
 	weeklyPrices, err := av.FetchWeeklyPrices(ctx, commodity, startDate, endDate)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "backfill prices: fetch failed", "commodity", commodity)
@@ -1993,11 +2006,12 @@ func changeTypeString(c gitsnap.ChangeType) string {
 // ---- Import handlers ----
 
 func (h *Handler) ListBankProfiles(_ context.Context, _ *connect.Request[floatv1.ListBankProfilesRequest]) (*connect.Response[floatv1.ListBankProfilesResponse], error) {
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return connect.NewResponse(&floatv1.ListBankProfilesResponse{}), nil
 	}
-	out := make([]*floatv1.BankProfile, len(h.cfg.BankProfiles))
-	for i, p := range h.cfg.BankProfiles {
+	out := make([]*floatv1.BankProfile, len(cfg.BankProfiles))
+	for i, p := range cfg.BankProfiles {
 		out[i] = &floatv1.BankProfile{Name: p.Name, RulesFile: p.RulesFile, SkipRules: p.SkipRules}
 	}
 	return connect.NewResponse(&floatv1.ListBankProfilesResponse{Profiles: out}), nil
@@ -2017,7 +2031,8 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("rules_file must be a relative path within the data directory"))
 	}
 
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
@@ -2025,7 +2040,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 	}
 
 	// Check for duplicate name.
-	for _, p := range h.cfg.BankProfiles {
+	for _, p := range cfg.BankProfiles {
 		if p.Name == req.Msg.Name {
 			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("bank profile %q already exists", req.Msg.Name))
 		}
@@ -2044,12 +2059,14 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 			}
 		}
 
-		// Append profile to config and save.
-		h.cfg.BankProfiles = append(h.cfg.BankProfiles, newProfile)
-		if err := config.Save(h.configPath, h.cfg); err != nil {
-			h.cfg.BankProfiles = h.cfg.BankProfiles[:len(h.cfg.BankProfiles)-1]
+		// Append profile to config and save (copy-on-write).
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.BankProfiles = append(append([]config.BankProfile{}, cur.BankProfiles...), newProfile)
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 		return nil
 	})
 	if err != nil {
@@ -2089,7 +2106,8 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 	if req.Msg.Name == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
@@ -2103,7 +2121,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 
 	// Check new name isn't already taken (unless it's the same profile).
 	if newName != req.Msg.Name {
-		for _, p := range h.cfg.BankProfiles {
+		for _, p := range cfg.BankProfiles {
 			if p.Name == newName {
 				return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("bank profile %q already exists", newName))
 			}
@@ -2112,8 +2130,12 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 
 	var updated config.BankProfile
 	err := h.lock.Do(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), func() error {
+		cur := h.cfg.Load()
+		profiles := make([]config.BankProfile, len(cur.BankProfiles))
+		copy(profiles, cur.BankProfiles)
+
 		idx := -1
-		for i, p := range h.cfg.BankProfiles {
+		for i, p := range profiles {
 			if p.Name == req.Msg.Name {
 				idx = i
 				break
@@ -2123,25 +2145,25 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 			return fmt.Errorf("bank profile %q: %w", req.Msg.Name, journal.ErrNotFound)
 		}
 
-		profile := h.cfg.BankProfiles[idx]
-
 		if len(req.Msg.RulesContent) > 0 {
-			rulesPath := filepath.Join(h.dataDir, profile.RulesFile)
+			rulesPath := filepath.Join(h.dataDir, profiles[idx].RulesFile)
 			if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil {
 				return fmt.Errorf("write rules file: %w", err)
 			}
 		}
 
-		h.cfg.BankProfiles[idx].Name = newName
+		profiles[idx].Name = newName
 		if req.Msg.SkipRules != nil {
-			h.cfg.BankProfiles[idx].SkipRules = *req.Msg.SkipRules
+			profiles[idx].SkipRules = *req.Msg.SkipRules
 		}
-		updated = h.cfg.BankProfiles[idx]
+		updated = profiles[idx]
 
-		if err := config.Save(h.configPath, h.cfg); err != nil {
-			h.cfg.BankProfiles[idx].Name = req.Msg.Name // rollback
+		newCfg := *cur
+		newCfg.BankProfiles = profiles
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 		return nil
 	})
 	if err != nil {
@@ -2161,7 +2183,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 	if req.Msg.Name == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
@@ -2169,8 +2191,9 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 	}
 
 	err := h.lock.Do(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), func() error {
+		cur := h.cfg.Load()
 		idx := -1
-		for i, p := range h.cfg.BankProfiles {
+		for i, p := range cur.BankProfiles {
 			if p.Name == req.Msg.Name {
 				idx = i
 				break
@@ -2180,12 +2203,17 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 			return fmt.Errorf("bank profile %q: %w", req.Msg.Name, journal.ErrNotFound)
 		}
 
-		rulesFile := h.cfg.BankProfiles[idx].RulesFile
-		h.cfg.BankProfiles = append(h.cfg.BankProfiles[:idx], h.cfg.BankProfiles[idx+1:]...)
+		rulesFile := cur.BankProfiles[idx].RulesFile
+		newProfiles := make([]config.BankProfile, 0, len(cur.BankProfiles)-1)
+		newProfiles = append(newProfiles, cur.BankProfiles[:idx]...)
+		newProfiles = append(newProfiles, cur.BankProfiles[idx+1:]...)
 
-		if err := config.Save(h.configPath, h.cfg); err != nil {
+		newCfg := *cur
+		newCfg.BankProfiles = newProfiles
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 
 		if req.Msg.DeleteRulesFile && rulesFile != "" {
 			rulesPath := filepath.Join(h.dataDir, rulesFile)
@@ -2565,8 +2593,9 @@ func profileToSlug(name string) string {
 
 // bankProfile finds a BankProfile by name in the config.
 func (h *Handler) bankProfile(name string) (config.BankProfile, error) {
-	if h.cfg != nil {
-		for _, p := range h.cfg.BankProfiles {
+	cfg := h.loadCfg()
+	if cfg != nil {
+		for _, p := range cfg.BankProfiles {
 			if p.Name == name {
 				return p, nil
 			}
@@ -3168,10 +3197,11 @@ func (h *Handler) DeleteTemplate(ctx context.Context, req *connect.Request[float
 }
 
 func (h *Handler) GetAlphaVantageConfig(ctx context.Context, req *connect.Request[floatv1.GetAlphaVantageConfigRequest]) (*connect.Response[floatv1.GetAlphaVantageConfigResponse], error) {
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
-	key := h.cfg.AlphaVantage.APIKey
+	key := cfg.AlphaVantage.APIKey
 	resp := &floatv1.GetAlphaVantageConfigResponse{}
 	if key != "" {
 		resp.ApiKeyConfigured = true
@@ -3185,20 +3215,21 @@ func (h *Handler) GetAlphaVantageConfig(ctx context.Context, req *connect.Reques
 }
 
 func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Request[floatv1.SetAlphaVantageApiKeyRequest]) (*connect.Response[floatv1.SetAlphaVantageApiKeyResponse], error) {
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	oldKey := h.cfg.AlphaVantage.APIKey
 	err := h.lock.Do(ctx, "set alphavantage api key", func() error {
-		h.cfg.AlphaVantage.APIKey = req.Msg.ApiKey
-		if err := config.Save(h.configPath, h.cfg); err != nil {
-			h.cfg.AlphaVantage.APIKey = oldKey
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.AlphaVantage.APIKey = req.Msg.ApiKey
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 		return nil
 	})
 	if err != nil {
@@ -3220,12 +3251,13 @@ func isExcludedAccount(account string, prefixes []string) bool {
 }
 
 func (h *Handler) GetPortfolioSettings(ctx context.Context, _ *connect.Request[floatv1.GetPortfolioSettingsRequest]) (*connect.Response[floatv1.GetPortfolioSettingsResponse], error) {
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return connect.NewResponse(&floatv1.GetPortfolioSettingsResponse{}), nil
 	}
 	resp := &floatv1.GetPortfolioSettingsResponse{
-		ExcludedSymbols:         h.cfg.Portfolio.ExcludedSymbols,
-		ExcludedAccountPrefixes: h.cfg.Portfolio.ExcludedAccountPrefixes,
+		ExcludedSymbols:         cfg.Portfolio.ExcludedSymbols,
+		ExcludedAccountPrefixes: cfg.Portfolio.ExcludedAccountPrefixes,
 	}
 	if resp.ExcludedSymbols == nil {
 		resp.ExcludedSymbols = []string{}
@@ -3237,21 +3269,22 @@ func (h *Handler) GetPortfolioSettings(ctx context.Context, _ *connect.Request[f
 }
 
 func (h *Handler) UpdatePortfolioSettings(ctx context.Context, req *connect.Request[floatv1.UpdatePortfolioSettingsRequest]) (*connect.Response[floatv1.UpdatePortfolioSettingsResponse], error) {
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	oldPortfolio := h.cfg.Portfolio
 	err := h.lock.Do(ctx, "update portfolio settings", func() error {
-		h.cfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols
-		h.cfg.Portfolio.ExcludedAccountPrefixes = req.Msg.ExcludedAccountPrefixes
-		if err := config.Save(h.configPath, h.cfg); err != nil {
-			h.cfg.Portfolio = oldPortfolio
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols
+		newCfg.Portfolio.ExcludedAccountPrefixes = req.Msg.ExcludedAccountPrefixes
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 		return nil
 	})
 	if err != nil {

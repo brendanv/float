@@ -14,17 +14,18 @@ import (
 
 // GetGeneralConfig returns general configuration values (e.g. timezone).
 func (h *Handler) GetGeneralConfig(ctx context.Context, req *connect.Request[floatv1.GetGeneralConfigRequest]) (*connect.Response[floatv1.GetGeneralConfigResponse], error) {
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	return connect.NewResponse(&floatv1.GetGeneralConfigResponse{
-		Timezone: h.cfg.Timezone,
+		Timezone: cfg.Timezone,
 	}), nil
 }
 
 // SetTimezone updates the timezone in config.toml. An empty string resets to UTC.
 func (h *Handler) SetTimezone(ctx context.Context, req *connect.Request[floatv1.SetTimezoneRequest]) (*connect.Response[floatv1.SetTimezoneResponse], error) {
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
@@ -38,13 +39,14 @@ func (h *Handler) SetTimezone(ctx context.Context, req *connect.Request[floatv1.
 		}
 	}
 
-	old := h.cfg.Timezone
 	err := h.lock.Do(ctx, "set timezone", func() error {
-		h.cfg.Timezone = tz
-		if err := config.Save(h.configPath, h.cfg); err != nil {
-			h.cfg.Timezone = old
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.Timezone = tz
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 		return nil
 	})
 	if err != nil {

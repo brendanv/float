@@ -26,28 +26,35 @@ func stripeSecretKey() string {
 }
 
 func (h *Handler) GetStripeConfig(ctx context.Context, _ *connect.Request[floatv1.GetStripeConfigRequest]) (*connect.Response[floatv1.GetStripeConfigResponse], error) {
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
 	resp := &floatv1.GetStripeConfigResponse{
 		Enabled:            secretKey != "",
 		PublishableKey:     os.Getenv("STRIPE_PUBLISHABLE_KEY"),
-		LinkedAccountCount: int32(len(h.cfg.Stripe.LinkedAccounts)),
-		CustomerId:         h.cfg.Stripe.CustomerID,
-		DailyImportEnabled: h.cfg.Stripe.DailyImportEnabled,
-		LastDailyImportAt:  h.cfg.Stripe.LastDailyImportAt,
+		LinkedAccountCount: int32(len(cfg.Stripe.LinkedAccounts)),
+		CustomerId:         cfg.Stripe.CustomerID,
+		DailyImportEnabled: cfg.Stripe.DailyImportEnabled,
+		LastDailyImportAt:  cfg.Stripe.LastDailyImportAt,
 	}
 	return connect.NewResponse(resp), nil
 }
 
 func (h *Handler) SetStripeDailyImportEnabled(ctx context.Context, req *connect.Request[floatv1.SetStripeDailyImportEnabledRequest]) (*connect.Response[floatv1.SetStripeDailyImportEnabledResponse], error) {
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if err := h.lock.Do(ctx, "set stripe daily import enabled", func() error {
-		h.cfg.Stripe.DailyImportEnabled = req.Msg.Enabled
-		return config.Save(h.configPath, h.cfg)
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.Stripe.DailyImportEnabled = req.Msg.Enabled
+		if err := config.Save(h.configPath, &newCfg); err != nil {
+			return err
+		}
+		h.cfg.Store(&newCfg)
+		return nil
 	}); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to save stripe daily import setting: %w", err))
 	}
@@ -55,13 +62,19 @@ func (h *Handler) SetStripeDailyImportEnabled(ctx context.Context, req *connect.
 }
 
 func (h *Handler) SetStripeCustomerId(ctx context.Context, req *connect.Request[floatv1.SetStripeCustomerIdRequest]) (*connect.Response[floatv1.SetStripeCustomerIdResponse], error) {
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	newID := strings.TrimSpace(req.Msg.CustomerId)
 	if err := h.lock.Do(ctx, "set stripe customer id", func() error {
-		h.cfg.Stripe.CustomerID = newID
-		return config.Save(h.configPath, h.cfg)
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.Stripe.CustomerID = newID
+		if err := config.Save(h.configPath, &newCfg); err != nil {
+			return err
+		}
+		h.cfg.Store(&newCfg)
+		return nil
 	}); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to save stripe customer id: %w", err))
 	}
@@ -70,14 +83,15 @@ func (h *Handler) SetStripeCustomerId(ctx context.Context, req *connect.Request[
 
 func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Request[floatv1.CreateStripeLinkSessionRequest]) (*connect.Response[floatv1.CreateStripeLinkSessionResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
 	if secretKey == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
 	}
-	customerID := h.cfg.Stripe.CustomerID
+	customerID := cfg.Stripe.CustomerID
 	if customerID == "" {
 		newCustomerID, err := stripeClient.CreateCustomer(ctx, secretKey)
 		if err != nil {
@@ -85,8 +99,14 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create Stripe customer"))
 		}
 		if err := h.lock.Do(ctx, "save stripe customer id", func() error {
-			h.cfg.Stripe.CustomerID = newCustomerID
-			return config.Save(h.configPath, h.cfg)
+			cur := h.cfg.Load()
+			newCfg := *cur
+			newCfg.Stripe.CustomerID = newCustomerID
+			if err := config.Save(h.configPath, &newCfg); err != nil {
+				return err
+			}
+			h.cfg.Store(&newCfg)
+			return nil
 		}); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to save stripe customer id: %w", err))
 		}
@@ -103,7 +123,7 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 
 func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Request[floatv1.CompleteStripeLinkingRequest]) (*connect.Response[floatv1.CompleteStripeLinkingResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
@@ -128,32 +148,42 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 	}
 
 	err := h.lock.Do(ctx, "link stripe accounts", func() error {
+		cur := h.cfg.Load()
+		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
+		copy(accounts, cur.Stripe.LinkedAccounts)
 		for _, a := range req.Msg.Accounts {
 			found := false
-			for i, existing := range h.cfg.Stripe.LinkedAccounts {
+			for i, existing := range accounts {
 				if existing.StripeAccountID == a.StripeAccountId {
-					h.cfg.Stripe.LinkedAccounts[i].HledgerAccount = a.HledgerAccount
-					h.cfg.Stripe.LinkedAccounts[i].DisplayName = a.DisplayName
+					accounts[i].HledgerAccount = a.HledgerAccount
+					accounts[i].DisplayName = a.DisplayName
 					found = true
 					break
 				}
 			}
 			if !found {
-				h.cfg.Stripe.LinkedAccounts = append(h.cfg.Stripe.LinkedAccounts, config.StripeLinkedAccount{
+				accounts = append(accounts, config.StripeLinkedAccount{
 					StripeAccountID: a.StripeAccountId,
 					HledgerAccount:  a.HledgerAccount,
 					DisplayName:     a.DisplayName,
 				})
 			}
 		}
-		return config.Save(h.configPath, h.cfg)
+		newCfg := *cur
+		newCfg.Stripe.LinkedAccounts = accounts
+		if err := config.Save(h.configPath, &newCfg); err != nil {
+			return err
+		}
+		h.cfg.Store(&newCfg)
+		return nil
 	})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "link stripe accounts failed")
 	}
 
-	out := make([]*floatv1.StripeLinkedAccount, len(h.cfg.Stripe.LinkedAccounts))
-	for i, a := range h.cfg.Stripe.LinkedAccounts {
+	cfg := h.loadCfg()
+	out := make([]*floatv1.StripeLinkedAccount, len(cfg.Stripe.LinkedAccounts))
+	for i, a := range cfg.Stripe.LinkedAccounts {
 		out[i] = configToProtoLinkedAccount(a)
 	}
 	return connect.NewResponse(&floatv1.CompleteStripeLinkingResponse{LinkedAccounts: out}), nil
@@ -161,20 +191,21 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 
 func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Request[floatv1.ListStripeLinkedAccountsRequest]) (*connect.Response[floatv1.ListStripeLinkedAccountsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
 	if secretKey == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
 	}
-	stripeAccounts, err := stripeClient.ListAccounts(ctx, secretKey, h.cfg.Stripe.CustomerID)
+	stripeAccounts, err := stripeClient.ListAccounts(ctx, secretKey, cfg.Stripe.CustomerID)
 	if err != nil {
 		logger.ErrorContext(ctx, "list stripe accounts failed", "error", err)
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe accounts"))
 	}
-	cfgMap := make(map[string]config.StripeLinkedAccount, len(h.cfg.Stripe.LinkedAccounts))
-	for _, a := range h.cfg.Stripe.LinkedAccounts {
+	cfgMap := make(map[string]config.StripeLinkedAccount, len(cfg.Stripe.LinkedAccounts))
+	for _, a := range cfg.Stripe.LinkedAccounts {
 		cfgMap[a.StripeAccountID] = a
 	}
 	out := make([]*floatv1.StripeLinkedAccount, 0, len(stripeAccounts))
@@ -201,7 +232,7 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 
 func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[floatv1.UnlinkStripeAccountRequest]) (*connect.Response[floatv1.UnlinkStripeAccountResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if req.Msg.StripeAccountId == "" {
@@ -218,14 +249,20 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 	}
 
 	err := h.lock.Do(ctx, fmt.Sprintf("unlink stripe account %s", req.Msg.StripeAccountId), func() error {
-		updated := make([]config.StripeLinkedAccount, 0, len(h.cfg.Stripe.LinkedAccounts))
-		for _, a := range h.cfg.Stripe.LinkedAccounts {
+		cur := h.cfg.Load()
+		updated := make([]config.StripeLinkedAccount, 0, len(cur.Stripe.LinkedAccounts))
+		for _, a := range cur.Stripe.LinkedAccounts {
 			if a.StripeAccountID != req.Msg.StripeAccountId {
 				updated = append(updated, a)
 			}
 		}
-		h.cfg.Stripe.LinkedAccounts = updated
-		return config.Save(h.configPath, h.cfg)
+		newCfg := *cur
+		newCfg.Stripe.LinkedAccounts = updated
+		if err := config.Save(h.configPath, &newCfg); err != nil {
+			return err
+		}
+		h.cfg.Store(&newCfg)
+		return nil
 	})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "unlink stripe account failed")
@@ -235,7 +272,8 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 
 func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Request[floatv1.FetchStripeTransactionsRequest]) (*connect.Response[floatv1.FetchStripeTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
@@ -278,7 +316,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
 			continue
 		}
-		ht := stripeTransactionToHledger(st, linked.HledgerAccount, h.cfg.Location())
+		ht := stripeTransactionToHledger(st, linked.HledgerAccount, cfg.Location())
 		candidate := &floatv1.ImportCandidate{
 			SourceId: st.ID,
 		}
@@ -303,7 +341,7 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 
 func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Request[floatv1.ImportStripeTransactionsRequest], stream *connect.ServerStream[floatv1.ImportTransactionsResponse]) error {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
@@ -368,6 +406,9 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			importedStripeTxnSet[id] = true
 		}
 
+		cur := h.cfg.Load()
+		loc := cur.Location()
+
 		for _, txnID := range selectedIDs {
 			if importedStripeTxnSet[txnID] {
 				continue
@@ -379,7 +420,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			if !stripeTxnSettled(st) {
 				continue
 			}
-			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, h.cfg.Location())
+			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, loc)
 
 			applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
 
@@ -402,13 +443,21 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			}
 		}
 
-		for i, la := range h.cfg.Stripe.LinkedAccounts {
+		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
+		copy(accounts, cur.Stripe.LinkedAccounts)
+		for i, la := range accounts {
 			if la.StripeAccountID == linked.StripeAccountID {
-				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+				accounts[i].LastFetchedAt = fetchedAt
 				break
 			}
 		}
-		return config.Save(h.configPath, h.cfg)
+		newCfg := *cur
+		newCfg.Stripe.LinkedAccounts = accounts
+		if err := config.Save(h.configPath, &newCfg); err != nil {
+			return err
+		}
+		h.cfg.Store(&newCfg)
+		return nil
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "import stripe transactions failed", "error", err)
@@ -437,7 +486,8 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 
 func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Request[floatv1.FetchAllStripeTransactionsRequest]) (*connect.Response[floatv1.FetchAllStripeTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
@@ -459,7 +509,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 	}
 
 	var eligible []config.StripeLinkedAccount
-	for _, linked := range h.cfg.Stripe.LinkedAccounts {
+	for _, linked := range cfg.Stripe.LinkedAccounts {
 		if linked.HledgerAccount != "" {
 			eligible = append(eligible, linked)
 		}
@@ -488,7 +538,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 				if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
 					continue
 				}
-				ht := stripeTransactionToHledger(st, linked.HledgerAccount, h.cfg.Location())
+				ht := stripeTransactionToHledger(st, linked.HledgerAccount, cfg.Location())
 				candidate := &floatv1.ImportCandidate{SourceId: st.ID}
 				if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
 					candidate.MatchedRuleId = r.ID
@@ -531,7 +581,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 
 func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.Request[floatv1.ImportAllStripeTransactionsRequest], stream *connect.ServerStream[floatv1.ImportTransactionsResponse]) error {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
@@ -622,6 +672,9 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 			importedStripeTxnSet[id] = true
 		}
 
+		cur := h.cfg.Load()
+		loc := cur.Location()
+
 		for _, sel := range req.Msg.Selections {
 			if len(sel.StripeTransactionIds) == 0 {
 				continue
@@ -654,7 +707,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				if !stripeTxnSettled(st) {
 					continue
 				}
-				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, h.cfg.Location())
+				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, loc)
 
 				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
 
@@ -679,12 +732,20 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 			}
 		}
 
-		for i, la := range h.cfg.Stripe.LinkedAccounts {
+		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
+		copy(accounts, cur.Stripe.LinkedAccounts)
+		for i, la := range accounts {
 			if importedAccounts[la.StripeAccountID] {
-				h.cfg.Stripe.LinkedAccounts[i].LastFetchedAt = fetchedAt
+				accounts[i].LastFetchedAt = fetchedAt
 			}
 		}
-		return config.Save(h.configPath, h.cfg)
+		newCfg := *cur
+		newCfg.Stripe.LinkedAccounts = accounts
+		if err := config.Save(h.configPath, &newCfg); err != nil {
+			return err
+		}
+		h.cfg.Store(&newCfg)
+		return nil
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "import all stripe transactions failed", "error", err)
@@ -719,7 +780,7 @@ func (h *Handler) RefreshStripeAccount(
 	stream *connect.ServerStream[floatv1.RefreshStripeAccountResponse],
 ) error {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
@@ -748,7 +809,8 @@ func (h *Handler) RefreshAllStripeAccounts(
 	stream *connect.ServerStream[floatv1.RefreshStripeAccountResponse],
 ) error {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	secretKey := stripeSecretKey()
@@ -757,7 +819,7 @@ func (h *Handler) RefreshAllStripeAccounts(
 	}
 
 	var eligible []config.StripeLinkedAccount
-	for _, la := range h.cfg.Stripe.LinkedAccounts {
+	for _, la := range cfg.Stripe.LinkedAccounts {
 		if la.HledgerAccount != "" {
 			eligible = append(eligible, la)
 		}
@@ -930,9 +992,12 @@ func refreshProgressMessage(p stripeClient.RefreshProgress) string {
 }
 
 func (h *Handler) findLinkedAccount(stripeAccountID string) (config.StripeLinkedAccount, error) {
-	for _, a := range h.cfg.Stripe.LinkedAccounts {
-		if a.StripeAccountID == stripeAccountID {
-			return a, nil
+	cfg := h.loadCfg()
+	if cfg != nil {
+		for _, a := range cfg.Stripe.LinkedAccounts {
+			if a.StripeAccountID == stripeAccountID {
+				return a, nil
+			}
 		}
 	}
 	return config.StripeLinkedAccount{}, fmt.Errorf("stripe account %q not linked", stripeAccountID)

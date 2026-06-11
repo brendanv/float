@@ -28,8 +28,9 @@ func (h *Handler) effectiveAIModel() string {
 	if m := os.Getenv("OPENROUTER_MODEL"); m != "" {
 		return m
 	}
-	if h.cfg != nil && h.cfg.AI.Model != "" {
-		return h.cfg.AI.Model
+	cfg := h.loadCfg()
+	if cfg != nil && cfg.AI.Model != "" {
+		return cfg.AI.Model
 	}
 	return defaultAIModel
 }
@@ -51,13 +52,14 @@ func (h *Handler) aiClient() (*ai.Client, error) {
 
 // GetAIConfig returns the current AI model and prompt configuration.
 func (h *Handler) GetAIConfig(ctx context.Context, req *connect.Request[floatv1.GetAIConfigRequest]) (*connect.Response[floatv1.GetAIConfigResponse], error) {
-	if h.cfg == nil {
+	cfg := h.loadCfg()
+	if cfg == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	return connect.NewResponse(&floatv1.GetAIConfigResponse{
-		Model:          h.cfg.AI.Model,
+		Model:          cfg.AI.Model,
 		EffectiveModel: h.effectiveAIModel(),
-		Prompt:         h.cfg.AI.Prompt,
+		Prompt:         cfg.AI.Prompt,
 		Enabled:        os.Getenv("OPENROUTER_API_KEY") != "",
 	}), nil
 }
@@ -65,20 +67,21 @@ func (h *Handler) GetAIConfig(ctx context.Context, req *connect.Request[floatv1.
 // SetAIPrompt updates the AI user guidelines in config.toml. An empty prompt
 // clears the guidelines so only the built-in system prompt is used.
 func (h *Handler) SetAIPrompt(ctx context.Context, req *connect.Request[floatv1.SetAIPromptRequest]) (*connect.Response[floatv1.SetAIPromptResponse], error) {
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	oldPrompt := h.cfg.AI.Prompt
 	err := h.lock.Do(ctx, "set AI prompt", func() error {
-		h.cfg.AI.Prompt = req.Msg.Prompt
-		if err := config.Save(h.configPath, h.cfg); err != nil {
-			h.cfg.AI.Prompt = oldPrompt
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.AI.Prompt = req.Msg.Prompt
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 		return nil
 	})
 	if err != nil {
@@ -92,20 +95,21 @@ func (h *Handler) SetAIPrompt(ctx context.Context, req *connect.Request[floatv1.
 // SetAIModel updates the AI model in config.toml. An empty model string clears
 // the override and reverts to the default.
 func (h *Handler) SetAIModel(ctx context.Context, req *connect.Request[floatv1.SetAIModelRequest]) (*connect.Response[floatv1.SetAIModelResponse], error) {
-	if h.cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	oldModel := h.cfg.AI.Model
 	err := h.lock.Do(ctx, "set AI model", func() error {
-		h.cfg.AI.Model = req.Msg.Model
-		if err := config.Save(h.configPath, h.cfg); err != nil {
-			h.cfg.AI.Model = oldModel
+		cur := h.cfg.Load()
+		newCfg := *cur
+		newCfg.AI.Model = req.Msg.Model
+		if err := config.Save(h.configPath, &newCfg); err != nil {
 			return fmt.Errorf("save config: %w", err)
 		}
+		h.cfg.Store(&newCfg)
 		return nil
 	})
 	if err != nil {
@@ -188,8 +192,8 @@ func (h *Handler) SuggestRules(ctx context.Context, req *connect.Request[floatv1
 	}
 
 	userGuidelines := ""
-	if h.cfg != nil {
-		userGuidelines = h.cfg.AI.Prompt
+	if cfg := h.loadCfg(); cfg != nil {
+		userGuidelines = cfg.AI.Prompt
 	}
 	suggestions, err := aiCl.SuggestRules(ctx, summaries, ruleSummaries, accountNames, userGuidelines)
 	if err != nil {
@@ -231,8 +235,8 @@ func (h *Handler) TranslateQuery(ctx context.Context, req *connect.Request[float
 	}
 
 	userGuidelines := ""
-	if h.cfg != nil {
-		userGuidelines = h.cfg.AI.Prompt
+	if cfg := h.loadCfg(); cfg != nil {
+		userGuidelines = cfg.AI.Prompt
 	}
 	query, explanation, err := aiCl.TranslateQuery(ctx, req.Msg.Question, accountNames, userGuidelines)
 	if err != nil {
@@ -267,8 +271,8 @@ func (h *Handler) AskQuestion(ctx context.Context, req *connect.Request[floatv1.
 	}
 
 	userGuidelines := ""
-	if h.cfg != nil {
-		userGuidelines = h.cfg.AI.Prompt
+	if cfg := h.loadCfg(); cfg != nil {
+		userGuidelines = cfg.AI.Prompt
 	}
 
 	hledgerArgs, err := aiCl.PlanQuery(ctx, req.Msg.Question, accountNames, userGuidelines)
