@@ -26,6 +26,11 @@ type Rule struct {
 
 const rulesFile = "rules.json"
 
+// FilePath returns the absolute path to rules.json in dataDir.
+func FilePath(dataDir string) string {
+	return filepath.Join(dataDir, rulesFile)
+}
+
 // Load reads data/rules.json from dataDir. Returns empty slice if the file
 // doesn't exist (not an error). Rules are returned sorted by priority (ascending).
 func Load(dataDir string) ([]Rule, error) {

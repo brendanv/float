@@ -2068,14 +2068,14 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 	}
 
 	newProfile := config.BankProfile{Name: req.Msg.Name, RulesFile: cleaned, SkipRules: req.Msg.SkipRules}
-	err := h.lock.Do(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), func() error {
+	rulesFilePath := filepath.Join(h.dataDir, cleaned)
+	err := h.lock.DoWith(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), []string{h.configPath, rulesFilePath}, func() error {
 		// Write rules file if content provided.
 		if len(req.Msg.RulesContent) > 0 {
-			rulesPath := filepath.Join(h.dataDir, cleaned)
-			if err := os.MkdirAll(filepath.Dir(rulesPath), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(rulesFilePath), 0o755); err != nil {
 				return fmt.Errorf("create rules dir: %w", err)
 			}
-			if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil {
+			if err := os.WriteFile(rulesFilePath, req.Msg.RulesContent, 0o644); err != nil {
 				return fmt.Errorf("write rules file: %w", err)
 			}
 		}
@@ -2139,8 +2139,18 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 		newName = req.Msg.Name
 	}
 
+	// Collect extra snapshot paths before acquiring the lock.
+	preLock := h.loadCfg()
+	extraPaths := []string{h.configPath}
+	for _, p := range preLock.BankProfiles {
+		if p.Name == req.Msg.Name && p.RulesFile != "" {
+			extraPaths = append(extraPaths, filepath.Join(h.dataDir, p.RulesFile))
+			break
+		}
+	}
+
 	var updated config.BankProfile
-	err := h.lock.Do(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), func() error {
+	err := h.lock.DoWith(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), extraPaths, func() error {
 		cur := h.loadCfg()
 		profiles := make([]config.BankProfile, len(cur.BankProfiles))
 		copy(profiles, cur.BankProfiles)
@@ -2153,6 +2163,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 				}
 			}
 		}
+
 
 		idx := -1
 		for i, p := range profiles {
@@ -2213,7 +2224,17 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.Do(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), func() error {
+	// Snapshot config.toml and the rules file (if it will be deleted).
+	preLockDel := h.loadCfg()
+	deleteExtraPaths := []string{h.configPath}
+	for _, p := range preLockDel.BankProfiles {
+		if p.Name == req.Msg.Name && req.Msg.DeleteRulesFile && p.RulesFile != "" {
+			deleteExtraPaths = append(deleteExtraPaths, filepath.Join(h.dataDir, p.RulesFile))
+			break
+		}
+	}
+
+	err := h.lock.DoWith(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), deleteExtraPaths, func() error {
 		cur := h.loadCfg()
 		idx := -1
 		for i, p := range cur.BankProfiles {
@@ -2385,9 +2406,10 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 
 	importBatchID := profileToSlug(req.Msg.ProfileName) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	total := int32(len(req.Msg.CandidateIndices))
+	uploadFilePath := filepath.Join(h.dataDir, "uploads", filepath.FromSlash(importBatchID+".csv"))
 
 	var importedFIDs []string
-	err = h.lock.Do(ctx, fmt.Sprintf("import %d transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), func() error {
+	err = h.lock.DoWith(ctx, fmt.Sprintf("import %d transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), []string{uploadFilePath}, func() error {
 		for i, c := range candidates {
 			if !selectedSet[int32(i)] {
 				continue
@@ -2449,10 +2471,8 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			}
 		}
 
-		// Save a copy of the uploaded CSV inside lock.Do so it is included in the git commit.
+		// Save a copy of the uploaded CSV inside the lock so it is included in the git commit.
 		// importBatchID may contain a "/" (profile-slug/date-fid), so we create the subdirectory.
-		uploadsDir := filepath.Join(h.dataDir, "uploads")
-		uploadFilePath := filepath.Join(uploadsDir, filepath.FromSlash(importBatchID+".csv"))
 		if mkErr := os.MkdirAll(filepath.Dir(uploadFilePath), 0o755); mkErr != nil {
 			logger.ErrorContext(ctx, "create uploads dir failed", "error", mkErr)
 		} else if wErr := os.WriteFile(uploadFilePath, req.Msg.CsvData, 0o644); wErr != nil {
@@ -2657,7 +2677,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 	}
 
 	var newRules []rules.Rule
-	err := h.lock.Do(ctx, addRuleMessage(patterns), func() error {
+	err := h.lock.DoWith(ctx, addRuleMessage(patterns), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -2759,7 +2779,7 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 	}
 
 	var updated rules.Rule
-	err := h.lock.Do(ctx, fmt.Sprintf("update rule %s", req.Msg.Id), func() error {
+	err := h.lock.DoWith(ctx, fmt.Sprintf("update rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -2801,7 +2821,7 @@ func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.D
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
 
-	err := h.lock.Do(ctx, fmt.Sprintf("delete rule %s", req.Msg.Id), func() error {
+	err := h.lock.DoWith(ctx, fmt.Sprintf("delete rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3094,7 +3114,7 @@ func (h *Handler) AddTemplate(ctx context.Context, req *connect.Request[floatv1.
 	}
 
 	var added templates.Template
-	err := h.lock.Do(ctx, fmt.Sprintf("add template: %s", req.Msg.Name), func() error {
+	err := h.lock.DoWith(ctx, fmt.Sprintf("add template: %s", req.Msg.Name), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3142,7 +3162,7 @@ func (h *Handler) UpdateTemplate(ctx context.Context, req *connect.Request[float
 	}
 
 	var updated templates.Template
-	err := h.lock.Do(ctx, fmt.Sprintf("update template %s", req.Msg.Id), func() error {
+	err := h.lock.DoWith(ctx, fmt.Sprintf("update template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3191,7 +3211,7 @@ func (h *Handler) DeleteTemplate(ctx context.Context, req *connect.Request[float
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
 
-	err := h.lock.Do(ctx, fmt.Sprintf("delete template %s", req.Msg.Id), func() error {
+	err := h.lock.DoWith(ctx, fmt.Sprintf("delete template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3245,7 +3265,7 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.Do(ctx, "set alphavantage api key", func() error {
+	err := h.lock.DoWith(ctx, "set alphavantage api key", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AlphaVantage.APIKey = req.Msg.ApiKey
@@ -3299,7 +3319,7 @@ func (h *Handler) UpdatePortfolioSettings(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.Do(ctx, "update portfolio settings", func() error {
+	err := h.lock.DoWith(ctx, "update portfolio settings", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols

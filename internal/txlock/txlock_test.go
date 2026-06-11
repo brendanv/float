@@ -223,6 +223,117 @@ func TestTxLock_Do_ExistingFileReverted(t *testing.T) {
 	}
 }
 
+func TestTxLock_DoWith(t *testing.T) {
+	validTx := "2026-01-15 AMAZON\n    expenses:food  $10.00\n    assets:checking  $-10.00\n\n"
+	invalidTx := "2026-01-15 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n"
+
+	t.Run("extra file reverted on check failure", func(t *testing.T) {
+		// fn writes a valid-looking extra file AND an invalid journal.
+		// hledger check fails → journal reverted, extra file also reverted.
+		dir := setupDataDir(t)
+		l := mustTxLock(t, dir)
+		extraPath := filepath.Join(dir, "upload.csv")
+
+		err := l.DoWith(t.Context(), "test", []string{extraPath}, func() error {
+			_ = os.WriteFile(extraPath, []byte("csv data"), 0644)
+			return addMonthFile(dir, "2026/01.journal", invalidTx)()
+		})
+		if err == nil {
+			t.Fatal("DoWith() should have returned check error")
+		}
+		// Journal file should not exist.
+		if _, statErr := os.Stat(filepath.Join(dir, "2026/01.journal")); !os.IsNotExist(statErr) {
+			t.Error("journal file should have been reverted")
+		}
+		// Extra file should have been removed (was absent before fn).
+		if _, statErr := os.Stat(extraPath); !os.IsNotExist(statErr) {
+			t.Error("extra file should have been removed after check failure")
+		}
+	})
+
+	t.Run("existing extra file restored on check failure", func(t *testing.T) {
+		// extra file exists before fn; fn overwrites it AND writes invalid journal.
+		// On failure, extra file should be restored to its original content.
+		dir := setupDataDir(t)
+		l := mustTxLock(t, dir)
+		extraPath := filepath.Join(dir, "upload.csv")
+		originalContent := []byte("original csv")
+		if err := os.WriteFile(extraPath, originalContent, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		err := l.DoWith(t.Context(), "test", []string{extraPath}, func() error {
+			_ = os.WriteFile(extraPath, []byte("new csv"), 0644)
+			return addMonthFile(dir, "2026/01.journal", invalidTx)()
+		})
+		if err == nil {
+			t.Fatal("DoWith() should have returned check error")
+		}
+		restored, readErr := os.ReadFile(extraPath)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if string(restored) != string(originalContent) {
+			t.Errorf("extra file not restored: got %q, want %q", restored, originalContent)
+		}
+	})
+
+	t.Run("extra file reverted on fn error", func(t *testing.T) {
+		// fn writes extra file then returns an error — extra file should be removed.
+		dir := setupDataDir(t)
+		l := mustTxLock(t, dir)
+		extraPath := filepath.Join(dir, "rules.json")
+
+		err := l.DoWith(t.Context(), "test", []string{extraPath}, func() error {
+			_ = os.WriteFile(extraPath, []byte(`[]`), 0644)
+			return errors.New("fn failed")
+		})
+		if err == nil {
+			t.Fatal("DoWith() should have returned fn error")
+		}
+		if _, statErr := os.Stat(extraPath); !os.IsNotExist(statErr) {
+			t.Error("extra file should have been removed after fn error")
+		}
+	})
+
+	t.Run("successful DoWith keeps extra file", func(t *testing.T) {
+		dir := setupDataDir(t)
+		l := mustTxLock(t, dir)
+		extraPath := filepath.Join(dir, "rules.json")
+
+		err := l.DoWith(t.Context(), "test", []string{extraPath}, func() error {
+			_ = os.WriteFile(extraPath, []byte(`[]`), 0644)
+			return addMonthFile(dir, "2026/01.journal", validTx)()
+		})
+		if err != nil {
+			t.Fatalf("DoWith() error = %v", err)
+		}
+		if _, statErr := os.Stat(extraPath); statErr != nil {
+			t.Error("extra file should exist after successful write")
+		}
+		if got := l.Generation(); got != 1 {
+			t.Errorf("Generation() = %d, want 1", got)
+		}
+	})
+
+	t.Run("absent extra not created by fn is fine on revert", func(t *testing.T) {
+		// extra path declared but fn never creates it; check fails; revert should not error.
+		dir := setupDataDir(t)
+		l := mustTxLock(t, dir)
+		extraPath := filepath.Join(dir, "never-created.csv")
+
+		err := l.DoWith(t.Context(), "test", []string{extraPath}, func() error {
+			return addMonthFile(dir, "2026/01.journal", invalidTx)()
+		})
+		if err == nil {
+			t.Fatal("DoWith() should have returned check error")
+		}
+		if _, statErr := os.Stat(extraPath); !os.IsNotExist(statErr) {
+			t.Error("undeclared file should not exist")
+		}
+	})
+}
+
 func TestTxLock_Do_Concurrent(t *testing.T) {
 	// Two goroutines calling Do() concurrently must not corrupt the journal.
 	dir := setupDataDir(t)
