@@ -125,12 +125,12 @@ func postingsFromTransaction(t hledger.Transaction) []PostingInput {
 		if len(p.Amounts) > 0 {
 			a := p.Amounts[0]
 			pi.Commodity = a.Commodity
-			pi.Quantity = fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
+			pi.Quantity = a.Quantity.Format()
 			cost, _ := a.ParseCost()
 			if cost != nil {
 				pi.Cost = &CostInput{
 					Commodity: cost.Contents.Commodity,
-					Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
+					Quantity:  cost.Contents.Quantity.Format(),
 					IsTotal:   cost.Tag == "TotalCost",
 				}
 			}
@@ -150,7 +150,7 @@ func balanceAssertionInputFromHledger(ba *hledger.BalanceAssertion) *BalanceAsse
 	}
 	return &BalanceAssertionInput{
 		Commodity: ba.Amount.Commodity,
-		Quantity:  fmt.Sprintf("%.*f", ba.Amount.Quantity.DecimalPlaces, ba.Amount.Quantity.FloatingPoint),
+		Quantity:  ba.Amount.Quantity.Format(),
 		Inclusive: ba.Inclusive,
 		Total:     ba.Total,
 	}

@@ -1255,15 +1255,14 @@ func toProtoBalanceAssertion(ba *hledger.BalanceAssertion) *floatv1.BalanceAsser
 }
 
 func toProtoAmount(a hledger.Amount) *floatv1.Amount {
-	quantity := fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
 	out := &floatv1.Amount{
 		Commodity: a.Commodity,
-		Quantity:  quantity,
+		Quantity:  a.Quantity.Format(),
 	}
 	if cost, err := a.ParseCost(); err == nil && cost != nil {
 		out.Cost = &floatv1.Cost{
 			Commodity: cost.Contents.Commodity,
-			Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, cost.Contents.Quantity.FloatingPoint),
+			Quantity:  cost.Contents.Quantity.Format(),
 			IsTotal:   cost.Tag == "TotalCost",
 		}
 	}
