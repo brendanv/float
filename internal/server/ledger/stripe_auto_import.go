@@ -97,9 +97,9 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	}
 	stripeTxnSet := importedStripeTxnIDs(existing)
 
-	cfgSnap := h.loadCfg()
+	cfg := h.loadCfg()
 	var eligible []config.StripeLinkedAccount
-	for _, linked := range cfgSnap.Stripe.LinkedAccounts {
+	for _, linked := range cfg.Stripe.LinkedAccounts {
 		if linked.HledgerAccount != "" {
 			eligible = append(eligible, linked)
 		}
@@ -193,7 +193,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 			stripeTxnSet[id] = true
 		}
 
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		loc := cur.Location()
 		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
 		copy(accounts, cur.Stripe.LinkedAccounts)

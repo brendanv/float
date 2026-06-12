@@ -40,7 +40,7 @@ func (h *Handler) SetTimezone(ctx context.Context, req *connect.Request[floatv1.
 	}
 
 	err := h.lock.Do(ctx, "set timezone", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Timezone = tz
 		if err := config.Save(h.configPath, &newCfg); err != nil {

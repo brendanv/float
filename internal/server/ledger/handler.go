@@ -2060,7 +2060,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 		}
 
 		// Append profile to config and save (copy-on-write).
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.BankProfiles = append(append([]config.BankProfile{}, cur.BankProfiles...), newProfile)
 		if err := config.Save(h.configPath, &newCfg); err != nil {
@@ -2106,8 +2106,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 	if req.Msg.Name == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
-	cfg := h.loadCfg()
-	if cfg == nil {
+	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if h.configPath == "" {
@@ -2119,20 +2118,20 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 		newName = req.Msg.Name
 	}
 
-	// Check new name isn't already taken (unless it's the same profile).
-	if newName != req.Msg.Name {
-		for _, p := range cfg.BankProfiles {
-			if p.Name == newName {
-				return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("bank profile %q already exists", newName))
-			}
-		}
-	}
-
 	var updated config.BankProfile
 	err := h.lock.Do(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		profiles := make([]config.BankProfile, len(cur.BankProfiles))
 		copy(profiles, cur.BankProfiles)
+
+		// Check new name isn't already taken (unless it's the same profile).
+		if newName != req.Msg.Name {
+			for _, p := range profiles {
+				if p.Name == newName {
+					return fmt.Errorf("bank profile %q: %w", newName, journal.ErrAlreadyExists)
+				}
+			}
+		}
 
 		idx := -1
 		for i, p := range profiles {
@@ -2170,6 +2169,9 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 		if errors.Is(err, journal.ErrNotFound) {
 			return nil, connect.NewError(connect.CodeNotFound, err)
 		}
+		if errors.Is(err, journal.ErrAlreadyExists) {
+			return nil, connect.NewError(connect.CodeAlreadyExists, err)
+		}
 		return nil, rpcErr(ctx, err, "update bank profile failed")
 	}
 
@@ -2191,7 +2193,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 	}
 
 	err := h.lock.Do(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		idx := -1
 		for i, p := range cur.BankProfiles {
 			if p.Name == req.Msg.Name {
@@ -3223,7 +3225,7 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 	}
 
 	err := h.lock.Do(ctx, "set alphavantage api key", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AlphaVantage.APIKey = req.Msg.ApiKey
 		if err := config.Save(h.configPath, &newCfg); err != nil {
@@ -3277,7 +3279,7 @@ func (h *Handler) UpdatePortfolioSettings(ctx context.Context, req *connect.Requ
 	}
 
 	err := h.lock.Do(ctx, "update portfolio settings", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols
 		newCfg.Portfolio.ExcludedAccountPrefixes = req.Msg.ExcludedAccountPrefixes

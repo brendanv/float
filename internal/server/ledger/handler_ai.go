@@ -75,7 +75,7 @@ func (h *Handler) SetAIPrompt(ctx context.Context, req *connect.Request[floatv1.
 	}
 
 	err := h.lock.Do(ctx, "set AI prompt", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AI.Prompt = req.Msg.Prompt
 		if err := config.Save(h.configPath, &newCfg); err != nil {
@@ -103,7 +103,7 @@ func (h *Handler) SetAIModel(ctx context.Context, req *connect.Request[floatv1.S
 	}
 
 	err := h.lock.Do(ctx, "set AI model", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AI.Model = req.Msg.Model
 		if err := config.Save(h.configPath, &newCfg); err != nil {

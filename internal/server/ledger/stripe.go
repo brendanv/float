@@ -47,7 +47,7 @@ func (h *Handler) SetStripeDailyImportEnabled(ctx context.Context, req *connect.
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	if err := h.lock.Do(ctx, "set stripe daily import enabled", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Stripe.DailyImportEnabled = req.Msg.Enabled
 		if err := config.Save(h.configPath, &newCfg); err != nil {
@@ -67,7 +67,7 @@ func (h *Handler) SetStripeCustomerId(ctx context.Context, req *connect.Request[
 	}
 	newID := strings.TrimSpace(req.Msg.CustomerId)
 	if err := h.lock.Do(ctx, "set stripe customer id", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Stripe.CustomerID = newID
 		if err := config.Save(h.configPath, &newCfg); err != nil {
@@ -99,7 +99,7 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create Stripe customer"))
 		}
 		if err := h.lock.Do(ctx, "save stripe customer id", func() error {
-			cur := h.cfg.Load()
+			cur := h.loadCfg()
 			newCfg := *cur
 			newCfg.Stripe.CustomerID = newCustomerID
 			if err := config.Save(h.configPath, &newCfg); err != nil {
@@ -148,7 +148,7 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 	}
 
 	err := h.lock.Do(ctx, "link stripe accounts", func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
 		copy(accounts, cur.Stripe.LinkedAccounts)
 		for _, a := range req.Msg.Accounts {
@@ -249,7 +249,7 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 	}
 
 	err := h.lock.Do(ctx, fmt.Sprintf("unlink stripe account %s", req.Msg.StripeAccountId), func() error {
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		updated := make([]config.StripeLinkedAccount, 0, len(cur.Stripe.LinkedAccounts))
 		for _, a := range cur.Stripe.LinkedAccounts {
 			if a.StripeAccountID != req.Msg.StripeAccountId {
@@ -406,7 +406,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			importedStripeTxnSet[id] = true
 		}
 
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		loc := cur.Location()
 
 		for _, txnID := range selectedIDs {
@@ -672,7 +672,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 			importedStripeTxnSet[id] = true
 		}
 
-		cur := h.cfg.Load()
+		cur := h.loadCfg()
 		loc := cur.Location()
 
 		for _, sel := range req.Msg.Selections {
