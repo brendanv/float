@@ -67,7 +67,13 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 
 	if err := fn(); err != nil {
 		logger.Debug("txlock: reverting snapshot after write failure", "error", err)
-		if revertErr := snap.revert(l.dataDir); revertErr != nil {
+		revertErr := snap.revert(l.dataDir)
+		// Bump the generation even though the write failed: a concurrent read
+		// may have observed the intermediate file state and would otherwise
+		// cache its result under the unchanged generation, serving poisoned
+		// data until the next successful write.
+		l.gen.Add(1)
+		if revertErr != nil {
 			return fmt.Errorf("txlock: fn failed (%w) and revert also failed: %v", err, revertErr)
 		}
 		return err
@@ -75,7 +81,11 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 
 	if err := l.client.Check(ctx); err != nil {
 		logger.Debug("txlock: reverting snapshot after check failure", "error", err)
-		if revertErr := snap.revert(l.dataDir); revertErr != nil {
+		revertErr := snap.revert(l.dataDir)
+		// See the comment on the fn-failure path: invalidate caches that may
+		// have loaded the intermediate (now reverted) state.
+		l.gen.Add(1)
+		if revertErr != nil {
 			return fmt.Errorf("txlock: check failed (%w) and revert also failed: %v", err, revertErr)
 		}
 		return err
