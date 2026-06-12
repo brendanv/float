@@ -722,8 +722,9 @@ message GetPortfolioHoldingsRequest {
 
 message GetPortfolioHoldingsResponse {
   repeated Holding holdings = 1;
-  Amount total_value = 2;   // sum of all valued holdings in base currency; null if no prices
+  Amount total_value = 2;   // set only when all valued holdings share a single currency; null otherwise
   string as_of_date = 3;    // most recent price date used across all holdings
+  repeated Amount currency_totals = 4; // per-currency subtotals; length > 1 means mixed currencies
 }
 
 message GetPortfolioTimeseriesRequest {

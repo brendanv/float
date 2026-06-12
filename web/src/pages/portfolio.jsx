@@ -299,8 +299,10 @@ function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountPrefixCh
   );
 }
 
-function AllocationChart({ holdings }) {
+function AllocationChart({ holdings, currencyTotals }) {
   const valued = holdings.filter((h) => h.currentValue);
+  const mixedCurrencies = currencyTotals.length > 1;
+
   if (valued.length === 0) {
     return (
       <Card className="h-full">
@@ -336,60 +338,68 @@ function AllocationChart({ holdings }) {
         <CardTitle>Allocation</CardTitle>
       </CardHeader>
       <CardContent>
+        {mixedCurrencies && (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Holdings span multiple currencies — percentages are within each
+            currency's total.
+          </p>
+        )}
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-          <ChartContainer
-            config={chartConfig}
-            className="mx-auto h-52 w-52 flex-shrink-0"
-          >
-            <PieChart>
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    hideLabel
-                    formatter={(value, name) => {
-                      const h = valued.find((h) => h.symbol === name);
-                      const pct = h?.portfolioPct?.toFixed(1) ?? "0.0";
-                      return (
-                        <>
-                          <div
-                            className="shrink-0 rounded-[2px] h-2.5 w-2.5"
-                            style={{
-                              backgroundColor: chartConfig[name]?.color,
-                            }}
-                          />
-                          <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                            <span className="text-muted-foreground">
-                              {name}
-                            </span>
-                            <span className="font-mono font-medium tabular-nums">
-                              {formatCurrency(
-                                h.currentValue.quantity,
-                                h.currentValue.commodity,
-                              )}{" "}
-                              ({pct}%)
-                            </span>
-                          </div>
-                        </>
-                      );
-                    }}
-                  />
-                }
-              />
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="symbol"
-                innerRadius="60%"
-                outerRadius="80%"
-                strokeWidth={2}
-                stroke="transparent"
-              >
-                {chartData.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ChartContainer>
+          {!mixedCurrencies && (
+            <ChartContainer
+              config={chartConfig}
+              className="mx-auto h-52 w-52 flex-shrink-0"
+            >
+              <PieChart>
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      hideLabel
+                      formatter={(value, name) => {
+                        const h = valued.find((h) => h.symbol === name);
+                        const pct = h?.portfolioPct?.toFixed(1) ?? "0.0";
+                        return (
+                          <>
+                            <div
+                              className="shrink-0 rounded-[2px] h-2.5 w-2.5"
+                              style={{
+                                backgroundColor: chartConfig[name]?.color,
+                              }}
+                            />
+                            <div className="flex flex-1 justify-between items-center gap-2 leading-none">
+                              <span className="text-muted-foreground">
+                                {name}
+                              </span>
+                              <span className="font-mono font-medium tabular-nums">
+                                {formatCurrency(
+                                  h.currentValue.quantity,
+                                  h.currentValue.commodity,
+                                )}{" "}
+                                ({pct}%)
+                              </span>
+                            </div>
+                          </>
+                        );
+                      }}
+                    />
+                  }
+                />
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="symbol"
+                  innerRadius="60%"
+                  outerRadius="80%"
+                  strokeWidth={2}
+                  stroke="transparent"
+                >
+                  {chartData.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+          )}
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             {chartData.map((item, i) => (
               <div
@@ -1008,6 +1018,7 @@ export function PortfolioPage() {
 
   const holdings = data?.holdings ?? [];
   const totalValue = data?.totalValue;
+  const currencyTotals = data?.currencyTotals ?? [];
   const asOfDate = data?.asOfDate;
   const snapshots = tsData?.snapshots ?? [];
   const valuedCount = holdings.filter((h) => h.currentValue).length;
@@ -1090,9 +1101,19 @@ export function PortfolioPage() {
               value={
                 totalValue
                   ? formatCurrency(totalValue.quantity, totalValue.commodity)
-                  : "—"
+                  : currencyTotals.length > 1
+                    ? currencyTotals
+                        .map((t) => formatCurrency(t.quantity, t.commodity))
+                        .join(" + ")
+                    : "—"
               }
-              description={asOfDate ? `As of ${asOfDate}` : undefined}
+              description={
+                currencyTotals.length > 1
+                  ? "Multiple currencies — values not summed"
+                  : asOfDate
+                    ? `As of ${asOfDate}`
+                    : undefined
+              }
             />
           </div>
           <div className="col-span-12 md:col-span-6 xl:col-span-3">
@@ -1210,7 +1231,7 @@ export function PortfolioPage() {
 
           <div className="col-span-12 xl:col-span-4 flex flex-col gap-6">
             <MultiPeriodReturns snapshots={snapshots} />
-            <AllocationChart holdings={holdings} />
+            <AllocationChart holdings={holdings} currencyTotals={currencyTotals} />
           </div>
 
           <Card className="col-span-12 pb-0">

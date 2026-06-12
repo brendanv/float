@@ -3217,6 +3217,90 @@ include 2026/01.journal
 	}
 }
 
+func TestGetPortfolioHoldings_MultiCurrencyTotals(t *testing.T) {
+	dir := t.TempDir()
+
+	// AAPL is priced in USD; VEUR is priced in EUR. Mixing their values into a
+	// single total would produce a nonsensical number, so TotalValue must be nil
+	// and CurrencyTotals must carry separate per-currency subtotals.
+	main := `; float main journal
+account assets:investments:aapl
+account assets:investments:veur
+account assets:checking
+
+include prices.journal
+include 2026/01.journal
+`
+	prices := `P 2026-01-25 AAPL 200.00 USD
+P 2026-01-25 VEUR 120.00 EUR
+`
+	txns := `2026-01-05 Buy AAPL
+    assets:investments:aapl    10 AAPL @ 150.00 USD
+    assets:checking           -1500.00 USD
+
+2026-01-06 Buy VEUR
+    assets:investments:veur     5 VEUR @ 110.00 EUR
+    assets:checking            -550.00 EUR
+`
+
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "prices.journal"), []byte(prices), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(txns), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetPortfolioHoldings(t.Context(), connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioHoldings: %v", err)
+	}
+	msg := resp.Msg
+
+	// TotalValue must be nil — currencies cannot be summed.
+	if msg.TotalValue != nil {
+		t.Errorf("TotalValue = %v, want nil (mixed currencies must not be summed)", msg.TotalValue)
+	}
+
+	// Must have exactly two per-currency subtotals.
+	if len(msg.CurrencyTotals) != 2 {
+		t.Fatalf("len(CurrencyTotals) = %d, want 2; got %v", len(msg.CurrencyTotals), msg.CurrencyTotals)
+	}
+
+	totalsByCurrency := make(map[string]string)
+	for _, ct := range msg.CurrencyTotals {
+		totalsByCurrency[ct.Commodity] = ct.Quantity
+	}
+	// AAPL: 10 shares × $200 = $2000
+	if totalsByCurrency["USD"] != "2000.00" {
+		t.Errorf("USD total = %q, want %q", totalsByCurrency["USD"], "2000.00")
+	}
+	// VEUR: 5 shares × €120 = €600
+	if totalsByCurrency["EUR"] != "600.00" {
+		t.Errorf("EUR total = %q, want %q", totalsByCurrency["EUR"], "600.00")
+	}
+
+	// PortfolioPct must sum to ~100% within each currency, not across all holdings.
+	pctByCurrency := make(map[string]float64)
+	for _, holding := range msg.Holdings {
+		if holding.CurrentValue != nil {
+			pctByCurrency[holding.CurrentValue.Commodity] += holding.PortfolioPct
+		}
+	}
+	for curr, sum := range pctByCurrency {
+		if sum < 99.9 || sum > 100.1 {
+			t.Errorf("PortfolioPct sum for %s = %.4f, want ~100", curr, sum)
+		}
+	}
+}
+
 func TestGeneratePricesFromCost(t *testing.T) {
 	dir := t.TempDir()
 
