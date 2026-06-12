@@ -10,7 +10,7 @@ Serializes all mutations to the float data directory. Every write to journal fil
 2. Snapshots all `*.journal` files under `dataDir` into memory, plus any extra paths declared by the caller.
 3. Runs caller-provided `fn` to perform the actual writes.
 4. Runs `hledger check` against the configured main journal.
-5. If `fn` or `hledger check` fails, restores all snapshotted files (journals and declared extras) and deletes journal files or declared-absent extra files that `fn` created during the failed write.
+5. If `fn` or `hledger check` fails, restores all snapshotted files (journals and declared extras) and deletes journal files or declared-absent extra files that `fn` created during the failed write. The generation counter is bumped on failure too, since a concurrent read may have cached results computed from the intermediate (reverted) file state.
 6. On success, bumps the atomic generation counter to invalidate caches.
 7. If a `gitsnap.Repo` was registered with `SetSnap`, commits the successful mutation with `msg`; commit errors are logged and are not returned.
 

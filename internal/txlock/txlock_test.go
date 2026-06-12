@@ -101,7 +101,10 @@ func TestTxLock_Do(t *testing.T) {
 			fn:           func(dir string) func() error { return addMonthFile(dir, "2026/01.journal", invalidTx) },
 			wantErr:      true,
 			wantCheckErr: true,
-			wantGeneration: 0,
+			// Failed writes bump the generation too: a concurrent read could
+			// have cached the intermediate (reverted) state under the old
+			// generation, so it must be invalidated.
+			wantGeneration: 1,
 			check: func(t *testing.T, dir string) {
 				// New month file should have been deleted
 				if _, err := os.Stat(filepath.Join(dir, "2026/01.journal")); !os.IsNotExist(err) {
@@ -130,7 +133,7 @@ func TestTxLock_Do(t *testing.T) {
 				}
 			},
 			wantErr:        true,
-			wantGeneration: 0,
+			wantGeneration: 1, // failed writes also invalidate caches
 			check: func(t *testing.T, dir string) {
 				if _, err := os.Stat(filepath.Join(dir, "2026/01.journal")); !os.IsNotExist(err) {
 					t.Error("partially written file should have been reverted")
@@ -217,9 +220,10 @@ func TestTxLock_Do_ExistingFileReverted(t *testing.T) {
 	if string(restored) != string(originalContent) {
 		t.Errorf("existing file not restored after failed write\ngot:\n%s\nwant:\n%s", restored, originalContent)
 	}
-	// Generation should still be 1 (only the first successful write counted).
-	if got := l.Generation(); got != 1 {
-		t.Errorf("Generation() = %d, want 1", got)
+	// Generation is 2: one bump for the successful write, one for the failed
+	// write (failures invalidate caches that may have seen intermediate state).
+	if got := l.Generation(); got != 2 {
+		t.Errorf("Generation() = %d, want 2", got)
 	}
 }
 
