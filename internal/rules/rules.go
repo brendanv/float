@@ -53,15 +53,32 @@ func Load(dataDir string) ([]Rule, error) {
 }
 
 // Save writes rules to data/rules.json in dataDir. Must be called within
-// txlock.Do() since it modifies the data directory.
+// txlock.Do() since it modifies the data directory. The write is atomic
+// (temp file + rename) so a crash mid-write cannot truncate the rules file,
+// and readers outside the lock never observe a partial write.
 func Save(dataDir string, rules []Rule) error {
 	path := filepath.Join(dataDir, rulesFile)
 	data, err := json.MarshalIndent(rules, "", "  ")
 	if err != nil {
 		return fmt.Errorf("rules: marshal: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	f, err := os.CreateTemp(dataDir, ".rules-*.json.tmp")
+	if err != nil {
+		return fmt.Errorf("rules: create temp: %w", err)
+	}
+	tmpPath := f.Name()
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rules: write %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rules: close temp: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rules: rename %s -> %s: %w", tmpPath, path, err)
 	}
 	return nil
 }
