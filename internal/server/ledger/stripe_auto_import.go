@@ -173,6 +173,18 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		})
 	}
 
+	if len(eligible) > 0 && len(batches) == 0 {
+		// Every account fetch failed (batches gets an entry per successful
+		// fetch, even with zero new transactions). Leave LastDailyImportAt
+		// unchanged so the next hourly tick retries, instead of stamping the
+		// run as done and silently skipping a full day after a transient
+		// Stripe or network outage.
+		logger.ErrorContext(ctx, "daily stripe import: all account fetches failed; will retry next tick",
+			"account_errors", len(perAccountErrs),
+		)
+		return 0, perAccountErrs
+	}
+
 	if h.afterDailyImportPreFetch != nil {
 		h.afterDailyImportPreFetch()
 	}
