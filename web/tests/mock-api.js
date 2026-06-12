@@ -1002,6 +1002,7 @@ export const mockPortfolioHoldings = {
     },
   ],
   totalValue: { commodity: "USD", quantity: "11120.00" },
+  currencyTotals: [{ commodity: "USD", quantity: "11120.00" }],
   asOfDate: "2026-03-01",
 };
 

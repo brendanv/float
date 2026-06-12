@@ -564,6 +564,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		}
 	}
 
+	// Ordering by raw quantity compares values across currencies in mixed portfolios; approximate but consistent.
 	sort.Slice(holdings, func(i, j int) bool {
 		var vi, vj float64
 		if holdings[i].CurrentValue != nil {
