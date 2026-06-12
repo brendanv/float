@@ -1983,10 +1983,16 @@ func (h *Handler) RestoreSnapshot(ctx context.Context, req *connect.Request[floa
 	if req.Msg.Hash == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("hash is required"))
 	}
-	if err := h.snap.Restore(ctx, req.Msg.Hash); err != nil {
+	// Run the restore under txlock: it rewrites the whole data directory, so it
+	// must be serialized against concurrent mutations, validated with hledger
+	// check, and rolled back if the restored tree is invalid. DoWith also bumps
+	// the generation, invalidating the query cache.
+	extraPaths := []string{rules.FilePath(h.dataDir), templates.FilePath(h.dataDir)}
+	if err := h.lock.DoWith(ctx, "restore snapshot "+req.Msg.Hash, extraPaths, func() error {
+		return h.snap.Restore(ctx, req.Msg.Hash)
+	}); err != nil {
 		return nil, rpcErr(ctx, err, "restore snapshot failed", "hash", req.Msg.Hash)
 	}
-	h.lock.BumpGeneration()
 	return connect.NewResponse(&floatv1.RestoreSnapshotResponse{}), nil
 }
 
