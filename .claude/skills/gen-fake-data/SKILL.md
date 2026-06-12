@@ -11,7 +11,7 @@ Generate a complete float data directory with fake but realistic transactions us
 
 | File | Description |
 |------|-------------|
-| `config.toml` | Server on port 8080, `admin` + `viewer` users, 3 bank profiles |
+| `config.toml` | Server on port 8080, 3 bank profiles |
 | `accounts.journal` | Account declarations (assets, liabilities, expenses, income, equity) |
 | `prices.journal` | Empty prices file |
 | `main.journal` | Include directives for all files |

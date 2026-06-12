@@ -66,12 +66,13 @@ src/
 | `/settings` | `SettingsPage` | General timezone, AI, Alpha Vantage, Stripe settings |
 | `/hledger-query` | `HledgerQueryPage` | Raw hledger query/debug UI and AI query helpers |
 | `/logs` | `LogsPage` | Live server log stream |
+| `/login` | `LoginPage` | Passphrase login (rendered without the app shell) |
 
 `TransactionsPage` accepts search params: `account`, `payee`, `importBatchId`, and `search`.
 
 ## API Access
 
-`src/client.js` exports `ledgerClient`, a typed ConnectRPC client for `LedgerService`. Use it from React Query with keys from `src/query-keys.js`:
+`src/client.js` exports `ledgerClient`, a typed ConnectRPC client for `LedgerService`. The transport includes an interceptor that redirects to `#/login` when the server returns `unauthenticated` (auth is the `float_session` cookie set by `POST /api/login`; the Vite dev proxy forwards `/api` to floatd). Use the client from React Query with keys from `src/query-keys.js`:
 
 ```jsx
 import { ledgerClient } from "@/client.js";

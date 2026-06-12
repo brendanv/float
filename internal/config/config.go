@@ -14,12 +14,6 @@ type ServerConfig struct {
 	SSHPort int `toml:"ssh_port"` // SSH TUI port; disabled if zero
 }
 
-type User struct {
-	Name           string `toml:"name"`
-	Role           string `toml:"role"` // "admin" or "viewer"
-	PassphraseHash string `toml:"passphrase_hash"`
-}
-
 type BankProfile struct {
 	Name      string `toml:"name"`
 	RulesFile string `toml:"rules_file"` // relative to data dir
@@ -56,7 +50,6 @@ type PortfolioConfig struct {
 
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
-	Users        []User             `toml:"users"`
 	BankProfiles []BankProfile      `toml:"bank_profiles"`
 	AlphaVantage AlphaVantageConfig `toml:"alpha_vantage"`
 	AI           AIConfig           `toml:"ai"`

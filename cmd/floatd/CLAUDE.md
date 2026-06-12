@@ -16,10 +16,11 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
    - `journal.MigrateStripeTxnTag` to rename old `stripe-txn` tags to `float-stripe-txn`.
    - `journal.EnsureCommodityDirective(..., "USD")`.
    - account declaration bootstrap: ensure `accounts.journal`, ensure its include, and append currently undeclared accounts.
-9. Create the generation-aware cache, `LedgerService` handler, logging interceptor, h2c mux, and embedded web UI handler.
-10. Start optional Wish SSH server if `config.server.ssh_port` is set.
-11. Start `handler.StartDailyStripeImport(ctx)`.
-12. Serve HTTP until interrupted, then shut down gracefully.
+9. Read `FLOAT_AUTH_PASSPHRASE` into `internal/auth` (auth disabled when unset) and log the auth state.
+10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
+11. Start optional Wish SSH server if `config.server.ssh_port` is set.
+12. Start `handler.StartDailyStripeImport(ctx)`.
+13. Serve HTTP until interrupted, then shut down gracefully.
 
 ## Flags
 
@@ -29,17 +30,19 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
 | `--addr` | config port or `:8080` | Listen address override |
 | `--verbose` | false | Enable debug-level logging, including hledger command args/durations |
 
-Environment variable shortcuts such as `FLOAT_DATA_DIR` and `FLOAT_ADDR` are defined by root `mise.toml` tasks, not read directly by `main.go`.
+Environment variable shortcuts such as `FLOAT_DATA_DIR` and `FLOAT_ADDR` are defined by root `mise.toml` tasks, not read directly by `main.go`. `FLOAT_AUTH_PASSPHRASE` is the exception: `main.go` reads it directly to configure auth.
 
 ## HTTP / API
 
-`floatd` registers the generated `LedgerService` handler at `/float.v1.LedgerService/*` with `middleware.NewLoggingInterceptor`. The same mux then falls through to `webui.Handler()` for static web assets, allowing the embedded app and API to share one origin.
+`floatd` registers the generated `LedgerService` handler at `/float.v1.LedgerService/*` with `middleware.NewLoggingInterceptor` and `auth.NewServerInterceptor`. The mux also serves the auth endpoints (`/api/auth`, `/api/login`, `/api/logout`) and falls through to `webui.Handler()` for static web assets, allowing the embedded app and API to share one origin.
 
-The server uses `h2c.NewHandler(..., &http2.Server{})`, so local clients can use HTTP/2 without TLS. There is currently no auth middleware.
+The server uses `h2c.NewHandler(..., &http2.Server{})`, so local clients can use HTTP/2 without TLS.
+
+When `FLOAT_AUTH_PASSPHRASE` is set, every RPC requires an `Authorization: Bearer` header (passphrase or session token) or the `float_session` cookie; static assets and the `/api/*` auth endpoints remain open. When unset, all access is open.
 
 ## SSH TUI (`ssh.go`)
 
-When `server.ssh_port` is set, `startSSHServer` launches a Wish SSH server. Each SSH session creates a local h2c `LedgerServiceClient` pointed at the running `floatd` address and runs `ui.New(client)` with Bubble Tea. The host key is `$FLOAT_DATA_DIR/ssh_host_key` and is generated on first start.
+When `server.ssh_port` is set, `startSSHServer` launches a Wish SSH server. Each SSH session creates a local h2c `LedgerServiceClient` pointed at the running `floatd` address and runs the TUI with Bubble Tea. When auth is enabled, each session is wrapped in `ui.NewAuthGate`, which prompts for the passphrase (verified in-process) before initializing the UI and injects the session token into the client. The host key is `$FLOAT_DATA_DIR/ssh_host_key` and is generated on first start.
 
 ## Background Work
 

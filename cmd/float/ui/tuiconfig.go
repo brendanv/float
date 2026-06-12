@@ -8,6 +8,9 @@ import (
 
 type tuiConfig struct {
 	Theme string `json:"theme"`
+	// AuthTokens maps a floatd server address (the --server value) to the
+	// session token obtained from POST /api/login.
+	AuthTokens map[string]string `json:"auth_tokens,omitempty"`
 }
 
 // String returns the canonical string name for a Theme.
@@ -49,26 +52,24 @@ func tuiConfigPath() string {
 	return filepath.Join(dir, "float", "tui.json")
 }
 
-// LoadTUITheme reads the saved theme from the TUI config file.
-// Returns ThemeDefault if the file does not exist or cannot be read.
-func LoadTUITheme() Theme {
+// loadTUIConfig reads the TUI config file, returning a zero-value config if
+// the file does not exist or cannot be parsed.
+func loadTUIConfig() tuiConfig {
+	var cfg tuiConfig
 	p := tuiConfigPath()
 	if p == "" {
-		return ThemeDefault
+		return cfg
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
-		return ThemeDefault
+		return cfg
 	}
-	var cfg tuiConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return ThemeDefault
-	}
-	return themeFromString(cfg.Theme)
+	_ = json.Unmarshal(data, &cfg)
+	return cfg
 }
 
-// saveTUITheme persists the given theme to the TUI config file.
-func saveTUITheme(theme Theme) {
+// saveTUIConfig writes the config file, creating its directory if needed.
+func saveTUIConfig(cfg tuiConfig) {
 	p := tuiConfigPath()
 	if p == "" {
 		return
@@ -76,9 +77,39 @@ func saveTUITheme(theme Theme) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return
 	}
-	data, err := json.Marshal(tuiConfig{Theme: theme.String()})
+	data, err := json.Marshal(cfg)
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(p, data, 0o644)
+	_ = os.WriteFile(p, data, 0o600)
+}
+
+// LoadTUITheme reads the saved theme from the TUI config file.
+// Returns ThemeDefault if the file does not exist or cannot be read.
+func LoadTUITheme() Theme {
+	return themeFromString(loadTUIConfig().Theme)
+}
+
+// saveTUITheme persists the given theme, preserving other config fields.
+func saveTUITheme(theme Theme) {
+	cfg := loadTUIConfig()
+	cfg.Theme = theme.String()
+	saveTUIConfig(cfg)
+}
+
+// LoadAuthToken returns the saved session token for the given server address,
+// or "" if none is saved.
+func LoadAuthToken(server string) string {
+	return loadTUIConfig().AuthTokens[server]
+}
+
+// SaveAuthToken persists the session token for the given server address,
+// preserving other config fields.
+func SaveAuthToken(server, token string) {
+	cfg := loadTUIConfig()
+	if cfg.AuthTokens == nil {
+		cfg.AuthTokens = make(map[string]string)
+	}
+	cfg.AuthTokens[server] = token
+	saveTUIConfig(cfg)
 }

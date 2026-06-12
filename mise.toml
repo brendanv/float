@@ -79,7 +79,11 @@ if [ -n "$usage_query" ]; then
 else
   DATA="{\"depth\":$usage_depth}"
 fi
-buf curl --schema . --protocol grpc --http2-prior-knowledge \
+set -- --schema . --protocol grpc --http2-prior-knowledge
+if [ -n "$FLOAT_AUTH_PASSPHRASE" ]; then
+  set -- "$@" --header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"
+fi
+buf curl "$@" \
   "http://$usage_addr/float.v1.LedgerService/GetBalances" \
   --data "$DATA"
 '''
@@ -96,7 +100,11 @@ if [ -n "$usage_query" ]; then
 else
   DATA="{}"
 fi
-buf curl --schema . --protocol grpc --http2-prior-knowledge \
+set -- --schema . --protocol grpc --http2-prior-knowledge
+if [ -n "$FLOAT_AUTH_PASSPHRASE" ]; then
+  set -- "$@" --header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"
+fi
+buf curl "$@" \
   "http://$usage_addr/float.v1.LedgerService/ListTransactions" \
   --data "$DATA"
 '''
@@ -105,7 +113,11 @@ buf curl --schema . --protocol grpc --http2-prior-knowledge \
 description = "Query ListAccounts"
 usage = 'flag "--addr <addr>" help="Server address" default="localhost:8080"'
 run = '''
-buf curl --schema . --protocol grpc --http2-prior-knowledge \
+set -- --schema . --protocol grpc --http2-prior-knowledge
+if [ -n "$FLOAT_AUTH_PASSPHRASE" ]; then
+  set -- "$@" --header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"
+fi
+buf curl "$@" \
   "http://$usage_addr/float.v1.LedgerService/ListAccounts" \
   --data "{}"
 '''
@@ -117,7 +129,11 @@ flag "--addr <addr>" help="Server address" default="localhost:8080"
 arg "<fid>" help="8-char fid of the transaction to delete"
 '''
 run = '''
-buf curl --schema . --protocol grpc --http2-prior-knowledge \
+set -- --schema . --protocol grpc --http2-prior-knowledge
+if [ -n "$FLOAT_AUTH_PASSPHRASE" ]; then
+  set -- "$@" --header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"
+fi
+buf curl "$@" \
   "http://$usage_addr/float.v1.LedgerService/DeleteTransaction" \
   --data "{\"fid\":\"$usage_fid\"}"
 '''
@@ -162,7 +178,11 @@ flag "--tags <tags>" help="JSON object of tags e.g. {\"category\":\"food\"}" def
 arg "<fid>" help="8-char fid of the transaction to update"
 '''
 run = '''
-buf curl --schema . --protocol grpc --http2-prior-knowledge \
+set -- --schema . --protocol grpc --http2-prior-knowledge
+if [ -n "$FLOAT_AUTH_PASSPHRASE" ]; then
+  set -- "$@" --header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"
+fi
+buf curl "$@" \
   "http://$usage_addr/float.v1.LedgerService/ModifyTags" \
   --data "{\"fid\":\"$usage_fid\",\"tags\":$usage_tags}"
 '''
