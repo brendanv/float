@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
@@ -166,9 +167,13 @@ func main() {
 	go handler.StartDailyStripeImport(ctx)
 
 	httpSrv := &http.Server{Addr: listenAddr, Handler: h2c.NewHandler(mux, &http2.Server{})}
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
-		_ = httpSrv.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
 	slog.Info("floatd listening", "addr", listenAddr, "webui", true)
@@ -176,4 +181,10 @@ func main() {
 		slog.Error("server", "error", err)
 		os.Exit(1)
 	}
+	// ListenAndServe returns ErrServerClosed as soon as Shutdown is initiated;
+	// wait for Shutdown to finish draining in-flight requests before exiting,
+	// otherwise a SIGTERM mid-import kills handlers inside txlock with partial
+	// journal writes on disk.
+	<-shutdownDone
+	slog.Info("floatd shut down")
 }
