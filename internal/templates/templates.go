@@ -58,15 +58,32 @@ func Load(dataDir string) ([]Template, error) {
 }
 
 // Save writes templates to templates.json in dataDir. Must be called within
-// txlock.Do() since it modifies the data directory.
+// txlock.Do() since it modifies the data directory. The write is atomic
+// (temp file + rename) so a crash mid-write cannot truncate the file, and
+// readers outside the lock never observe a partial write.
 func Save(dataDir string, ts []Template) error {
 	path := filepath.Join(dataDir, templatesFile)
 	data, err := json.MarshalIndent(ts, "", "  ")
 	if err != nil {
 		return fmt.Errorf("templates: marshal: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	f, err := os.CreateTemp(dataDir, ".templates-*.json.tmp")
+	if err != nil {
+		return fmt.Errorf("templates: create temp: %w", err)
+	}
+	tmpPath := f.Name()
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("templates: write %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("templates: close temp: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("templates: rename %s -> %s: %w", tmpPath, path, err)
 	}
 	return nil
 }
