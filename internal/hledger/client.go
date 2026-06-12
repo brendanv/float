@@ -3,6 +3,7 @@ package hledger
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -107,6 +108,55 @@ func cmdError(bin string, args []string, stderr []byte, err error) error {
 	return fmt.Errorf("%w\ncommand: %s", err, cmd)
 }
 
+// ErrUnsafeQuery is returned when user-supplied query terms or raw query
+// arguments could redirect hledger's input/output files or invoke a command
+// that writes, which would bypass the txlock snapshot/check/revert protocol.
+var ErrUnsafeQuery = errors.New("hledger: unsafe query argument")
+
+// validateQueryTerms rejects tokens that hledger would parse as command-line
+// flags rather than query terms. hledger accepts flags anywhere in argv, so a
+// user-supplied query token like --output-file=FILE would otherwise overwrite
+// arbitrary files outside the write protocol. No valid hledger query term
+// starts with '-' (negation is expressed as not:).
+func validateQueryTerms(query []string) error {
+	for _, q := range query {
+		if strings.HasPrefix(q, "-") {
+			return fmt.Errorf("%w: query term %q must not start with '-'", ErrUnsafeQuery, q)
+		}
+	}
+	return nil
+}
+
+// runQueryAllowedCommands lists the read-only hledger subcommands permitted
+// through RunQuery, which executes client-supplied arguments. Commands that
+// write to journal files (add, import, rewrite, ...) must go through the
+// typed mutation paths so txlock can snapshot/check/revert.
+var runQueryAllowedCommands = map[string]bool{
+	"accounts": true, "activity": true,
+	"areg": true, "aregister": true,
+	"b": true, "bal": true, "balance": true,
+	"bs": true, "balancesheet": true,
+	"bse": true, "balancesheetequity": true,
+	"cf": true, "cashflow": true,
+	"check": true, "codes": true, "commodities": true,
+	"descriptions": true, "files": true,
+	"is": true, "incomestatement": true,
+	"notes": true, "payees": true, "prices": true, "print": true,
+	"r": true, "reg": true, "register": true,
+	"roi": true, "stats": true, "tags": true,
+}
+
+// isBlockedRunQueryArg reports whether a RunQuery argument could redirect
+// hledger's input or output to another file. -f and -o accept attached values
+// (-fFILE, -oFILE), so any token starting with those prefixes is rejected.
+func isBlockedRunQueryArg(a string) bool {
+	if strings.HasPrefix(a, "--") {
+		name, _, _ := strings.Cut(a, "=")
+		return name == "--file" || name == "--output-file" || name == "--rules-file"
+	}
+	return strings.HasPrefix(a, "-f") || strings.HasPrefix(a, "-o")
+}
+
 // RunRaw executes hledger with arbitrary args and returns stdout, stderr, and
 // any error. The full command line is included in the returned cmdLine string
 // for display purposes. This is an escape hatch for debugging — prefer the
@@ -129,6 +179,17 @@ func (c *Client) RunQuery(ctx context.Context, argsStr string) (stdout, stderr [
 	userArgs, splitErr := shellSplit(strings.TrimSpace(argsStr))
 	if splitErr != nil {
 		return nil, nil, "", splitErr
+	}
+	if len(userArgs) == 0 {
+		return nil, nil, "", fmt.Errorf("%w: empty command", ErrUnsafeQuery)
+	}
+	if !runQueryAllowedCommands[userArgs[0]] {
+		return nil, nil, "", fmt.Errorf("%w: %q is not an allowed read-only command", ErrUnsafeQuery, userArgs[0])
+	}
+	for _, a := range userArgs[1:] {
+		if isBlockedRunQueryArg(a) {
+			return nil, nil, "", fmt.Errorf("%w: argument %q may redirect hledger input/output", ErrUnsafeQuery, a)
+		}
 	}
 	args := append([]string{"-f", c.journal}, userArgs...)
 	cmdLine = c.bin + " " + strings.Join(args, " ")
@@ -191,6 +252,9 @@ func (c *Client) Check(ctx context.Context) error {
 // Balances runs `hledger bal -O json -f <journal> [--depth N] [query...]`.
 // depth 0 = no --depth flag.
 func (c *Client) Balances(ctx context.Context, depth int, query ...string) (*BalanceReport, error) {
+	if err := validateQueryTerms(query); err != nil {
+		return nil, err
+	}
 	args := []string{"bal", "-O", "json", "-f", c.journal}
 	if depth > 0 {
 		args = append(args, "--depth", fmt.Sprintf("%d", depth))
@@ -211,6 +275,9 @@ func (c *Client) Balances(ctx context.Context, depth int, query ...string) (*Bal
 // directives from the journal; amounts without a matching price are left unconverted.
 // depth 0 = no --depth flag.
 func (c *Client) BalancesValued(ctx context.Context, valueSpec string, depth int, query ...string) (*BalanceReport, error) {
+	if err := validateQueryTerms(query); err != nil {
+		return nil, err
+	}
 	args := []string{"bal", "-O", "json", "-f", c.journal, "--infer-market-prices", "--value=" + valueSpec}
 	if depth > 0 {
 		args = append(args, "--depth", fmt.Sprintf("%d", depth))
@@ -230,6 +297,9 @@ func (c *Client) BalancesValued(ctx context.Context, valueSpec string, depth int
 // Accounts that lack cost annotations are returned in the original commodity.
 // depth 0 = no --depth flag.
 func (c *Client) BalancesCost(ctx context.Context, depth int, query ...string) (*BalanceReport, error) {
+	if err := validateQueryTerms(query); err != nil {
+		return nil, err
+	}
 	args := []string{"bal", "-B", "-O", "json", "-f", c.journal}
 	if depth > 0 {
 		args = append(args, "--depth", fmt.Sprintf("%d", depth))
@@ -336,6 +406,9 @@ func (c *Client) IncomeStatementTimeseries(ctx context.Context, begin, end strin
 // Register runs `hledger reg -O json -f <journal> [query...]`.
 // Returns flat RegisterRows (one per posting).
 func (c *Client) Register(ctx context.Context, query ...string) ([]RegisterRow, error) {
+	if err := validateQueryTerms(query); err != nil {
+		return nil, err
+	}
 	args := []string{"reg", "-O", "json", "-f", c.journal}
 	args = append(args, query...)
 
@@ -351,6 +424,10 @@ func (c *Client) Register(ctx context.Context, query ...string) ([]RegisterRow, 
 // Returns one row per transaction touching the focused account, with a signed
 // change amount and running balance pre-computed by hledger.
 func (c *Client) Aregister(ctx context.Context, account string, query ...string) ([]AregisterRow, error) {
+	// account is a positional query term too — validate it alongside query.
+	if err := validateQueryTerms(append([]string{account}, query...)); err != nil {
+		return nil, err
+	}
 	args := []string{"areg", "-O", "json", "-f", c.journal, account}
 	args = append(args, query...)
 
@@ -461,6 +538,9 @@ func (c *Client) PrintText(ctx context.Context, journalFile string) (string, err
 // Transactions runs `hledger print -O json -f <journal> [query...]`.
 // Returns parsed transactions.
 func (c *Client) Transactions(ctx context.Context, query ...string) ([]Transaction, error) {
+	if err := validateQueryTerms(query); err != nil {
+		return nil, err
+	}
 	args := []string{"print", "-O", "json", "-f", c.journal}
 	args = append(args, query...)
 

@@ -36,7 +36,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `Transactions(ctx, query...)` | `print -O json` | full transaction objects with source positions |
 | `PrintCSV(ctx, csvFile, rulesFile)` | `print -O json --rules-file <rules> -f <csv>` | CSV import preview; no journal file is written |
 | `PrintText(ctx, journalFile)` | `print -f <temp> -I` | canonical text formatting; ignores assertions until full `hledger check` |
-| `RunQuery(ctx, argsStr)` | `-f <journal> <shell-like args>` | debug/query UI; caller must not include `hledger` or `-f` |
+| `RunQuery(ctx, argsStr)` | `-f <journal> <shell-like args>` | debug/query UI; restricted to read-only subcommands, rejects `-f`/`-o`/`--rules-file` (`ErrUnsafeQuery`) |
 | `RunRaw(ctx, args...)` | arbitrary | escape hatch for CLI/debug only |
 | `Check(ctx)` | `check -f <journal>` | validation gate for txlock |
 | `Version(ctx)` | `--version` | returns parsed version |
@@ -45,7 +45,9 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 
 Parsing helpers translate hledger's heterogeneous JSON arrays into typed structs. They also enrich transactions with FID/payee/note/hidden-meta fields. Cost annotations are kept as raw JSON on `Amount` and parsed lazily by `Amount.ParseCost()`.
 
-`RunQuery` uses a deliberately small shell splitter that supports single and double quotes but not shell expansion or escapes. It automatically prepends `-f <journal>`.
+`RunQuery` uses a deliberately small shell splitter that supports single and double quotes but not shell expansion or escapes. It automatically prepends `-f <journal>`. The first token must be an allowlisted read-only subcommand, and arguments that redirect hledger input/output (`-f`, `-o`, `--file`, `--output-file`, `--rules-file`) are rejected with `ErrUnsafeQuery`.
+
+All typed query methods (`Balances`, `Register`, `Transactions`, `Aregister`, ...) reject query terms starting with `-` with `ErrUnsafeQuery` — hledger parses flags anywhere in argv, so a flag-shaped query token could otherwise redirect output and bypass txlock.
 
 ## Testing
 

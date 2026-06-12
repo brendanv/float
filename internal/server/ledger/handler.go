@@ -75,6 +75,9 @@ func (h *Handler) RunHledgerQuery(ctx context.Context, req *connect.Request[floa
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("args is required"))
 	}
 	stdout, stderr, cmdLine, err := h.hl.RunQuery(ctx, req.Msg.Args)
+	if errors.Is(err, hledger.ErrUnsafeQuery) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	success := err == nil
 	if err != nil {
 		logger.InfoContext(ctx, "hledger query returned non-zero", "args", req.Msg.Args, "error", err)
