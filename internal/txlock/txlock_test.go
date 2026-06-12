@@ -316,6 +316,35 @@ func TestTxLock_DoWith(t *testing.T) {
 		}
 	})
 
+	t.Run("existing extra file deleted by fn is restored on check failure", func(t *testing.T) {
+		// extra file exists before fn; fn deletes it AND writes an invalid journal.
+		// On check failure the extra file should be restored with its original content.
+		dir := setupDataDir(t)
+		l := mustTxLock(t, dir)
+		extraPath := filepath.Join(dir, "rules.json")
+		originalContent := []byte(`[{"id":"aabbccdd","pattern":"AMAZON"}]`)
+		if writeErr := os.WriteFile(extraPath, originalContent, 0644); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+
+		err := l.DoWith(t.Context(), "test", []string{extraPath}, func() error {
+			if removeErr := os.Remove(extraPath); removeErr != nil {
+				return removeErr
+			}
+			return addMonthFile(dir, "2026/01.journal", invalidTx)()
+		})
+		if err == nil {
+			t.Fatal("DoWith() should have returned check error")
+		}
+		restored, readErr := os.ReadFile(extraPath)
+		if readErr != nil {
+			t.Fatalf("extra file should exist after revert: %v", readErr)
+		}
+		if string(restored) != string(originalContent) {
+			t.Errorf("extra file not restored: got %q, want %q", restored, originalContent)
+		}
+	})
+
 	t.Run("absent extra not created by fn is fine on revert", func(t *testing.T) {
 		// extra path declared but fn never creates it; check fails; revert should not error.
 		dir := setupDataDir(t)

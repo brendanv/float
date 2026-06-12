@@ -151,6 +151,9 @@ func snapshotFiles(dataDir string, extraPaths []string) (*txSnapshot, error) {
 //  3. Delete any declared-absent extra files fn created
 func (s *txSnapshot) revert(dataDir string) error {
 	for path, content := range s.present {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return fmt.Errorf("revert: recreate dir for %s: %w", path, err)
+		}
 		if err := os.WriteFile(path, content, 0644); err != nil {
 			return fmt.Errorf("revert: restore %s: %w", path, err)
 		}

@@ -2069,7 +2069,11 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 
 	newProfile := config.BankProfile{Name: req.Msg.Name, RulesFile: cleaned, SkipRules: req.Msg.SkipRules}
 	rulesFilePath := filepath.Join(h.dataDir, cleaned)
-	err := h.lock.DoWith(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), []string{h.configPath, rulesFilePath}, func() error {
+	createExtraPaths := []string{h.configPath}
+	if len(req.Msg.RulesContent) > 0 {
+		createExtraPaths = append(createExtraPaths, rulesFilePath)
+	}
+	err := h.lock.DoWith(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), createExtraPaths, func() error {
 		// Write rules file if content provided.
 		if len(req.Msg.RulesContent) > 0 {
 			if err := os.MkdirAll(filepath.Dir(rulesFilePath), 0o755); err != nil {
