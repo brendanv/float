@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -56,11 +57,17 @@ func New(dir string) (*Repo, error) {
 	} else if err != nil {
 		return nil, fmt.Errorf("gitsnap: open: %w", err)
 	}
+	// Self-heal .gitignore in existing repos: entries added in newer float
+	// versions (e.g. SSH key material) must take effect without re-init,
+	// otherwise the next commit would capture secrets permanently.
+	if err := ensureGitignore(dir); err != nil {
+		return nil, fmt.Errorf("gitsnap: ensure gitignore: %w", err)
+	}
 	return &Repo{dir: dir, repo: r}, nil
 }
 
 func initRepo(dir string) (*git.Repository, error) {
-	if err := writeGitignore(dir); err != nil {
+	if err := ensureGitignore(dir); err != nil {
 		return nil, err
 	}
 	r, err := git.PlainInit(dir, false)
@@ -86,12 +93,37 @@ func initRepo(dir string) (*git.Repository, error) {
 	return r, nil
 }
 
-func writeGitignore(dir string) error {
+// gitignoreEntries are local-only files that must never be committed to the
+// snapshot repo: user config and key material.
+var gitignoreEntries = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts"}
+
+// ensureGitignore creates .gitignore or appends any required entries missing
+// from an existing one, preserving user-added lines.
+func ensureGitignore(dir string) error {
 	path := filepath.Join(dir, ".gitignore")
-	if _, err := os.Stat(path); err == nil {
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	existing := make(map[string]bool)
+	for _, line := range strings.Split(string(data), "\n") {
+		existing[strings.TrimSpace(line)] = true
+	}
+	var missing []string
+	for _, entry := range gitignoreEntries {
+		if !existing[entry] {
+			missing = append(missing, entry)
+		}
+	}
+	if len(missing) == 0 {
 		return nil
 	}
-	return os.WriteFile(path, []byte("config.toml\nfloat.key\n"), 0600)
+	content := string(data)
+	if content != "" && !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += strings.Join(missing, "\n") + "\n"
+	return os.WriteFile(path, []byte(content), 0600)
 }
 
 func (r *Repo) Commit(_ context.Context, msg string) error {
@@ -154,7 +186,7 @@ func (r *Repo) List(_ context.Context, limit int) ([]Snapshot, error) {
 	return snaps, nil
 }
 
-var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key"}
+var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts"}
 
 func (r *Repo) Restore(_ context.Context, hash string) error {
 	h := plumbing.NewHash(hash)

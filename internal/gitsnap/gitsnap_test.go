@@ -540,3 +540,75 @@ func TestRecoverUncommitted_CleanTree(t *testing.T) {
 		t.Errorf("expected 1 snapshot, got %d", len(snaps))
 	}
 }
+
+// TestCommit_IgnoresSSHKeyMaterial guards against committing the SSH host key
+// or known-hosts file into snapshot history.
+func TestCommit_IgnoresSSHKeyMaterial(t *testing.T) {
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"ssh_host_key":    "PRIVATE KEY MATERIAL",
+		"ssh_known_hosts": "host key fingerprints",
+		"main.journal":    "; journal\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	r, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := r.Commit(t.Context(), "test commit"); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	head, err := r.repo.Head()
+	if err != nil {
+		t.Fatalf("Head: %v", err)
+	}
+	commit, err := r.repo.CommitObject(head.Hash())
+	if err != nil {
+		t.Fatalf("CommitObject: %v", err)
+	}
+	tree, err := commit.Tree()
+	if err != nil {
+		t.Fatalf("Tree: %v", err)
+	}
+	for _, secret := range []string{"ssh_host_key", "ssh_known_hosts", "config.toml", "float.key"} {
+		if _, err := tree.File(secret); err == nil {
+			t.Errorf("%s was committed to the snapshot repo", secret)
+		}
+	}
+	if _, err := tree.File("main.journal"); err != nil {
+		t.Errorf("main.journal missing from commit: %v", err)
+	}
+}
+
+// TestNew_SelfHealsGitignore verifies that repos initialized by older float
+// versions (whose .gitignore lacks the SSH entries) are updated on open,
+// preserving user-added lines.
+func TestNew_SelfHealsGitignore(t *testing.T) {
+	dir := t.TempDir()
+	old := "config.toml\nfloat.key\nmy-custom-entry\n"
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(dir); err != nil { // init path
+		t.Fatalf("New (init): %v", err)
+	}
+	if _, err := New(dir); err != nil { // open path
+		t.Fatalf("New (open): %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	for _, want := range []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts", "my-custom-entry"} {
+		if !strings.Contains(got, want) {
+			t.Errorf(".gitignore missing %q:\n%s", want, got)
+		}
+	}
+}
