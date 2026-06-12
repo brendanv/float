@@ -190,6 +190,28 @@ func freeTextComment(comment string) string {
 	return strings.Join(lines, "\n")
 }
 
+// transactionEndIndex returns the index one past the last line of the
+// transaction block starting at headerIdx, consuming at most one trailing
+// blank separator line. hledger does not require a blank line between
+// transactions, so the block also ends at the first subsequent top-level
+// (non-indented) line — an adjacent transaction header or directive must not
+// be consumed as part of this block.
+func transactionEndIndex(lines []string, headerIdx int) int {
+	endIdx := headerIdx + 1
+	for endIdx < len(lines) {
+		line := lines[endIdx]
+		if strings.TrimSpace(line) == "" {
+			endIdx++ // single blank separator line belongs to the block
+			break
+		}
+		if line[0] != ' ' && line[0] != '\t' {
+			break // top-level line: next transaction header or directive
+		}
+		endIdx++
+	}
+	return endIdx
+}
+
 // replaceTransactionAtLine replaces the transaction block starting at headerLine
 // (1-indexed) in path with newText. The replacement is done in-place, preserving
 // the transaction's file position and thus the validity of any balance assertions.
@@ -210,13 +232,7 @@ func replaceTransactionAtLine(path string, headerLine int, fid, newText string) 
 		return fmt.Errorf("journal: replace: line %d in %s does not match expected transaction header for fid %q", headerLine, path, fid)
 	}
 
-	endIdx := headerIdx + 1
-	for endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) != "" {
-		endIdx++
-	}
-	if endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) == "" {
-		endIdx++
-	}
+	endIdx := transactionEndIndex(lines, headerIdx)
 
 	// Build replacement lines: strip trailing newlines, split, then re-add
 	// exactly one blank separator line to match the block structure we removed.
@@ -253,15 +269,8 @@ func removeTransactionAtLine(path string, headerLine int, fid string) error {
 		return fmt.Errorf("journal: remove: line %d in %s does not match expected transaction header for fid %q", headerLine, path, fid)
 	}
 
-	// Walk forward to find the end of the transaction block (non-blank lines).
-	endIdx := headerIdx + 1
-	for endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) != "" {
-		endIdx++
-	}
-	// Include one trailing blank line if present.
-	if endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) == "" {
-		endIdx++
-	}
+	// Walk forward to find the end of the transaction block.
+	endIdx := transactionEndIndex(lines, headerIdx)
 
 	// Reconstruct file without the removed block.
 	newLines := append(lines[:headerIdx:headerIdx], lines[endIdx:]...)
@@ -318,13 +327,7 @@ func batchRemoveFromFile(path string, specs []DeleteSpec) error {
 			return fmt.Errorf("journal: batch remove: line %d in %s does not match expected transaction header for fid %q", spec.HeaderLine, path, spec.FID)
 		}
 
-		endIdx := headerIdx + 1
-		for endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) != "" {
-			endIdx++
-		}
-		if endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) == "" {
-			endIdx++
-		}
+		endIdx := transactionEndIndex(lines, headerIdx)
 
 		lines = append(lines[:headerIdx:headerIdx], lines[endIdx:]...)
 	}
@@ -366,13 +369,7 @@ func BatchReplaceTransactions(path string, replacements []BatchReplacement) erro
 			return fmt.Errorf("journal: batch replace: line %d in %s does not match expected transaction header for fid %q", r.HeaderLine, path, r.FID)
 		}
 
-		endIdx := headerIdx + 1
-		for endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) != "" {
-			endIdx++
-		}
-		if endIdx < len(lines) && strings.TrimSpace(lines[endIdx]) == "" {
-			endIdx++
-		}
+		endIdx := transactionEndIndex(lines, headerIdx)
 
 		replacementLines := append(strings.Split(strings.TrimRight(r.NewText, "\n"), "\n"), "")
 		newLines := make([]string, 0, len(lines)-(endIdx-headerIdx)+len(replacementLines))

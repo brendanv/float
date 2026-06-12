@@ -576,3 +576,202 @@ func TestWriteTransaction_BalanceAssertion(t *testing.T) {
 		}
 	})
 }
+
+func TestTransactionEndIndex(t *testing.T) {
+	tests := []struct {
+		name      string
+		lines     []string
+		headerIdx int
+		want      int
+	}{
+		{
+			name: "block_with_trailing_blank",
+			lines: []string{
+				"2026-01-15 (aaaaaaaa) ONE",
+				"    expenses:food  $10.00",
+				"    assets:checking",
+				"",
+				"2026-01-16 (bbbbbbbb) TWO",
+			},
+			headerIdx: 0,
+			want:      4,
+		},
+		{
+			name: "adjacent_transaction_without_blank_separator",
+			lines: []string{
+				"2026-01-15 (aaaaaaaa) ONE",
+				"    expenses:food  $10.00",
+				"    assets:checking",
+				"2026-01-16 (bbbbbbbb) TWO",
+				"    expenses:rent  $20.00",
+				"    assets:checking",
+			},
+			headerIdx: 0,
+			want:      3,
+		},
+		{
+			name: "adjacent_directive_without_blank_separator",
+			lines: []string{
+				"2026-01-15 (aaaaaaaa) ONE",
+				"    expenses:food  $10.00",
+				"    assets:checking",
+				"P 2026-01-16 AAPL $150.00",
+			},
+			headerIdx: 0,
+			want:      3,
+		},
+		{
+			name: "block_at_end_of_file",
+			lines: []string{
+				"2026-01-15 (aaaaaaaa) ONE",
+				"    expenses:food  $10.00",
+				"    assets:checking",
+			},
+			headerIdx: 0,
+			want:      3,
+		},
+		{
+			name: "indented_comment_belongs_to_block",
+			lines: []string{
+				"2026-01-15 (aaaaaaaa) ONE",
+				"    ; note: indented comment",
+				"    expenses:food  $10.00",
+				"    assets:checking",
+				"",
+			},
+			headerIdx: 0,
+			want:      5,
+		},
+		{
+			name: "top_level_comment_not_consumed",
+			lines: []string{
+				"2026-01-15 (aaaaaaaa) ONE",
+				"    expenses:food  $10.00",
+				"    assets:checking",
+				"; top-level file comment",
+			},
+			headerIdx: 0,
+			want:      3,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := transactionEndIndex(tt.lines, tt.headerIdx); got != tt.want {
+				t.Errorf("transactionEndIndex = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRemoveTransactionAtLine_AdjacentTransactions guards against the
+// boundary-scan bug where deleting a transaction that is not followed by a
+// blank line also consumed the next transaction (or directive).
+func TestRemoveTransactionAtLine_AdjacentTransactions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "01.journal")
+	content := "2026-01-15 (aaaaaaaa) FIRST\n" +
+		"    expenses:food  $10.00\n" +
+		"    assets:checking\n" +
+		"2026-01-16 (bbbbbbbb) SECOND\n" +
+		"    expenses:rent  $20.00\n" +
+		"    assets:checking\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := removeTransactionAtLine(path, 1, "aaaaaaaa"); err != nil {
+		t.Fatalf("removeTransactionAtLine: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if strings.Contains(got, "FIRST") {
+		t.Errorf("removed transaction still present:\n%s", got)
+	}
+	if !strings.Contains(got, "SECOND") || !strings.Contains(got, "expenses:rent") {
+		t.Errorf("adjacent transaction was destroyed by the removal:\n%s", got)
+	}
+}
+
+func TestReplaceTransactionAtLine_AdjacentTransactions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "01.journal")
+	content := "2026-01-15 (aaaaaaaa) FIRST\n" +
+		"    expenses:food  $10.00\n" +
+		"    assets:checking\n" +
+		"2026-01-16 (bbbbbbbb) SECOND\n" +
+		"    expenses:rent  $20.00\n" +
+		"    assets:checking\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	newText := "2026-01-15 (aaaaaaaa) FIRST EDITED\n" +
+		"    expenses:food  $15.00\n" +
+		"    assets:checking\n\n"
+	if err := replaceTransactionAtLine(path, 1, "aaaaaaaa", newText); err != nil {
+		t.Fatalf("replaceTransactionAtLine: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "FIRST EDITED") {
+		t.Errorf("replacement text missing:\n%s", got)
+	}
+	if !strings.Contains(got, "SECOND") || !strings.Contains(got, "expenses:rent") {
+		t.Errorf("adjacent transaction was destroyed by the replacement:\n%s", got)
+	}
+}
+
+func TestBatchHelpers_AdjacentTransactions(t *testing.T) {
+	mkFile := func(t *testing.T) string {
+		t.Helper()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "01.journal")
+		content := "2026-01-15 (aaaaaaaa) FIRST\n" +
+			"    expenses:food  $10.00\n" +
+			"    assets:checking\n" +
+			"2026-01-16 (bbbbbbbb) SECOND\n" +
+			"    expenses:rent  $20.00\n" +
+			"    assets:checking\n"
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	t.Run("batch_remove", func(t *testing.T) {
+		path := mkFile(t)
+		if err := batchRemoveFromFile(path, []DeleteSpec{{HeaderLine: 1, FID: "aaaaaaaa"}}); err != nil {
+			t.Fatalf("batchRemoveFromFile: %v", err)
+		}
+		data, _ := os.ReadFile(path)
+		if !strings.Contains(string(data), "SECOND") {
+			t.Errorf("adjacent transaction was destroyed by batch removal:\n%s", data)
+		}
+	})
+
+	t.Run("batch_replace", func(t *testing.T) {
+		path := mkFile(t)
+		newText := "2026-01-15 (aaaaaaaa) FIRST EDITED\n" +
+			"    expenses:food  $15.00\n" +
+			"    assets:checking\n\n"
+		if err := BatchReplaceTransactions(path, []BatchReplacement{{HeaderLine: 1, FID: "aaaaaaaa", NewText: newText}}); err != nil {
+			t.Fatalf("BatchReplaceTransactions: %v", err)
+		}
+		data, _ := os.ReadFile(path)
+		got := string(data)
+		if !strings.Contains(got, "FIRST EDITED") {
+			t.Errorf("replacement text missing:\n%s", got)
+		}
+		if !strings.Contains(got, "SECOND") {
+			t.Errorf("adjacent transaction was destroyed by batch replacement:\n%s", got)
+		}
+	})
+}
