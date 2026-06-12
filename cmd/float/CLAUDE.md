@@ -10,9 +10,13 @@ float --server localhost:8080   # default address
 
 The `--server` flag is a `host:port` for `floatd`. The client builds an h2c HTTP client and uses `http://<server>`; TLS is not used by this binary.
 
+## Authentication
+
+When floatd has `FLOAT_AUTH_PASSPHRASE` set, the TUI authenticates with a bearer credential attached by `auth.NewClientInterceptor`. The credential is seeded from the `FLOAT_AUTH_PASSPHRASE` environment variable or a session token previously saved in `tui.json`. On startup, `ui.AuthGate` (`ui/authgate.go`) probes the server with a cheap RPC; on `CodeUnauthenticated` it shows a passphrase prompt, exchanges the passphrase for a session token via `POST /api/login`, persists the token per server in `tui.json`, and only then initializes the main UI. Other probe failures (e.g. connection refused) fall through to the UI, which surfaces them per-tab as before.
+
 ## Architecture
 
-`main.go` creates the ConnectRPC client and passes it to `ui.New(client)`. All RPC calls, state, rendering, key handling, and forms live in `cmd/float/ui/`.
+`main.go` creates the ConnectRPC client (with the auth client interceptor) and wraps `ui.New(client)` in `ui.NewAuthGate(...)`. All RPC calls, state, rendering, key handling, and forms live in `cmd/float/ui/`.
 
 The root `ui.Model` owns the tab state, help model, theme, layout, and the per-tab models. Global keys:
 
@@ -43,7 +47,7 @@ Supporting files:
 
 ## Theme / Config
 
-The TUI detects terminal background color and applies a saved theme loaded by `LoadTUITheme()`. Theme changes are persisted by `tuiconfig.go`.
+The TUI detects terminal background color and applies a saved theme loaded by `LoadTUITheme()`. Theme changes and per-server auth session tokens are persisted by `tuiconfig.go` in `~/.config/float/tui.json` using load-modify-write so the fields don't clobber each other.
 
 ## SSH Access
 

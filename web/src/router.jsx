@@ -41,10 +41,19 @@ const ConnectionsPage = lazyPage(() => import("./pages/connections.jsx"), "Conne
 const LogsPage = lazyPage(() => import("./pages/logs.jsx"), "LogsPage");
 const TemplatesPage = lazyPage(() => import("./pages/templates.jsx"), "TemplatesPage");
 const BulkEntryPage = lazyPage(() => import("./pages/bulk-entry.jsx"), "BulkEntryPage");
+const LoginPage = lazyPage(() => import("./pages/login.jsx"), "LoginPage");
 
 const rootRoute = createRootRoute({
   component: function Root() {
     const { location } = useRouterState();
+    // The login page renders without the app shell.
+    if (location.pathname === "/login") {
+      return (
+        <Suspense fallback={<Loading />}>
+          <Outlet />
+        </Suspense>
+      );
+    }
     return (
       <TooltipProvider>
         <AppShell currentPath={location.pathname}>
@@ -191,6 +200,12 @@ const bulkEntryRoute = createRoute({
   component: BulkEntryPage,
 });
 
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/login",
+  component: LoginPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   transactionsRoute,
@@ -212,6 +227,7 @@ const routeTree = rootRoute.addChildren([
   logsRoute,
   templatesRoute,
   bulkEntryRoute,
+  loginRoute,
 ]);
 
 export const router = createRouter({

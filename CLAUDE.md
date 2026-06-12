@@ -90,7 +90,7 @@ data/
 ├── rules/                # hledger CSV rules files per bank profile
 ├── rules.json            # float categorization rules (post-import / bulk apply)
 ├── 2026/01.journal       # transactions grouped by month
-└── config.toml           # server, bank profiles, Stripe, Alpha Vantage, AI, timezone, users
+└── config.toml           # server, bank profiles, Stripe, Alpha Vantage, AI, timezone
 ```
 
 `internal/journal/` handles text-level file manipulation only. Every float-written transaction gets an 8-character code field, e.g. `(a1b2c3d4)`, and lookups use `code:a1b2c3d4`. Hidden float metadata is stored in tags with the `float-` prefix and is filtered from user-facing APIs.
@@ -106,7 +106,12 @@ ConnectRPC powers all clients. Protobufs live in `proto/float/v1/` and generated
 
 ### Authentication
 
-**Not yet implemented** — the server currently runs with open access. The config schema still has users with `admin`/`viewer` roles and passphrase hashes, but there is no active JWT interceptor or `AuthService` yet.
+A single shared passphrase (no per-user accounts) supplied via the `FLOAT_AUTH_PASSPHRASE` environment variable in floatd's environment. When unset, auth is disabled and the server runs with open access. `internal/auth/` implements the layer:
+
+- A Connect interceptor rejects RPCs lacking a valid credential with `CodeUnauthenticated`. Credentials are an `Authorization: Bearer` header (the passphrase or the derived session token) or the `float_session` cookie.
+- Plain HTTP endpoints `GET /api/auth`, `POST /api/login`, and `POST /api/logout` drive the web UI login flow; login sets a long-lived session cookie. The session token is a static HMAC derived from the passphrase, so changing the passphrase invalidates all sessions.
+- The web UI redirects to `#/login` on unauthenticated errors; the TUI prompts once and persists the session token in `~/.config/float/tui.json`; the SSH TUI prompts per session. Static web assets are served without auth (the SPA shell is needed to render the login page).
+- The `mise run grpc-*` shortcuts add the bearer header automatically when `FLOAT_AUTH_PASSPHRASE` is set. For manual `buf curl`, add `--header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"`.
 
 ### Web UI and TUI
 

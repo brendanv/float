@@ -34,6 +34,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/float.v1.LedgerService": "http://localhost:8080",
+      "/api": "http://localhost:8080",
     },
   },
 });

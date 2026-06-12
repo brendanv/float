@@ -388,16 +388,6 @@ func generateMonth(rng *rand.Rand, year, month int, isFirst bool) []transaction 
 const configTOML = `[server]
 port = 8080
 
-[[users]]
-name = "admin"
-role = "admin"
-passphrase_hash = "argon2id$v=19$m=65536,t=1,p=1$ZmFrZXNhbHQ$ZmFrZWhhc2g="
-
-[[users]]
-name = "viewer"
-role = "viewer"
-passphrase_hash = "argon2id$v=19$m=65536,t=1,p=1$ZmFrZXNhbHQ$ZmFrZWhhc2g="
-
 [[bank_profiles]]
 name = "Chase Checking"
 rules_file = "rules/chase-checking.rules"

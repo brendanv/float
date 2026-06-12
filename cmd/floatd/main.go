@@ -18,6 +18,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
+	"github.com/brendanv/float/internal/auth"
 	"github.com/brendanv/float/internal/cache"
 	"github.com/brendanv/float/internal/config"
 	"github.com/brendanv/float/internal/gitsnap"
@@ -147,21 +148,34 @@ func main() {
 		os.Exit(1)
 	}
 
+	authn := auth.New(os.Getenv("FLOAT_AUTH_PASSPHRASE"))
+	if authn.Enabled() {
+		slog.Info("auth enabled (FLOAT_AUTH_PASSPHRASE is set)")
+	} else {
+		slog.Warn("auth disabled: set FLOAT_AUTH_PASSPHRASE to require a passphrase")
+	}
+
 	c := cache.New[any](lock.Generation)
 	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg, broadcaster)
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,
-		connect.WithInterceptors(middleware.NewLoggingInterceptor(logger)),
+		connect.WithInterceptors(
+			middleware.NewLoggingInterceptor(logger),
+			auth.NewServerInterceptor(authn),
+		),
 	)
 	mux.Handle(path, svcHandler)
+	mux.Handle("/api/auth", authn.StatusHandler())
+	mux.Handle("/api/login", authn.LoginHandler())
+	mux.Handle("/api/logout", authn.LogoutHandler())
 	mux.Handle("/", webui.Handler())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if cfg.Server.SSHPort > 0 {
-		go startSSHServer(ctx, *dataDir, listenAddr, cfg.Server.SSHPort)
+		go startSSHServer(ctx, *dataDir, listenAddr, cfg.Server.SSHPort, authn)
 	}
 
 	go handler.StartDailyStripeImport(ctx)

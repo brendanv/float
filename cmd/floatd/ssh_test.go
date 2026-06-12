@@ -10,6 +10,8 @@ import (
 	"charm.land/wish/v2/bubbletea"
 	"charm.land/wish/v2/logging"
 	"charm.land/wish/v2/testsession"
+	"github.com/brendanv/float/cmd/float/ui"
+	"github.com/brendanv/float/internal/auth"
 	"github.com/charmbracelet/ssh"
 )
 
@@ -17,13 +19,23 @@ import (
 // bubbletea Handler that returns a non-nil model. The ssh.Session is unused
 // in the handler body (the model only needs the gRPC client), so nil is safe.
 func TestSSHTUIHandlerReturnsModel(t *testing.T) {
-	handler := sshTUIHandler("localhost:8080")
+	handler := sshTUIHandler("localhost:8080", auth.New(""))
 	model, opts := handler(nil)
 	if model == nil {
 		t.Fatal("expected non-nil model")
 	}
 	if opts == nil {
 		t.Fatal("expected non-nil options slice (may be empty)")
+	}
+}
+
+// TestSSHTUIHandlerGatedWhenAuthEnabled verifies that sessions are wrapped in
+// the passphrase AuthGate when auth is enabled.
+func TestSSHTUIHandlerGatedWhenAuthEnabled(t *testing.T) {
+	handler := sshTUIHandler("localhost:8080", auth.New("secret"))
+	model, _ := handler(nil)
+	if _, ok := model.(ui.AuthGate); !ok {
+		t.Fatalf("expected ui.AuthGate model, got %T", model)
 	}
 }
 
@@ -77,7 +89,7 @@ func TestSSHServerRejectsNoPTY(t *testing.T) {
 	srv, err := wish.NewServer(
 		wish.WithHostKeyPath(keyPath),
 		wish.WithMiddleware(
-			bubbletea.Middleware(sshTUIHandler("localhost:8080")),
+			bubbletea.Middleware(sshTUIHandler("localhost:8080", auth.New(""))),
 			activeterm.Middleware(),
 			logging.Middleware(),
 		),
@@ -106,7 +118,7 @@ func TestSSHMiddlewareStackBuilds(t *testing.T) {
 		wish.WithAddress(":0"),
 		wish.WithHostKeyPath(keyPath),
 		wish.WithMiddleware(
-			bubbletea.Middleware(sshTUIHandler("localhost:8080")),
+			bubbletea.Middleware(sshTUIHandler("localhost:8080", auth.New(""))),
 			activeterm.Middleware(),
 			logging.Middleware(),
 		),

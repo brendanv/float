@@ -13,7 +13,6 @@ Loads and saves `config.toml`, the single configuration file for a float data di
 Top-level `Config` fields:
 
 - `Server` — `port` and optional `ssh_port`.
-- `Users` — `name`, `role`, and `passphrase_hash`; currently persisted but not enforced by middleware.
 - `BankProfiles` — name plus hledger CSV `rules_file` path relative to the data dir.
 - `AlphaVantage` — `api_key` for price backfills.
 - `AI` — OpenRouter `model` override and user prompt guidelines.
