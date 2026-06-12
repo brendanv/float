@@ -36,27 +36,38 @@ func (l *TxLock) Generation() uint64 {
 	return l.gen.Load()
 }
 
-// Do executes the write protocol:
+// Do executes the write protocol for journal-only mutations.
+// It is equivalent to DoWith with no extra paths declared.
+func (l *TxLock) Do(ctx context.Context, msg string, fn func() error) error {
+	return l.DoWith(ctx, msg, nil, fn)
+}
+
+// DoWith executes the write protocol:
 //  1. Acquire mutex
-//  2. Snapshot all *.journal files in dataDir (in-memory)
+//  2. Snapshot all *.journal files in dataDir and any explicitly declared extra paths
 //  3. Execute fn (caller writes files)
 //  4. Run hledger check to validate the journal
-//  5. On check failure: revert all journal files from snapshot, return error
-//  6. On success: bump generation counter
-func (l *TxLock) Do(ctx context.Context, msg string, fn func() error) error {
+//  5. On fn error or check failure: revert all snapshotted files, delete any
+//     new journal files or new extra files fn created, return error
+//  6. On success: bump generation counter, optionally gitsnap commit
+//
+// extraPaths contains absolute paths to non-journal files that fn may create,
+// modify, or delete. On failure they are reverted along with the journal files.
+// Paths that do not exist before fn are removed on revert if fn created them.
+func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn func() error) error {
 	logger := slogctx.FromContext(ctx)
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	snap, err := snapshotJournalFiles(l.dataDir)
+	snap, err := snapshotFiles(l.dataDir, extraPaths)
 	if err != nil {
 		return fmt.Errorf("txlock: snapshot: %w", err)
 	}
-	logger.Debug("txlock: snapshotted journal files", "file_count", len(snap))
+	logger.Debug("txlock: snapshotted files", "file_count", len(snap.present)+len(snap.absentExtras))
 
 	if err := fn(); err != nil {
 		logger.Debug("txlock: reverting snapshot after write failure", "error", err)
-		if revertErr := revertFromSnapshot(l.dataDir, snap); revertErr != nil {
+		if revertErr := snap.revert(l.dataDir); revertErr != nil {
 			return fmt.Errorf("txlock: fn failed (%w) and revert also failed: %v", err, revertErr)
 		}
 		return err
@@ -64,7 +75,7 @@ func (l *TxLock) Do(ctx context.Context, msg string, fn func() error) error {
 
 	if err := l.client.Check(ctx); err != nil {
 		logger.Debug("txlock: reverting snapshot after check failure", "error", err)
-		if revertErr := revertFromSnapshot(l.dataDir, snap); revertErr != nil {
+		if revertErr := snap.revert(l.dataDir); revertErr != nil {
 			return fmt.Errorf("txlock: check failed (%w) and revert also failed: %v", err, revertErr)
 		}
 		return err
@@ -88,46 +99,84 @@ func (l *TxLock) BumpGeneration() uint64 {
 	return l.gen.Add(1)
 }
 
-// snapshotJournalFiles records the content of every *.journal file under dataDir.
-// The returned map is keyed by absolute path.
-func snapshotJournalFiles(dataDir string) (map[string][]byte, error) {
-	snap := make(map[string][]byte)
+// txSnapshot captures pre-write file state for reverting on failure.
+type txSnapshot struct {
+	// present maps absolute path → file content for files that existed before fn.
+	// Covers *.journal files (discovered by walk) plus extra paths that existed.
+	present map[string][]byte
+	// absentExtras lists declared extra paths that did not exist before fn.
+	// Any that fn creates are removed on revert.
+	absentExtras []string
+}
+
+// snapshotFiles builds a txSnapshot covering all *.journal files under dataDir
+// and any explicitly listed extra paths.
+func snapshotFiles(dataDir string, extraPaths []string) (*txSnapshot, error) {
+	s := &txSnapshot{present: make(map[string][]byte)}
 	err := filepath.WalkDir(dataDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if !d.IsDir() && strings.HasSuffix(path, ".journal") {
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("snapshot: read %s: %w", path, err)
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return fmt.Errorf("snapshot: read %s: %w", path, readErr)
 			}
-			snap[path] = content
+			s.present[path] = content
 		}
 		return nil
 	})
-	return snap, err
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range extraPaths {
+		if _, already := s.present[p]; already {
+			continue // already captured (e.g. a .journal path passed explicitly)
+		}
+		content, readErr := os.ReadFile(p)
+		if os.IsNotExist(readErr) {
+			s.absentExtras = append(s.absentExtras, p)
+		} else if readErr != nil {
+			return nil, fmt.Errorf("snapshot: read %s: %w", p, readErr)
+		} else {
+			s.present[p] = content
+		}
+	}
+	return s, nil
 }
 
-// revertFromSnapshot restores all journal files to their pre-write state:
-//  1. Restore every file in the snapshot (handles modified and deleted files)
-//  2. Delete any *.journal files that fn created (not present in snapshot)
-func revertFromSnapshot(dataDir string, snap map[string][]byte) error {
-	for path, content := range snap {
+// revert restores all snapshotted files and removes any new files fn created:
+//  1. Restore every file in present (handles modified and deleted files)
+//  2. Delete any *.journal files fn created (not in present)
+//  3. Delete any declared-absent extra files fn created
+func (s *txSnapshot) revert(dataDir string) error {
+	for path, content := range s.present {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return fmt.Errorf("revert: recreate dir for %s: %w", path, err)
+		}
 		if err := os.WriteFile(path, content, 0644); err != nil {
 			return fmt.Errorf("revert: restore %s: %w", path, err)
 		}
 	}
-	return filepath.WalkDir(dataDir, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(dataDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if !d.IsDir() && strings.HasSuffix(path, ".journal") {
-			if _, existed := snap[path]; !existed {
+			if _, existed := s.present[path]; !existed {
 				if err := os.Remove(path); err != nil {
-					return fmt.Errorf("revert: delete new file %s: %w", path, err)
+					return fmt.Errorf("revert: delete new journal %s: %w", path, err)
 				}
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	for _, p := range s.absentExtras {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("revert: delete new extra file %s: %w", p, err)
+		}
+	}
+	return nil
 }

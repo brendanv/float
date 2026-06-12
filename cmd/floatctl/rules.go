@@ -94,7 +94,7 @@ func runRulesAdd(args []string) error {
 	lock := txlock.New(dataDir, client)
 
 	var newRule rules.Rule
-	if err := lock.Do(ctx, "add rule", func() error {
+	if err := lock.DoWith(ctx, "add rule", []string{rules.FilePath(dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -140,7 +140,7 @@ func runRulesDelete(args []string) error {
 	}
 	lock := txlock.New(dataDir, client)
 
-	return lock.Do(ctx, "delete rule", func() error {
+	return lock.DoWith(ctx, "delete rule", []string{rules.FilePath(dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(dataDir)
 		if loadErr != nil {
 			return loadErr

@@ -180,7 +180,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	now := time.Now().UTC().Format(time.RFC3339)
 	totalImported := 0
 	perAccountImported := make(map[string]int)
-	if err := h.lock.Do(ctx, "stripe daily auto-import", func() error {
+	if err := h.lock.DoWith(ctx, "stripe daily auto-import", []string{h.configPath}, func() error {
 		// Refresh the imported-ID set inside the lock so that transactions written by a
 		// concurrent operation (e.g. a manual ImportStripeTransactions) between our
 		// pre-lock dedup and lock acquisition are not written a second time. This mirrors

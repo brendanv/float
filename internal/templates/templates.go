@@ -34,6 +34,11 @@ type TemplatePosting struct {
 
 const templatesFile = "templates.json"
 
+// FilePath returns the absolute path to templates.json in dataDir.
+func FilePath(dataDir string) string {
+	return filepath.Join(dataDir, templatesFile)
+}
+
 // Load reads templates.json from dataDir. Returns an empty slice if the file
 // does not exist (not an error).
 func Load(dataDir string) ([]Template, error) {
