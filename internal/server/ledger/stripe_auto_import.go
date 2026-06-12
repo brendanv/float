@@ -50,14 +50,15 @@ func (h *Handler) StartDailyStripeImport(ctx context.Context) {
 
 func (h *Handler) maybeRunDailyStripeImport(ctx context.Context) {
 	logger := slogctx.FromContext(ctx)
-	if h.cfg == nil || !h.cfg.Stripe.DailyImportEnabled {
+	cfg := h.loadCfg()
+	if cfg == nil || !cfg.Stripe.DailyImportEnabled {
 		return
 	}
 	if stripeSecretKey() == "" {
 		logger.WarnContext(ctx, "daily stripe import skipped: STRIPE_SECRET_KEY not set")
 		return
 	}
-	if last, ok := parseDailyImportTimestamp(h.cfg.Stripe.LastDailyImportAt); ok {
+	if last, ok := parseDailyImportTimestamp(cfg.Stripe.LastDailyImportAt); ok {
 		if time.Since(last) < dailyStripeImportInterval {
 			return
 		}
@@ -96,8 +97,9 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	}
 	stripeTxnSet := importedStripeTxnIDs(existing)
 
+	cfg := h.loadCfg()
 	var eligible []config.StripeLinkedAccount
-	for _, linked := range h.cfg.Stripe.LinkedAccounts {
+	for _, linked := range cfg.Stripe.LinkedAccounts {
 		if linked.HledgerAccount != "" {
 			eligible = append(eligible, linked)
 		}
@@ -191,12 +193,17 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 			stripeTxnSet[id] = true
 		}
 
+		cur := h.loadCfg()
+		loc := cur.Location()
+		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
+		copy(accounts, cur.Stripe.LinkedAccounts)
+
 		for _, batch := range batches {
 			for _, st := range batch.newTxns {
 				if stripeTxnSet[st.ID] {
 					continue
 				}
-				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batchID, h.cfg.Location())
+				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batchID, loc)
 				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
 				if _, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput); writeErr != nil {
 					return fmt.Errorf("write %s: %w", st.ID, writeErr)
@@ -205,15 +212,22 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 				totalImported++
 				perAccountImported[batch.linked.StripeAccountID]++
 			}
-			for j, la := range h.cfg.Stripe.LinkedAccounts {
+			for j, la := range accounts {
 				if la.StripeAccountID == batch.linked.StripeAccountID {
-					h.cfg.Stripe.LinkedAccounts[j].LastFetchedAt = fetchedAt
+					accounts[j].LastFetchedAt = fetchedAt
 					break
 				}
 			}
 		}
-		h.cfg.Stripe.LastDailyImportAt = now
-		return config.Save(h.configPath, h.cfg)
+
+		newCfg := *cur
+		newCfg.Stripe.LinkedAccounts = accounts
+		newCfg.Stripe.LastDailyImportAt = now
+		if err := config.Save(h.configPath, &newCfg); err != nil {
+			return err
+		}
+		h.cfg.Store(&newCfg)
+		return nil
 	}); err != nil {
 		logger.ErrorContext(ctx, "daily stripe import: write failed", "error", err)
 		return 0, perAccountErrs
