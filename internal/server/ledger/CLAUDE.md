@@ -31,7 +31,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 **Read/query helpers with limited or no cache:** `GetPortfolioHoldings` (uses balances plus `prices.journal`), `GetBalanceAssertionStatus`, `ListPrices`, `ListAccountDeclarations`, `ListSnapshots`, `GetSnapshotDiff`, `ListBankProfiles`, `GetBankProfileContent`, `PreviewImport`, `GetImportedTransactions`, `ListImports`, `GetImportFile`, `ListRules`, `PreviewApplyRules`, settings reads, `RunHledgerQuery`, and `StreamLogs`.
 
-**Mutations through txlock:** transaction add/update/delete/status/date/tag changes, bulk edit/delete, price add/delete/backfill, account declaration CRUD/rename, snapshot restore, bank profile CRUD, CSV import, rule CRUD/apply, Alpha Vantage/AI/Stripe/timezone settings, and Stripe link/unlink/import metadata writes.
+**Mutations through txlock:** transaction add/update/delete/status/date/tag changes, bulk edit/delete, price add/delete/backfill, account declaration CRUD/rename, snapshot restore, bank profile CRUD, CSV import, rule CRUD/apply, template CRUD, Alpha Vantage/AI/Stripe/timezone settings, and Stripe link/unlink/import metadata writes.
 
 **Streaming RPCs:** `ImportTransactions`, `BulkDeleteTransactions`, `ApplyRules`, `ImportStripeTransactions`, `ImportAllStripeTransactions`, `RefreshStripeAccount`, `RefreshAllStripeAccounts`, and `StreamLogs`.
 

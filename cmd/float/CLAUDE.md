@@ -36,7 +36,7 @@ Current top-level tabs:
 | Portfolio | `portfoliotab.go` | Investment holdings, prices, allocation, gain/loss |
 | Monthly | `monthlytab.go` | Income statement / monthly revenue-expense dashboard |
 | Assertions | `assertionstab.go` | Accounts ranked by balance-assertion drift; edit transaction to add assertions |
-| Manage | `managetab.go`, plus `importstab.go`, `rulestab.go`, `pricestab.go`, `snapshotstab.go`, `tagstab.go`, `payeestab.go`, `stripetab.go` | Bulk management, imports, rules, prices, snapshots, tags, payees, Stripe connections |
+| Manage | `managetab.go`, plus `importstab.go`, `rulestab.go`, `pricestab.go`, `snapshotstab.go`, `tagstab.go`, `payeestab.go`, `templatestab.go`, `stripetab.go` | Bulk management, imports, rules, prices, snapshots, tags, payees, templates, Stripe connections |
 | Settings | `settingstab.go`, `tuiconfig.go` | Theme and TUI settings |
 
 Supporting files:

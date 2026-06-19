@@ -89,6 +89,7 @@ data/
 ├── prices.journal        # P directives for commodity prices (auto-created)
 ├── rules/                # hledger CSV rules files per bank profile
 ├── rules.json            # float categorization rules (post-import / bulk apply)
+├── templates.json        # saved transaction templates for quick entry (auto-created)
 ├── 2026/01.journal       # transactions grouped by month
 └── config.toml           # server, bank profiles, Stripe, Alpha Vantage, AI, timezone
 ```
@@ -102,6 +103,7 @@ ConnectRPC powers all clients. Protobufs live in `proto/float/v1/` and generated
 - Core queries: transactions (with pagination), balances (raw or valued), account register, accounts, tags, payees, net worth, income statement, portfolio holdings/timeseries.
 - Mutations: add/update/delete transactions, status/date changes, bulk edit/delete, account declarations, account rename, prices, Alpha Vantage price backfill, snapshots.
 - Imports/rules: bank profile CRUD, CSV preview/import with import batches and original file storage, categorization rule CRUD, preview/apply rules.
+- Templates: saved transaction shapes (CRUD) stored in `templates.json` for quick recurring-transaction entry.
 - Integrations/settings/debug: Stripe Financial Connections, daily Stripe auto-import toggles, AI helper RPCs via OpenRouter, Alpha Vantage API key, timezone, raw hledger query, server log stream.
 
 ### Authentication
@@ -115,7 +117,7 @@ A single shared passphrase (no per-user accounts) supplied via the `FLOAT_AUTH_P
 
 ### Web UI and TUI
 
-The web UI is React + Vite + TanStack + shadcn/ui under `web/` and is embedded in `floatd` through `internal/webui`. The TUI under `cmd/float/ui` is a Bubble Tea app with tabs for home, accounts, trends, portfolio, monthly income/expense, balance assertions, bulk management, and settings.
+The web UI is React + Vite + TanStack + shadcn/ui under `web/` and is embedded in `floatd` through `internal/webui`. The TUI under `cmd/float/ui` is a Bubble Tea app with eight top-level tabs: Home, Accounts, Trends, Portfolio, Monthly, Assertions, Manage, and Settings. The Manage tab contains sub-tabs for Rules, Imports, Tags, Snapshots, Prices, Payees, Templates, and Stripe.
 
 ## Go Practices
 
