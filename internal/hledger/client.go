@@ -339,15 +339,15 @@ func (c *Client) PortfolioTimeseries(ctx context.Context, accounts []string, beg
 }
 
 // PortfolioCostBasisTimeseries runs `hledger bs --monthly --historical --layout=bare
-// --infer-market-prices --value=then,USD -O json -f <journal> [accounts...] [date:begin..]`
-// using --value=then to price each transaction at market rates at transaction time,
+// --cost -O json -f <journal> [accounts...] [date:begin..]`
+// using --cost to convert each posting at its transaction cost annotation (@@),
 // giving the historical cost basis of the portfolio.
 // accounts must be non-empty; begin is an optional "YYYY-MM-DD" string.
 func (c *Client) PortfolioCostBasisTimeseries(ctx context.Context, accounts []string, begin string) (*BalanceSheetTimeseries, error) {
 	args := []string{
 		"bs", "-O", "json", "-f", c.journal,
 		"--monthly", "--historical", "--layout=bare",
-		"--infer-market-prices", "--value=then,USD",
+		"--cost",
 	}
 	args = append(args, accounts...)
 	if begin != "" {

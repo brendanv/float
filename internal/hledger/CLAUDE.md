@@ -25,7 +25,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `BalanceSheetTimeseries(ctx, begin, end)` | `bs --monthly --historical --layout=bare --infer-market-prices --value=end,USD -O json` | net worth timeseries |
 | `IncomeStatementTimeseries(ctx, begin, end)` | `is --monthly --tree -O json` | revenue/expense monthly dashboard |
 | `PortfolioTimeseries(ctx, accounts, begin)` | `bs ... --value=end,USD` | portfolio value for explicit holding accounts |
-| `PortfolioCostBasisTimeseries(ctx, accounts, begin)` | `bs ... --value=then,USD` | portfolio cost-basis timeseries |
+| `PortfolioCostBasisTimeseries(ctx, accounts, begin)` | `bs ... --cost` | portfolio cost-basis timeseries |
 | `Register(ctx, query...)` | `reg -O json` | flat posting rows |
 | `Aregister(ctx, account, query...)` | `areg -O json` | account-focused transaction rows |
 | `Accounts(ctx, tree)` | `accounts --types [--tree]` | tree=true populates children |
