@@ -260,6 +260,15 @@ const (
 	// LedgerServiceUpdatePortfolioSettingsProcedure is the fully-qualified name of the LedgerService's
 	// UpdatePortfolioSettings RPC.
 	LedgerServiceUpdatePortfolioSettingsProcedure = "/float.v1.LedgerService/UpdatePortfolioSettings"
+	// LedgerServiceGetMetabaseConfigProcedure is the fully-qualified name of the LedgerService's
+	// GetMetabaseConfig RPC.
+	LedgerServiceGetMetabaseConfigProcedure = "/float.v1.LedgerService/GetMetabaseConfig"
+	// LedgerServiceSetMetabaseConfigProcedure is the fully-qualified name of the LedgerService's
+	// SetMetabaseConfig RPC.
+	LedgerServiceSetMetabaseConfigProcedure = "/float.v1.LedgerService/SetMetabaseConfig"
+	// LedgerServicePrepareDashboardsProcedure is the fully-qualified name of the LedgerService's
+	// PrepareDashboards RPC.
+	LedgerServicePrepareDashboardsProcedure = "/float.v1.LedgerService/PrepareDashboards"
 	// LedgerServiceRunHledgerQueryProcedure is the fully-qualified name of the LedgerService's
 	// RunHledgerQuery RPC.
 	LedgerServiceRunHledgerQueryProcedure = "/float.v1.LedgerService/RunHledgerQuery"
@@ -353,6 +362,9 @@ type LedgerServiceClient interface {
 	SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error)
 	GetPortfolioSettings(context.Context, *connect.Request[v1.GetPortfolioSettingsRequest]) (*connect.Response[v1.GetPortfolioSettingsResponse], error)
 	UpdatePortfolioSettings(context.Context, *connect.Request[v1.UpdatePortfolioSettingsRequest]) (*connect.Response[v1.UpdatePortfolioSettingsResponse], error)
+	GetMetabaseConfig(context.Context, *connect.Request[v1.GetMetabaseConfigRequest]) (*connect.Response[v1.GetMetabaseConfigResponse], error)
+	SetMetabaseConfig(context.Context, *connect.Request[v1.SetMetabaseConfigRequest]) (*connect.Response[v1.SetMetabaseConfigResponse], error)
+	PrepareDashboards(context.Context, *connect.Request[v1.PrepareDashboardsRequest]) (*connect.Response[v1.PrepareDashboardsResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest]) (*connect.ServerStreamForClient[v1.StreamLogsResponse], error)
@@ -831,6 +843,24 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("UpdatePortfolioSettings")),
 			connect.WithClientOptions(opts...),
 		),
+		getMetabaseConfig: connect.NewClient[v1.GetMetabaseConfigRequest, v1.GetMetabaseConfigResponse](
+			httpClient,
+			baseURL+LedgerServiceGetMetabaseConfigProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetMetabaseConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		setMetabaseConfig: connect.NewClient[v1.SetMetabaseConfigRequest, v1.SetMetabaseConfigResponse](
+			httpClient,
+			baseURL+LedgerServiceSetMetabaseConfigProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetMetabaseConfig")),
+			connect.WithClientOptions(opts...),
+		),
+		prepareDashboards: connect.NewClient[v1.PrepareDashboardsRequest, v1.PrepareDashboardsResponse](
+			httpClient,
+			baseURL+LedgerServicePrepareDashboardsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("PrepareDashboards")),
+			connect.WithClientOptions(opts...),
+		),
 		runHledgerQuery: connect.NewClient[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse](
 			httpClient,
 			baseURL+LedgerServiceRunHledgerQueryProcedure,
@@ -925,6 +955,9 @@ type ledgerServiceClient struct {
 	setTimezone                  *connect.Client[v1.SetTimezoneRequest, v1.SetTimezoneResponse]
 	getPortfolioSettings         *connect.Client[v1.GetPortfolioSettingsRequest, v1.GetPortfolioSettingsResponse]
 	updatePortfolioSettings      *connect.Client[v1.UpdatePortfolioSettingsRequest, v1.UpdatePortfolioSettingsResponse]
+	getMetabaseConfig            *connect.Client[v1.GetMetabaseConfigRequest, v1.GetMetabaseConfigResponse]
+	setMetabaseConfig            *connect.Client[v1.SetMetabaseConfigRequest, v1.SetMetabaseConfigResponse]
+	prepareDashboards            *connect.Client[v1.PrepareDashboardsRequest, v1.PrepareDashboardsResponse]
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
 	streamLogs                   *connect.Client[v1.StreamLogsRequest, v1.StreamLogsResponse]
 }
@@ -1314,6 +1347,21 @@ func (c *ledgerServiceClient) UpdatePortfolioSettings(ctx context.Context, req *
 	return c.updatePortfolioSettings.CallUnary(ctx, req)
 }
 
+// GetMetabaseConfig calls float.v1.LedgerService.GetMetabaseConfig.
+func (c *ledgerServiceClient) GetMetabaseConfig(ctx context.Context, req *connect.Request[v1.GetMetabaseConfigRequest]) (*connect.Response[v1.GetMetabaseConfigResponse], error) {
+	return c.getMetabaseConfig.CallUnary(ctx, req)
+}
+
+// SetMetabaseConfig calls float.v1.LedgerService.SetMetabaseConfig.
+func (c *ledgerServiceClient) SetMetabaseConfig(ctx context.Context, req *connect.Request[v1.SetMetabaseConfigRequest]) (*connect.Response[v1.SetMetabaseConfigResponse], error) {
+	return c.setMetabaseConfig.CallUnary(ctx, req)
+}
+
+// PrepareDashboards calls float.v1.LedgerService.PrepareDashboards.
+func (c *ledgerServiceClient) PrepareDashboards(ctx context.Context, req *connect.Request[v1.PrepareDashboardsRequest]) (*connect.Response[v1.PrepareDashboardsResponse], error) {
+	return c.prepareDashboards.CallUnary(ctx, req)
+}
+
 // RunHledgerQuery calls float.v1.LedgerService.RunHledgerQuery.
 func (c *ledgerServiceClient) RunHledgerQuery(ctx context.Context, req *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {
 	return c.runHledgerQuery.CallUnary(ctx, req)
@@ -1409,6 +1457,9 @@ type LedgerServiceHandler interface {
 	SetTimezone(context.Context, *connect.Request[v1.SetTimezoneRequest]) (*connect.Response[v1.SetTimezoneResponse], error)
 	GetPortfolioSettings(context.Context, *connect.Request[v1.GetPortfolioSettingsRequest]) (*connect.Response[v1.GetPortfolioSettingsResponse], error)
 	UpdatePortfolioSettings(context.Context, *connect.Request[v1.UpdatePortfolioSettingsRequest]) (*connect.Response[v1.UpdatePortfolioSettingsResponse], error)
+	GetMetabaseConfig(context.Context, *connect.Request[v1.GetMetabaseConfigRequest]) (*connect.Response[v1.GetMetabaseConfigResponse], error)
+	SetMetabaseConfig(context.Context, *connect.Request[v1.SetMetabaseConfigRequest]) (*connect.Response[v1.SetMetabaseConfigResponse], error)
+	PrepareDashboards(context.Context, *connect.Request[v1.PrepareDashboardsRequest]) (*connect.Response[v1.PrepareDashboardsResponse], error)
 	// Debug / Investigation
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest], *connect.ServerStream[v1.StreamLogsResponse]) error
@@ -1883,6 +1934,24 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("UpdatePortfolioSettings")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceGetMetabaseConfigHandler := connect.NewUnaryHandler(
+		LedgerServiceGetMetabaseConfigProcedure,
+		svc.GetMetabaseConfig,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetMetabaseConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceSetMetabaseConfigHandler := connect.NewUnaryHandler(
+		LedgerServiceSetMetabaseConfigProcedure,
+		svc.SetMetabaseConfig,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetMetabaseConfig")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServicePrepareDashboardsHandler := connect.NewUnaryHandler(
+		LedgerServicePrepareDashboardsProcedure,
+		svc.PrepareDashboards,
+		connect.WithSchema(ledgerServiceMethods.ByName("PrepareDashboards")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceRunHledgerQueryHandler := connect.NewUnaryHandler(
 		LedgerServiceRunHledgerQueryProcedure,
 		svc.RunHledgerQuery,
@@ -2051,6 +2120,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetPortfolioSettingsHandler.ServeHTTP(w, r)
 		case LedgerServiceUpdatePortfolioSettingsProcedure:
 			ledgerServiceUpdatePortfolioSettingsHandler.ServeHTTP(w, r)
+		case LedgerServiceGetMetabaseConfigProcedure:
+			ledgerServiceGetMetabaseConfigHandler.ServeHTTP(w, r)
+		case LedgerServiceSetMetabaseConfigProcedure:
+			ledgerServiceSetMetabaseConfigHandler.ServeHTTP(w, r)
+		case LedgerServicePrepareDashboardsProcedure:
+			ledgerServicePrepareDashboardsHandler.ServeHTTP(w, r)
 		case LedgerServiceRunHledgerQueryProcedure:
 			ledgerServiceRunHledgerQueryHandler.ServeHTTP(w, r)
 		case LedgerServiceStreamLogsProcedure:
@@ -2370,6 +2445,18 @@ func (UnimplementedLedgerServiceHandler) GetPortfolioSettings(context.Context, *
 
 func (UnimplementedLedgerServiceHandler) UpdatePortfolioSettings(context.Context, *connect.Request[v1.UpdatePortfolioSettingsRequest]) (*connect.Response[v1.UpdatePortfolioSettingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UpdatePortfolioSettings is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetMetabaseConfig(context.Context, *connect.Request[v1.GetMetabaseConfigRequest]) (*connect.Response[v1.GetMetabaseConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetMetabaseConfig is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetMetabaseConfig(context.Context, *connect.Request[v1.SetMetabaseConfigRequest]) (*connect.Response[v1.SetMetabaseConfigResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetMetabaseConfig is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) PrepareDashboards(context.Context, *connect.Request[v1.PrepareDashboardsRequest]) (*connect.Response[v1.PrepareDashboardsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.PrepareDashboards is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error) {

@@ -105,6 +105,7 @@ ConnectRPC powers all clients. Protobufs live in `proto/float/v1/` and generated
 - Imports/rules: bank profile CRUD, CSV preview/import with import batches and original file storage, categorization rule CRUD, preview/apply rules.
 - Templates: saved transaction shapes (CRUD) stored in `templates.json` for quick recurring-transaction entry.
 - Integrations/settings/debug: Stripe Financial Connections, daily Stripe auto-import toggles, AI helper RPCs via OpenRouter, Alpha Vantage API key, timezone, raw hledger query, server log stream.
+- Custom Dashboards: Metabase config CRUD plus `PrepareDashboards`, which regenerates a SQLite snapshot (`<dataDir>/exports/float.db`, via `internal/metabase` + hledger `print -O sql`), provisions/syncs the matching Metabase database over its REST API, and returns the URL to open. `docker-compose.yml` runs floatd and Metabase together sharing the export volume.
 
 ### Authentication
 

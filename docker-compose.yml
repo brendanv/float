@@ -1,0 +1,48 @@
+# float + Metabase for the Custom Dashboards feature.
+#
+# floatd writes a SQLite snapshot of the ledger to /data/exports/float.db on the
+# shared `float-data` volume. Metabase mounts the same volume at /float-data and
+# reads /float-data/exports/float.db. floatd talks to Metabase's REST API over
+# the internal network (http://metabase:3000) to provision and re-sync that
+# database connection, then sends your browser to http://localhost:3000.
+#
+# One-time setup after `docker compose up`:
+#   1. Open http://localhost:3000 and finish the Metabase setup wizard.
+#   2. In Metabase, create an API key (Admin settings -> Authentication -> API keys).
+#   3. In float, open Custom Dashboards and fill in the Connection card:
+#        Metabase URL (browser):          http://localhost:3000
+#        Metabase API URL (server):       http://metabase:3000
+#        SQLite path (inside Metabase):   /float-data/exports/float.db
+#        Database name:                   float
+#        API key:                         <the key from step 2>
+#   4. Click "Regenerate data & open Metabase".
+
+services:
+  floatd:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - "float-data:/data"
+    environment:
+      # Set to enable auth; leave unset for open access.
+      FLOAT_AUTH_PASSPHRASE: "${FLOAT_AUTH_PASSPHRASE:-}"
+    restart: unless-stopped
+
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mounted read-write so SQLite can create its WAL/lock files alongside the db.
+      - "float-data:/float-data"
+      # Metabase's own application database (its dashboards, users, etc.).
+      - "metabase-data:/metabase-data"
+    environment:
+      MB_DB_TYPE: h2
+      MB_DB_FILE: /metabase-data/metabase.db
+    restart: unless-stopped
+
+volumes:
+  float-data:
+  metabase-data:

@@ -983,6 +983,40 @@ message UpdatePortfolioSettingsRequest {
 
 message UpdatePortfolioSettingsResponse {}
 
+message GetMetabaseConfigRequest {}
+
+message GetMetabaseConfigResponse {
+  bool enabled = 1;
+  string url = 2;       // browser-facing Metabase base URL
+  string api_url = 3;   // server-to-server base URL floatd uses for API calls
+  string db_path = 4;   // SQLite export path as seen by the Metabase container
+  string db_name = 5;   // connection display name in Metabase
+  bool api_key_set = 6; // whether an API key is configured (the key itself is never returned)
+  bool configured = 7;  // true when enabled + url + api key + db_path are all set
+}
+
+message SetMetabaseConfigRequest {
+  bool enabled = 1;
+  string url = 2;
+  string api_url = 3;
+  string db_path = 4;
+  string db_name = 5;
+  // api_key sets the stored Metabase API key when non-empty. When empty, the
+  // existing key is preserved unless clear_api_key is true.
+  string api_key = 6;
+  bool clear_api_key = 7;
+}
+
+message SetMetabaseConfigResponse {}
+
+message PrepareDashboardsRequest {}
+
+message PrepareDashboardsResponse {
+  string open_url = 1;      // browser URL to open Metabase
+  int64 posting_count = 2;  // rows in the exported postings table
+  string generated_at = 3;  // RFC3339 timestamp of the export
+}
+
 message RunHledgerQueryRequest {
   // The hledger command to run, e.g. "bal --depth 2 assets" or "print date:2024".
   // Do NOT include the hledger binary path or the -f <journal> flag — the server
@@ -1127,6 +1161,9 @@ service LedgerService {
   rpc SetTimezone(SetTimezoneRequest) returns (SetTimezoneResponse);
   rpc GetPortfolioSettings(GetPortfolioSettingsRequest) returns (GetPortfolioSettingsResponse);
   rpc UpdatePortfolioSettings(UpdatePortfolioSettingsRequest) returns (UpdatePortfolioSettingsResponse);
+  rpc GetMetabaseConfig(GetMetabaseConfigRequest) returns (GetMetabaseConfigResponse);
+  rpc SetMetabaseConfig(SetMetabaseConfigRequest) returns (SetMetabaseConfigResponse);
+  rpc PrepareDashboards(PrepareDashboardsRequest) returns (PrepareDashboardsResponse);
 
   // Debug / Investigation
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);

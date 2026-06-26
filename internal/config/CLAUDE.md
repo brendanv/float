@@ -18,6 +18,7 @@ Top-level `Config` fields:
 - `AI` — OpenRouter `model` override and user prompt guidelines.
 - `Stripe` — customer ID, daily import toggle/timestamp, and linked Financial Connections accounts.
 - `Timezone` — IANA timezone used when converting external timestamps (notably Stripe) to journal dates; defaults to UTC.
+- `Metabase` — Custom Dashboards integration: `enabled`, browser-facing `url`, server-to-server `api_url` (falls back to `url`), `api_key`, `db_path` (SQLite export path as seen by the Metabase container), and `db_name` (connection name, defaults to `float`). Helpers `APIBaseURL()` and `DatabaseName()` apply the fallbacks.
 
 ## Stripe Config Notes
 

@@ -42,6 +42,21 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestExportSQL(t *testing.T) {
+	c := mustClient(t, "simple.journal")
+	out, err := c.ExportSQL(t.Context())
+	if err != nil {
+		t.Fatalf("ExportSQL() error = %v", err)
+	}
+	sql := string(out)
+	if !strings.Contains(sql, "postings") {
+		t.Errorf("expected SQL to reference the postings table, got: %s", sql)
+	}
+	if !strings.Contains(strings.ToLower(sql), "insert into") {
+		t.Errorf("expected SQL to contain INSERT statements, got: %s", sql)
+	}
+}
+
 func TestCheck(t *testing.T) {
 	tests := []struct {
 		name         string

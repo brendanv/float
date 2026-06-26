@@ -48,6 +48,36 @@ type PortfolioConfig struct {
 	ExcludedAccountPrefixes []string `toml:"excluded_account_prefixes"`
 }
 
+// MetabaseConfig wires float to a self-hosted Metabase instance for the Custom
+// Dashboards feature. float generates a SQLite snapshot of the ledger on a
+// shared volume and asks Metabase (over its REST API) to (re)sync the matching
+// database connection, then sends the user to the Metabase UI.
+type MetabaseConfig struct {
+	Enabled bool   `toml:"enabled"`
+	URL     string `toml:"url"`     // browser-facing base URL for redirect, e.g. http://localhost:3000
+	APIURL  string `toml:"api_url"` // server-to-server base URL floatd uses for API calls; defaults to URL when empty
+	APIKey  string `toml:"api_key"` // Metabase API key; server-side only, never returned to clients
+	DBPath  string `toml:"db_path"` // SQLite export path as seen by the Metabase container
+	DBName  string `toml:"db_name"` // connection display name in Metabase; defaults to "float"
+}
+
+// APIBaseURL returns the base URL floatd should use for Metabase API calls,
+// falling back to the browser-facing URL when api_url is unset.
+func (m MetabaseConfig) APIBaseURL() string {
+	if m.APIURL != "" {
+		return m.APIURL
+	}
+	return m.URL
+}
+
+// DatabaseName returns the Metabase connection display name, defaulting to "float".
+func (m MetabaseConfig) DatabaseName() string {
+	if m.DBName != "" {
+		return m.DBName
+	}
+	return "float"
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	BankProfiles []BankProfile      `toml:"bank_profiles"`
@@ -55,6 +85,7 @@ type Config struct {
 	AI           AIConfig           `toml:"ai"`
 	Stripe       StripeConfig       `toml:"stripe"`
 	Portfolio    PortfolioConfig    `toml:"portfolio"`
+	Metabase     MetabaseConfig     `toml:"metabase"`
 	// Timezone is an IANA timezone name (e.g. "America/New_York") used when
 	// converting Stripe transaction timestamps to calendar dates. Defaults to
 	// UTC when empty. Set this to your local timezone to avoid off-by-one-day

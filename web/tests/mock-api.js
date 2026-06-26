@@ -2024,6 +2024,27 @@ export async function mockLedgerApi(
       case "GetGeneralConfig":
         body = { timezone: "America/New_York" };
         break;
+      case "GetMetabaseConfig":
+        body = {
+          enabled: true,
+          url: "http://localhost:3000",
+          apiUrl: "http://metabase:3000",
+          dbPath: "/float-data/exports/float.db",
+          dbName: "float",
+          apiKeySet: true,
+          configured: true,
+        };
+        break;
+      case "SetMetabaseConfig":
+        body = {};
+        break;
+      case "PrepareDashboards":
+        body = {
+          openUrl: "http://localhost:3000",
+          postingCount: 1284,
+          generatedAt: "2026-06-26T12:00:00Z",
+        };
+        break;
       case "GetAIConfig":
         body = aiEnabled
           ? {

@@ -36,6 +36,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `Transactions(ctx, query...)` | `print -O json` | full transaction objects with source positions |
 | `PrintCSV(ctx, csvFile, rulesFile)` | `print -O json --rules-file <rules> -f <csv>` | CSV import preview; no journal file is written |
 | `PrintText(ctx, journalFile)` | `print -f <temp> -I` | canonical text formatting; ignores assertions until full `hledger check` |
+| `ExportSQL(ctx)` | `print -O sql` | raw SQL (postings table) for loading into SQLite; used by the Metabase export |
 | `RunQuery(ctx, argsStr)` | `-f <journal> <shell-like args>` | debug/query UI; restricted to read-only subcommands, rejects `-f`/`-o`/`--rules-file` (`ErrUnsafeQuery`) |
 | `RunRaw(ctx, args...)` | arbitrary | escape hatch for CLI/debug only |
 | `Check(ctx)` | `check -f <journal>` | validation gate for txlock |

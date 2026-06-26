@@ -29,7 +29,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -tags webui -o /floatd ./c
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=hledger /usr/local/bin/hledger /usr/local/bin/hledger
 COPY --from=go-build /floatd /usr/local/bin/floatd

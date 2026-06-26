@@ -239,6 +239,20 @@ func (c *Client) Version(ctx context.Context) (string, error) {
 	return parseVersion(string(stdout))
 }
 
+// ExportSQL runs `hledger print -O sql -f <journal>` and returns the raw SQL.
+// The output is a series of CREATE TABLE / INSERT statements (postings table)
+// written for an empty database; callers are responsible for loading it into a
+// fresh SQLite/SQL database. No user query terms are accepted, so there is no
+// flag-injection surface here.
+func (c *Client) ExportSQL(ctx context.Context) ([]byte, error) {
+	args := []string{"print", "-O", "sql", "-f", c.journal}
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger print -O sql: %w", err))
+	}
+	return stdout, nil
+}
+
 // Check runs `hledger check -f <journal>`.
 // Returns nil on exit 0. Returns *CheckError (with full stderr) on exit non-0.
 func (c *Client) Check(ctx context.Context) error {
