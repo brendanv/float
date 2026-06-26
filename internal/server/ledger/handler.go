@@ -1883,6 +1883,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 							input.Postings[i].Account = newAcct
 						}
 					}
+					input.Status = "Cleared"
 				}
 			}
 

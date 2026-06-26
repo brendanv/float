@@ -1841,6 +1841,44 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("update_unknown_account_marks_reviewed", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 216, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		tx := journal.TransactionInput{
+			Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+			Description: "UPDATE UNKNOWN ACCOUNT",
+			Postings: []journal.PostingInput{
+				{Account: "expenses:unknown", Commodity: "USD", Quantity: "10.00"},
+				{Account: "assets:checking"},
+			},
+		}
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_UpdateUnknownAccount{UpdateUnknownAccount: &floatv1.UpdateUnknownAccountOperation{Account: "expenses:groceries"}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		got := resp.Msg.Transactions[0]
+		if got.Status != "Cleared" {
+			t.Errorf("Status = %q, want %q", got.Status, "Cleared")
+		}
+		if got.Postings[0].Account != "expenses:groceries" {
+			t.Errorf("Postings[0].Account = %q, want %q", got.Postings[0].Account, "expenses:groceries")
+		}
+	})
+
 	t.Run("add_tag", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 209, NumTxns: 1, WithFIDs: true})
 		h := mustRealHandler(t, dir)
