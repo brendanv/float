@@ -29,7 +29,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 **Cached queries:** `ListTransactions`, `GetBalances`, `GetAccountRegister`, `ListAccounts`, `ListTags`, `ListPayees`, `GetNetWorthTimeseries`, `GetIncomeStatementTimeseries`, portfolio timeseries helpers.
 
-**Read/query helpers with limited or no cache:** `GetPortfolioHoldings` (uses balances plus `prices.journal`), `GetBalanceAssertionStatus`, `ListPrices`, `ListAccountDeclarations`, `ListSnapshots`, `GetSnapshotDiff`, `ListBankProfiles`, `GetBankProfileContent`, `PreviewImport`, `GetImportedTransactions`, `ListImports`, `GetImportFile`, `ListRules`, `PreviewApplyRules`, settings reads, `RunHledgerQuery`, and `StreamLogs`.
+**Read/query helpers with limited or no cache:** `GetPortfolioHoldings` (uses balances plus `prices.journal`), `GetBalanceAssertionStatus`, `ListPrices`, `ListAccountDeclarations`, `ListSnapshots`, `GetSnapshotDiff`, `ListBankProfiles`, `GetBankProfileContent`, `PreviewImport`, `GetImportedTransactions`, `ListImports`, `GetImportFile`, `ListRules`, `PreviewApplyRules`, settings reads, `RunHledgerQuery`, `ExportJournal`, and `StreamLogs`.
 
 **Mutations through txlock:** transaction add/update/delete/status/date/tag changes, bulk edit/delete, price add/delete/backfill, account declaration CRUD/rename, snapshot restore, bank profile CRUD, CSV import, rule CRUD/apply, template CRUD, Alpha Vantage/AI/Stripe/timezone settings, and Stripe link/unlink/import metadata writes.
 
@@ -73,7 +73,7 @@ AI handlers use `internal/ai` and OpenRouter via `OPENROUTER_API_KEY`. They can 
 
 ### Settings / Logs / Debug
 
-Settings handlers manage Alpha Vantage API key, AI model/prompt, Stripe customer/daily import config, and timezone. `RunHledgerQuery` runs a constrained raw hledger command with `-f <journal>` automatically prepended. `StreamLogs` streams broadcast slog entries filtered by minimum level.
+Settings handlers manage Alpha Vantage API key, AI model/prompt, Stripe customer/daily import config, and timezone. `RunHledgerQuery` runs a constrained raw hledger command with `-f <journal>` automatically prepended. `ExportJournal` runs `hledger print -f <journal>` and returns the flattened journal (all includes inlined) as bytes plus a suggested filename, for a one-file download of the entire ledger. `StreamLogs` streams broadcast slog entries filtered by minimum level.
 
 ## Adding a New RPC
 

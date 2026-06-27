@@ -997,6 +997,13 @@ message RunHledgerQueryResponse {
   string command_line = 4;
 }
 
+message ExportJournalRequest {}
+
+message ExportJournalResponse {
+  bytes content = 1;  // flattened journal text covering main.journal and all includes
+  string filename = 2;
+}
+
 // BalanceAssertion is an hledger balance assertion attached to a posting.
 // Only the simple = form (single account, single commodity) is exposed via
 // the gRPC API. Postings with =* / == / ==* assertions in the journal file
@@ -1131,4 +1138,5 @@ service LedgerService {
   // Debug / Investigation
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);
   rpc StreamLogs(StreamLogsRequest) returns (stream StreamLogsResponse);
+  rpc ExportJournal(ExportJournalRequest) returns (ExportJournalResponse);
 }

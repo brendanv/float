@@ -35,6 +35,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `Payees(ctx)` | `payees desc:.*[|].*` | payees only for descriptions containing `|` |
 | `Transactions(ctx, query...)` | `print -O json` | full transaction objects with source positions |
 | `PrintCSV(ctx, csvFile, rulesFile)` | `print -O json --rules-file <rules> -f <csv>` | CSV import preview; no journal file is written |
+| `PrintJournal(ctx)` | `print -f <journal>` | flattened plain-text journal with all includes inlined, for single-file export |
 | `PrintText(ctx, journalFile)` | `print -f <temp> -I` | canonical text formatting; ignores assertions until full `hledger check` |
 | `RunQuery(ctx, argsStr)` | `-f <journal> <shell-like args>` | debug/query UI; restricted to read-only subcommands, rejects `-f`/`-o`/`--rules-file` (`ErrUnsafeQuery`) |
 | `RunRaw(ctx, args...)` | arbitrary | escape hatch for CLI/debug only |

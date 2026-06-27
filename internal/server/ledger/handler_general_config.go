@@ -56,3 +56,18 @@ func (h *Handler) SetTimezone(ctx context.Context, req *connect.Request[floatv1.
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated timezone", "timezone", tz)
 	return connect.NewResponse(&floatv1.SetTimezoneResponse{}), nil
 }
+
+// ExportJournal returns the entire hledger journal — main.journal and every
+// included file (accounts.journal, prices.journal, monthly transaction
+// files) — flattened into a single plain-text document.
+func (h *Handler) ExportJournal(ctx context.Context, req *connect.Request[floatv1.ExportJournalRequest]) (*connect.Response[floatv1.ExportJournalResponse], error) {
+	content, err := h.hl.PrintJournal(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("export journal: %w", err))
+	}
+	filename := fmt.Sprintf("float-export-%s.journal", time.Now().Format("2006-01-02"))
+	return connect.NewResponse(&floatv1.ExportJournalResponse{
+		Content:  []byte(content),
+		Filename: filename,
+	}), nil
+}

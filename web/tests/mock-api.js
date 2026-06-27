@@ -2051,6 +2051,12 @@ export async function mockLedgerApi(
       case "RestoreSnapshot":
         body = {};
         break;
+      case "ExportJournal":
+        body = {
+          content: btoa("; mock journal export\n"),
+          filename: "float-export-2026-06-27.journal",
+        };
+        break;
       case "RunHledgerQuery":
         body = {
           stdout: `              $  12,450.00  assets

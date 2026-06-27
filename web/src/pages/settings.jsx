@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from "@/components/ui/native-select";
-import { CheckCircle, XCircle, Circle, CreditCard, Repeat, ChevronDown, Bot, Globe } from "lucide-react";
+import { CheckCircle, XCircle, Circle, CreditCard, Repeat, ChevronDown, Bot, Globe, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
@@ -223,6 +223,26 @@ export function SettingsPage() {
     setPromptMutation.mutate(promptInput);
   }
 
+  // --- Export Journal ---
+  const [exportError, setExportError] = useState(null);
+
+  const exportJournalMutation = useMutation({
+    mutationFn: () => ledgerClient.exportJournal({}),
+    onSuccess: (data) => {
+      setExportError(null);
+      const blob = new Blob([data.content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || "float-export.journal";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+    onError: (err) => setExportError(err),
+  });
+
   // --- Collapsible state (null = not yet initialized; defaults to open only when enabled) ---
   const [stripeOpen, setStripeOpen] = useState(null);
   const [aiOpen, setAiOpen] = useState(null);
@@ -309,6 +329,32 @@ export function SettingsPage() {
               )}
             </Form>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Export Journal card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="size-5" />
+            Export Journal
+          </CardTitle>
+          <CardDescription>
+            Download the entire hledger journal — including account declarations,
+            prices, and every transaction — as a single plain-text file.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {exportError && <ErrorBanner error={exportError} />}
+          <div>
+            <Button
+              onClick={() => exportJournalMutation.mutate()}
+              isLoading={exportJournalMutation.isPending}
+              loadingText="Exporting…"
+            >
+              Download journal
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
