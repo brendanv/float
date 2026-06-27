@@ -535,6 +535,19 @@ func (c *Client) PrintText(ctx context.Context, journalFile string) (string, err
 	return string(stdout), nil
 }
 
+// PrintJournal runs `hledger print -f <journal>` and returns the flattened
+// journal in hledger's plain-text journal format, with all `include`d files
+// (accounts.journal, prices.journal, monthly transaction files) inlined into
+// a single document.
+func (c *Client) PrintJournal(ctx context.Context) (string, error) {
+	args := []string{"print", "-f", c.journal}
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return "", cmdError(c.bin, args, stderr, fmt.Errorf("hledger print: %w", err))
+	}
+	return string(stdout), nil
+}
+
 // Transactions runs `hledger print -O json -f <journal> [query...]`.
 // Returns parsed transactions.
 func (c *Client) Transactions(ctx context.Context, query ...string) ([]Transaction, error) {
