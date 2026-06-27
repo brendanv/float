@@ -378,7 +378,7 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
   );
 }
 
-function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) {
+function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   function toFields(ps) {
     return (ps || []).map((p) => {
       const a = p.amounts && p.amounts[0];
@@ -394,14 +394,17 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   }
 
   const initialPostings = toFields(tx.postings);
+  const initialTags = tx.tags || {};
   const [postings, setPostings] = useState(initialPostings);
+  const [tags, setTags] = useState(initialTags);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
 
-  const isDirty = JSON.stringify(postings) !== JSON.stringify(initialPostings);
+  const isDirty = JSON.stringify(postings) !== JSON.stringify(initialPostings)
+    || JSON.stringify(tags) !== JSON.stringify(initialTags);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -415,6 +418,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
         description: tx.description,
         date: tx.date,
         postings: trimmed,
+        tags,
         status: autoReview ? "Cleared" : (tx.status ?? ""),
       });
       if (onSaved) onSaved();
@@ -427,6 +431,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
 
   function cancel() {
     setPostings(initialPostings);
+    setTags(initialTags);
     setError(null);
   }
 
@@ -450,7 +455,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
           <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
         </FormField>
         <FormField label="Tags">
-          <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onTagsChanged} />
+          <TagEditor value={tags} onChange={setTags} />
         </FormField>
         <FormActions align="between">
           <div className="flex gap-2">
@@ -501,7 +506,14 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onTagsChanged }) 
   );
 }
 
-function TagEditor({ fid, tags, onChanged, className }) {
+// TagEditor edits a transaction's tags. In immediate-save mode (`fid` set)
+// each add/remove fires its own bulkEditTransactions call. In controlled
+// mode (`value`/`onChange` set, used inside EditableDetailRow) edits only
+// update local state so they can be saved together with other field
+// changes in a single updateTransaction call.
+function TagEditor({ fid, tags, onChanged, className, value, onChange }) {
+  const controlled = onChange != null;
+  const currentTags = controlled ? (value || {}) : (tags || {});
   const [adding, setAdding] = useState(false);
   const [tagKey, setTagKey] = useState("");
   const [tagValue, setTagValue] = useState("");
@@ -512,6 +524,12 @@ function TagEditor({ fid, tags, onChanged, className }) {
   const isBusy = working || removingKey !== null;
 
   async function removeTag(key) {
+    if (controlled) {
+      const next = { ...currentTags };
+      delete next[key];
+      onChange(next);
+      return;
+    }
     setRemovingKey(key);
     setError(null);
     try {
@@ -529,6 +547,13 @@ function TagEditor({ fid, tags, onChanged, className }) {
 
   async function addTag() {
     if (!tagKey.trim()) return;
+    if (controlled) {
+      onChange({ ...currentTags, [tagKey.trim()]: tagValue.trim() });
+      setTagKey("");
+      setTagValue("");
+      setAdding(false);
+      return;
+    }
     setWorking(true);
     setError(null);
     try {
@@ -559,7 +584,7 @@ function TagEditor({ fid, tags, onChanged, className }) {
   return (
     <div className={className}>
       <div className="flex flex-wrap items-center gap-1">
-        {Object.entries(tags || {}).map(([k, v]) => (
+        {Object.entries(currentTags).map(([k, v]) => (
           <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
             {v ? `${k}:${v}` : k}
             {removingKey === k ? (
@@ -1029,7 +1054,6 @@ export function TransactionTable({
                 selectedFids={selectedFids}
                 accounts={accounts}
                 onStatusChange={onStatusChange}
-                onTagsChanged={onStatusChange}
                 onDeleted={onDeleted}
                 visibleColumnCount={visibleColumnCount}
               />
@@ -1063,7 +1087,7 @@ export function TransactionTable({
 
 // ── desktop row (with optional expansion) ─────────────────────────────────
 
-function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onTagsChanged, onDeleted, visibleColumnCount }) {
+function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onDeleted, visibleColumnCount }) {
   const tx = row.original;
   const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
   const split = isRegisterMode ? null : accountSplit(tx);
@@ -1110,7 +1134,6 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
               accounts={accounts}
               onSaved={() => { row.toggleExpanded(); if (onStatusChange) onStatusChange(); }}
               onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
-              onTagsChanged={onTagsChanged}
             />
           </TableCell>
         </TableRow>
@@ -1250,7 +1273,6 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             accounts={accounts}
             onSaved={onStatusChange}
             onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
-            onTagsChanged={onStatusChange}
           />
         )}
       </CardContent>
