@@ -54,6 +54,7 @@ function RowCell({ value, onChange, onKeyDown, inputRef, placeholder, type = "te
           ref={inputRef}
           data-bulk-cell
           type={type}
+          step={type === "number" ? "any" : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
@@ -336,6 +337,7 @@ export function BulkEntryPage() {
                           return (
                             <RowCell
                               key={p.account}
+                              type="number"
                               value={row.amounts[p.account] ?? ""}
                               onChange={(v) => updateAmount(row.id, p.account, v)}
                               onKeyDown={(e) => handleCellKey(e, rowIdx, 2 + colIdx, totalCols)}

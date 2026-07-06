@@ -306,7 +306,8 @@ export function PricesPage() {
             <FormField label="Price" htmlFor="price-quantity">
               <Input
                 id="price-quantity"
-                type="text"
+                type="number"
+                step="any"
                 placeholder="178.50"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
