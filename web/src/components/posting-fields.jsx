@@ -49,7 +49,8 @@ function CostFields({ cost, onChange, onRemove }) {
         {c.isTotal ? "@@" : "@"}
       </button>
       <Input
-        type="text"
+        type="number"
+        step="any"
         placeholder="0.00"
         value={c.quantity}
         onInput={(e) => onChange({ ...c, quantity: e.target.value })}
@@ -91,7 +92,8 @@ function AssertionFields({ assertion, onChange, onRemove }) {
         =
       </span>
       <Input
-        type="text"
+        type="number"
+        step="any"
         placeholder="0.00"
         value={a.quantity}
         onInput={(e) => onChange({ ...a, quantity: e.target.value })}
@@ -189,7 +191,8 @@ export function PostingFields({ postings, onChange, accounts }) {
                 className="w-16 shrink-0"
               />
               <Input
-                type="text"
+                type="number"
+                step="any"
                 placeholder={isLast(i) ? "Auto" : "0.00"}
                 value={p.quantity}
                 onInput={(e) => update(i, { quantity: e.target.value })}

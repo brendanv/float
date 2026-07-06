@@ -66,6 +66,8 @@ function TemplatePostingRow({ posting, index, onChange, onRemove, canRemove, acc
           className="w-28"
         />
         <Input
+          type="number"
+          step="any"
           placeholder="Default qty (blank = auto)"
           value={posting.defaultQuantity}
           onChange={(e) => onChange({ ...posting, defaultQuantity: e.target.value })}
