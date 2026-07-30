@@ -17,6 +17,7 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
 import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
+import { RuleIssuesDialog } from "../components/rule-issues-dialog.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
@@ -153,6 +154,7 @@ export function RulesPage() {
   });
 
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [issuesDialogOpen, setIssuesDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState(null);
 
@@ -508,6 +510,15 @@ export function RulesPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setIssuesDialogOpen(true)}
+                disabled={rules.length < 2}
+              >
+                <Sparkles data-icon="inline-start" className="size-3.5" />
+                Find Issues
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handlePreviewApply}
                 isLoading={applyLoading}
                 loadingText="Previewing…"
@@ -613,6 +624,12 @@ export function RulesPage() {
         onOpenChange={setWizardOpen}
         accounts={accountsData?.accounts ?? []}
         onRulesAdded={() => queryClient.invalidateQueries({ queryKey: queryKeys.rules() })}
+      />
+
+      <RuleIssuesDialog
+        open={issuesDialogOpen}
+        onOpenChange={setIssuesDialogOpen}
+        rules={rules}
       />
 
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction="bottom">

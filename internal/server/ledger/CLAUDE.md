@@ -69,7 +69,7 @@ Fetch RPCs only list already-available settled transactions and hide duplicates 
 
 ### AI
 
-AI handlers use `internal/ai` and OpenRouter via `OPENROUTER_API_KEY`. They can suggest rules for transactions, translate natural language into hledger query tokens, and answer questions by running hledger and summarizing the output. Model/prompt config is persisted in `config.toml`.
+AI handlers use `internal/ai` and OpenRouter via `OPENROUTER_API_KEY`. They can suggest rules for transactions, flag existing rules that are duplicates/contradictions/combinable (`FindRuleIssues`, read-only — it does not modify rules), translate natural language into hledger query tokens, and answer questions by running hledger and summarizing the output. Model/prompt config is persisted in `config.toml`.
 
 ### Settings / Logs / Debug
 
