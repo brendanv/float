@@ -901,6 +901,20 @@ message SuggestRulesResponse {
   repeated SuggestedRule suggestions = 1;
 }
 
+// RuleIssueGroup flags two or more existing rules that are duplicates,
+// contradict each other, or could be combined into a single rule.
+message RuleIssueGroup {
+  string issue_type = 1;        // "duplicate" | "contradiction" | "combinable"
+  repeated string rule_ids = 2; // ids of the rules involved (at least 2)
+  string explanation = 3;       // brief explanation of the issue and suggested fix
+}
+
+message FindRuleIssuesRequest {}
+
+message FindRuleIssuesResponse {
+  repeated RuleIssueGroup issues = 1;
+}
+
 message TranslateQueryRequest {
   string question = 1; // plain-English question about finances
 }
@@ -1119,6 +1133,7 @@ service LedgerService {
 
   // AI
   rpc SuggestRules(SuggestRulesRequest) returns (SuggestRulesResponse);
+  rpc FindRuleIssues(FindRuleIssuesRequest) returns (FindRuleIssuesResponse);
   rpc TranslateQuery(TranslateQueryRequest) returns (TranslateQueryResponse);
   rpc AskQuestion(AskQuestionRequest) returns (AskQuestionResponse);
 

@@ -213,6 +213,58 @@ func (h *Handler) SuggestRules(ctx context.Context, req *connect.Request[floatv1
 	return connect.NewResponse(&floatv1.SuggestRulesResponse{Suggestions: proto}), nil
 }
 
+// FindRuleIssues asks the AI to review all categorization rules and flag
+// groups that are duplicates, contradict each other, or could be combined
+// into a single rule. It does not modify any rules.
+func (h *Handler) FindRuleIssues(ctx context.Context, req *connect.Request[floatv1.FindRuleIssuesRequest]) (*connect.Response[floatv1.FindRuleIssuesResponse], error) {
+	aiCl, err := h.aiClient()
+	if err != nil {
+		return nil, err
+	}
+
+	existingRules, err := rules.Load(h.dataDir)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("load rules: %w", err))
+	}
+	if len(existingRules) < 2 {
+		// Fewer than 2 rules can't have duplicates/contradictions; skip the AI call.
+		return connect.NewResponse(&floatv1.FindRuleIssuesResponse{}), nil
+	}
+
+	details := make([]ai.RuleDetail, len(existingRules))
+	for i, r := range existingRules {
+		details[i] = ai.RuleDetail{
+			ID:           r.ID,
+			Pattern:      r.Pattern,
+			Payee:        r.Payee,
+			Account:      r.Account,
+			Tags:         r.Tags,
+			Priority:     r.Priority,
+			AutoReviewed: r.AutoReviewed,
+			MatchAccount: r.MatchAccount,
+		}
+	}
+
+	userGuidelines := ""
+	if cfg := h.loadCfg(); cfg != nil {
+		userGuidelines = cfg.AI.Prompt
+	}
+	issues, err := aiCl.FindRuleIssues(ctx, details, userGuidelines)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("AI find rule issues: %w", err))
+	}
+
+	proto := make([]*floatv1.RuleIssueGroup, 0, len(issues))
+	for _, iss := range issues {
+		proto = append(proto, &floatv1.RuleIssueGroup{
+			IssueType:   iss.IssueType,
+			RuleIds:     iss.RuleIDs,
+			Explanation: iss.Explanation,
+		})
+	}
+	return connect.NewResponse(&floatv1.FindRuleIssuesResponse{Issues: proto}), nil
+}
+
 // TranslateQuery converts a plain-English finance question into a hledger
 // query string.
 func (h *Handler) TranslateQuery(ctx context.Context, req *connect.Request[floatv1.TranslateQueryRequest]) (*connect.Response[floatv1.TranslateQueryResponse], error) {

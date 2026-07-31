@@ -1807,6 +1807,24 @@ export async function mockLedgerApi(
           ],
         };
         break;
+      case "FindRuleIssues":
+        body = {
+          issues: [
+            {
+              issueType: "duplicate",
+              ruleIds: ["aabb1122", "eeff5566"],
+              explanation:
+                "Both rules match overlapping merchant descriptions and set the same category, making one redundant.",
+            },
+            {
+              issueType: "contradiction",
+              ruleIds: ["ccdd3344", "aabb7788"],
+              explanation:
+                "These patterns can match the same transactions but set different payees, so the result depends on priority order.",
+            },
+          ],
+        };
+        break;
       case "ListAccountDeclarations":
         body = { declarations: accountDeclarations ?? mockAccountDeclarations };
         break;

@@ -221,6 +221,9 @@ const (
 	// LedgerServiceSuggestRulesProcedure is the fully-qualified name of the LedgerService's
 	// SuggestRules RPC.
 	LedgerServiceSuggestRulesProcedure = "/float.v1.LedgerService/SuggestRules"
+	// LedgerServiceFindRuleIssuesProcedure is the fully-qualified name of the LedgerService's
+	// FindRuleIssues RPC.
+	LedgerServiceFindRuleIssuesProcedure = "/float.v1.LedgerService/FindRuleIssues"
 	// LedgerServiceTranslateQueryProcedure is the fully-qualified name of the LedgerService's
 	// TranslateQuery RPC.
 	LedgerServiceTranslateQueryProcedure = "/float.v1.LedgerService/TranslateQuery"
@@ -342,6 +345,7 @@ type LedgerServiceClient interface {
 	RefreshAllStripeAccounts(context.Context, *connect.Request[v1.RefreshAllStripeAccountsRequest]) (*connect.ServerStreamForClient[v1.RefreshStripeAccountResponse], error)
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
+	FindRuleIssues(context.Context, *connect.Request[v1.FindRuleIssuesRequest]) (*connect.Response[v1.FindRuleIssuesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
 	AskQuestion(context.Context, *connect.Request[v1.AskQuestionRequest]) (*connect.Response[v1.AskQuestionResponse], error)
 	// Settings
@@ -757,6 +761,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SuggestRules")),
 			connect.WithClientOptions(opts...),
 		),
+		findRuleIssues: connect.NewClient[v1.FindRuleIssuesRequest, v1.FindRuleIssuesResponse](
+			httpClient,
+			baseURL+LedgerServiceFindRuleIssuesProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("FindRuleIssues")),
+			connect.WithClientOptions(opts...),
+		),
 		translateQuery: connect.NewClient[v1.TranslateQueryRequest, v1.TranslateQueryResponse](
 			httpClient,
 			baseURL+LedgerServiceTranslateQueryProcedure,
@@ -922,6 +932,7 @@ type ledgerServiceClient struct {
 	refreshStripeAccount         *connect.Client[v1.RefreshStripeAccountRequest, v1.RefreshStripeAccountResponse]
 	refreshAllStripeAccounts     *connect.Client[v1.RefreshAllStripeAccountsRequest, v1.RefreshStripeAccountResponse]
 	suggestRules                 *connect.Client[v1.SuggestRulesRequest, v1.SuggestRulesResponse]
+	findRuleIssues               *connect.Client[v1.FindRuleIssuesRequest, v1.FindRuleIssuesResponse]
 	translateQuery               *connect.Client[v1.TranslateQueryRequest, v1.TranslateQueryResponse]
 	askQuestion                  *connect.Client[v1.AskQuestionRequest, v1.AskQuestionResponse]
 	getAlphaVantageConfig        *connect.Client[v1.GetAlphaVantageConfigRequest, v1.GetAlphaVantageConfigResponse]
@@ -1260,6 +1271,11 @@ func (c *ledgerServiceClient) SuggestRules(ctx context.Context, req *connect.Req
 	return c.suggestRules.CallUnary(ctx, req)
 }
 
+// FindRuleIssues calls float.v1.LedgerService.FindRuleIssues.
+func (c *ledgerServiceClient) FindRuleIssues(ctx context.Context, req *connect.Request[v1.FindRuleIssuesRequest]) (*connect.Response[v1.FindRuleIssuesResponse], error) {
+	return c.findRuleIssues.CallUnary(ctx, req)
+}
+
 // TranslateQuery calls float.v1.LedgerService.TranslateQuery.
 func (c *ledgerServiceClient) TranslateQuery(ctx context.Context, req *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error) {
 	return c.translateQuery.CallUnary(ctx, req)
@@ -1411,6 +1427,7 @@ type LedgerServiceHandler interface {
 	RefreshAllStripeAccounts(context.Context, *connect.Request[v1.RefreshAllStripeAccountsRequest], *connect.ServerStream[v1.RefreshStripeAccountResponse]) error
 	// AI
 	SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error)
+	FindRuleIssues(context.Context, *connect.Request[v1.FindRuleIssuesRequest]) (*connect.Response[v1.FindRuleIssuesResponse], error)
 	TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error)
 	AskQuestion(context.Context, *connect.Request[v1.AskQuestionRequest]) (*connect.Response[v1.AskQuestionResponse], error)
 	// Settings
@@ -1822,6 +1839,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SuggestRules")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceFindRuleIssuesHandler := connect.NewUnaryHandler(
+		LedgerServiceFindRuleIssuesProcedure,
+		svc.FindRuleIssues,
+		connect.WithSchema(ledgerServiceMethods.ByName("FindRuleIssues")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceTranslateQueryHandler := connect.NewUnaryHandler(
 		LedgerServiceTranslateQueryProcedure,
 		svc.TranslateQuery,
@@ -2048,6 +2071,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceRefreshAllStripeAccountsHandler.ServeHTTP(w, r)
 		case LedgerServiceSuggestRulesProcedure:
 			ledgerServiceSuggestRulesHandler.ServeHTTP(w, r)
+		case LedgerServiceFindRuleIssuesProcedure:
+			ledgerServiceFindRuleIssuesHandler.ServeHTTP(w, r)
 		case LedgerServiceTranslateQueryProcedure:
 			ledgerServiceTranslateQueryHandler.ServeHTTP(w, r)
 		case LedgerServiceAskQuestionProcedure:
@@ -2343,6 +2368,10 @@ func (UnimplementedLedgerServiceHandler) RefreshAllStripeAccounts(context.Contex
 
 func (UnimplementedLedgerServiceHandler) SuggestRules(context.Context, *connect.Request[v1.SuggestRulesRequest]) (*connect.Response[v1.SuggestRulesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SuggestRules is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) FindRuleIssues(context.Context, *connect.Request[v1.FindRuleIssuesRequest]) (*connect.Response[v1.FindRuleIssuesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.FindRuleIssues is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) TranslateQuery(context.Context, *connect.Request[v1.TranslateQueryRequest]) (*connect.Response[v1.TranslateQueryResponse], error) {

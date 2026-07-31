@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
+	"github.com/brendanv/float/internal/hledger"
+	serverledger "github.com/brendanv/float/internal/server/ledger"
 )
 
 // openRouterResp builds a minimal chat completions response wrapping content.
@@ -261,5 +265,118 @@ func TestTranslateQuery_UsesCustomModel(t *testing.T) {
 	}
 	if capturedModel != "anthropic/claude-opus-4-7" {
 		t.Errorf("model sent to API = %q, want anthropic/claude-opus-4-7", capturedModel)
+	}
+}
+
+// --- FindRuleIssues ---
+
+// mustHandlerWithRules creates a handler backed by a fake hledger client and
+// a temp data dir containing the given rules.json content. FindRuleIssues
+// never calls hledger, so the fake runner just needs to satisfy client setup.
+func mustHandlerWithRules(t *testing.T, rulesJSON string) *serverledger.Handler {
+	t.Helper()
+	dir := t.TempDir()
+	if rulesJSON != "" {
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(rulesJSON), 0o644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+	}
+	c, err := hledger.NewWithRunner("hledger", filepath.Join(dir, "main.journal"), versionRunner(t, nil))
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	return serverledger.NewHandler(c, nil, dir, "", nil, nil, nil, nil)
+}
+
+const twoRulesJSON = `[
+	{"id":"aaa11111","pattern":"AMAZON","payee":"Amazon","account":"expenses:shopping","tags":{},"priority":10,"auto_reviewed":false,"match_account":""},
+	{"id":"bbb22222","pattern":"AMAZON","payee":"Amazon","account":"expenses:shopping","tags":{},"priority":20,"auto_reviewed":false,"match_account":""}
+]`
+
+func TestFindRuleIssues_MissingAPIKey(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	h := mustHandlerWithRules(t, twoRulesJSON)
+
+	_, err := h.FindRuleIssues(t.Context(), connect.NewRequest(&floatv1.FindRuleIssuesRequest{}))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("code = %v, want FailedPrecondition", connect.CodeOf(err))
+	}
+}
+
+func TestFindRuleIssues_FewerThanTwoRules_ReturnsEmptyWithoutAICall(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "test-key")
+
+	calls := 0
+	srv := newAIServer(t, openRouterResp(`{"issues":[]}`), &calls)
+	defer srv.Close()
+
+	h := mustHandlerWithRules(t, `[{"id":"aaa11111","pattern":"AMAZON","payee":"","account":"","tags":{},"priority":10,"auto_reviewed":false,"match_account":""}]`)
+	h.AIBaseURL = srv.URL
+
+	resp, err := h.FindRuleIssues(t.Context(), connect.NewRequest(&floatv1.FindRuleIssuesRequest{}))
+	if err != nil {
+		t.Fatalf("FindRuleIssues: %v", err)
+	}
+	if len(resp.Msg.Issues) != 0 {
+		t.Errorf("expected 0 issues, got %d", len(resp.Msg.Issues))
+	}
+	if calls != 0 {
+		t.Errorf("expected 0 AI calls with fewer than 2 rules, got %d", calls)
+	}
+}
+
+func TestFindRuleIssues_ReturnsIssues(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "test-key")
+
+	aiBody := openRouterResp(`{"issues":[
+		{"issue_type":"duplicate","rule_ids":["aaa11111","bbb22222"],"explanation":"both match AMAZON and set the same account"}
+	]}`)
+	srv := newAIServer(t, aiBody, nil)
+	defer srv.Close()
+
+	h := mustHandlerWithRules(t, twoRulesJSON)
+	h.AIBaseURL = srv.URL
+
+	resp, err := h.FindRuleIssues(t.Context(), connect.NewRequest(&floatv1.FindRuleIssuesRequest{}))
+	if err != nil {
+		t.Fatalf("FindRuleIssues: %v", err)
+	}
+	if len(resp.Msg.Issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d", len(resp.Msg.Issues))
+	}
+	issue := resp.Msg.Issues[0]
+	if issue.IssueType != "duplicate" {
+		t.Errorf("IssueType = %q, want duplicate", issue.IssueType)
+	}
+	if len(issue.RuleIds) != 2 || issue.RuleIds[0] != "aaa11111" || issue.RuleIds[1] != "bbb22222" {
+		t.Errorf("RuleIds = %v, want [aaa11111 bbb22222]", issue.RuleIds)
+	}
+	if issue.Explanation == "" {
+		t.Error("Explanation should not be empty")
+	}
+}
+
+func TestFindRuleIssues_NoRulesFile_ReturnsEmptyWithoutAICall(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "test-key")
+
+	calls := 0
+	srv := newAIServer(t, openRouterResp(`{"issues":[]}`), &calls)
+	defer srv.Close()
+
+	h := mustHandlerWithRules(t, "") // no rules.json at all
+	h.AIBaseURL = srv.URL
+
+	resp, err := h.FindRuleIssues(t.Context(), connect.NewRequest(&floatv1.FindRuleIssuesRequest{}))
+	if err != nil {
+		t.Fatalf("FindRuleIssues: %v", err)
+	}
+	if len(resp.Msg.Issues) != 0 {
+		t.Errorf("expected 0 issues, got %d", len(resp.Msg.Issues))
+	}
+	if calls != 0 {
+		t.Errorf("expected 0 AI calls, got %d", calls)
 	}
 }
