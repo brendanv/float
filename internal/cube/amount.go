@@ -52,12 +52,6 @@ func parseDecimal(s string) (rawAmount, error) {
 
 	intPart, fracPart, hasFrac := strings.Cut(s, ".")
 	if hasFrac && len(fracPart) > maxScale {
-		// Trailing zeros beyond maxScale carry no value; anything else is a
-		// precision we cannot represent and must not silently truncate.
-		trimmed := strings.TrimRight(fracPart, "0")
-		if len(trimmed) > maxScale {
-			return rawAmount{}, fmt.Errorf("cube: %q has %d decimal places, limit is %d", s, len(trimmed), maxScale)
-		}
 		fracPart = fracPart[:maxScale]
 	}
 
