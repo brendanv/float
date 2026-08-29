@@ -7,6 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
+    "test:unit": "playwright test -c playwright.unit.config.js",
     "screenshots": "playwright test tests/screenshots.spec.js",
     "screenshots:all": "bash capture-screenshots.sh"
   },

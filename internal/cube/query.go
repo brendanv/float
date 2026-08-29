@@ -24,6 +24,9 @@ type FlowFilter struct {
 	Account   string
 	Payee     string
 	Commodity string
+	// Type restricts to accounts of one hledger type letter (e.g. "X" for
+	// expenses), matching hledger's `type:` query. Empty matches every type.
+	Type string
 }
 
 // FlowSums totals matching postings per commodity, keyed by commodity code,
@@ -45,6 +48,9 @@ func (c *Cube) FlowSums(f FlowFilter) map[string]int64 {
 	}
 
 	accountOK := c.accountMask(f.Account)
+	if f.Type != "" {
+		accountOK = c.intersectType(accountOK, f.Type)
+	}
 	payeeOK := dictMask(c.Payees, f.Payee)
 
 	for i := lo; i < hi; i++ {
@@ -139,6 +145,17 @@ func (c *Cube) accountMask(prefix string) []bool {
 		mask[i] = prefix == "" || p == prefix || strings.HasPrefix(p, prefix+":")
 	}
 	return mask
+}
+
+// intersectType narrows an account mask to accounts of one hledger type,
+// resolving each account's type through its ancestors the way hledger does.
+func (c *Cube) intersectType(mask []bool, want string) []bool {
+	meta := AccountHierarchy(c.Accounts, c.AccountTypes)
+	out := make([]bool, len(meta))
+	for i, m := range meta {
+		out[i] = mask[i] && TypeMatches(m.Type, want)
+	}
+	return out
 }
 
 // dictMask returns a lookup of which dict ids equal want, or nil when want is

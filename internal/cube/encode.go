@@ -139,7 +139,7 @@ func Encode(c *Cube) ([]byte, error) {
 		BuiltAt:           c.BuiltAt.Format(time.RFC3339),
 		ConfigHash:        c.ConfigHash,
 		ReportingCurrency: c.ReportingCurrency,
-		Accounts:          AccountHierarchy(c.Accounts),
+		Accounts:          AccountHierarchy(c.Accounts, c.AccountTypes),
 		Payees:            c.Payees.Values(),
 		Commodities:       c.Commodities,
 		Periods:           c.Periods,

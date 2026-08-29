@@ -1,6 +1,7 @@
 import { createClient, ConnectError, Code } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { LedgerService } from "./gen/float/v1/ledger_pb.js";
+import { observeHeaders } from "./lib/generation.js";
 
 // Redirect to the login page whenever the server rejects a call as
 // unauthenticated. The session cookie set by /api/login rides along on
@@ -20,9 +21,24 @@ const redirectToLogin = (next) => async (req) => {
   }
 };
 
+// Track the server's txlock generation from every response. This is how the
+// client knows which cube URL to fetch, and it costs nothing extra: any RPC the
+// app already makes — including the mutation that caused the bump — carries it.
+const trackGeneration = (next) => async (req) => {
+  try {
+    const res = await next(req);
+    observeHeaders(res.header);
+    return res;
+  } catch (err) {
+    // A failed write still bumps the generation, so read it off the error too.
+    observeHeaders(err?.metadata);
+    throw err;
+  }
+};
+
 const transport = createConnectTransport({
   baseUrl: window.location.origin,
-  interceptors: [redirectToLogin],
+  interceptors: [redirectToLogin, trackGeneration],
 });
 
 export const ledgerClient = createClient(LedgerService, transport);

@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -444,4 +446,100 @@ func nextMonth(t *testing.T, period string) string {
 		t.Fatalf("parse period %q: %v", period, err)
 	}
 	return d.AddDate(0, 1, 0).Format("2006-01-02")
+}
+
+// TestWriteWebFixture regenerates the encoded payload the web tests decode, so
+// the JS decoder is exercised against bytes this package actually produced
+// rather than a hand-rolled imitation of the format.
+//
+// Regenerate after any wire-format change:
+//
+//	FLOAT_WRITE_CUBE_FIXTURE=1 go test ./internal/cube/ -run TestWriteWebFixture
+func TestWriteWebFixture(t *testing.T) {
+	if os.Getenv("FLOAT_WRITE_CUBE_FIXTURE") == "" {
+		t.Skip("set FLOAT_WRITE_CUBE_FIXTURE=1 to regenerate web/tests/fixtures/cube.bin")
+	}
+	payload, err := cube.Encode(build(t, simpleJournal))
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	path := filepath.Join("..", "..", "web", "tests", "fixtures", "cube.bin")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	t.Logf("wrote %s (%d bytes)", path, len(payload))
+}
+
+// TestFlowSumsByTypeMatchHledger checks the account-type dimension against
+// hledger's own `type:` query. Types come from account directives, so deriving
+// them from the top-level account name would be a guess that breaks on any
+// ledger that renames or re-types its trees.
+func TestFlowSumsByTypeMatchHledger(t *testing.T) {
+	hl := newClient(t, simpleJournal)
+	c := build(t, simpleJournal)
+	scale := scaleOf(t, c, "USD")
+
+	for _, tc := range []struct{ letter, query string }{
+		{letter: "X", query: "type:X"},
+		{letter: "R", query: "type:R"},
+		{letter: "A", query: "type:A"},
+		{letter: "C", query: "type:C"},
+		{letter: "L", query: "type:L"},
+	} {
+		t.Run(tc.letter, func(t *testing.T) {
+			report, err := hl.Balances(t.Context(), 0, tc.query)
+			if err != nil {
+				t.Fatalf("Balances(%s): %v", tc.query, err)
+			}
+			var want int64
+			for _, amt := range report.Total {
+				want += quantityMinorUnits(t, amt.Quantity, scale)
+			}
+			got := c.FlowSums(cube.FlowFilter{Type: tc.letter})["USD"]
+			if got != want {
+				t.Errorf("type:%s: got %d, want %d (minor units)", tc.letter, got, want)
+			}
+		})
+	}
+}
+
+// TestTypeSubtypesMatchHledger pins the Cash-is-an-Asset relation on the
+// fixture that actually mixes the two: multi.journal has an A-typed brokerage
+// account and a C-typed checking account, so an exact-match comparison would
+// undercount type:A here.
+func TestTypeSubtypesMatchHledger(t *testing.T) {
+	hl := newClient(t, multiJournal)
+	c := build(t, multiJournal)
+	scale := scaleOf(t, c, "USD")
+
+	for _, letter := range []string{"A", "C", "X", "R"} {
+		t.Run(letter, func(t *testing.T) {
+			report, err := hl.Balances(t.Context(), 0, "type:"+letter, "cur:USD")
+			if err != nil {
+				t.Fatalf("Balances: %v", err)
+			}
+			var want int64
+			for _, amt := range report.Total {
+				if amt.Commodity == "USD" {
+					want += quantityMinorUnits(t, amt.Quantity, scale)
+				}
+			}
+			got := c.FlowSums(cube.FlowFilter{Type: letter, Commodity: "USD"})["USD"]
+			if got != want {
+				t.Errorf("type:%s USD: got %d, want %d", letter, got, want)
+			}
+		})
+	}
+
+	// The relation is directional: every cash account is an asset, but not
+	// every asset is cash.
+	if !cube.TypeMatches("C", "A") {
+		t.Error("type:A must match a cash account")
+	}
+	if cube.TypeMatches("A", "C") {
+		t.Error("type:C must not match a plain asset account")
+	}
 }

@@ -111,9 +111,12 @@ type Cube struct {
 	// the journal.
 	EpochDate time.Time
 
-	Accounts    *Dict
-	Payees      *Dict
-	Commodities []Commodity
+	Accounts *Dict
+	Payees   *Dict
+	// AccountTypes maps account path to hledger's type letter, for accounts
+	// that have one. Used to reproduce hledger's `type:` queries client-side.
+	AccountTypes map[string]string
+	Commodities  []Commodity
 	// Periods are month labels in ascending order, e.g. "2016-01".
 	Periods []string
 
@@ -158,6 +161,7 @@ func Build(ctx context.Context, hl *hledger.Client, opts Options) (*Cube, error)
 		postings []hledger.PostingRow
 		valued   *hledger.PeriodBalances
 		cost     *hledger.PeriodBalances
+		accounts []*hledger.AccountNode
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) {
@@ -172,11 +176,20 @@ func Build(ctx context.Context, hl *hledger.Client, opts Options) (*Cube, error)
 		cost, err = hl.PeriodBalancesCost(gctx)
 		return err
 	})
+	g.Go(func() (err error) {
+		accounts, err = hl.Accounts(gctx, false)
+		return err
+	})
 	if err := g.Wait(); err != nil {
 		return nil, fmt.Errorf("cube: build: %w", err)
 	}
 
 	b := newBuilder()
+	for _, a := range accounts {
+		if a.Type != "" {
+			b.accountTypes[a.FullName] = string(a.Type)
+		}
+	}
 	if err := b.addPostings(postings); err != nil {
 		return nil, err
 	}
@@ -215,6 +228,8 @@ type builder struct {
 	// source reports. Amounts are rescaled to it once every source is parsed.
 	scales []int
 
+	accountTypes map[string]string
+
 	postings []pendingPosting
 	valued   []pendingBalance
 	cost     []pendingBalance
@@ -223,10 +238,11 @@ type builder struct {
 
 func newBuilder() *builder {
 	return &builder{
-		accounts:    NewDict(),
-		payees:      NewDict(),
-		commodities: NewDict(),
-		periods:     make(map[string]struct{}),
+		accounts:     NewDict(),
+		payees:       NewDict(),
+		commodities:  NewDict(),
+		accountTypes: make(map[string]string),
+		periods:      make(map[string]struct{}),
 	}
 }
 
@@ -321,6 +337,7 @@ func (b *builder) finish(opts Options, currency string) (*Cube, error) {
 		ReportingCurrency: currency,
 		Accounts:          b.accounts,
 		Payees:            b.payees,
+		AccountTypes:      b.accountTypes,
 	}
 
 	c.Commodities = make([]Commodity, b.commodities.Len())

@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
+  // Unit specs run without a browser or dev server; see playwright.unit.config.js.
+  testIgnore: /.*\.unit\.spec\.js/,
   outputDir: "./test-results",
   snapshotDir: "./test-snapshots",
   reporter: "list",
