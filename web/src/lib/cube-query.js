@@ -410,6 +410,43 @@ export function balanceSeries(cube, tableName, account = "", { from, to } = {}) 
 }
 
 /**
+ * A stock measure across periods, summed over a specific list of account paths
+ * (and their descendants). Used for portfolio charts where the account set is
+ * determined by which holdings the server identified, not a single prefix.
+ */
+export function balanceSeriesForAccounts(cube, tableName, accountPaths, { from, to } = {}) {
+  const table = cube.tables[tableName];
+  if (!table) throw new Error(`unknown table ${tableName}`);
+
+  const mask = new Uint8Array(cube.accountPaths.length);
+  for (let i = 0; i < cube.accountPaths.length; i++) {
+    const p = cube.accountPaths[i];
+    for (const prefix of accountPaths) {
+      if (p === prefix || p.startsWith(`${prefix}:`)) {
+        mask[i] = 1;
+        break;
+      }
+    }
+  }
+
+  const { columns } = table;
+  const reporting = commodityId(cube, cube.reportingCurrency);
+  const minorByPeriod = new Float64Array(cube.periods.length);
+  for (let i = 0; i < table.rows; i++) {
+    if (!mask[columns.account[i]]) continue;
+    if (columns.commodity[i] !== reporting) continue;
+    minorByPeriod[columns.period[i]] += columns.amount[i];
+  }
+
+  const commodityIndex = reporting < 0 ? 0 : reporting;
+  const indexOfPeriod = new Map(cube.periods.map((p, i) => [p, i]));
+  return periodsInRange(cube, from, to).map((period) => ({
+    period,
+    total: toMajor(cube, commodityIndex, minorByPeriod[indexOfPeriod.get(period)] ?? 0),
+  }));
+}
+
+/**
  * The cube's month labels that fall inside a half-open date interval.
  *
  * A month is included when it starts before `to` and ends on or after `from`,

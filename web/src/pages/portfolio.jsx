@@ -22,6 +22,8 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { XIcon, FunnelIcon } from "@phosphor-icons/react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { useCube } from "../hooks/use-cube.js";
+import { balanceSeriesForAccounts } from "../lib/cube-query.js";
 import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -153,7 +155,6 @@ function usePortfolioExclusions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.portfolioSettings() });
       queryClient.invalidateQueries({ queryKey: ["portfolioHoldings"] });
-      queryClient.invalidateQueries({ queryKey: ["portfolioTimeseries"] });
     },
   });
 
@@ -995,7 +996,6 @@ export function PortfolioPage() {
     mutationFn: () => ledgerClient.generatePricesFromCost({ accountPrefix }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.portfolioHoldings(accountPrefix) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.portfolioTimeseries(accountPrefix, timeseriesBegin) });
     },
   });
 
@@ -1007,20 +1007,41 @@ export function PortfolioPage() {
     queryFn: () => ledgerClient.getPortfolioHoldings({ accountPrefix }),
   });
 
-  const { data: tsData } = useQuery({
-    queryKey: queryKeys.portfolioTimeseries(accountPrefix, timeseriesBegin),
-    queryFn: () =>
-      ledgerClient.getPortfolioTimeseries({
-        accountPrefix,
-        begin: timeseriesBegin,
-      }),
-  });
+  const { data: cube } = useCube();
 
   const holdings = data?.holdings ?? [];
   const totalValue = data?.totalValue;
   const currencyTotals = data?.currencyTotals ?? [];
   const asOfDate = data?.asOfDate;
-  const snapshots = tsData?.snapshots ?? [];
+
+  const investmentAccountPaths = useMemo(
+    () => holdings.map((h) => h.account),
+    [holdings],
+  );
+
+  const allSnapshots = useMemo(() => {
+    if (!cube || investmentAccountPaths.length === 0) return [];
+    const valuedSeries = balanceSeriesForAccounts(cube, "valued", investmentAccountPaths);
+    const costSeries = balanceSeriesForAccounts(cube, "cost", investmentAccountPaths);
+    const costByPeriod = new Map(costSeries.map((c) => [c.period, c.total]));
+    const currency = cube.reportingCurrency;
+    return valuedSeries
+      .map((v) => {
+        const cost = costByPeriod.get(v.period) ?? 0;
+        return {
+          date: v.period,
+          totalValue: v.total !== 0 ? { quantity: v.total.toFixed(2), commodity: currency } : null,
+          costBasis: cost !== 0 ? { quantity: cost.toFixed(2), commodity: currency } : null,
+        };
+      })
+      .filter((s) => s.totalValue || s.costBasis);
+  }, [cube, investmentAccountPaths]);
+
+  const snapshots = useMemo(() => {
+    if (!timeseriesBegin) return allSnapshots;
+    const beginPeriod = timeseriesBegin.slice(0, 7);
+    return allSnapshots.filter((s) => s.date >= beginPeriod);
+  }, [allSnapshots, timeseriesBegin]);
   const valuedCount = holdings.filter((h) => h.currentValue).length;
   const unvaluedCount = holdings.length - valuedCount;
   const staleCount = holdings.filter((h) => {
