@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const baseURL = "https://www.alphavantage.co/query"
+const productionBaseURL = "https://www.alphavantage.co/query"
 
 // WeeklyPrice holds one week's closing price for a commodity.
 type WeeklyPrice struct {
@@ -19,17 +19,31 @@ type WeeklyPrice struct {
 	Currency string // e.g. "USD"
 }
 
+// Option configures a Client.
+type Option func(*Client)
+
+// WithBaseURL overrides the API endpoint. Used in tests to point at an httptest.Server.
+func WithBaseURL(url string) Option {
+	return func(c *Client) { c.baseURL = url }
+}
+
 // Client fetches market data from Alpha Vantage.
 type Client struct {
 	apiKey     string
+	baseURL    string
 	httpClient *http.Client
 }
 
-func NewClient(apiKey string) *Client {
-	return &Client{
+func NewClient(apiKey string, opts ...Option) *Client {
+	c := &Client{
 		apiKey:     apiKey,
+		baseURL:    productionBaseURL,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // FetchWeeklyPrices returns weekly closing prices for symbol in [startDate, endDate] inclusive.
@@ -44,7 +58,7 @@ func (c *Client) FetchWeeklyPrices(ctx context.Context, symbol, startDate, endDa
 		return nil, fmt.Errorf("alphavantage: invalid end_date %q: %w", endDate, err)
 	}
 
-	url := fmt.Sprintf("%s?function=TIME_SERIES_WEEKLY&symbol=%s&apikey=%s", baseURL, symbol, c.apiKey)
+	url := fmt.Sprintf("%s?function=TIME_SERIES_WEEKLY&symbol=%s&apikey=%s", c.baseURL, symbol, c.apiKey)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("alphavantage: build request: %w", err)
