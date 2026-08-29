@@ -1,11 +1,10 @@
 # CLAUDE.md
 
-`float` is a self-hostable personal finance manager wrapping [hledger](https://hledger.org/). float provides the UX layer (Connect/gRPC API, CLI/TUI, web UI, imports, snapshots, and integrations) and delegates all accounting math, parsing, validation, reports, and CSV rule parsing to hledger. **Never reimplement accounting logic that hledger already handles.**
+`float` is a self-hostable personal finance manager wrapping [hledger](https://hledger.org/). float provides the UX layer (Connect/gRPC API, web UI, imports, snapshots, and integrations) and delegates all accounting math, parsing, validation, reports, and CSV rule parsing to hledger. **Never reimplement accounting logic that hledger already handles.**
 
-Three binaries:
+Two binaries:
 
-- `floatd` — server: ConnectRPC over h2c, embedded web UI, optional SSH-hosted TUI, background Stripe auto-import.
-- `float` — Bubble Tea terminal UI client that connects to `floatd`.
+- `floatd` — server: ConnectRPC over h2c, embedded web UI, background Stripe auto-import.
 - `floatctl` — admin/debug CLI that bypasses the API and operates on the data directory directly.
 
 ## Commands
@@ -20,7 +19,6 @@ mise run web-gen     # generate JS protobuf code only
 mise run web-build   # build web UI → internal/webui/dist/
 mise run build       # web UI + compile floatd
 mise run web-dev     # Vite dev server on :5173 (proxies API to floatd on :8080)
-mise run ssh         # SSH into the floatd TUI (requires ssh_port in config.toml)
 ```
 
 Tool versions are managed by `mise`. Run `mise install` to get pinned Go, buf, golangci-lint, hledger, and related tools.
@@ -34,26 +32,6 @@ FLOAT_ADDR=:9090 mise run floatd
 ```
 
 A data directory must contain `config.toml`; `floatd` creates an empty `main.journal` if it is missing. For web UI development run `mise run floatd` and `mise run web-dev` concurrently.
-
-### SSH TUI
-
-Enable the SSH server by adding `ssh_port` to `config.toml`:
-
-```toml
-[server]
-port = 8080
-ssh_port = 2222
-```
-
-Then connect:
-
-```bash
-mise run ssh                                                    # localhost:2222
-FLOAT_SSH_PORT=2222 mise run ssh                               # explicit port
-FLOAT_SSH_HOST=myserver.example.com FLOAT_SSH_PORT=2222 mise run ssh
-```
-
-The host key is generated at `$FLOAT_DATA_DIR/ssh_host_key` on first start. The task stores known hosts in `$FLOAT_DATA_DIR/ssh_known_hosts` (separate from `~/.ssh/known_hosts`) using `StrictHostKeyChecking=accept-new`.
 
 ## Querying floatd
 
@@ -112,12 +90,12 @@ A single shared passphrase (no per-user accounts) supplied via the `FLOAT_AUTH_P
 
 - A Connect interceptor rejects RPCs lacking a valid credential with `CodeUnauthenticated`. Credentials are an `Authorization: Bearer` header (the passphrase or the derived session token) or the `float_session` cookie.
 - Plain HTTP endpoints `GET /api/auth`, `POST /api/login`, and `POST /api/logout` drive the web UI login flow; login sets a long-lived session cookie. The session token is a static HMAC derived from the passphrase, so changing the passphrase invalidates all sessions.
-- The web UI redirects to `#/login` on unauthenticated errors; the TUI prompts once and persists the session token in `~/.config/float/tui.json`; the SSH TUI prompts per session. Static web assets are served without auth (the SPA shell is needed to render the login page).
+- The web UI redirects to `#/login` on unauthenticated errors. Static web assets are served without auth (the SPA shell is needed to render the login page).
 - The `mise run grpc-*` shortcuts add the bearer header automatically when `FLOAT_AUTH_PASSPHRASE` is set. For manual `buf curl`, add `--header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"`.
 
-### Web UI and TUI
+### Web UI
 
-The web UI is React + Vite + TanStack + shadcn/ui under `web/` and is embedded in `floatd` through `internal/webui`. The TUI under `cmd/float/ui` is a Bubble Tea app with eight top-level tabs: Home, Accounts, Trends, Portfolio, Monthly, Assertions, Manage, and Settings. The Manage tab contains sub-tabs for Rules, Imports, Tags, Snapshots, Prices, Payees, Templates, and Stripe.
+The web UI is React + Vite + TanStack + shadcn/ui under `web/` and is embedded in `floatd` through `internal/webui`.
 
 ## Go Practices
 

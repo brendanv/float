@@ -1,6 +1,6 @@
 # cmd/floatd
 
-The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP server and serves the embedded web UI at `/`. It can also host the TUI over SSH and starts a daily Stripe auto-import background loop.
+The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP server, serves the embedded web UI at `/`, and starts a daily Stripe auto-import background loop.
 
 ## Startup Sequence
 
@@ -18,9 +18,8 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
    - account declaration bootstrap: ensure `accounts.journal`, ensure its include, and append currently undeclared accounts.
 9. Read `FLOAT_AUTH_PASSPHRASE` into `internal/auth` (auth disabled when unset) and log the auth state.
 10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
-11. Start optional Wish SSH server if `config.server.ssh_port` is set.
-12. Start `handler.StartDailyStripeImport(ctx)`.
-13. Serve HTTP until interrupted, then shut down gracefully.
+11. Start `handler.StartDailyStripeImport(ctx)`.
+12. Serve HTTP until interrupted, then shut down gracefully.
 
 ## Flags
 
@@ -39,10 +38,6 @@ Environment variable shortcuts such as `FLOAT_DATA_DIR` and `FLOAT_ADDR` are def
 The server uses `h2c.NewHandler(..., &http2.Server{})`, so local clients can use HTTP/2 without TLS.
 
 When `FLOAT_AUTH_PASSPHRASE` is set, every RPC requires an `Authorization: Bearer` header (passphrase or session token) or the `float_session` cookie; static assets and the `/api/*` auth endpoints remain open. When unset, all access is open.
-
-## SSH TUI (`ssh.go`)
-
-When `server.ssh_port` is set, `startSSHServer` launches a Wish SSH server. Each SSH session creates a local h2c `LedgerServiceClient` pointed at the running `floatd` address and runs the TUI with Bubble Tea. When auth is enabled, each session is wrapped in `ui.NewAuthGate`, which prompts for the passphrase (verified in-process) before initializing the UI and injects the session token into the client. The host key is `$FLOAT_DATA_DIR/ssh_host_key` and is generated on first start.
 
 ## Background Work
 

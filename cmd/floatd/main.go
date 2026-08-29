@@ -174,10 +174,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if cfg.Server.SSHPort > 0 {
-		go startSSHServer(ctx, *dataDir, listenAddr, cfg.Server.SSHPort, authn)
-	}
-
 	go handler.StartDailyStripeImport(ctx)
 
 	httpSrv := &http.Server{Addr: listenAddr, Handler: h2c.NewHandler(mux, &http2.Server{})}

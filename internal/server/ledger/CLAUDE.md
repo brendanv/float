@@ -1,6 +1,6 @@
 # internal/server/ledger
 
-ConnectRPC handler implementing `LedgerService`. This is the main application service used by the web UI, the local TUI, and the SSH-hosted TUI.
+ConnectRPC handler implementing `LedgerService`. This is the main application service used by the web UI.
 
 ## Handler
 
@@ -81,4 +81,4 @@ Settings handlers manage Alpha Vantage API key, AI model/prompt, Stripe customer
 2. Implement the method on `*Handler` in a focused file in this package.
 3. For query RPCs, add deterministic cache keys and `cached*` helpers when useful.
 4. For mutation RPCs, wrap writes in `lock.Do(ctx, "description", fn)` and re-check race-prone state inside the lock.
-5. Update web/TUI clients and this documentation when adding user-visible behavior.
+5. Update the web client and this documentation when adding user-visible behavior.
