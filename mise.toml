@@ -4,7 +4,6 @@ buf = "1.66.1"
 golangci-lint = "2.11.3"
 hledger = { version = "1.52", extract_all = "true" }
 air = "latest"
-"aqua:charmbracelet/freeze" = "0.1.6"
 bun = "1.3.9"
 
 [env]
@@ -157,19 +156,6 @@ run = "cd web && bun run build"
 description = "Generate JS protobuf code and start Vite dev server for web UI"
 depends = ["web-gen"]
 run = "cd web && bun run dev"
-
-[tasks.float]
-description = "Run the float TUI"
-run = "go run ./cmd/float/ --server ${FLOAT_ADDR:-localhost:8080}"
-
-[tasks.ssh]
-description = "Connect to the floatd SSH TUI (requires ssh_port set in config.toml)"
-run = """
-ssh -p "${FLOAT_SSH_PORT:-2222}" \
-  -o StrictHostKeyChecking=accept-new \
-  -o "UserKnownHostsFile=${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}/ssh_known_hosts" \
-  "${FLOAT_SSH_HOST:-localhost}"
-"""
 
 [tasks.grpc-modify-tags]
 description = "Replace all non-fid tags on a transaction"

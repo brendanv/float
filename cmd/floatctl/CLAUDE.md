@@ -1,6 +1,6 @@
 # cmd/floatctl
 
-Admin and debug CLI for float. It operates directly on internal packages and the data directory, bypassing the gRPC/Connect API entirely. This is distinct from `float`, the end-user TUI client.
+Admin and debug CLI for float. It operates directly on internal packages and the data directory, bypassing the gRPC/Connect API entirely. This is distinct from the end-user web UI, which goes through the API.
 
 ## Command Shape
 

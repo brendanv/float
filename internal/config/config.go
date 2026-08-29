@@ -10,8 +10,7 @@ import (
 )
 
 type ServerConfig struct {
-	Port    int `toml:"port"`     // default 8080 if zero
-	SSHPort int `toml:"ssh_port"` // SSH TUI port; disabled if zero
+	Port int `toml:"port"` // default 8080 if zero
 }
 
 type BankProfile struct {
