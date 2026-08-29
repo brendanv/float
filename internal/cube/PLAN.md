@@ -1,5 +1,44 @@
 # Plan: internal/cube — Precomputed Read Model for Responsive Dashboards
 
+## Status
+
+Phases 1-4 are implemented. Phase 5 (new dashboard types) is not, and remains a
+list of things the cube makes possible rather than committed work.
+
+Six things changed once the code met real hledger output. Each is a measurement
+or a correctness finding, not a preference:
+
+1. **`bal`, not `bs`, for period balances.** `bs` applies the balance-sheet
+   display convention that renders liabilities positive, which would have to be
+   undone per subreport to recover signed balances. `bal --historical type:AL`
+   reports raw signed balances, emits month labels directly, and is faster and
+   ~65x smaller.
+2. **`print -O csv`, not `reg -O csv`, for the fact table.** It splits amount
+   and commodity into separate columns instead of emitting `"35.21 USD"`.
+3. **The transaction-code dimension is dropped.** It cost 265KB of a 354KB
+   gzipped payload — 35% — for a per-transaction lookup the aggregate surface
+   never performs. Drilldown builds a query from the cell's date/account/payee
+   coordinates instead. Final payload: 253KB gzipped for 48,000 postings.
+4. **An account-type dimension was added.** Not in the original plan, but
+   without it the migration would silently redefine `type:X` as "accounts named
+   expenses". Implementing it surfaced a second trap: hledger types a
+   plainly-named `assets:checking` as `C` (Cash), and `type:A` matches `C`
+   because Cash is a subtype of Asset. Exact matching would have reported zero
+   assets on an ordinary ledger.
+5. **IndexedDB persistence is skipped.** `Cache-Control: immutable` on a
+   content-addressed URL already makes a repeat cold start a browser disk-cache
+   hit; a second copy in IndexedDB would duplicate that for no gain.
+6. **The build is ~3.5s, not ~10s.** The source reports are independent hledger
+   processes and run concurrently, so a build costs the slowest of them.
+
+Measured on the live server against the 24k-transaction journal: cube built in
+3.5s at startup, served in 1.4ms, 249KB gzipped. The Trends page issues two
+requests on load (`/api/generation`, `/api/cube/{gen}.bin`) and **zero** on any
+subsequent range change; twenty range switches made no network requests at all.
+Its net worth and expense-category totals match hledger to the cent.
+
+---
+
 ## Context
 
 Every float dashboard query costs one hledger process invocation. hledger's cost is

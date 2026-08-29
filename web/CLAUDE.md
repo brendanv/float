@@ -39,9 +39,13 @@ src/
 │   ├── ui/            # shadcn/ui components
 │   └── *.jsx          # shared app components and tables/forms
 ├── hooks/
-│   └── use-mobile.js  # responsive breakpoint detection
+│   ├── use-mobile.js  # responsive breakpoint detection
+│   └── use-cube.js    # loads the cube for the current generation
 ├── lib/
-│   └── utils.js       # cn() helper (clsx + tailwind-merge)
+│   ├── utils.js       # cn() helper (clsx + tailwind-merge)
+│   ├── cube.js        # fetch + decode the dashboard cube (typed-array views)
+│   ├── cube-query.js  # client-side aggregation over the cube
+│   └── generation.js  # tracks the server's txlock generation
 └── pages/             # one file per route
 ```
 
@@ -50,7 +54,7 @@ src/
 | Route | Component | Description |
 |-------|-----------|-------------|
 | `/` | `HomePage` | Dashboard summary |
-| `/trends` | `TrendsPage` | Net worth chart |
+| `/trends` | `TrendsPage` | Net worth chart (reads the cube, no RPCs) |
 | `/monthly` | `MonthlyDashboardPage` | Income statement / revenue and expense dashboard |
 | `/transactions` | `TransactionsPage` | Searchable, pageable transaction list |
 | `/portfolio` | `PortfolioPage` | Holdings, allocation, market value, cost basis/gain |
@@ -86,6 +90,49 @@ const { data } = useQuery({
 ```
 
 Invalidate the relevant query keys after mutations. Keep query-key construction centralized in `query-keys.js`.
+
+## The dashboard cube
+
+Dashboard pages can read a precomputed snapshot of the ledger instead of calling
+RPCs. Every hledger invocation costs the same multi-second journal parse
+regardless of query size, so a page built on RPCs pays it again on every filter
+change; the cube is fetched once per generation and sliced in the browser in
+well under a millisecond.
+
+```jsx
+import { useCube } from "@/hooks/use-cube.js";
+import { flowByAccount, balanceAt, latestPeriod } from "@/lib/cube-query.js";
+
+const { data: cube, isLoading, error } = useCube();
+const rows = useMemo(
+  () => (cube ? flowByAccount(cube, { type: "X", from: begin }, 2) : []),
+  [cube, begin],
+);
+```
+
+Everything derived from the cube belongs in `useMemo` keyed on the cube and the
+filters — never in a query.
+
+**Flows sum over time; stocks do not.** `flowSums` / `flowSeries` /
+`flowByAccount` aggregate posting amounts and are safe over any date range and
+account subtree. `balanceAt` / `balanceSeries` read market value and cost basis,
+which are materialized per period end: they may be rolled up the account tree at
+a fixed period but never summed across periods, and `assertSummableOverTime`
+throws rather than let that happen quietly.
+
+Two details that bite:
+
+- Date ranges are **half-open**, `[from, to)`, matching hledger's `date:A..B`.
+- `account` filters match a subtree (the account and its descendants), not a
+  substring, and `type` filters use hledger's letters with Cash counting as an
+  Asset.
+
+The cube is served from `/api/cube/{generation}.bin` and is not part of
+`LedgerService`, so **screenshot tests mock it separately** — `mock-api.js`
+serves `tests/fixtures/cube.bin`, a payload `internal/cube` really encoded.
+`tests/cube-query.unit.spec.js` decodes that same fixture, which makes it a
+cross-language contract test; run it with `bun run test:unit` (no browser, no
+dev server).
 
 ## Adding a New Page
 

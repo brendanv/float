@@ -1,16 +1,20 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
-import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
 import { formatCurrency } from "../format.js";
+import { useCube } from "../hooks/use-cube.js";
+import {
+  balanceAt,
+  balanceSeries,
+  flowByAccount,
+  latestPeriod,
+  periodsInRange,
+} from "../lib/cube-query.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   ChartContainer,
   ChartLegend,
@@ -43,47 +47,36 @@ const DONUT_COLORS = [
   "#f97316",
 ];
 
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Start of the range, as a "YYYY-MM-DD" string. Null means unbounded. */
 function toBeginDate(months) {
-  if (!months) return "";
+  if (!months) return null;
   const d = new Date();
   d.setMonth(d.getMonth() - months);
   return d.toISOString().slice(0, 10);
 }
 
-function parseAmount(amounts) {
-  if (!amounts || amounts.length === 0) return 0;
-  return parseFloat(amounts[0].quantity) || 0;
+function formatLabel(period) {
+  if (!period) return "";
+  const [year, month] = period.split("-");
+  return `${MONTH_NAMES[parseInt(month, 10) - 1]} '${year.slice(2)}`;
 }
 
-function formatLabel(dateStr) {
-  if (!dateStr) return "";
-  const [year, month] = dateStr.split("-");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${months[parseInt(month, 10) - 1]} '${year.slice(2)}`;
+/** The last period of the year before the given one, for a year-to-date base. */
+function previousYearEnd(cube, period) {
+  if (!period) return null;
+  const previous = `${Number(period.slice(0, 4)) - 1}-12`;
+  const candidates = cube.periods.filter((p) => p <= previous);
+  return candidates.length ? candidates[candidates.length - 1] : null;
 }
 
-function NetWorthChart({ snapshots }) {
-  const chartData = snapshots.map((s) => ({
-    date: formatLabel(s.date),
-    netWorth: parseAmount(s.netWorth),
-    assets: parseAmount(s.assets),
-    liabilities: Math.abs(parseAmount(s.liabilities)),
-  }));
-
+function NetWorthChart({ data }) {
   return (
     <ChartContainer config={chartConfig} className="h-80 w-full">
-      <LineChart
-        accessibilityLayer
-        data={chartData}
-        margin={{ left: 12, right: 12 }}
-      >
+      <LineChart accessibilityLayer data={data} margin={{ left: 12, right: 12 }}>
         <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-        />
+        <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
         <YAxis
           tickLine={false}
           axisLine={false}
@@ -108,46 +101,15 @@ function NetWorthChart({ snapshots }) {
           }
         />
         <ChartLegend content={<ChartLegendContent />} />
-        <Line
-          dataKey="netWorth"
-          type="monotone"
-          stroke="var(--color-netWorth)"
-          strokeWidth={2}
-          dot={false}
-        />
-        <Line
-          dataKey="assets"
-          type="monotone"
-          stroke="var(--color-assets)"
-          strokeWidth={2}
-          dot={false}
-        />
-        <Line
-          dataKey="liabilities"
-          type="monotone"
-          stroke="var(--color-liabilities)"
-          strokeWidth={2}
-          dot={false}
-        />
+        <Line dataKey="netWorth" type="monotone" stroke="var(--color-netWorth)" strokeWidth={2} dot={false} />
+        <Line dataKey="assets" type="monotone" stroke="var(--color-assets)" strokeWidth={2} dot={false} />
+        <Line dataKey="liabilities" type="monotone" stroke="var(--color-liabilities)" strokeWidth={2} dot={false} />
       </LineChart>
     </ChartContainer>
   );
 }
 
-function ExpenseDonutChart({ expenseRows }) {
-  const categories = useMemo(() => {
-    const all = (expenseRows || [])
-      .filter((r) => r.fullName && r.fullName.includes(":"))
-      .map((r) => ({ name: r.displayName, amount: parseFloat(r.amounts?.[0]?.quantity || 0) }))
-      .filter((c) => c.amount > 0)
-      .sort((a, b) => b.amount - a.amount);
-    const MAX = DONUT_COLORS.length - 1;
-    if (all.length <= DONUT_COLORS.length) return all;
-    const top = all.slice(0, MAX);
-    const otherAmount = all.slice(MAX).reduce((s, c) => s + c.amount, 0);
-    return [...top, { name: "other", amount: otherAmount }];
-  }, [expenseRows]);
-
+function ExpenseDonutChart({ categories }) {
   const total = useMemo(() => categories.reduce((sum, c) => sum + c.amount, 0), [categories]);
 
   if (categories.length === 0) {
@@ -159,7 +121,11 @@ function ExpenseDonutChart({ expenseRows }) {
   );
 
   return (
-    <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+    // Stacked, not side-by-side: this card is a quarter-width column on wide
+    // screens, and a horizontal split leaves the legend ~100px, which collapses
+    // the truncating category name to zero width and shows amounts with no
+    // labels at all.
+    <div className="flex flex-col items-center gap-6">
       <ChartContainer config={donutConfig} className="mx-auto h-52 w-52 flex-shrink-0">
         <PieChart>
           <ChartTooltip
@@ -219,48 +185,79 @@ export function TrendsPage() {
   const [rangeIdx, setRangeIdx] = useState(0);
   const range = RANGES[rangeIdx];
   const begin = toBeginDate(range.months);
-  const end = "";
 
-  const { data: timeseriesData, isLoading, error } = useQuery({
-    queryKey: queryKeys.netWorthTimeseries(begin),
-    queryFn: () => ledgerClient.getNetWorthTimeseries({ begin, end }),
-  });
+  // One payload backs the whole page. Switching range re-slices it in the
+  // browser, so the buttons do not refetch anything.
+  const { data: cube, isLoading, error } = useCube();
 
-  const { data: balancesData } = useQuery({
-    queryKey: queryKeys.balances({ depth: 1, value: "now,USD" }),
-    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD" }),
-  });
+  const view = useMemo(() => {
+    if (!cube) return null;
 
-  const expenseQueryParams = useMemo(() => ({
-    query: begin ? ["type:X", `date:${begin}..`] : ["type:X"],
-    depth: 2,
-  }), [begin]);
+    const periods = periodsInRange(cube, begin, null);
+    // The valued table only holds asset and liability accounts, so an empty
+    // account prefix is exactly net worth.
+    const netWorthByPeriod = new Map(
+      balanceSeries(cube, "valued", "", { from: begin }).map((p) => [p.period, p.total])
+    );
+    const assetsByPeriod = new Map(
+      balanceSeries(cube, "valued", "assets", { from: begin }).map((p) => [p.period, p.total])
+    );
+    const liabilitiesByPeriod = new Map(
+      balanceSeries(cube, "valued", "liabilities", { from: begin }).map((p) => [p.period, p.total])
+    );
 
-  const { data: expensesData, isLoading: expensesLoading } = useQuery({
-    queryKey: queryKeys.balances(expenseQueryParams),
-    queryFn: () => ledgerClient.getBalances(expenseQueryParams),
-  });
+    const chartData = periods.map((period) => ({
+      date: formatLabel(period),
+      netWorth: netWorthByPeriod.get(period) ?? 0,
+      assets: assetsByPeriod.get(period) ?? 0,
+      // Liabilities are negative in the ledger; the chart plots magnitude.
+      liabilities: Math.abs(liabilitiesByPeriod.get(period) ?? 0),
+    }));
 
-  const snapshots = timeseriesData?.snapshots || [];
-  const prev = snapshots[snapshots.length - 2];
+    const current = latestPeriod(cube);
+    const previous = current
+      ? cube.periods[cube.periods.indexOf(current) - 1] ?? null
+      : null;
+    const yearBase = previousYearEnd(cube, current);
 
-  const balanceRows = balancesData?.report?.rows || [];
-  const assetsRow = balanceRows.find((r) => r.fullName === "assets");
-  const liabilitiesRow = balanceRows.find((r) => r.fullName === "liabilities");
-  const currentNetWorth = assetsRow
-    ? parseFloat(assetsRow?.amounts?.[0]?.quantity || 0) + parseFloat(liabilitiesRow?.amounts?.[0]?.quantity || 0)
-    : null;
+    // Each of these is an account-tree rollup at one period end — never a sum
+    // across periods, which market value does not admit.
+    const currentNetWorth = current ? balanceAt(cube, "valued", current, "") : null;
+    const previousNetWorth = previous ? balanceAt(cube, "valued", previous, "") : null;
+    const yearBaseNetWorth = yearBase ? balanceAt(cube, "valued", yearBase, "") : null;
 
-  const prevNetWorth = prev ? parseAmount(prev.netWorth) : null;
-  const monthChange = currentNetWorth !== null && prevNetWorth !== null ? currentNetWorth - prevNetWorth : null;
+    // Label with the segment below the top level ("food", not
+    // "expenses:food"): the legend column is narrow, and a full path truncates
+    // to nothing.
+    const categories = flowByAccount(cube, { type: "X", from: begin }, 2)
+      .filter((row) => row.total > 0)
+      .map((row) => ({
+        name: row.account.split(":").slice(1).join(":") || row.account,
+        amount: row.total,
+      }));
+    const MAX = DONUT_COLORS.length - 1;
+    const topCategories =
+      categories.length <= DONUT_COLORS.length
+        ? categories
+        : [
+            ...categories.slice(0, MAX),
+            { name: "other", amount: categories.slice(MAX).reduce((s, c) => s + c.amount, 0) },
+          ];
 
-  const currentYear = new Date().getFullYear().toString();
-  const firstThisYear = snapshots.find((s) => s.date && s.date.startsWith(currentYear));
-  const ytdChange = currentNetWorth !== null && firstThisYear
-    ? currentNetWorth - parseAmount(firstThisYear.netWorth)
-    : null;
-
-  const expenseRows = expensesData?.report?.rows || [];
+    return {
+      chartData,
+      currentNetWorth,
+      monthChange:
+        currentNetWorth !== null && previousNetWorth !== null
+          ? currentNetWorth - previousNetWorth
+          : null,
+      ytdChange:
+        currentNetWorth !== null && yearBaseNetWorth !== null
+          ? currentNetWorth - yearBaseNetWorth
+          : null,
+      categories: topCategories,
+    };
+  }, [cube, begin]);
 
   return (
     <Page>
@@ -282,29 +279,29 @@ export function TrendsPage() {
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}
 
-      {!isLoading && !error && (
+      {!isLoading && !error && view && (
         <DashboardGrid>
           <div className="col-span-12 md:col-span-4">
             <MetricCard
               title="Current Net Worth"
-              value={currentNetWorth !== null ? formatCurrency(currentNetWorth, "USD") : "—"}
-              valueClassName={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-destructive"}
+              value={view.currentNetWorth !== null ? formatCurrency(view.currentNetWorth, "USD") : "—"}
+              valueClassName={view.currentNetWorth !== null && view.currentNetWorth >= 0 ? "text-success" : "text-destructive"}
             />
           </div>
           <div className="col-span-12 md:col-span-4">
             <MetricCard
               title="Change This Month"
-              value={monthChange !== null ? formatCurrency(monthChange, "USD") : "—"}
-              valueClassName={monthChange !== null && monthChange >= 0 ? "text-success" : "text-destructive"}
-              description={monthChange !== null && monthChange >= 0 ? "Up from last month" : "Down from last month"}
+              value={view.monthChange !== null ? formatCurrency(view.monthChange, "USD") : "—"}
+              valueClassName={view.monthChange !== null && view.monthChange >= 0 ? "text-success" : "text-destructive"}
+              description={view.monthChange !== null && view.monthChange >= 0 ? "Up from last month" : "Down from last month"}
             />
           </div>
           <div className="col-span-12 md:col-span-4">
             <MetricCard
               title="YTD Change"
-              value={ytdChange !== null ? formatCurrency(ytdChange, "USD") : "—"}
-              valueClassName={ytdChange !== null && ytdChange >= 0 ? "text-success" : "text-destructive"}
-              description={ytdChange !== null && ytdChange >= 0 ? "Up since Jan 1" : "Down since Jan 1"}
+              value={view.ytdChange !== null ? formatCurrency(view.ytdChange, "USD") : "—"}
+              valueClassName={view.ytdChange !== null && view.ytdChange >= 0 ? "text-success" : "text-destructive"}
+              description={view.ytdChange !== null && view.ytdChange >= 0 ? "Up since Jan 1" : "Down since Jan 1"}
             />
           </div>
 
@@ -314,10 +311,10 @@ export function TrendsPage() {
                 <CardTitle>Net Worth Over Time</CardTitle>
               </CardHeader>
               <CardContent>
-                {snapshots.length === 0 ? (
+                {view.chartData.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No data available for this period.</p>
                 ) : (
-                  <NetWorthChart snapshots={snapshots} />
+                  <NetWorthChart data={view.chartData} />
                 )}
               </CardContent>
             </Card>
@@ -329,13 +326,7 @@ export function TrendsPage() {
                 <CardTitle>Expenses by Category</CardTitle>
               </CardHeader>
               <CardContent>
-                {expensesLoading ? (
-                  <div className="flex h-52 items-center justify-center">
-                    <Loading />
-                  </div>
-                ) : (
-                  <ExpenseDonutChart expenseRows={expenseRows} />
-                )}
+                <ExpenseDonutChart categories={view.categories} />
               </CardContent>
             </Card>
           </div>

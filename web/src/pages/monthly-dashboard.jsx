@@ -1,40 +1,21 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { useState, useMemo } from "react";
 import { DateRangePicker } from "../components/search-controls.jsx";
 import { DATE_PRESETS } from "../components/search-presets.js";
 import { formatCurrency } from "../format.js";
+import { useCube } from "../hooks/use-cube.js";
+import { flowMatrix, flowSeries } from "../lib/cube-query.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function formatPeriodHeader(dateStr) {
-  if (!dateStr) return "";
-  const [year, month] = dateStr.split("-");
+function formatPeriodHeader(period) {
+  if (!period) return "";
+  const [year, month] = period.split("-");
   return `${MONTHS[parseInt(month, 10) - 1]} '${year.slice(2)}`;
-}
-
-function parseFirstAmount(amountList) {
-  if (!amountList?.amounts?.length) return null;
-  const q = amountList.amounts[0]?.quantity;
-  return q ? parseFloat(q) : null;
-}
-
-function sumPeriods(perPeriodAmounts, negate) {
-  if (!perPeriodAmounts?.length) return null;
-  let total = 0;
-  let hasAny = false;
-  for (const al of perPeriodAmounts) {
-    const v = parseFirstAmount(al);
-    if (v !== null) { total += v; hasAny = true; }
-  }
-  if (!hasAny) return null;
-  return negate ? -total : total;
 }
 
 function AmountCell({ value, className, invertColor }) {
@@ -62,56 +43,44 @@ function SectionHeaderRow({ label, colCount }) {
   );
 }
 
-function AccountRow({ row, periods, isRevenue }) {
+function AccountRow({ row, isRevenue, isTotal }) {
   const invertColor = !isRevenue;
-  const indent = (row.indent ?? 0) * 1.25;
+  const indent = (row.depth ?? 0) * 1.25;
 
   return (
-    <tr className={cn("border-b border-border/40 hover:bg-muted/30", row.isTotal && "font-semibold bg-muted/20")}>
+    <tr className={cn("border-b border-border/40 hover:bg-muted/30", isTotal && "font-semibold bg-muted/20")}>
       <td
         className="sticky left-0 z-10 bg-background px-3 py-1.5 text-sm"
-        style={{ paddingLeft: row.isTotal ? "0.75rem" : `${indent + 0.75}rem`, minWidth: "200px" }}
+        style={{ paddingLeft: isTotal ? "0.75rem" : `${indent + 0.75}rem`, minWidth: "200px" }}
       >
-        <span className={cn(row.isTotal && "text-foreground", !row.isTotal && "text-foreground/90")}>
-          {row.displayName || row.fullName}
-        </span>
+        <span className={cn(isTotal ? "text-foreground" : "text-foreground/90")}>{row.label}</span>
       </td>
-      {periods.map((_, i) => {
-        const al = row.perPeriodAmounts?.[i];
-        const v = parseFirstAmount(al);
-        return <AmountCell key={i} value={v} invertColor={invertColor} />;
-      })}
-      <AmountCell
-        value={row.isTotal
-          ? sumPeriods(row.perPeriodAmounts, false)
-          : (() => { const v = parseFirstAmount({ amounts: row.totalAmounts }); return v ?? null; })()
-        }
-        className="border-l border-border/40"
-        invertColor={invertColor}
-      />
+      {row.totals.map((v, i) => (
+        <AmountCell key={i} value={v} invertColor={invertColor} />
+      ))}
+      <AmountCell value={row.total} className="border-l border-border/40" invertColor={invertColor} />
     </tr>
   );
 }
 
-function NetIncomeRow({ periods, netAmounts }) {
-  const periodValues = periods.map((_, i) => parseFirstAmount(netAmounts?.[i]) ?? null);
-  const total = periodValues.reduce((sum, v) => (v !== null ? sum + v : sum), 0);
-  const hasAny = periodValues.some((v) => v !== null);
-
+function NetIncomeRow({ values }) {
+  const total = values.reduce((sum, v) => sum + v, 0);
   return (
     <tr className="border-t-2 border-border font-bold bg-muted/30">
-      <td
-        className="sticky left-0 z-10 bg-muted/30 px-3 py-2 text-sm font-bold"
-        style={{ minWidth: "200px" }}
-      >
+      <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2 text-sm font-bold" style={{ minWidth: "200px" }}>
         Net Income
       </td>
-      {periods.map((_, i) => (
-        <AmountCell key={i} value={periodValues[i]} />
+      {values.map((v, i) => (
+        <AmountCell key={i} value={v} />
       ))}
-      <AmountCell value={hasAny ? total : null} className="border-l border-border/40" />
+      <AmountCell value={total} className="border-l border-border/40" />
     </tr>
   );
+}
+
+/** Flips the sign of every figure in a matrix row. */
+function negateRow(row) {
+  return { ...row, totals: row.totals.map((v) => -v), total: -row.total };
 }
 
 export function MonthlyDashboardPage() {
@@ -119,17 +88,32 @@ export function MonthlyDashboardPage() {
   const [dateFrom, setDateFrom] = useState(initial.from);
   const [dateTo, setDateTo] = useState(initial.to);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.incomeStatementTimeseries(dateFrom, dateTo),
-    queryFn: () => ledgerClient.getIncomeStatementTimeseries({ begin: dateFrom, end: dateTo }),
-  });
+  // One payload backs every date range; changing the range re-slices locally.
+  const { data: cube, isLoading, error } = useCube();
 
-  const periods = data?.periods ?? [];
-  const rows = data?.rows ?? [];
-  const netAmounts = data?.netAmounts ?? [];
+  const view = useMemo(() => {
+    if (!cube) return null;
+    const range = { from: dateFrom, to: dateTo };
 
-  const revenueRows = rows.filter((r) => r.section === "Revenues");
-  const expenseRows = rows.filter((r) => r.section === "Expenses");
+    // hledger's income statement presents both sections as positive figures
+    // with net income as revenues minus expenses. Revenue postings are credits,
+    // so their raw sign is flipped for display.
+    const revenues = flowMatrix(cube, { ...range, type: "R" });
+    const expenses = flowMatrix(cube, { ...range, type: "X" });
+    const periods = revenues.periods.length ? revenues.periods : expenses.periods;
+
+    const revenueTotals = flowSeries(cube, { ...range, type: "R" }).map((p) => -p.total);
+    const expenseTotals = flowSeries(cube, { ...range, type: "X" }).map((p) => p.total);
+
+    return {
+      periods,
+      revenueRows: revenues.rows.map(negateRow),
+      expenseRows: expenses.rows,
+      revenueTotal: { label: "Total Revenues", depth: 0, totals: revenueTotals, total: revenueTotals.reduce((s, v) => s + v, 0) },
+      expenseTotal: { label: "Total Expenses", depth: 0, totals: expenseTotals, total: expenseTotals.reduce((s, v) => s + v, 0) },
+      netIncome: periods.map((_, i) => (revenueTotals[i] ?? 0) - (expenseTotals[i] ?? 0)),
+    };
+  }, [cube, dateFrom, dateTo]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -137,7 +121,10 @@ export function MonthlyDashboardPage() {
         <DateRangePicker
           dateFrom={dateFrom}
           dateTo={dateTo}
-          onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
+          onChange={(from, to) => {
+            setDateFrom(from);
+            setDateTo(to);
+          }}
           align="end"
         />
       </PageHeader>
@@ -145,7 +132,7 @@ export function MonthlyDashboardPage() {
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}
 
-      {data && (
+      {view && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium text-muted-foreground">
@@ -163,7 +150,7 @@ export function MonthlyDashboardPage() {
                     >
                       Account
                     </th>
-                    {periods.map((p, i) => (
+                    {view.periods.map((p, i) => (
                       <th key={i} className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                         {formatPeriodHeader(p)}
                       </th>
@@ -174,25 +161,25 @@ export function MonthlyDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {revenueRows.length > 0 && (
+                  {view.revenueRows.length > 0 && (
                     <>
-                      <SectionHeaderRow label="Revenues" colCount={periods.length} />
-                      {revenueRows.map((row, i) => (
-                        <AccountRow key={i} row={row} periods={periods} isRevenue={true} />
+                      <SectionHeaderRow label="Revenues" colCount={view.periods.length} />
+                      {view.revenueRows.map((row) => (
+                        <AccountRow key={row.account} row={row} isRevenue />
                       ))}
+                      <AccountRow row={view.revenueTotal} isRevenue isTotal />
                     </>
                   )}
-                  {expenseRows.length > 0 && (
+                  {view.expenseRows.length > 0 && (
                     <>
-                      <SectionHeaderRow label="Expenses" colCount={periods.length} />
-                      {expenseRows.map((row, i) => (
-                        <AccountRow key={i} row={row} periods={periods} isRevenue={false} />
+                      <SectionHeaderRow label="Expenses" colCount={view.periods.length} />
+                      {view.expenseRows.map((row) => (
+                        <AccountRow key={row.account} row={row} isRevenue={false} />
                       ))}
+                      <AccountRow row={view.expenseTotal} isRevenue={false} isTotal />
                     </>
                   )}
-                  {periods.length > 0 && (
-                    <NetIncomeRow periods={periods} netAmounts={netAmounts} />
-                  )}
+                  {view.periods.length > 0 && <NetIncomeRow values={view.netIncome} />}
                 </tbody>
               </table>
             </div>

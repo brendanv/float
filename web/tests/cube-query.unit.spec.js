@@ -23,6 +23,7 @@ import {
   balanceSeries,
   dateRange,
   flowByAccount,
+  flowMatrix,
   flowSeries,
   flowSums,
   flowTotal,
@@ -195,6 +196,66 @@ test.describe("account types", () => {
     const cube = loadFixture();
     expect(flowTotal(cube, { type: "X", account: "expenses:food" })).toBeCloseTo(503.09, 2);
     expect(flowTotal(cube, { type: "R", account: "expenses" })).toBe(0);
+  });
+});
+
+test.describe("account matrix", () => {
+  test("aggregates parent rows the way hledger --tree does", () => {
+    const cube = loadFixture();
+    const { periods, rows } = flowMatrix(cube, {
+      type: "X",
+      from: "2023-01-01",
+      to: "2023-03-01",
+    });
+    expect(periods).toEqual(["2023-01", "2023-02"]);
+
+    const byAccount = Object.fromEntries(rows.map((r) => [r.account, r]));
+    // Every tier gets a row, and a parent equals the sum of its children.
+    expect(byAccount["expenses"].totals).toEqual([1532.35, 110.1]);
+    expect(byAccount["expenses:food"].totals).toEqual([82.35, 110.1]);
+    expect(byAccount["expenses:food:groceries"].totals).toEqual([82.35, 47.1]);
+    expect(byAccount["expenses:food:restaurants"].totals).toEqual([0, 63]);
+    expect(byAccount["expenses:home:rent"].totals).toEqual([1450, 0]);
+
+    expect(byAccount["expenses:food"].total).toBeCloseTo(192.45, 2);
+    expect(byAccount["expenses"].total).toBeCloseTo(1642.45, 2);
+  });
+
+  test("carries depth for indentation and sorts by account path", () => {
+    const cube = loadFixture();
+    const { rows } = flowMatrix(cube, { type: "X" });
+    expect(rows.map((r) => r.account)).toEqual([
+      "expenses",
+      "expenses:food",
+      "expenses:food:groceries",
+      "expenses:food:restaurants",
+      "expenses:home",
+      "expenses:home:rent",
+    ]);
+    expect(rows.map((r) => r.depth)).toEqual([0, 1, 2, 2, 1, 2]);
+    expect(rows.map((r) => r.label)).toEqual([
+      "expenses",
+      "food",
+      "groceries",
+      "restaurants",
+      "home",
+      "rent",
+    ]);
+  });
+
+  test("a parent row equals the sum of its own subtree total", () => {
+    const cube = loadFixture();
+    const { rows } = flowMatrix(cube, { type: "X" });
+    const root = rows.find((r) => r.account === "expenses");
+    expect(root.total).toBeCloseTo(flowTotal(cube, { account: "expenses" }), 6);
+  });
+
+  test("revenue rows carry the raw credit sign for the caller to flip", () => {
+    const cube = loadFixture();
+    const { rows } = flowMatrix(cube, { type: "R" });
+    const salary = rows.find((r) => r.account === "revenues:salary");
+    // Raw postings, not hledger's income-statement presentation.
+    expect(salary.total).toBeCloseTo(-15200.0, 2);
   });
 });
 

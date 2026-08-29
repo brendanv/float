@@ -282,6 +282,79 @@ export function flowByAccount(cube, filter = {}, depth = 2) {
 }
 
 /**
+ * Builds an account-by-period matrix with parent rows aggregated, the shape an
+ * income statement needs.
+ *
+ * Every posting contributes to its own account row and to each of its ancestor
+ * rows, which is what `hledger is --tree` does. Rows come back sorted by
+ * account path with a `depth` for indentation.
+ *
+ * Unlike hledger's tree rendering this does not collapse single-child chains
+ * ("home" and "home:rent" both get a row rather than one combined "home:rent"),
+ * so the same totals are shown across slightly more rows.
+ */
+export function flowMatrix(cube, filter = {}) {
+  assertSummableOverTime(cube, "postings", "amount");
+
+  const periods = periodsInRange(cube, filter.from, filter.to);
+  const periodIndex = new Map(periods.map((p, i) => [p, i]));
+  const { columns } = cube.tables.postings;
+  const [start, end] = dateRange(cube, filter.from, filter.to);
+  const mask = accountFilterMask(cube, filter.account, filter.type);
+  const code = filter.commodity ?? cube.reportingCurrency;
+  const wantCommodity = commodityId(cube, code);
+
+  // Each account's own path plus every ancestor path, computed once per cube.
+  let ancestors = cube._cache.get("ancestors");
+  if (!ancestors) {
+    ancestors = cube.accountPaths.map((path) => {
+      const parts = path.split(":");
+      return parts.map((_, i) => parts.slice(0, i + 1).join(":"));
+    });
+    cube._cache.set("ancestors", ancestors);
+  }
+
+  const epoch = utcDay(cube.epochDate);
+  const byAccount = new Map();
+  for (let i = start; i < end; i++) {
+    const acct = columns.account[i];
+    if (mask && !mask[acct]) continue;
+    if (wantCommodity !== -1 && columns.commodity[i] !== wantCommodity) continue;
+
+    const d = new Date(epoch + columns.date[i] * MS_PER_DAY);
+    const period = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const col = periodIndex.get(period);
+    if (col === undefined) continue;
+
+    const amount = columns.amount[i];
+    for (const path of ancestors[acct]) {
+      let totals = byAccount.get(path);
+      if (!totals) {
+        totals = new Float64Array(periods.length);
+        byAccount.set(path, totals);
+      }
+      totals[col] += amount;
+    }
+  }
+
+  const commodityIndex = wantCommodity === -1 ? 0 : wantCommodity;
+  const rows = [...byAccount.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([account, minor]) => {
+      const totals = Array.from(minor, (v) => toMajor(cube, commodityIndex, v));
+      return {
+        account,
+        label: account.split(":").pop(),
+        depth: account.split(":").length - 1,
+        totals,
+        total: totals.reduce((sum, v) => sum + v, 0),
+      };
+    });
+
+  return { periods, rows };
+}
+
+/**
  * Totals a stock measure for a single period, rolled up over an account
  * subtree, in major units.
  *

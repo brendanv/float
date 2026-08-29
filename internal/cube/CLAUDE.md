@@ -32,8 +32,15 @@ Builds a precomputed, column-oriented read model of the ledger so the web dashbo
 | `hledger.PostingRows` | `print -O csv` | CSV not JSON: 3.8s/5.1MB vs 9.4s/56MB for the same data on a 24k-transaction journal. hledger's cost on large reports is JSON serialization. |
 | `hledger.PeriodBalancesValued` | `bal --monthly --historical --layout=bare --infer-market-prices --value=end,USD type:AL -O csv` | `bal` not `bs`: `bs` renders liabilities positive by display convention, which would have to be undone per-section. `bal` reports raw signed balances and emits month labels directly. |
 | `hledger.PeriodBalancesCost` | same, with `--cost` | cost basis |
+| `hledger.Accounts(tree=false)` | `accounts --types` | account type letters, so the client can reproduce `type:` queries |
 
-The three run concurrently, so a build costs roughly the slowest of them (~4s on a 24k-transaction journal) rather than their sum.
+The four run concurrently, so a build costs roughly the slowest of them (~3.5s on a 24k-transaction journal) rather than their sum.
+
+## Account types
+
+Types come from account directives and hledger's own inference — **not** from the top-level account name, which is only a default. They are inherited by descendants, and `TypeMatches` encodes hledger's two subtype relations: Cash (C) is a kind of Asset and Conversion (V) a kind of Equity, so `type:A` matches cash accounts.
+
+That subtype rule is not optional trivia: hledger types a plainly-named `assets:checking` as `C`, so exact-match comparison reports **zero assets** on an ordinary ledger. `TestTypeSubtypesMatchHledger` pins it on `testdata/multi.journal`, which mixes both.
 
 ## Precision
 
@@ -58,4 +65,10 @@ Two things that suite learned the hard way, both worth preserving:
 - **Every date-sensitive case must name an account.** A balanced double-entry journal sums to zero over any slice with no account filter, so an unfiltered case discriminates nothing.
 - **Some bounds must land exactly on a posting date.** Without them, treating hledger's exclusive upper bound as inclusive passes every other case.
 
-`testdata/multi.journal` is priced and multi-commodity on purpose: a suite that only sees single-currency USD flows passes while the valuation path is broken.
+`testdata/multi.journal` is priced and multi-commodity on purpose: a suite that only sees single-currency USD flows passes while the valuation path is broken. It also mixes A- and C-typed asset accounts, which `simple.journal` does not.
+
+`TestWriteWebFixture` regenerates the payload the web unit tests decode, so the JS reader is exercised against bytes this package actually produced:
+
+```bash
+FLOAT_WRITE_CUBE_FIXTURE=1 go test ./internal/cube/ -run TestWriteWebFixture
+```

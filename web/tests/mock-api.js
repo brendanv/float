@@ -2,6 +2,18 @@
 // The Connect protocol sends POST requests with JSON bodies; responses are
 // plain JSON objects matching the proto message shapes.
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// The dashboard cube is served as plain binary over /api/cube, not as an RPC,
+// so it needs its own route. The fixture is a payload internal/cube actually
+// encoded from testdata/simple.journal — regenerate with
+// FLOAT_WRITE_CUBE_FIXTURE=1 go test ./internal/cube/ -run TestWriteWebFixture
+const cubeFixturePath = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "cube.bin");
+// Matches the generation cube_test.go builds the fixture with.
+export const mockCubeGeneration = 1;
+
 export const mockAccounts = [
   { name: "assets", fullName: "assets", type: "A", depth: 1 },
   { name: "checking", fullName: "assets:checking", type: "A", depth: 2 },
@@ -1501,6 +1513,23 @@ export async function mockLedgerApi(
     aiEnabled = true,
   } = {},
 ) {
+  await page.route("**/api/generation", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ generation: mockCubeGeneration }),
+    });
+  });
+
+  await page.route("**/api/cube/*.bin", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/octet-stream",
+      headers: { "x-float-generation": String(mockCubeGeneration) },
+      body: readFileSync(cubeFixturePath),
+    });
+  });
+
   await page.route("**/float.v1.LedgerService/**", async (route) => {
     const url = route.request().url();
     const method = url.split("/").pop();
