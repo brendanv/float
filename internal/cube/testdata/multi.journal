@@ -1,0 +1,40 @@
+; Multi-commodity fixture with market prices and cost annotations.
+; Exercises the Rule 1 boundary: VTI is held in shares, valued via P
+; directives, and carries a cost basis that differs from market value.
+; Also exercises a commodity whose scale (8 places) exceeds USD's.
+
+account assets:checking
+account assets:brokerage
+account assets:wallet
+account expenses:fees
+account revenues:salary
+
+commodity 1000.00 USD
+commodity 1000.00000000 BTC
+
+P 2024-01-31 VTI 230.00 USD
+P 2024-02-29 VTI 245.50 USD
+P 2024-03-31 VTI 251.25 USD
+P 2024-01-31 BTC 42000.00 USD
+P 2024-02-29 BTC 61000.00 USD
+P 2024-03-31 BTC 71000.00 USD
+
+2024-01-10 (bbbb0001) Acme Payroll | january
+    assets:checking     10000.00 USD
+    revenues:salary
+
+2024-01-15 (bbbb0002) Broker | buy VTI
+    assets:brokerage         10 VTI @ 220.00 USD
+    assets:checking
+
+2024-02-05 (bbbb0003) Exchange | buy BTC
+    assets:wallet      0.05000000 BTC @ 55000.00 USD
+    assets:checking
+
+2024-02-20 (bbbb0004) Broker | buy VTI
+    assets:brokerage          5 VTI @ 240.00 USD
+    assets:checking
+
+2024-03-02 (bbbb0005) Broker | fee
+    expenses:fees            12.50 USD
+    assets:checking

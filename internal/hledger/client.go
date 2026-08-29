@@ -577,3 +577,57 @@ func (c *Client) PrintCSV(ctx context.Context, csvFile, rulesFile string) ([]Tra
 
 	return parseTransactions(stdout)
 }
+
+// PostingRows runs `hledger print -O csv -f <journal>` and returns one row per
+// posting.
+//
+// CSV rather than JSON is deliberate and load-bearing for build time: on a
+// 24k-transaction journal `print -O csv` takes ~3.8s and emits 5.1MB, while
+// `print -O json` takes ~9.4s and emits 56MB for the same data. hledger's cost
+// on large reports is dominated by JSON serialization, so the columnar
+// consumer in internal/cube reads CSV.
+func (c *Client) PostingRows(ctx context.Context) ([]PostingRow, error) {
+	args := []string{"print", "-O", "csv", "-f", c.journal}
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger print (csv): %w", err))
+	}
+	return parsePostingRowsCSV(stdout)
+}
+
+// periodBalances runs a monthly historical `hledger bal` restricted to assets
+// and liabilities, with extra flags supplied by the caller to select the
+// valuation basis.
+//
+// `bal` rather than `bs` is deliberate: `bs` applies the balance-sheet display
+// convention that renders liabilities as positive numbers, which would have to
+// be undone per-section to recover real signed balances. `bal` reports raw
+// signed balances (liabilities negative), emits month labels directly, and is
+// both faster and far smaller.
+func (c *Client) periodBalances(ctx context.Context, extra []string) (*PeriodBalances, error) {
+	args := []string{"bal", "-O", "csv", "-f", c.journal, "--monthly", "--historical", "--layout=bare"}
+	args = append(args, extra...)
+	args = append(args, "type:AL")
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bal (period balances): %w", err))
+	}
+	return parsePeriodBalancesCSV(stdout)
+}
+
+// PeriodBalancesValued returns market-valued month-end balances for asset and
+// liability accounts. valueSpec is an hledger --value argument, e.g. "end,USD".
+//
+// These are stock measures: they may be rolled up the account tree at a fixed
+// period, but never summed across periods. See internal/cube.
+func (c *Client) PeriodBalancesValued(ctx context.Context, valueSpec string) (*PeriodBalances, error) {
+	return c.periodBalances(ctx, []string{"--infer-market-prices", "--value=" + valueSpec})
+}
+
+// PeriodBalancesCost returns cost-basis month-end balances for asset and
+// liability accounts, converting each posting at its transaction cost
+// annotation. Like PeriodBalancesValued, the result is a stock measure.
+func (c *Client) PeriodBalancesCost(ctx context.Context) (*PeriodBalances, error) {
+	return c.periodBalances(ctx, []string{"--cost"})
+}

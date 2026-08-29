@@ -250,3 +250,39 @@ type CheckError struct {
 }
 
 func (e *CheckError) Error() string { return e.Output }
+
+// PostingRow is one row of `hledger print -O csv`: a single posting, with its
+// parent transaction's date, status, code, and description denormalized onto
+// it. It is the flat fact-row form used to build the dashboard read model in
+// internal/cube.
+//
+// Amount is the exact decimal string hledger emitted, not a float64. Callers
+// that aggregate convert it to integer minor units at the commodity's own
+// scale; a float64 round-trip would lose precision on commodities carrying
+// more than a few decimal places (shares, crypto).
+type PostingRow struct {
+	Date        string // "YYYY-MM-DD"
+	Status      string
+	Code        string // float's 8-character transaction code, when present
+	Description string
+	Account     string
+	Amount      string // exact decimal, e.g. "-1234.56"
+	Commodity   string
+}
+
+// PeriodBalances is the wide output of a `hledger bal --monthly` report: one
+// row per account/commodity pair, carrying one amount per period.
+type PeriodBalances struct {
+	// Periods are month labels as hledger emits them, e.g. "2016-01".
+	Periods []string
+	Rows    []PeriodBalanceRow
+}
+
+// PeriodBalanceRow holds one account's balance in one commodity across every
+// period. len(Amounts) == len(PeriodBalances.Periods); entries are empty
+// strings where the report had no value for that period.
+type PeriodBalanceRow struct {
+	Account   string
+	Commodity string
+	Amounts   []string
+}

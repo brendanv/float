@@ -1,0 +1,67 @@
+; Single-commodity fixture with a stable, hand-checkable shape.
+; Two years, a handful of accounts, a repeated payee, and one month with no
+; activity at all (2023-04) so sparse periods are exercised.
+
+account assets:checking
+account assets:savings
+account liabilities:card
+account expenses:food:groceries
+account expenses:food:restaurants
+account expenses:home:rent
+account revenues:salary
+
+2023-01-05 (aaaa0001) Acme Payroll | january
+    assets:checking      3000.00 USD
+    revenues:salary
+
+2023-01-07 (aaaa0002) Corner Store | weekly shop
+    expenses:food:groceries    82.35 USD
+    liabilities:card
+
+2023-01-20 (aaaa0003) Landlord
+    expenses:home:rent       1450.00 USD
+    assets:checking
+
+2023-02-05 (aaaa0004) Acme Payroll | february
+    assets:checking      3000.00 USD
+    revenues:salary
+
+2023-02-11 (aaaa0005) Corner Store | weekly shop
+    expenses:food:groceries    47.10 USD
+    liabilities:card
+
+2023-02-18 (aaaa0006) Trattoria
+    expenses:food:restaurants   63.00 USD
+    liabilities:card
+
+2023-03-05 (aaaa0007) Acme Payroll | march
+    assets:checking      3000.00 USD
+    revenues:salary
+
+2023-03-09 (aaaa0008) Corner Store | weekly shop
+    expenses:food:groceries   115.99 USD
+    liabilities:card
+
+2023-03-31 (aaaa0009) Transfer
+    assets:savings       500.00 USD
+    assets:checking
+
+2023-05-02 (aaaa0010) Acme Payroll | may
+    assets:checking      3000.00 USD
+    revenues:salary
+
+2023-05-14 (aaaa0011) Trattoria
+    expenses:food:restaurants  101.25 USD
+    liabilities:card
+
+2024-01-05 (aaaa0012) Acme Payroll | january
+    assets:checking      3200.00 USD
+    revenues:salary
+
+2024-01-22 (aaaa0013) Corner Store | weekly shop
+    expenses:food:groceries    93.40 USD
+    liabilities:card
+
+2024-02-29 (aaaa0014) Landlord
+    expenses:home:rent       1500.00 USD
+    assets:checking

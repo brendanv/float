@@ -1,6 +1,8 @@
 package hledger
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -176,9 +178,9 @@ func parseBalanceSheetTimeseries(data []byte) (*BalanceSheetTimeseries, error) {
 		PrTotals prrRow `json:"prTotals"`
 	}
 	type bsJSON struct {
-		CbrDates      [][]dateEntry      `json:"cbrDates"`
-		CbrSubreports []json.RawMessage  `json:"cbrSubreports"`
-		CbrTotals     prrRow             `json:"cbrTotals"`
+		CbrDates      [][]dateEntry     `json:"cbrDates"`
+		CbrSubreports []json.RawMessage `json:"cbrSubreports"`
+		CbrTotals     prrRow            `json:"cbrTotals"`
 	}
 
 	var raw bsJSON
@@ -411,4 +413,114 @@ func parsePayees(data []byte) []string {
 		}
 	}
 	return payees
+}
+
+// parsePostingRowsCSV parses the output of `hledger print -O csv`, whose
+// header is:
+//
+//	txnidx,date,date2,status,code,description,comment,
+//	account,amount,commodity,credit,debit,posting-status,posting-comment
+//
+// Columns are located by header name rather than by position so a future
+// hledger release that adds a column does not silently shift the parse.
+func parsePostingRowsCSV(data []byte) ([]PostingRow, error) {
+	records, err := csv.NewReader(bytes.NewReader(data)).ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("parsePostingRowsCSV: %w", err)
+	}
+	if len(records) == 0 {
+		return nil, nil
+	}
+	idx, err := csvHeaderIndex(records[0], "date", "status", "code", "description", "account", "amount", "commodity")
+	if err != nil {
+		return nil, fmt.Errorf("parsePostingRowsCSV: %w", err)
+	}
+	rows := make([]PostingRow, 0, len(records)-1)
+	for _, rec := range records[1:] {
+		if len(rec) < len(records[0]) {
+			continue
+		}
+		rows = append(rows, PostingRow{
+			Date:        rec[idx["date"]],
+			Status:      rec[idx["status"]],
+			Code:        rec[idx["code"]],
+			Description: rec[idx["description"]],
+			Account:     rec[idx["account"]],
+			Amount:      rec[idx["amount"]],
+			Commodity:   rec[idx["commodity"]],
+		})
+	}
+	return rows, nil
+}
+
+// parsePeriodBalancesCSV parses the output of
+// `hledger bal --monthly --layout=bare -O csv`, whose shape is:
+//
+//	"account","commodity","2016-01","2016-02",...
+//	"assets:checking","USD","8567.27","-4286.72",...
+//	"Total:","USD",...
+//
+// The trailing "Total:" row is dropped — it is a report artifact, not an
+// account, and callers roll their own totals up the account tree.
+func parsePeriodBalancesCSV(data []byte) (*PeriodBalances, error) {
+	records, err := csv.NewReader(bytes.NewReader(data)).ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("parsePeriodBalancesCSV: %w", err)
+	}
+	if len(records) == 0 {
+		return &PeriodBalances{}, nil
+	}
+	header := records[0]
+	if len(header) < 2 {
+		return nil, fmt.Errorf("parsePeriodBalancesCSV: header has %d columns, need at least 2", len(header))
+	}
+	out := &PeriodBalances{Periods: append([]string(nil), header[2:]...)}
+	for _, rec := range records[1:] {
+		if len(rec) < 2 || rec[0] == "Total:" || rec[0] == "" {
+			continue
+		}
+		amounts := make([]string, len(out.Periods))
+		for i := range amounts {
+			if col := i + 2; col < len(rec) {
+				amounts[i] = rec[col]
+			}
+		}
+		out.Rows = append(out.Rows, PeriodBalanceRow{
+			Account:   rec[0],
+			Commodity: rec[1],
+			Amounts:   amounts,
+		})
+	}
+	return out, nil
+}
+
+// csvHeaderIndex maps each wanted column name to its position in header,
+// erroring if any is absent.
+func csvHeaderIndex(header []string, want ...string) (map[string]int, error) {
+	pos := make(map[string]int, len(header))
+	for i, h := range header {
+		pos[strings.TrimSpace(h)] = i
+	}
+	idx := make(map[string]int, len(want))
+	for _, w := range want {
+		i, ok := pos[w]
+		if !ok {
+			return nil, fmt.Errorf("missing expected column %q in header %v", w, header)
+		}
+		idx[w] = i
+	}
+	return idx, nil
+}
+
+// PayeeOf returns the payee portion of a transaction description, applying the
+// same "payee | note" convention as Transaction.Payee. Descriptions without a
+// "|" are payees in their entirety.
+//
+// Exported for internal/cube, which builds a payee dimension from flat
+// PostingRow descriptions rather than from full Transaction values.
+func PayeeOf(desc string) string {
+	if payee, _ := splitPayeeNote(desc); payee != nil {
+		return *payee
+	}
+	return strings.TrimSpace(desc)
 }
