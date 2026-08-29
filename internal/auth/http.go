@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // cookieMaxAge is one year; sessions are effectively permanent until the
@@ -113,4 +114,39 @@ func LoginHTTP(ctx context.Context, client *http.Client, baseURL, passphrase str
 		return "", fmt.Errorf("login: decode response: %w", err)
 	}
 	return out.Token, nil
+}
+
+// RequireAuth wraps an http.Handler with the same credential check the Connect
+// interceptor applies, rejecting unauthenticated requests with 401.
+//
+// Plain HTTP endpoints that serve ledger data need this explicitly. The static
+// web assets are deliberately served without auth so the SPA shell can render
+// the login page, so "it is served over HTTP by floatd" is not by itself a
+// reason to consider an endpoint protected.
+func (a *Auth) RequireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !a.authorizedRequest(r) {
+			http.Error(w, "authentication required", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// authorizedRequest reports whether r carries a valid credential: an
+// Authorization: Bearer header (passphrase or session token) or the session
+// cookie. Always true when auth is disabled.
+func (a *Auth) authorizedRequest(r *http.Request) bool {
+	if !a.Enabled() {
+		return true
+	}
+	if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		if a.VerifyCredential(bearer) {
+			return true
+		}
+	}
+	if c, err := r.Cookie(CookieName); err == nil {
+		return a.VerifyToken(c.Value)
+	}
+	return false
 }

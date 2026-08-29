@@ -162,6 +162,7 @@ func main() {
 		handler,
 		connect.WithInterceptors(
 			middleware.NewLoggingInterceptor(logger),
+			middleware.NewGenerationInterceptor(lock.Generation),
 			auth.NewServerInterceptor(authn),
 		),
 	)
@@ -169,12 +170,20 @@ func main() {
 	mux.Handle("/api/auth", authn.StatusHandler())
 	mux.Handle("/api/login", authn.LoginHandler())
 	mux.Handle("/api/logout", authn.LogoutHandler())
+	mux.Handle("/api/generation", authn.RequireAuth(handler.GenerationHandler()))
+	// The cube is the entire ledger, so unlike the static assets below it must
+	// sit behind auth.
+	mux.Handle("/api/cube/", authn.RequireAuth(handler.CubeHandler()))
 	mux.Handle("/", webui.Handler())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	go handler.StartDailyStripeImport(ctx)
+	// Warm the dashboard cube so the first page load after a restart does not
+	// pay for the build. Writes deliberately do not trigger a rebuild: keeping
+	// the build off the write path matters more, and the lazy path rebuilds.
+	go handler.WarmCube(ctx)
 
 	httpSrv := &http.Server{Addr: listenAddr, Handler: h2c.NewHandler(mux, &http2.Server{})}
 	shutdownDone := make(chan struct{})

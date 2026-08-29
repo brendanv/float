@@ -22,6 +22,7 @@ Current cached families include:
 - `networth:<begin>:<end>`
 - `incomestmt:<begin>:<end>`
 - `portfolio:<accounts>:<begin>` and `portfoliocost:<accounts>:<begin>`
+- `cube:<config-hash>` — the encoded dashboard cube (see `handler_cube.go`)
 
 Pagination (`limit`/`offset`) is applied after loading/caching the full hledger result.
 
@@ -74,6 +75,34 @@ AI handlers use `internal/ai` and OpenRouter via `OPENROUTER_API_KEY`. They can 
 ### Settings / Logs / Debug
 
 Settings handlers manage Alpha Vantage API key, AI model/prompt, Stripe customer/daily import config, and timezone. `RunHledgerQuery` runs a constrained raw hledger command with `-f <journal>` automatically prepended. `ExportJournal` runs `hledger print -f <journal>` and returns the flattened journal (all includes inlined) as bytes plus a suggested filename, for a one-file download of the entire ledger. `StreamLogs` streams broadcast slog entries filtered by minimum level.
+
+## Plain HTTP endpoints
+
+Not everything is an RPC. `handler_cube.go` serves the dashboard read model
+(`internal/cube`) over plain HTTP, because the payload is bulk binary the client
+decodes as zero-copy typed arrays rather than an API message.
+
+- `GET /api/cube/{generation}.bin` — the encoded cube. The generation is in the
+  path so the URL is content-addressed: the response is `immutable` with a
+  one-year max-age, and a request for any generation other than the current one
+  gets 409 plus the current generation rather than a stale payload. The
+  generation is re-checked after the build in case a write landed while hledger
+  was running.
+- `GET /api/generation` — the current txlock generation, for the initial page
+  load. Afterwards `middleware.NewGenerationInterceptor` stamps
+  `X-Float-Generation` on every Connect response, so ordinary RPCs keep the
+  client current with no polling.
+
+**Both must be wrapped in `auth.RequireAuth` when registered.** The static web
+assets are deliberately served without auth so the SPA shell can render the
+login page; being served over HTTP by floatd is not by itself protection, and
+the cube is the entire ledger.
+
+The cube build runs hledger and takes seconds, so it must never be called from
+inside `txlock.Do`. Writes bump the generation as usual and the next request
+rebuilds lazily, with the cache's singleflight collapsing concurrent callers.
+`WarmCube` pre-builds once at startup so a restart does not make the first
+dashboard load pay for it.
 
 ## Adding a New RPC
 
