@@ -512,10 +512,9 @@ Add a JS test asserting `cube.balance()` throws when handed a date range.
 | Build time grows with journal | Off the write path, lazy + background warm; revisit grouping sets past ~5 MB |
 | Cube becomes a second source of truth | No mutation path reads it; always safe to delete |
 
-**Non-goals for this plan:** parquet/hyparquet, DuckDB-WASM, grouping sets, R2 or any
-external object storage, and TUI adoption. The TUI (`cmd/float/ui`) talks to the same
-server and could consume the cube later, but it does not share the browser's caching model
-and is out of scope here.
+**Non-goals for this plan:** parquet/hyparquet, DuckDB-WASM, grouping sets, and R2 or any
+external object storage. The web UI is the only client, so the cube is shaped around what
+a browser can cache and slice.
 
 **Deferred — the tag dimension.** float's tags live in transaction comments, and
 `print -O csv` exposes them only as raw `comment` / `posting-comment` text rather than as
