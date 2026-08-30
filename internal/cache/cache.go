@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -18,6 +19,10 @@ type Cache[T any] struct {
 	gen   func() uint64
 	tiers map[uint64]map[string]T
 	sf    singleflight.Group
+
+	hits   atomic.Uint64
+	misses atomic.Uint64
+	loads  atomic.Uint64
 }
 
 // New returns a Cache whose entries are invalidated when gen() advances.
@@ -35,13 +40,16 @@ func New[T any](gen func() uint64) *Cache[T] {
 func (c *Cache[T]) Get(ctx context.Context, key string, load func(context.Context) (T, error)) (T, error) {
 	currentGen := c.gen()
 	if val, ok := c.lookup(key, currentGen); ok {
+		c.hits.Add(1)
 		return val, nil
 	}
+	c.misses.Add(1)
 	// Miss: deduplicate concurrent loads for the same key+generation.
 	// The singleflight key is generation-scoped so callers at different
 	// generations never share a result.
 	sfKey := fmt.Sprintf("%s@gen%d", key, currentGen)
 	v, err, _ := c.sf.Do(sfKey, func() (any, error) {
+		c.loads.Add(1)
 		loaded, err := load(ctx)
 		if err != nil {
 			return nil, err
@@ -54,6 +62,14 @@ func (c *Cache[T]) Get(ctx context.Context, key string, load func(context.Contex
 		return zero, err
 	}
 	return v.(T), nil
+}
+
+// Stats returns the cumulative count of Get calls served from cache (hits),
+// Get calls that missed and went to singleflight (misses), and load funcs
+// actually executed (loads — lower than misses when concurrent callers
+// deduplicate onto one load).
+func (c *Cache[T]) Stats() (hits, misses, loads uint64) {
+	return c.hits.Load(), c.misses.Load(), c.loads.Load()
 }
 
 func (c *Cache[T]) lookup(key string, gen uint64) (T, bool) {

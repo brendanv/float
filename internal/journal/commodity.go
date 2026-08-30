@@ -10,19 +10,19 @@ import (
 // EnsureCommodityDirective ensures a `commodity 1,000.00 <code>` directive
 // exists in main.journal. If absent it is inserted before any include lines.
 // This tells hledger the canonical display format for the given currency so it
-// normalises output consistently.
+// normalises output consistently. Returns whether main.journal was modified.
 // Does NOT acquire txlock — callers must wrap in txlock.Do().
-func EnsureCommodityDirective(dataDir, code string) error {
+func EnsureCommodityDirective(dataDir, code string) (bool, error) {
 	mainPath := filepath.Join(dataDir, "main.journal")
 	existing, err := os.ReadFile(mainPath)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("journal: read main.journal: %w", err)
+		return false, fmt.Errorf("journal: read main.journal: %w", err)
 	}
 
 	lines := strings.Split(string(existing), "\n")
 	for _, line := range lines {
 		if hasCommodityDirective(line, code) {
-			return nil // already present
+			return false, nil // already present
 		}
 	}
 
@@ -47,7 +47,10 @@ func EnsureCommodityDirective(dataDir, code string) error {
 	if !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
-	return os.WriteFile(mainPath, []byte(content), 0644)
+	if err := os.WriteFile(mainPath, []byte(content), 0644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // hasCommodityDirective checks whether line is a commodity directive for code.

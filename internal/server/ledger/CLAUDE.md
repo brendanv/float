@@ -4,7 +4,7 @@ ConnectRPC handler implementing `LedgerService`. This is the main application se
 
 ## Handler
 
-`Handler` holds references to the hledger client, txlock, data directory, config path, generation cache, gitsnap repo, in-memory config, and log broadcaster. Construct it with `NewHandler(...)` from `cmd/floatd`.
+`Handler` holds references to the hledger client, txlock, data directory, config path, generation cache, a recently-used-accounts LRU, gitsnap repo, in-memory config, and log broadcaster. Construct it with `NewHandler(...)` from `cmd/floatd`.
 
 All accounting queries delegate to `internal/hledger`. All journal/config/rules/import mutations must run in `lock.Do(ctx, "message", fn)` unless they are purely read-only.
 
@@ -24,6 +24,20 @@ Current cached families include:
 - `portfolio:<accounts>:<begin>` and `portfoliocost:<accounts>:<begin>`
 
 Pagination (`limit`/`offset`) is applied after loading/caching the full hledger result.
+
+## Proactive Warming (`warm.go`)
+
+`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1, full-history `networth`/`incomestmt`, plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
+
+## Filtering in Go (`internal/txfilter`)
+
+`ListTransactions`, `GetImportedTransactions`, `ListImports`, and `GetAccountRegister` prefer serving a query from a single canonical unfiltered fetch — `transactions:(nil)` / `aregister:<account>:(nil)` — filtered in Go, instead of a query-keyed hledger invocation. `filteredTransactions`/`filteredAregister` call `txfilter.Parse(query)` first: if every token is within its supported vocabulary (`date`, `acct`, `tag`, `payee`, `desc`, `status`, `code`, and `not:` negations), they load the unfiltered fetch and filter in memory; otherwise they fall back to a dedicated cached hledger query exactly as before. `internal/txfilter` has table-driven tests that run real hledger over fixtures and assert equivalence — extend those fixtures/cases rather than hand-verifying new token behavior.
+
+`hledger areg`'s `date:` filtering matches on ANY posting's effective date (including posting-date overrides on legs other than the focused account), which differs from `print`'s transaction-date-only semantics that `txfilter`'s date predicate assumes. Rather than reimplement areg's exact rule, `filteredAregister` falls back to `cachedAregister` (a real hledger `areg` query) whenever the query contains a `date:`/`not:date:` token, keeping the Go path for the tag/status/payee/desc filters it was built for.
+
+`GetPortfolioHoldings` and `GetPortfolioTimeseries` fetch the unfiltered `balances:0:(nil)`/`transactions:(nil)` datasets and filter by `AccountPrefix` in Go (`accountMatchesPrefix`/`transactionTouchesPrefix`) — this is a plain account-name-prefix match, not hledger's general regex matching, and is fine because `AccountPrefix` is always a literal prefix from the UI, not accounting logic.
+
+`GetNetWorthTimeseries` and `GetIncomeStatementTimeseries` serve a month-aligned `begin`/`end` (`isMonthAligned`: `""` or a first-of-month date) by fetching the full-history timeseries once and slicing `Periods`/`Totals`/`NetAmounts` in Go (`sliceBalanceSheetTimeseries`/`sliceIncomeStatementTimeseries`); a non-month-aligned range still goes straight to hledger, since `bs`/`is --monthly` would otherwise generate a partial period anchored to that exact date, which slicing the full-history period list can't reproduce. Income statement row totals (`ISRow.TotalAmounts`) are recomputed over just the sliced periods (`sumAmounts`), since the full-history fetch's row totals cover every period.
 
 ## RPC Categories
 

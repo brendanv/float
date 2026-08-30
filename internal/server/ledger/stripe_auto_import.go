@@ -189,10 +189,23 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		h.afterDailyImportPreFetch()
 	}
 
+	// Whether any account has candidate transactions to write, known before
+	// acquiring the lock. When false, the locked section only stamps
+	// LastFetchedAt/LastDailyImportAt in config.toml, so it can use DoConfig
+	// and skip the full-journal check and generation bump — this is the
+	// common case for the daily tick when nothing new has settled.
+	hasCandidates := false
+	for _, batch := range batches {
+		if len(batch.newTxns) > 0 {
+			hasCandidates = true
+			break
+		}
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	totalImported := 0
 	perAccountImported := make(map[string]int)
-	if err := h.lock.DoWith(ctx, "stripe daily auto-import", []string{h.configPath}, func() error {
+	fn := func() error {
 		// Refresh the imported-ID set inside the lock so that transactions written by a
 		// concurrent operation (e.g. a manual ImportStripeTransactions) between our
 		// pre-lock dedup and lock acquisition are not written a second time. This mirrors
@@ -240,8 +253,16 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		}
 		h.cfg.Store(&newCfg)
 		return nil
-	}); err != nil {
-		logger.ErrorContext(ctx, "daily stripe import: write failed", "error", err)
+	}
+
+	var lockErr error
+	if hasCandidates {
+		lockErr = h.lock.DoWith(ctx, "stripe daily auto-import", []string{h.configPath}, fn)
+	} else {
+		lockErr = h.lock.DoConfig(ctx, "stripe daily auto-import (no new transactions)", []string{h.configPath}, fn)
+	}
+	if lockErr != nil {
+		logger.ErrorContext(ctx, "daily stripe import: write failed", "error", lockErr)
 		return 0, perAccountErrs
 	}
 

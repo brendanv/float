@@ -5,6 +5,14 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 ## Key Types
 
 - `Client` — wraps the hledger binary, the main journal path, and a command runner. `New(bin, journal)` resolves the binary and validates the pinned version (`1.52`). `NewWithRunner` injects a stub runner for tests.
+
+## Concurrency
+
+`Client.run` bounds concurrent hledger processes with a `golang.org/x/sync/semaphore.Weighted`, default 2 slots. Each invocation parses the whole journal, so unbounded concurrency thrashes memory/CPU on small hardware under bursty concurrent RPCs.
+
+- `SetConcurrency(n)` — change the slot count (n<=0 is a no-op). `cmd/floatd` calls this once at startup from `config.Server.HledgerConcurrency`. `acquire` re-reads `c.sem` under `semMu` and returns the specific `*semaphore.Weighted` instance it acquired from, so a concurrent `SetConcurrency` swap mid-invocation can't cause `run` to release a slot on the wrong (new) semaphore.
+- `WaitUncontended(ctx)` — block until the semaphore is momentarily idle, without taking a slot or joining its FIFO queue (polls `TryAcquire`+`Release` every 25ms). `internal/warm` calls this before starting each warm load, so a load only *starts* once nothing interactive is waiting; once started, the load itself calls `acquire` at normal priority, so an interactive request that joins it via singleflight is never stuck behind other queued low-priority work.
+- `Invocations()` — cumulative count of hledger processes run by this client, used by `cmd/floatd` to log per-generation hledger invocation counts.
 - `Transaction` — parsed hledger transaction. Derived fields include `FID` from the transaction code, `Payee`/`Note` split on the first `|`, and `FloatMeta` for hidden `float-*` tags.
 - `Posting`, `Amount`, `CostJSON`, `BalanceAssertion` — typed forms of hledger JSON posting/amount data, including cost annotations and simple balance assertions.
 - `BalanceReport`, `BalanceRow` — `hledger bal -O json` output.

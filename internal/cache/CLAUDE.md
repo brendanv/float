@@ -26,3 +26,7 @@ Pass `nil` as the handler cache to bypass caching in tests or specialized caller
 ## Concurrency
 
 A `sync.RWMutex` guards the generation-tiered map. `singleflight.Group` deduplicates loads. Cache values are not deep-copied; callers should treat cached values as read-only.
+
+## Stats
+
+`Stats()` returns cumulative `(hits, misses, loads)` counters: `hits` for `Get` calls served from the tiered map, `misses` for calls that fell through to singleflight, `loads` for load funcs actually executed (lower than `misses` when concurrent callers dedupe onto one load). `cmd/floatd` diffs these against the previous generation's snapshot and logs the delta on every `txlock.OnCommit`.

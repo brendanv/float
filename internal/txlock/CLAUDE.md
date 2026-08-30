@@ -19,9 +19,12 @@ Serializes all mutations to the float data directory. Every write to journal fil
 - `New(dataDir, client)` — create a lock using the data directory and hledger client.
 - `Do(ctx, msg, fn)` — run a journal-only mutation under the write protocol. Equivalent to `DoWith` with no extra paths.
 - `DoWith(ctx, msg, extraPaths, fn)` — run a mutation that also touches non-journal files. `extraPaths` is a list of absolute paths to files that `fn` may create, modify, or delete. These are snapshotted before `fn` runs and reverted on failure alongside the journal files.
+- `DoConfig(ctx, msg, paths, fn)` — run a mutation confined to non-journal files that cannot change any hledger query result (config.toml, rules.json, templates.json, bank profile rules files). Snapshots/reverts `paths` like `DoWith`, but skips `hledger check` and does not bump the generation counter — only `fn` failing (not `ErrNoChanges`) triggers a revert. Gitsnap still commits on success. Refuses any path ending in `.journal`. Use `DoWith` instead whenever a mutation might affect a query result — when in doubt, default to `DoWith`.
 - `Generation()` — current cache generation.
-- `BumpGeneration()` — manually invalidate caches, e.g. after a snapshot restore.
+- `BumpGeneration()` — manually invalidate caches, e.g. after a snapshot restore. Also fires commit hooks with the new generation.
+- `OnCommit(fn)` — register a `func(gen uint64)` hook fired after every generation-bumping success (`DoWith`/`Do` commits and `BumpGeneration`), not on failure/revert or `DoConfig` (which never bumps the generation). Hooks run synchronously in registration order right after the bump, so a hook must not block — `internal/warm` uses this to schedule a debounced cache-warming pass rather than warming inline.
 - `SetSnap(repo)` — enable automatic git snapshots after successful writes.
+- `ErrNoChanges` — sentinel `fn` can return to signal it made no modifications. `DoWith`/`Do` treat this as success but skip `hledger check`, the generation bump, and the gitsnap commit. Useful for combining multiple idempotent startup migrations into one locked section without paying for a check when none of them had anything to do.
 
 ## Declaring Extra Paths
 

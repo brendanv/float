@@ -12,7 +12,7 @@ Loads and saves `config.toml`, the single configuration file for a float data di
 
 Top-level `Config` fields:
 
-- `Server` — `port`.
+- `Server` — `port`, `hledger_concurrency` (caps concurrent hledger processes; 0 = client default of 2).
 - `BankProfiles` — name plus hledger CSV `rules_file` path relative to the data dir.
 - `AlphaVantage` — `api_key` for price backfills.
 - `AI` — OpenRouter `model` override and user prompt guidelines.

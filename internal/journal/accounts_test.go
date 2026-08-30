@@ -297,7 +297,7 @@ func TestEnsureAccountsInclude(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 130, NumTxns: 1})
 
 		for i := range 3 {
-			if err := EnsureAccountsInclude(dir); err != nil {
+			if _, err := EnsureAccountsInclude(dir); err != nil {
 				t.Fatalf("EnsureAccountsInclude #%d: %v", i+1, err)
 			}
 		}

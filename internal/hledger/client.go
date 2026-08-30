@@ -8,12 +8,26 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 
 	"github.com/brendanv/float/internal/slogctx"
 )
 
 const supportedVersion = "1.52"
+
+// defaultConcurrency bounds how many hledger processes run at once when the
+// caller doesn't configure server.hledger_concurrency. Each invocation parses
+// the whole journal, so unbounded concurrency thrashes memory/CPU on small
+// hardware under a burst of concurrent RPCs.
+const defaultConcurrency = 2
+
+// lowPriorityRetryInterval is how often WaitUncontended re-checks for an
+// idle semaphore instead of joining its FIFO wait queue.
+const lowPriorityRetryInterval = 25 * time.Millisecond
 
 // CommandRunner executes a command and returns its stdout, stderr, and error.
 // Inject a stub via NewWithRunner for testing.
@@ -32,6 +46,10 @@ type Client struct {
 	bin     string
 	journal string
 	runner  CommandRunner
+
+	semMu       sync.RWMutex
+	sem         *semaphore.Weighted
+	invocations atomic.Uint64
 }
 
 // New validates the binary exists and the version matches supportedVersion.
@@ -52,6 +70,7 @@ func NewWithRunner(bin, journal string, runner CommandRunner) (*Client, error) {
 
 func newClient(bin, journal string, runner CommandRunner) (*Client, error) {
 	c := &Client{bin: bin, journal: journal, runner: runner}
+	c.sem = semaphore.NewWeighted(defaultConcurrency)
 
 	stdout, _, err := c.run(context.Background(), "--version")
 	if err != nil {
@@ -81,9 +100,75 @@ func parseVersion(output string) (string, error) {
 	return version, nil
 }
 
-// run executes hledger with args via the configured runner.
-// At slog.LevelDebug it logs the command and duration on completion.
+// SetConcurrency changes the number of hledger processes allowed to run at
+// once. Intended to be called once at startup from server.hledger_concurrency;
+// n <= 0 is ignored (keeps the current limit).
+func (c *Client) SetConcurrency(n int) {
+	if n <= 0 {
+		return
+	}
+	c.semMu.Lock()
+	defer c.semMu.Unlock()
+	c.sem = semaphore.NewWeighted(int64(n))
+}
+
+// Invocations returns the cumulative count of hledger processes run by this
+// client since construction.
+func (c *Client) Invocations() uint64 {
+	return c.invocations.Load()
+}
+
+// acquire reserves a concurrency slot on the semaphore instance current at
+// call time, and returns that instance so the caller releases the same one
+// it acquired — SetConcurrency can swap c.sem mid-flight, and releasing on
+// whatever c.sem happens to be at release time panics ("released more than
+// held") if it has since changed.
+func (c *Client) acquire(ctx context.Context) (*semaphore.Weighted, error) {
+	c.semMu.RLock()
+	sem := c.sem
+	c.semMu.RUnlock()
+
+	if err := sem.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	return sem, nil
+}
+
+// WaitUncontended blocks until it observes the concurrency semaphore momentarily
+// idle, without taking a slot or joining its FIFO wait queue. internal/warm
+// uses this to wait politely for a lull before starting a warm load: once
+// started, the load itself competes for its own slot at normal priority (via
+// acquire), so an interactive request that joins it via singleflight is never
+// stuck behind other queued low-priority work.
+func (c *Client) WaitUncontended(ctx context.Context) error {
+	c.semMu.RLock()
+	sem := c.sem
+	c.semMu.RUnlock()
+
+	for {
+		if sem.TryAcquire(1) {
+			sem.Release(1)
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(lowPriorityRetryInterval):
+		}
+	}
+}
+
+// run executes hledger with args via the configured runner, bounded by the
+// client's concurrency semaphore. At slog.LevelDebug it logs the command and
+// duration on completion.
 func (c *Client) run(ctx context.Context, args ...string) (stdout []byte, stderr []byte, err error) {
+	sem, err := c.acquire(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer sem.Release(1)
+
+	c.invocations.Add(1)
 	start := time.Now()
 	stdout, stderr, err = c.runner(ctx, c.bin, args...)
 	slogctx.FromContext(ctx).Debug("hledger",

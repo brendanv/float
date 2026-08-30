@@ -5,7 +5,10 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/brendanv/float/internal/hledger"
 )
@@ -1222,4 +1225,152 @@ func TestIncomeStatementTimeseries(t *testing.T) {
 			t.Fatalf("expected 2 net amount periods, got %d", len(ts.NetAmounts))
 		}
 	})
+}
+
+func TestSetConcurrencyLimitsInFlightInvocations(t *testing.T) {
+	const versionResp = "hledger 1.52, linux-x86_64\n"
+
+	var inFlight, maxInFlight atomic.Int64
+	release := make(chan struct{})
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		cur := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		for {
+			old := maxInFlight.Load()
+			if cur <= old || maxInFlight.CompareAndSwap(old, cur) {
+				break
+			}
+		}
+		<-release
+		return []byte(`[]`), nil, nil
+	}
+
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	c.SetConcurrency(2)
+
+	const n = 5
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = c.Transactions(t.Context())
+		}()
+	}
+
+	// Give every goroutine a chance to attempt its acquire before releasing.
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	if got := maxInFlight.Load(); got > 2 {
+		t.Errorf("max concurrent hledger invocations = %d, want <= 2", got)
+	}
+	// n Transactions() calls + 1 --version call from NewWithRunner.
+	if got := c.Invocations(); got != n+1 {
+		t.Errorf("Invocations() = %d, want %d", got, n+1)
+	}
+}
+
+// TestSetConcurrencyMidFlightDoesNotPanic confirms an in-flight invocation
+// releases the same semaphore instance it acquired, not whatever c.sem has
+// been swapped to by a concurrent SetConcurrency call. Run with -race.
+func TestSetConcurrencyMidFlightDoesNotPanic(t *testing.T) {
+	const versionResp = "hledger 1.52, linux-x86_64\n"
+	inFlight := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		once.Do(func() { close(inFlight) })
+		<-release
+		return []byte(`[]`), nil, nil
+	}
+
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	c.SetConcurrency(1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = c.Transactions(t.Context())
+	}()
+
+	<-inFlight
+	c.SetConcurrency(4) // swap c.sem while the goroutine above still holds a slot on the old one
+	close(release)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Transactions did not complete")
+	}
+
+	// A second call should acquire cleanly against the new semaphore.
+	if _, err := c.Transactions(t.Context()); err != nil {
+		t.Errorf("Transactions after SetConcurrency: %v", err)
+	}
+}
+
+// TestWaitUncontendedBlocksWhileSlotsBusy confirms that WaitUncontended
+// doesn't return while the concurrency semaphore is fully occupied, and
+// returns promptly once a slot frees up — without itself ever holding a
+// slot, so it can't strand it or race a normal acquire for the released one.
+func TestWaitUncontendedBlocksWhileSlotsBusy(t *testing.T) {
+	const versionResp = "hledger 1.52, linux-x86_64\n"
+	busyRelease := make(chan struct{})
+
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		<-busyRelease
+		return []byte(`[]`), nil, nil
+	}
+
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	c.SetConcurrency(1)
+
+	busyDone := make(chan struct{})
+	go func() {
+		_, _ = c.Transactions(t.Context())
+		close(busyDone)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	waitDone := make(chan struct{})
+	go func() {
+		_ = c.WaitUncontended(t.Context())
+		close(waitDone)
+	}()
+
+	select {
+	case <-waitDone:
+		t.Fatal("WaitUncontended returned while the only slot was busy")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(busyRelease)
+	<-busyDone
+
+	select {
+	case <-waitDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitUncontended did not return after the slot freed up")
+	}
 }

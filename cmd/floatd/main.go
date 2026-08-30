@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,8 +29,34 @@ import (
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/txlock"
+	"github.com/brendanv/float/internal/warm"
 	"github.com/brendanv/float/internal/webui"
 )
+
+// warmDebounce coalesces bursts of writes (imports, apply-rules) into a
+// single warm pass after the burst settles, instead of one pass per write.
+const warmDebounce = 500 * time.Millisecond
+
+// newStatsLogger returns a txlock.CommitHook that logs cache hit/miss/load
+// and hledger invocation counts accrued since the previous generation, at
+// Info level (so it reaches the StreamLogs RPC). txlock serializes commits
+// via its internal mutex, so the closure's plain counters are never accessed
+// concurrently.
+func newStatsLogger(c *cache.Cache[any], hl *hledger.Client) txlock.CommitHook {
+	var lastHits, lastMisses, lastLoads, lastInvocations uint64
+	return func(gen uint64) {
+		hits, misses, loads := c.Stats()
+		invocations := hl.Invocations()
+		slog.Info("generation stats since previous generation",
+			"generation", gen,
+			"cache_hits", hits-lastHits,
+			"cache_misses", misses-lastMisses,
+			"cache_loads", loads-lastLoads,
+			"hledger_invocations", invocations-lastInvocations,
+		)
+		lastHits, lastMisses, lastLoads, lastInvocations = hits, misses, loads, invocations
+	}
+}
 
 func main() {
 	dataDir := flag.String("data-dir", "", "path to float data directory (required)")
@@ -80,6 +107,7 @@ func main() {
 		slog.Error("hledger init", "error", err)
 		os.Exit(1)
 	}
+	hl.SetConcurrency(cfg.Server.HledgerConcurrency)
 
 	lock := txlock.New(*dataDir, hl)
 
@@ -93,59 +121,74 @@ func main() {
 	}
 	lock.SetSnap(snap)
 
-	var backfillCount int
-	if err := lock.Do(context.Background(), "migrate transaction IDs", func() error {
-		n, err := journal.MigrateFIDs(*dataDir)
-		backfillCount = n
-		return err
+	var backfillCount, stripeMigrateCount, declaredCount int
+	var commodityChanged, accountsFileChanged, accountsIncludeChanged, migrationsChanged bool
+	if err := lock.Do(context.Background(), "startup migrations", func() error {
+		var err error
+
+		backfillCount, err = journal.MigrateFIDs(*dataDir)
+		if err != nil {
+			return fmt.Errorf("fid backfill: %w", err)
+		}
+
+		stripeMigrateCount, err = journal.MigrateStripeTxnTag(context.Background(), hl, *dataDir)
+		if err != nil {
+			return fmt.Errorf("stripe-txn tag migration: %w", err)
+		}
+
+		commodityChanged, err = journal.EnsureCommodityDirective(*dataDir, "USD")
+		if err != nil {
+			return fmt.Errorf("commodity directive: %w", err)
+		}
+
+		accountsFileChanged, err = journal.EnsureAccountsFile(*dataDir)
+		if err != nil {
+			return fmt.Errorf("account declarations startup: %w", err)
+		}
+		accountsIncludeChanged, err = journal.EnsureAccountsInclude(*dataDir)
+		if err != nil {
+			return fmt.Errorf("account declarations startup: %w", err)
+		}
+		undeclared, err := hl.UndeclaredAccounts(context.Background())
+		if err != nil {
+			return fmt.Errorf("account declarations startup: %w", err)
+		}
+		for _, name := range undeclared {
+			if err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
+				return fmt.Errorf("account declarations startup: %w", err)
+			}
+		}
+		declaredCount = len(undeclared)
+
+		migrationsChanged = backfillCount > 0 || stripeMigrateCount > 0 || commodityChanged ||
+			accountsFileChanged || accountsIncludeChanged || declaredCount > 0
+		if !migrationsChanged {
+			return txlock.ErrNoChanges
+		}
+		return nil
 	}); err != nil {
-		slog.Error("fid backfill", "error", err)
+		slog.Error("startup migrations", "error", err)
 		os.Exit(1)
+	}
+	if !migrationsChanged {
+		// lock.Do's ErrNoChanges fast path skips the generation bump, gitsnap
+		// commit, and hledger check that a real migration would have paid
+		// for. Run the check directly so a journal hand-edited into an
+		// invalid state while floatd was stopped still fails startup loudly,
+		// instead of surfacing as opaque per-RPC hledger errors later.
+		if err := hl.Check(context.Background()); err != nil {
+			slog.Error("startup check", "error", err)
+			os.Exit(1)
+		}
 	}
 	if backfillCount > 0 {
 		slog.Info("fid backfill: assigned codes to transactions", "count", backfillCount)
 	}
-
-	var stripeMigrateCount int
-	if err := lock.Do(context.Background(), "migrate stripe-txn tags to float-stripe-txn", func() error {
-		n, err := journal.MigrateStripeTxnTag(context.Background(), hl, *dataDir)
-		stripeMigrateCount = n
-		return err
-	}); err != nil {
-		slog.Error("stripe-txn tag migration", "error", err)
-		os.Exit(1)
-	}
 	if stripeMigrateCount > 0 {
 		slog.Info("stripe-txn migration: moved tags to float-stripe-txn", "count", stripeMigrateCount)
 	}
-
-	if err := lock.Do(context.Background(), "ensure commodity directive", func() error {
-		return journal.EnsureCommodityDirective(*dataDir, "USD")
-	}); err != nil {
-		slog.Error("commodity directive", "error", err)
-		os.Exit(1)
-	}
-
-	if err := lock.Do(context.Background(), "declare undeclared accounts", func() error {
-		if err := journal.EnsureAccountsFile(*dataDir); err != nil {
-			return err
-		}
-		if err := journal.EnsureAccountsInclude(*dataDir); err != nil {
-			return err
-		}
-		undeclared, err := hl.UndeclaredAccounts(context.Background())
-		if err != nil {
-			return err
-		}
-		for _, name := range undeclared {
-			if err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		slog.Error("account declarations startup", "error", err)
-		os.Exit(1)
+	if declaredCount > 0 {
+		slog.Info("account declarations: declared undeclared accounts", "count", declaredCount)
 	}
 
 	authn := auth.New(os.Getenv("FLOAT_AUTH_PASSPHRASE"))
@@ -157,6 +200,11 @@ func main() {
 
 	c := cache.New[any](lock.Generation)
 	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg, broadcaster)
+
+	warmer := warm.New(lock.Generation, handler.WarmEntries, warmDebounce, hl.WaitUncontended)
+	lock.OnCommit(warmer.Trigger)
+	lock.OnCommit(newStatsLogger(c, hl))
+
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,
@@ -186,8 +234,17 @@ func main() {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		slog.Error("listen", "error", err)
+		os.Exit(1)
+	}
+	// Kick the startup warm pass only once the listener is bound, so warming
+	// never delays accepting connections.
+	warmer.Start(ctx)
+
 	slog.Info("floatd listening", "addr", listenAddr, "webui", true)
-	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server", "error", err)
 		os.Exit(1)
 	}

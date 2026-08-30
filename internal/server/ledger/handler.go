@@ -26,6 +26,7 @@ import (
 	"github.com/brendanv/float/internal/rules"
 	"github.com/brendanv/float/internal/slogctx"
 	"github.com/brendanv/float/internal/templates"
+	"github.com/brendanv/float/internal/txfilter"
 	"github.com/brendanv/float/internal/txlock"
 )
 
@@ -37,6 +38,7 @@ type Handler struct {
 	dataDir        string
 	configPath     string
 	cache          *cache.Cache[any] // nil = bypass cache
+	recentAccounts *recentAccounts
 	snap           *gitsnap.Repo
 	cfg            atomic.Pointer[config.Config]
 	logBroadcaster *logstream.Broadcaster
@@ -57,7 +59,7 @@ type Handler struct {
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
-	h := &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, logBroadcaster: broadcaster}
+	h := &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, recentAccounts: newRecentAccounts(recentAccountsCap), snap: snap, logBroadcaster: broadcaster}
 	h.cfg.Store(cfg)
 	return h
 }
@@ -152,6 +154,50 @@ func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Cl
 	})
 }
 
+// filteredTransactions serves a transaction query by filtering the single
+// canonical full-journal fetch (cachedTransactions(nil)) in Go when query is
+// entirely within txfilter's supported vocabulary. Any token outside that
+// vocabulary (e.g. an AI-generated or RunHledgerQuery-style query) falls back
+// to a dedicated cached hledger query, exactly as before this existed.
+func filteredTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
+	if f, ok := txfilter.Parse(query); ok {
+		all, err := cachedTransactions(ctx, c, hl, nil)
+		if err != nil {
+			return nil, err
+		}
+		return f.Filter(all), nil
+	}
+	return cachedTransactions(ctx, c, hl, query)
+}
+
+// fetchByFIDs returns the transactions matching fids, selected in Go from the
+// full cached transaction list rather than a per-FID or per-batch hledger
+// query. Write RPCs use this for their post-write re-read: it costs the same
+// full parse as a "code:" query would, but populates the transactions:(nil)
+// cache entry for the new generation as a side effect, and shares that load
+// with any concurrent request via cache/singleflight.
+//
+// Do not use this for in-lock re-checks (e.g. Stripe dedup) — the journal is
+// mid-mutation there and the cache generation is stale until the write
+// commits; those call sites must keep using h.hl.Transactions directly.
+func (h *Handler) fetchByFIDs(ctx context.Context, fids []string) ([]hledger.Transaction, error) {
+	all, err := cachedTransactions(ctx, h.cache, h.hl, nil)
+	if err != nil {
+		return nil, err
+	}
+	want := make(map[string]bool, len(fids))
+	for _, fid := range fids {
+		want[fid] = true
+	}
+	out := make([]hledger.Transaction, 0, len(fids))
+	for _, t := range all {
+		if want[t.FID] {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 // cachedBalances fetches balances from cache or hledger.
 func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
 	return cachedGet(ctx, c, balancesKey(depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
@@ -171,6 +217,53 @@ func cachedAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Clien
 	return cachedGet(ctx, c, accountRegisterKey(account, query), func(ctx context.Context) ([]hledger.AregisterRow, error) {
 		return hl.Aregister(ctx, account, query...)
 	})
+}
+
+// filteredAregister serves an account register query by filtering the
+// account's single canonical unfiltered fetch (cachedAregister(account, nil))
+// in Go when query is entirely within txfilter's supported vocabulary,
+// falling back to a dedicated cached hledger query otherwise — mirroring
+// filteredTransactions.
+//
+// Accepting this means the running-balance column always shows the
+// account's true historical running balance rather than a subset-relative
+// sum, since rows are dropped after hledger has already computed them
+// against the full account history. For a date-filtered register this is
+// arguably a correction, not a regression, but it is user-visible.
+func filteredAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, account string, query []string) ([]hledger.AregisterRow, error) {
+	f, ok := txfilter.Parse(query)
+	if !ok || queryHasDateToken(query) {
+		// hledger areg's date: filtering matches on ANY posting's effective
+		// date (including posting-date overrides on legs other than the
+		// focused account), unlike print's transaction-date-only semantics
+		// that txfilter's date predicate assumes. Rather than guess at areg's
+		// exact rule, fall back to hledger for any date-filtered query and
+		// keep the Go path for the tag/status/payee/desc filters it was
+		// built for.
+		return cachedAregister(ctx, c, hl, account, query)
+	}
+	all, err := cachedAregister(ctx, c, hl, account, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]hledger.AregisterRow, 0, len(all))
+	for _, row := range all {
+		if f.Match(&row.Transaction) {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+// queryHasDateToken reports whether query contains a date: or not:date:
+// token.
+func queryHasDateToken(query []string) bool {
+	for _, tok := range query {
+		if strings.HasPrefix(tok, "date:") || strings.HasPrefix(tok, "not:date:") {
+			return true
+		}
+	}
+	return false
 }
 
 // cachedNetWorth fetches a balance sheet timeseries from cache or hledger.
@@ -263,7 +356,7 @@ func paginate[T any](items []T, offset, limit int32) ([]T, int32, bool) {
 }
 
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
-	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
+	txns, err := filteredTransactions(ctx, h.cache, h.hl, req.Msg.Query)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
@@ -280,10 +373,11 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 	if account == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account is required"))
 	}
-	rows, err := cachedAregister(ctx, h.cache, h.hl, account, req.Msg.Query)
+	rows, err := filteredAregister(ctx, h.cache, h.hl, account, req.Msg.Query)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger aregister failed")
 	}
+	h.recentAccounts.touch(account)
 	rows, total, hasNext := paginate(rows, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.AccountRegisterRow, len(rows))
 	for i, r := range rows {
@@ -375,7 +469,6 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	if prefix == "" {
 		prefix = "assets"
 	}
-	query := []string{prefix}
 
 	cfg := h.loadCfg()
 	var excludedSymbols map[string]bool
@@ -388,8 +481,10 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		excludedAccountPrefixes = cfg.Portfolio.ExcludedAccountPrefixes
 	}
 
-	// Raw balances provide the original commodity quantities.
-	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, query)
+	// Raw balances provide the original commodity quantities. Fetched
+	// unfiltered and shared across every prefix/generation; the prefix is an
+	// account-name filter applied in Go below, not accounting logic.
+	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio")
 	}
@@ -419,10 +514,13 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	// day you bought or sold the commodity. This fills in price dates for
 	// commodities (e.g. 401k funds) that have no P directives.
 	lastTxDateByCommodity := make(map[string]string)
-	if txns, txErr := cachedTransactions(ctx, h.cache, h.hl, query); txErr != nil {
+	if txns, txErr := cachedTransactions(ctx, h.cache, h.hl, nil); txErr != nil {
 		logger.WarnContext(ctx, "could not load transactions for last purchase dates", "error", txErr)
 	} else {
 		for _, txn := range txns {
+			if !transactionTouchesPrefix(txn, prefix) {
+				continue
+			}
 			for _, p := range txn.Postings {
 				for _, amt := range p.Amounts {
 					if currencySymbols[amt.Commodity] {
@@ -453,6 +551,9 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	costByHolding := make(map[holdingKey]costBasis)
 	var holdingOrder []holdingKey
 	for _, row := range raw.Rows {
+		if !accountMatchesPrefix(row.FullName, prefix) {
+			continue
+		}
 		if isExcludedAccount(row.FullName, excludedAccountPrefixes) {
 			continue
 		}
@@ -631,13 +732,16 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 	// commodities (equities, funds, etc.). This mirrors the GetPortfolioHoldings
 	// filter so that cash accounts like checking/savings are excluded from the
 	// chart total, matching what the Total Value card shows.
-	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, []string{prefix})
+	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio timeseries")
 	}
 	seen := make(map[string]bool)
 	var investmentAccounts []string
 	for _, row := range raw.Rows {
+		if !accountMatchesPrefix(row.FullName, prefix) {
+			continue
+		}
 		if isExcludedAccount(row.FullName, tsExcludedAccountPrefixes) {
 			continue
 		}
@@ -697,8 +801,255 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(&floatv1.GetPortfolioTimeseriesResponse{Snapshots: snapshots}), nil
 }
 
+// isMonthAligned reports whether date is "" or a first-of-month "YYYY-MM-DD"
+// string. `bs --historical`/`is --monthly` periods are calendar-month
+// boundaries; a begin/end that isn't month-aligned makes hledger generate a
+// partial first/last period anchored to that exact date instead, which a
+// slice of the full-history period list cannot reproduce — such requests
+// must keep going straight to hledger.
+func isMonthAligned(date string) bool {
+	return date == "" || (len(date) == 10 && date[4] == '-' && date[7] == '-' && date[8:] == "01")
+}
+
+// selectPeriodIndexes returns the indexes of periods whose start date falls
+// in [begin, end) (either bound optional), for slicing a full-history
+// timeseries down to a requested range in Go.
+func selectPeriodIndexes(periods []string, begin, end string) []int {
+	idxs := make([]int, 0, len(periods))
+	for i, p := range periods {
+		if begin != "" && p < begin {
+			continue
+		}
+		if end != "" && p >= end {
+			continue
+		}
+		idxs = append(idxs, i)
+	}
+	return idxs
+}
+
+// sumAmounts sums Amounts across the selected period indexes, grouped by
+// commodity, using exact integer arithmetic to avoid float64 rounding
+// residue. Used to recompute a row's cross-period total after slicing.
+func sumAmounts(perPeriod [][]hledger.Amount, idxs []int) []hledger.Amount {
+	sums := make(map[string]*exactQty)
+	var order []string
+	for _, i := range idxs {
+		for _, amt := range perPeriod[i] {
+			q, ok := sums[amt.Commodity]
+			if !ok {
+				q = &exactQty{}
+				sums[amt.Commodity] = q
+				order = append(order, amt.Commodity)
+			}
+			q.add(amt.Quantity.DecimalMantissa, amt.Quantity.DecimalPlaces)
+		}
+	}
+	out := make([]hledger.Amount, len(order))
+	for i, c := range order {
+		q := sums[c]
+		out[i] = hledger.Amount{
+			Commodity: c,
+			Quantity: hledger.AmountQuantity{
+				DecimalMantissa: q.mantissa,
+				DecimalPlaces:   q.scale,
+				FloatingPoint:   q.float(),
+			},
+		}
+	}
+	return out
+}
+
+// monthSequence returns the first-of-month dates in [begin, end), in
+// hledger's "YYYY-MM-DD" period-label format. begin and end must both be
+// non-empty, month-aligned dates.
+func monthSequence(begin, end string) []string {
+	b, errB := time.Parse("2006-01-02", begin)
+	e, errE := time.Parse("2006-01-02", end)
+	if errB != nil || errE != nil {
+		return nil
+	}
+	var out []string
+	for d := b; d.Before(e); d = d.AddDate(0, 1, 0) {
+		out = append(out, d.Format("2006-01-02"))
+	}
+	return out
+}
+
+// sliceBalanceSheetTimeseries restricts ts to the periods in [begin, end).
+// bs --historical values are cumulative from account opening regardless of
+// begin, so (given a month-aligned begin/end, checked by the caller) trimming
+// periods is equivalent to hledger having been asked for that range directly.
+//
+// When begin and end are both given, the full-history fetch may not contain
+// every month in [begin, end) — hledger's own explicit-range bs generates a
+// period for every month regardless, zero-valued before the ledger's first
+// activity and carrying the last cumulative value forward after its last
+// activity. Reproduce that by walking the full month sequence, tracking the
+// most recently seen real period's values as pad for months missing from ts.
+func sliceBalanceSheetTimeseries(ts *hledger.BalanceSheetTimeseries, begin, end string) *hledger.BalanceSheetTimeseries {
+	if begin != "" && end != "" {
+		return padBalanceSheetTimeseries(ts, begin, end)
+	}
+	idxs := selectPeriodIndexes(ts.Periods, begin, end)
+	out := &hledger.BalanceSheetTimeseries{
+		Periods:  make([]string, len(idxs)),
+		NetWorth: make([][]hledger.Amount, len(idxs)),
+	}
+	for j, i := range idxs {
+		out.Periods[j] = ts.Periods[i]
+		out.NetWorth[j] = ts.NetWorth[i]
+	}
+	out.Subreports = make([]hledger.BSSubreport, len(ts.Subreports))
+	for s, sub := range ts.Subreports {
+		totals := make([][]hledger.Amount, len(idxs))
+		for j, i := range idxs {
+			totals[j] = sub.Totals[i]
+		}
+		out.Subreports[s] = hledger.BSSubreport{Name: sub.Name, Totals: totals}
+	}
+	return out
+}
+
+// padBalanceSheetTimeseries builds the full [begin, end) month sequence,
+// filling months absent from ts with zero (before the ledger's first
+// activity) or the last-seen real period's values carried forward (after
+// its last activity, or across any gap).
+func padBalanceSheetTimeseries(ts *hledger.BalanceSheetTimeseries, begin, end string) *hledger.BalanceSheetTimeseries {
+	byPeriod := make(map[string]int, len(ts.Periods))
+	for i, p := range ts.Periods {
+		byPeriod[p] = i
+	}
+	months := monthSequence(begin, end)
+	out := &hledger.BalanceSheetTimeseries{
+		Periods:    months,
+		NetWorth:   make([][]hledger.Amount, len(months)),
+		Subreports: make([]hledger.BSSubreport, len(ts.Subreports)),
+	}
+	for s, sub := range ts.Subreports {
+		out.Subreports[s] = hledger.BSSubreport{Name: sub.Name, Totals: make([][]hledger.Amount, len(months))}
+	}
+	var lastNetWorth []hledger.Amount
+	lastTotals := make([][]hledger.Amount, len(ts.Subreports))
+	for j, m := range months {
+		if i, ok := byPeriod[m]; ok {
+			lastNetWorth = ts.NetWorth[i]
+			for s, sub := range ts.Subreports {
+				lastTotals[s] = sub.Totals[i]
+			}
+		}
+		out.NetWorth[j] = lastNetWorth
+		for s := range ts.Subreports {
+			out.Subreports[s].Totals[j] = lastTotals[s]
+		}
+	}
+	return out
+}
+
+// sliceIncomeStatementTimeseries restricts ts to the periods in [begin, end),
+// recomputing each row's cross-period TotalAmounts over just that range (the
+// full-history fetch's TotalAmounts covers every period, not the requested
+// slice). When begin and end are both given, the requested range may include
+// months absent from the full-history fetch (before the ledger's first
+// activity, or after its last) — those get an empty per-period entry (no
+// flow), matching hledger's own explicit-range is --monthly, which still
+// emits a zero-activity period rather than omitting it. Rows with no activity
+// in any selected period (padded or real) are dropped, mirroring a ranged
+// `is --monthly` only emitting rows for accounts with postings in range.
+func sliceIncomeStatementTimeseries(ts *hledger.IncomeStatementTimeseries, begin, end string) *hledger.IncomeStatementTimeseries {
+	var periods []string
+	// realIdx[j] is the index into ts.Periods/ts.NetAmounts for output period
+	// j, or -1 if that period is absent from the full-history fetch (padding).
+	var realIdx []int
+	if begin != "" && end != "" {
+		byPeriod := make(map[string]int, len(ts.Periods))
+		for i, p := range ts.Periods {
+			byPeriod[p] = i
+		}
+		periods = monthSequence(begin, end)
+		realIdx = make([]int, len(periods))
+		for j, m := range periods {
+			if i, ok := byPeriod[m]; ok {
+				realIdx[j] = i
+			} else {
+				realIdx[j] = -1
+			}
+		}
+	} else {
+		idxs := selectPeriodIndexes(ts.Periods, begin, end)
+		periods = make([]string, len(idxs))
+		for j, i := range idxs {
+			periods[j] = ts.Periods[i]
+		}
+		realIdx = idxs
+	}
+
+	out := &hledger.IncomeStatementTimeseries{
+		Periods:    periods,
+		NetAmounts: make([][]hledger.Amount, len(periods)),
+	}
+	for j, i := range realIdx {
+		if i >= 0 {
+			out.NetAmounts[j] = ts.NetAmounts[i]
+		}
+	}
+	out.Subreports = make([]hledger.ISSubreport, len(ts.Subreports))
+	for s, sub := range ts.Subreports {
+		var rows []hledger.ISRow
+		for _, row := range sub.Rows {
+			perPeriod := make([][]hledger.Amount, len(periods))
+			anyActivity := false
+			for j, i := range realIdx {
+				if i >= 0 {
+					perPeriod[j] = row.PerPeriodAmounts[i]
+					if len(perPeriod[j]) > 0 {
+						anyActivity = true
+					}
+				}
+			}
+			if !anyActivity {
+				continue
+			}
+			rows = append(rows, hledger.ISRow{
+				DisplayName:      row.DisplayName,
+				FullName:         row.FullName,
+				Indent:           row.Indent,
+				Section:          row.Section,
+				PerPeriodAmounts: perPeriod,
+				TotalAmounts:     sumAmounts(perPeriod, allIndexes(len(perPeriod))),
+			})
+		}
+		totals := make([][]hledger.Amount, len(periods))
+		for j, i := range realIdx {
+			if i >= 0 {
+				totals[j] = sub.Totals[i]
+			}
+		}
+		out.Subreports[s] = hledger.ISSubreport{Name: sub.Name, Rows: rows, Totals: totals}
+	}
+	return out
+}
+
+// allIndexes returns []int{0, 1, ..., n-1}.
+func allIndexes(n int) []int {
+	idxs := make([]int, n)
+	for i := range idxs {
+		idxs[i] = i
+	}
+	return idxs
+}
+
 func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {
-	ts, err := cachedNetWorth(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	var ts *hledger.BalanceSheetTimeseries
+	var err error
+	if isMonthAligned(req.Msg.Begin) && isMonthAligned(req.Msg.End) {
+		ts, err = cachedNetWorth(ctx, h.cache, h.hl, "", "")
+		if err == nil {
+			ts = sliceBalanceSheetTimeseries(ts, req.Msg.Begin, req.Msg.End)
+		}
+	} else {
+		ts, err = cachedNetWorth(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	}
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balance sheet timeseries failed")
 	}
@@ -720,7 +1071,16 @@ func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Reques
 }
 
 func (h *Handler) GetIncomeStatementTimeseries(ctx context.Context, req *connect.Request[floatv1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[floatv1.GetIncomeStatementTimeseriesResponse], error) {
-	ts, err := cachedIncomeStatement(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	var ts *hledger.IncomeStatementTimeseries
+	var err error
+	if isMonthAligned(req.Msg.Begin) && isMonthAligned(req.Msg.End) {
+		ts, err = cachedIncomeStatement(ctx, h.cache, h.hl, "", "")
+		if err == nil {
+			ts = sliceIncomeStatementTimeseries(ts, req.Msg.Begin, req.Msg.End)
+		}
+	} else {
+		ts, err = cachedIncomeStatement(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	}
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger income statement timeseries failed")
 	}
@@ -1031,7 +1391,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		return nil, rpcErr(ctx, err, "add transaction failed")
 	}
 
-	txns, err := h.hl.Transactions(ctx, "code:"+fid)
+	txns, err := h.fetchByFIDs(ctx, []string{fid})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch new transaction failed", "fid", fid)
 	}
@@ -1113,7 +1473,7 @@ func (h *Handler) AddTransactions(ctx context.Context, req *connect.Request[floa
 		return nil, rpcErr(ctx, err, "add transactions failed")
 	}
 
-	txns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(fids))
+	txns, err := h.fetchByFIDs(ctx, fids)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch new transactions failed")
 	}
@@ -1215,7 +1575,7 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 		}
 		return nil, rpcErr(ctx, err, "update transaction status failed", "fid", fid)
 	}
-	txns, err := h.hl.Transactions(ctx, "code:"+fid)
+	txns, err := h.fetchByFIDs(ctx, []string{fid})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch transaction after status update failed", "fid", fid)
 	}
@@ -1829,21 +2189,34 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("use BulkDeleteTransactions for bulk delete operations"))
 	}
 
-	err := h.lock.Do(ctx, bulkEditMessage(req.Msg.Fids, req.Msg.Operations), func() error {
-		for _, fid := range req.Msg.Fids {
+	type pendingEdit struct {
+		input journal.TransactionInput
+		src   journal.SourceLocation
+		fid   string
+	}
 
-			txns, err := h.hl.Transactions(ctx, "code:"+fid)
-			if err != nil {
-				return fmt.Errorf("bulk-edit: lookup fid %q: %w", fid, err)
-			}
-			if len(txns) == 0 {
+	err := h.lock.Do(ctx, bulkEditMessage(req.Msg.Fids, req.Msg.Operations), func() error {
+		txns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(req.Msg.Fids))
+		if err != nil {
+			return fmt.Errorf("bulk-edit: lookup fids: %w", err)
+		}
+		byFID := make(map[string]hledger.Transaction, len(txns))
+		countByFID := make(map[string]int, len(txns))
+		for _, t := range txns {
+			byFID[t.FID] = t
+			countByFID[t.FID]++
+		}
+
+		items := make([]pendingEdit, 0, len(req.Msg.Fids))
+		for _, fid := range req.Msg.Fids {
+			t, ok := byFID[fid]
+			if !ok {
 				return fmt.Errorf("bulk-edit: no transaction found with fid %q: %w", fid, journal.ErrNotFound)
 			}
-			if len(txns) > 1 {
-				return fmt.Errorf("bulk-edit: fid %q matched %d transactions (corrupt journal — run audit)", fid, len(txns))
+			if countByFID[fid] > 1 {
+				return fmt.Errorf("bulk-edit: fid %q matched %d transactions (corrupt journal — run audit)", fid, countByFID[fid])
 			}
-			t := txns[0]
-			src := &journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
+			src := journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 			input, err := journal.InputFromTransaction(t)
 			if err != nil {
 				return fmt.Errorf("bulk-edit: fid %q: %w", fid, err)
@@ -1887,8 +2260,31 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 				}
 			}
 
-			if _, err := journal.WriteTransaction(ctx, h.hl, h.dataDir, input, src); err != nil {
-				return fmt.Errorf("bulk-edit: fid %q: write: %w", fid, err)
+			items = append(items, pendingEdit{input: input, src: src, fid: fid})
+		}
+
+		inputs := make([]journal.TransactionInput, len(items))
+		fids := make([]string, len(items))
+		for i, it := range items {
+			inputs[i] = it.input
+			fids[i] = it.fid
+		}
+		texts, err := journal.BatchFormatViaHledger(ctx, h.hl, inputs, fids)
+		if err != nil {
+			return fmt.Errorf("bulk-edit: batch format: %w", err)
+		}
+
+		byFile := make(map[string][]journal.BatchReplacement)
+		for i, it := range items {
+			byFile[it.src.File] = append(byFile[it.src.File], journal.BatchReplacement{
+				HeaderLine: it.src.Line,
+				FID:        it.fid,
+				NewText:    texts[i],
+			})
+		}
+		for file, reps := range byFile {
+			if err := journal.BatchReplaceTransactions(file, reps); err != nil {
+				return fmt.Errorf("bulk-edit: batch replace in %s: %w", file, err)
 			}
 		}
 		return nil
@@ -1900,7 +2296,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		return nil, rpcErr(ctx, err, "bulk edit transactions failed")
 	}
 
-	editedTxns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(req.Msg.Fids))
+	editedTxns, err := h.fetchByFIDs(ctx, req.Msg.Fids)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "bulk edit: fetch after update failed")
 	}
@@ -2083,7 +2479,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 	if len(req.Msg.RulesContent) > 0 {
 		createExtraPaths = append(createExtraPaths, rulesFilePath)
 	}
-	err := h.lock.DoWith(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), createExtraPaths, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), createExtraPaths, func() error {
 		// Write rules file if content provided.
 		if len(req.Msg.RulesContent) > 0 {
 			if err := os.MkdirAll(filepath.Dir(rulesFilePath), 0o755); err != nil {
@@ -2164,7 +2560,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 	}
 
 	var updated config.BankProfile
-	err := h.lock.DoWith(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), extraPaths, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), extraPaths, func() error {
 		cur := h.loadCfg()
 		profiles := make([]config.BankProfile, len(cur.BankProfiles))
 		copy(profiles, cur.BankProfiles)
@@ -2248,7 +2644,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 		}
 	}
 
-	err := h.lock.DoWith(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), deleteExtraPaths, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), deleteExtraPaths, func() error {
 		cur := h.loadCfg()
 		idx := -1
 		for i, p := range cur.BankProfiles {
@@ -2328,7 +2724,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	}
 
 	// Build fingerprint set from existing transactions.
-	existing, err := h.hl.Transactions(ctx)
+	existing, err := cachedTransactions(ctx, h.cache, h.hl, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch existing transactions failed")
 	}
@@ -2423,9 +2819,29 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	uploadFilePath := filepath.Join(h.dataDir, "uploads", filepath.FromSlash(importBatchID+".csv"))
 
 	var importedFIDs []string
+	var skippedDuplicates int32
 	err = h.lock.DoWith(ctx, fmt.Sprintf("import %d transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), []string{uploadFilePath}, func() error {
+		// Re-fingerprint against the on-disk journal inside the lock: the
+		// preview's duplicate flags came from the cache, which is only
+		// invalidated by floatd's own writes and can be stale if the journal
+		// was edited externally (hand edit, floatctl, another tool) since the
+		// preview was fetched. h.hl.Transactions bypasses the cache
+		// deliberately, per the fetchByFIDs boundary comment above.
+		onDisk, fpErr := h.hl.Transactions(ctx)
+		if fpErr != nil {
+			return fmt.Errorf("re-read transactions for dedup: %w", fpErr)
+		}
+		fpSet := make(map[string]bool, len(onDisk))
+		for _, t := range onDisk {
+			fpSet[journal.TxnFingerprint(t)] = true
+		}
+
 		for i, c := range candidates {
 			if !selectedSet[int32(i)] {
+				continue
+			}
+			if fpSet[journal.TxnFingerprint(c)] {
+				skippedDuplicates++
 				continue
 			}
 			txInput, convErr := journal.HledgerTxnToInput(c)
@@ -2500,20 +2916,28 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 
 	// Fetch the imported transactions to return.
 	var txnProtos []*floatv1.Transaction
-	for _, fid := range importedFIDs {
-		txns, fetchErr := h.hl.Transactions(ctx, "code:"+fid)
-		if fetchErr != nil || len(txns) == 0 {
-			continue
+	if len(importedFIDs) > 0 {
+		txns, fetchErr := h.fetchByFIDs(ctx, importedFIDs)
+		if fetchErr == nil {
+			byFID := make(map[string]hledger.Transaction, len(txns))
+			for _, t := range txns {
+				byFID[t.FID] = t
+			}
+			for _, fid := range importedFIDs {
+				if t, ok := byFID[fid]; ok {
+					txnProtos = append(txnProtos, toProtoTransaction(t))
+				}
+			}
 		}
-		txnProtos = append(txnProtos, toProtoTransaction(txns[0]))
 	}
 
 	return stream.Send(&floatv1.ImportTransactionsResponse{
 		Payload: &floatv1.ImportTransactionsResponse_Result{
 			Result: &floatv1.ImportTransactionsResult{
-				ImportedCount: int32(len(importedFIDs)),
-				Transactions:  txnProtos,
-				ImportBatchId: importBatchID,
+				ImportedCount:         int32(len(importedFIDs)),
+				Transactions:          txnProtos,
+				ImportBatchId:         importBatchID,
+				SkippedDuplicateCount: skippedDuplicates,
 			},
 		},
 	})
@@ -2524,7 +2948,7 @@ func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("import_batch_id is required"))
 	}
 	query := []string{"tag:float-import=" + req.Msg.ImportBatchId}
-	txns, err := cachedTransactions(ctx, h.cache, h.hl, query)
+	txns, err := filteredTransactions(ctx, h.cache, h.hl, query)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
@@ -2537,7 +2961,7 @@ func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Requ
 }
 
 func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.ListImportsRequest]) (*connect.Response[floatv1.ListImportsResponse], error) {
-	txns, err := cachedTransactions(ctx, h.cache, h.hl, []string{"tag:float-import"})
+	txns, err := filteredTransactions(ctx, h.cache, h.hl, []string{"tag:float-import"})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
@@ -2691,7 +3115,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 	}
 
 	var newRules []rules.Rule
-	err := h.lock.DoWith(ctx, addRuleMessage(patterns), []string{rules.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, addRuleMessage(patterns), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -2793,7 +3217,7 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 	}
 
 	var updated rules.Rule
-	err := h.lock.DoWith(ctx, fmt.Sprintf("update rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("update rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -2835,7 +3259,7 @@ func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.D
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
 
-	err := h.lock.DoWith(ctx, fmt.Sprintf("delete rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("delete rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3128,7 +3552,7 @@ func (h *Handler) AddTemplate(ctx context.Context, req *connect.Request[floatv1.
 	}
 
 	var added templates.Template
-	err := h.lock.DoWith(ctx, fmt.Sprintf("add template: %s", req.Msg.Name), []string{templates.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("add template: %s", req.Msg.Name), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3176,7 +3600,7 @@ func (h *Handler) UpdateTemplate(ctx context.Context, req *connect.Request[float
 	}
 
 	var updated templates.Template
-	err := h.lock.DoWith(ctx, fmt.Sprintf("update template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("update template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3225,7 +3649,7 @@ func (h *Handler) DeleteTemplate(ctx context.Context, req *connect.Request[float
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
 
-	err := h.lock.DoWith(ctx, fmt.Sprintf("delete template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("delete template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3279,7 +3703,7 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.DoWith(ctx, "set alphavantage api key", []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, "set alphavantage api key", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AlphaVantage.APIKey = req.Msg.ApiKey
@@ -3299,8 +3723,32 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 
 // isExcludedAccount returns true if account matches any of the given prefixes exactly or as a path component.
 func isExcludedAccount(account string, prefixes []string) bool {
+	account = strings.ToLower(account)
 	for _, p := range prefixes {
+		p = strings.ToLower(p)
 		if account == p || strings.HasPrefix(account, p+":") {
+			return true
+		}
+	}
+	return false
+}
+
+// accountMatchesPrefix reports whether account is prefix or one of its
+// subaccounts. Portfolio endpoints use this as a Go-side stand-in for the
+// bare account-name query term (e.g. "assets") they used to send to hledger
+// directly — it's an account-name filter, not accounting logic, so an exact
+// prefix match (rather than hledger's general infix regex matching) is an
+// intentional simplification. Matching is case-insensitive to match hledger's
+// account-name query semantics.
+func accountMatchesPrefix(account, prefix string) bool {
+	account, prefix = strings.ToLower(account), strings.ToLower(prefix)
+	return account == prefix || strings.HasPrefix(account, prefix+":")
+}
+
+// transactionTouchesPrefix reports whether any posting in txn is under prefix.
+func transactionTouchesPrefix(txn hledger.Transaction, prefix string) bool {
+	for _, p := range txn.Postings {
+		if accountMatchesPrefix(p.Account, prefix) {
 			return true
 		}
 	}
@@ -3333,7 +3781,7 @@ func (h *Handler) UpdatePortfolioSettings(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.DoWith(ctx, "update portfolio settings", []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, "update portfolio settings", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols

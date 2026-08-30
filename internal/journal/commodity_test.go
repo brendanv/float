@@ -17,7 +17,7 @@ func TestEnsureCommodityDirective(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
+		if _, err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -41,7 +41,7 @@ func TestEnsureCommodityDirective(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
+		if _, err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -58,7 +58,7 @@ func TestEnsureCommodityDirective(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
+		if _, err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -75,7 +75,7 @@ func TestEnsureCommodityDirective(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
+		if _, err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
 			t.Fatal(err)
 		}
 
@@ -91,7 +91,7 @@ func TestEnsureCommodityDirective(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
+		if _, err := journal.EnsureCommodityDirective(dir, "USD"); err != nil {
 			t.Fatal(err)
 		}
 

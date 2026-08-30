@@ -9,7 +9,7 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
 3. Load `<data-dir>/config.toml`.
 4. Choose the listen address from `--addr`, `config.server.port`, or `:8080`.
 5. Ensure `main.journal` exists, creating an empty file if missing.
-6. Initialize `hledger.Client` for `main.journal` (validates the pinned hledger version).
+6. Initialize `hledger.Client` for `main.journal` (validates the pinned hledger version), then apply `cfg.Server.HledgerConcurrency` via `hl.SetConcurrency`.
 7. Initialize `txlock.TxLock` and `gitsnap.Repo`; call `RecoverUncommitted` for crash leftovers and register the repo with `lock.SetSnap`.
 8. Run startup migrations inside txlock:
    - `journal.MigrateFIDs` to assign transaction code fields.
@@ -18,8 +18,10 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
    - account declaration bootstrap: ensure `accounts.journal`, ensure its include, and append currently undeclared accounts.
 9. Read `FLOAT_AUTH_PASSPHRASE` into `internal/auth` (auth disabled when unset) and log the auth state.
 10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
-11. Start `handler.StartDailyStripeImport(ctx)`.
-12. Serve HTTP until interrupted, then shut down gracefully.
+11. Create an `internal/warm.Warmer` over `handler.WarmEntries` and register it as a `lock.OnCommit` hook, so every successful write schedules a debounced (500ms) cache-warming pass. Also register a second `lock.OnCommit` hook (`newStatsLogger`) that diffs `cache.Cache.Stats()` and `hledger.Client.Invocations()` against the previous generation and logs the delta at Info level (reaches `StreamLogs` via the broadcast handler) — the target steady state is zero hledger invocations between writes.
+12. Start `handler.StartDailyStripeImport(ctx)`.
+13. Bind the listener (`net.Listen`), then kick the startup warm pass (`warmer.Start(ctx)`) — only once the listener is bound, so warming never delays accepting connections — before serving HTTP.
+14. Serve HTTP until interrupted, then shut down gracefully.
 
 ## Flags
 
