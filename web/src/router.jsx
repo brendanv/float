@@ -40,7 +40,6 @@ const HledgerQueryPage = lazyPage(() => import("./pages/hledger-query.jsx"), "Hl
 const ConnectionsPage = lazyPage(() => import("./pages/connections.jsx"), "ConnectionsPage");
 const LogsPage = lazyPage(() => import("./pages/logs.jsx"), "LogsPage");
 const TemplatesPage = lazyPage(() => import("./pages/templates.jsx"), "TemplatesPage");
-const BulkEntryPage = lazyPage(() => import("./pages/bulk-entry.jsx"), "BulkEntryPage");
 const LoginPage = lazyPage(() => import("./pages/login.jsx"), "LoginPage");
 
 const rootRoute = createRootRoute({
@@ -191,15 +190,6 @@ const templatesRoute = createRoute({
   component: TemplatesPage,
 });
 
-const bulkEntryRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/bulk-entry",
-  validateSearch: (search) => ({
-    templateId: search.templateId ?? "",
-  }),
-  component: BulkEntryPage,
-});
-
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -226,7 +216,6 @@ const routeTree = rootRoute.addChildren([
   connectionsRoute,
   logsRoute,
   templatesRoute,
-  bulkEntryRoute,
   loginRoute,
 ]);
 

@@ -21,7 +21,6 @@ import {
   Link2,
   Logs,
   Scale,
-  LayoutGrid,
   TableProperties,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,6 @@ const NAV_FINANCES = [
   { href: "/monthly", label: "Monthly", icon: BarChart2 },
   { href: "/transactions", label: "Transactions", icon: List },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { href: "/bulk-entry", label: "Bulk Entry", icon: LayoutGrid },
 ];
 
 const NAV_MANAGE = [
