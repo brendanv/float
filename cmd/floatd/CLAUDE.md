@@ -18,8 +18,10 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
    - account declaration bootstrap: ensure `accounts.journal`, ensure its include, and append currently undeclared accounts.
 9. Read `FLOAT_AUTH_PASSPHRASE` into `internal/auth` (auth disabled when unset) and log the auth state.
 10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
-11. Start `handler.StartDailyStripeImport(ctx)`.
-12. Serve HTTP until interrupted, then shut down gracefully.
+11. Create an `internal/warm.Warmer` over `handler.WarmEntries` and register it as a `lock.OnCommit` hook, so every successful write schedules a debounced (500ms) cache-warming pass.
+12. Start `handler.StartDailyStripeImport(ctx)`.
+13. Bind the listener (`net.Listen`), then kick the startup warm pass (`warmer.Start(ctx)`) — only once the listener is bound, so warming never delays accepting connections — before serving HTTP.
+14. Serve HTTP until interrupted, then shut down gracefully.
 
 ## Flags
 

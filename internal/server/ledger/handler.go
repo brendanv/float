@@ -38,6 +38,7 @@ type Handler struct {
 	dataDir        string
 	configPath     string
 	cache          *cache.Cache[any] // nil = bypass cache
+	recentAccounts *recentAccounts
 	snap           *gitsnap.Repo
 	cfg            atomic.Pointer[config.Config]
 	logBroadcaster *logstream.Broadcaster
@@ -58,7 +59,7 @@ type Handler struct {
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
-	h := &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, snap: snap, logBroadcaster: broadcaster}
+	h := &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, recentAccounts: newRecentAccounts(recentAccountsCap), snap: snap, logBroadcaster: broadcaster}
 	h.cfg.Store(cfg)
 	return h
 }
@@ -375,6 +376,7 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger aregister failed")
 	}
+	h.recentAccounts.touch(account)
 	rows, total, hasNext := paginate(rows, req.Msg.Offset, req.Msg.Limit)
 	proto := make([]*floatv1.AccountRegisterRow, len(rows))
 	for i, r := range rows {

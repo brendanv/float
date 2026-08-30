@@ -4,7 +4,7 @@ ConnectRPC handler implementing `LedgerService`. This is the main application se
 
 ## Handler
 
-`Handler` holds references to the hledger client, txlock, data directory, config path, generation cache, gitsnap repo, in-memory config, and log broadcaster. Construct it with `NewHandler(...)` from `cmd/floatd`.
+`Handler` holds references to the hledger client, txlock, data directory, config path, generation cache, a recently-used-accounts LRU, gitsnap repo, in-memory config, and log broadcaster. Construct it with `NewHandler(...)` from `cmd/floatd`.
 
 All accounting queries delegate to `internal/hledger`. All journal/config/rules/import mutations must run in `lock.Do(ctx, "message", fn)` unless they are purely read-only.
 
@@ -24,6 +24,10 @@ Current cached families include:
 - `portfolio:<accounts>:<begin>` and `portfoliocost:<accounts>:<begin>`
 
 Pagination (`limit`/`offset`) is applied after loading/caching the full hledger result.
+
+## Proactive Warming (`warm.go`)
+
+`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1, full-history `networth`/`incomestmt`, plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
 
 ## Filtering in Go (`internal/txfilter`)
 

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,8 +29,13 @@ import (
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/txlock"
+	"github.com/brendanv/float/internal/warm"
 	"github.com/brendanv/float/internal/webui"
 )
+
+// warmDebounce coalesces bursts of writes (imports, apply-rules) into a
+// single warm pass after the burst settles, instead of one pass per write.
+const warmDebounce = 500 * time.Millisecond
 
 func main() {
 	dataDir := flag.String("data-dir", "", "path to float data directory (required)")
@@ -161,6 +167,10 @@ func main() {
 
 	c := cache.New[any](lock.Generation)
 	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg, broadcaster)
+
+	warmer := warm.New(lock.Generation, handler.WarmEntries, warmDebounce)
+	lock.OnCommit(warmer.Trigger)
+
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
 		handler,
@@ -190,8 +200,17 @@ func main() {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		slog.Error("listen", "error", err)
+		os.Exit(1)
+	}
+	// Kick the startup warm pass only once the listener is bound, so warming
+	// never delays accepting connections.
+	warmer.Start(ctx)
+
 	slog.Info("floatd listening", "addr", listenAddr, "webui", true)
-	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("server", "error", err)
 		os.Exit(1)
 	}

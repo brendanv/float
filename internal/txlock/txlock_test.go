@@ -227,6 +227,38 @@ func TestTxLock_Do_ExistingFileReverted(t *testing.T) {
 	}
 }
 
+func TestTxLock_OnCommit(t *testing.T) {
+	validTx := "2026-01-15 AMAZON\n    expenses:food  $10.00\n    assets:checking  $-10.00\n\n"
+	invalidTx := "2026-01-15 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n"
+
+	dir := setupDataDir(t)
+	l := mustTxLock(t, dir)
+
+	var mu sync.Mutex
+	var gens []uint64
+	l.OnCommit(func(gen uint64) {
+		mu.Lock()
+		defer mu.Unlock()
+		gens = append(gens, gen)
+	})
+
+	// A failed write must not fire the hook, even though it still bumps the
+	// generation to invalidate readers of the intermediate state.
+	if err := l.Do(t.Context(), "bad write", addMonthFile(dir, "2026/01.journal", invalidTx)); err == nil {
+		t.Fatal("expected check error")
+	}
+
+	if err := l.Do(t.Context(), "good write", addMonthFile(dir, "2026/01.journal", validTx)); err != nil {
+		t.Fatalf("Do() failed: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(gens) != 1 || gens[0] != l.Generation() {
+		t.Fatalf("OnCommit hook calls = %v, want exactly one call with generation %d", gens, l.Generation())
+	}
+}
+
 func TestTxLock_DoWith(t *testing.T) {
 	validTx := "2026-01-15 AMAZON\n    expenses:food  $10.00\n    assets:checking  $-10.00\n\n"
 	invalidTx := "2026-01-15 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n"

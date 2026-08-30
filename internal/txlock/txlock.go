@@ -22,6 +22,10 @@ import (
 // mutation is a genuine no-op, not a failure.
 var ErrNoChanges = errors.New("txlock: no changes made")
 
+// CommitHook is called after a write successfully commits (generation bumped),
+// with the new generation. Registered via TxLock.OnCommit.
+type CommitHook func(gen uint64)
+
 // TxLock serializes all journal mutations and enforces the write protocol:
 // snapshot → write → hledger check → (revert on failure | bump generation on success).
 type TxLock struct {
@@ -30,6 +34,8 @@ type TxLock struct {
 	client  *hledger.Client
 	gen     atomic.Uint64
 	snap    *gitsnap.Repo
+	hooksMu sync.Mutex
+	hooks   []CommitHook
 }
 
 // New creates a TxLock for the given data directory and hledger client.
@@ -109,6 +115,7 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 			logger.Warn("txlock: gitsnap commit failed", "error", snapErr)
 		}
 	}
+	l.fireCommitHooks(gen)
 	return nil
 }
 
@@ -164,8 +171,31 @@ func (l *TxLock) SetSnap(snap *gitsnap.Repo) {
 	l.snap = snap
 }
 
+// OnCommit registers fn to be called (with the new generation) after every
+// successful write commits. Intended for the query-result warmer: it fires
+// only on the generation-bumping success path of DoWith/Do, not on failure,
+// revert, or DoConfig (which never bumps the generation). Registered hooks
+// are called synchronously and in registration order after the generation
+// bump, so a hook should not block — schedule work asynchronously instead.
+func (l *TxLock) OnCommit(fn CommitHook) {
+	l.hooksMu.Lock()
+	defer l.hooksMu.Unlock()
+	l.hooks = append(l.hooks, fn)
+}
+
+func (l *TxLock) fireCommitHooks(gen uint64) {
+	l.hooksMu.Lock()
+	hooks := append([]CommitHook(nil), l.hooks...)
+	l.hooksMu.Unlock()
+	for _, h := range hooks {
+		h(gen)
+	}
+}
+
 func (l *TxLock) BumpGeneration() uint64 {
-	return l.gen.Add(1)
+	gen := l.gen.Add(1)
+	l.fireCommitHooks(gen)
+	return gen
 }
 
 // configSnapshot captures pre-write state for a fixed list of non-journal
