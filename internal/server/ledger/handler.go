@@ -26,6 +26,7 @@ import (
 	"github.com/brendanv/float/internal/rules"
 	"github.com/brendanv/float/internal/slogctx"
 	"github.com/brendanv/float/internal/templates"
+	"github.com/brendanv/float/internal/txfilter"
 	"github.com/brendanv/float/internal/txlock"
 )
 
@@ -152,6 +153,22 @@ func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Cl
 	})
 }
 
+// filteredTransactions serves a transaction query by filtering the single
+// canonical full-journal fetch (cachedTransactions(nil)) in Go when query is
+// entirely within txfilter's supported vocabulary. Any token outside that
+// vocabulary (e.g. an AI-generated or RunHledgerQuery-style query) falls back
+// to a dedicated cached hledger query, exactly as before this existed.
+func filteredTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.Transaction, error) {
+	if f, ok := txfilter.Parse(query); ok {
+		all, err := cachedTransactions(ctx, c, hl, nil)
+		if err != nil {
+			return nil, err
+		}
+		return f.Filter(all), nil
+	}
+	return cachedTransactions(ctx, c, hl, query)
+}
+
 // fetchByFIDs returns the transactions matching fids, selected in Go from the
 // full cached transaction list rather than a per-FID or per-batch hledger
 // query. Write RPCs use this for their post-write re-read: it costs the same
@@ -199,6 +216,52 @@ func cachedAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Clien
 	return cachedGet(ctx, c, accountRegisterKey(account, query), func(ctx context.Context) ([]hledger.AregisterRow, error) {
 		return hl.Aregister(ctx, account, query...)
 	})
+}
+
+// filteredAregister serves an account register query by filtering the
+// account's single canonical unfiltered fetch (cachedAregister(account, nil))
+// in Go when query is entirely within txfilter's supported vocabulary,
+// falling back to a dedicated cached hledger query otherwise — mirroring
+// filteredTransactions.
+//
+// Accepting this means the running-balance column always shows the
+// account's true historical running balance rather than a subset-relative
+// sum, since rows are dropped after hledger has already computed them
+// against the full account history. For a date-filtered register this is
+// arguably a correction, not a regression, but it is user-visible.
+func filteredAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, account string, query []string) ([]hledger.AregisterRow, error) {
+	f, ok := txfilter.Parse(query)
+	if !ok {
+		return cachedAregister(ctx, c, hl, account, query)
+	}
+	all, err := cachedAregister(ctx, c, hl, account, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]hledger.AregisterRow, 0, len(all))
+	for _, row := range all {
+		t := aregisterRowForFilter(account, row)
+		if f.Match(&t) {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+// aregisterRowForFilter returns a copy of row's source transaction with Date
+// replaced by the focused account's own posting-date override, if any.
+// `hledger areg`'s date: filtering honors a posting-level date override on
+// the focused account's leg, unlike `print` (and txfilter's default date
+// handling), which uses only the transaction date.
+func aregisterRowForFilter(account string, row hledger.AregisterRow) hledger.Transaction {
+	t := row.Transaction
+	for _, p := range t.Postings {
+		if p.Date != nil && (p.Account == account || strings.HasPrefix(p.Account, account+":")) {
+			t.Date = *p.Date
+			break
+		}
+	}
+	return t
 }
 
 // cachedNetWorth fetches a balance sheet timeseries from cache or hledger.
@@ -291,7 +354,7 @@ func paginate[T any](items []T, offset, limit int32) ([]T, int32, bool) {
 }
 
 func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[floatv1.ListTransactionsRequest]) (*connect.Response[floatv1.ListTransactionsResponse], error) {
-	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
+	txns, err := filteredTransactions(ctx, h.cache, h.hl, req.Msg.Query)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
@@ -308,7 +371,7 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 	if account == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account is required"))
 	}
-	rows, err := cachedAregister(ctx, h.cache, h.hl, account, req.Msg.Query)
+	rows, err := filteredAregister(ctx, h.cache, h.hl, account, req.Msg.Query)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger aregister failed")
 	}
@@ -403,7 +466,6 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	if prefix == "" {
 		prefix = "assets"
 	}
-	query := []string{prefix}
 
 	cfg := h.loadCfg()
 	var excludedSymbols map[string]bool
@@ -416,8 +478,10 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		excludedAccountPrefixes = cfg.Portfolio.ExcludedAccountPrefixes
 	}
 
-	// Raw balances provide the original commodity quantities.
-	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, query)
+	// Raw balances provide the original commodity quantities. Fetched
+	// unfiltered and shared across every prefix/generation; the prefix is an
+	// account-name filter applied in Go below, not accounting logic.
+	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio")
 	}
@@ -447,10 +511,13 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	// day you bought or sold the commodity. This fills in price dates for
 	// commodities (e.g. 401k funds) that have no P directives.
 	lastTxDateByCommodity := make(map[string]string)
-	if txns, txErr := cachedTransactions(ctx, h.cache, h.hl, query); txErr != nil {
+	if txns, txErr := cachedTransactions(ctx, h.cache, h.hl, nil); txErr != nil {
 		logger.WarnContext(ctx, "could not load transactions for last purchase dates", "error", txErr)
 	} else {
 		for _, txn := range txns {
+			if !transactionTouchesPrefix(txn, prefix) {
+				continue
+			}
 			for _, p := range txn.Postings {
 				for _, amt := range p.Amounts {
 					if currencySymbols[amt.Commodity] {
@@ -481,6 +548,9 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	costByHolding := make(map[holdingKey]costBasis)
 	var holdingOrder []holdingKey
 	for _, row := range raw.Rows {
+		if !accountMatchesPrefix(row.FullName, prefix) {
+			continue
+		}
 		if isExcludedAccount(row.FullName, excludedAccountPrefixes) {
 			continue
 		}
@@ -659,13 +729,16 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 	// commodities (equities, funds, etc.). This mirrors the GetPortfolioHoldings
 	// filter so that cash accounts like checking/savings are excluded from the
 	// chart total, matching what the Total Value card shows.
-	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, []string{prefix})
+	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio timeseries")
 	}
 	seen := make(map[string]bool)
 	var investmentAccounts []string
 	for _, row := range raw.Rows {
+		if !accountMatchesPrefix(row.FullName, prefix) {
+			continue
+		}
 		if isExcludedAccount(row.FullName, tsExcludedAccountPrefixes) {
 			continue
 		}
@@ -725,8 +798,141 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(&floatv1.GetPortfolioTimeseriesResponse{Snapshots: snapshots}), nil
 }
 
+// isMonthAligned reports whether date is "" or a first-of-month "YYYY-MM-DD"
+// string. `bs --historical`/`is --monthly` periods are calendar-month
+// boundaries; a begin/end that isn't month-aligned makes hledger generate a
+// partial first/last period anchored to that exact date instead, which a
+// slice of the full-history period list cannot reproduce — such requests
+// must keep going straight to hledger.
+func isMonthAligned(date string) bool {
+	return date == "" || (len(date) == 10 && date[4] == '-' && date[7] == '-' && date[8:] == "01")
+}
+
+// selectPeriodIndexes returns the indexes of periods whose start date falls
+// in [begin, end) (either bound optional), for slicing a full-history
+// timeseries down to a requested range in Go.
+func selectPeriodIndexes(periods []string, begin, end string) []int {
+	idxs := make([]int, 0, len(periods))
+	for i, p := range periods {
+		if begin != "" && p < begin {
+			continue
+		}
+		if end != "" && p >= end {
+			continue
+		}
+		idxs = append(idxs, i)
+	}
+	return idxs
+}
+
+// sumAmounts sums Amounts across the selected period indexes, grouped by
+// commodity, using exact integer arithmetic to avoid float64 rounding
+// residue. Used to recompute a row's cross-period total after slicing.
+func sumAmounts(perPeriod [][]hledger.Amount, idxs []int) []hledger.Amount {
+	sums := make(map[string]*exactQty)
+	var order []string
+	for _, i := range idxs {
+		for _, amt := range perPeriod[i] {
+			q, ok := sums[amt.Commodity]
+			if !ok {
+				q = &exactQty{}
+				sums[amt.Commodity] = q
+				order = append(order, amt.Commodity)
+			}
+			q.add(amt.Quantity.DecimalMantissa, amt.Quantity.DecimalPlaces)
+		}
+	}
+	out := make([]hledger.Amount, len(order))
+	for i, c := range order {
+		q := sums[c]
+		out[i] = hledger.Amount{
+			Commodity: c,
+			Quantity: hledger.AmountQuantity{
+				DecimalMantissa: q.mantissa,
+				DecimalPlaces:   q.scale,
+				FloatingPoint:   q.float(),
+			},
+		}
+	}
+	return out
+}
+
+// sliceBalanceSheetTimeseries restricts ts to the periods in [begin, end).
+// bs --historical values are cumulative from account opening regardless of
+// begin, so (given a month-aligned begin/end, checked by the caller) trimming
+// periods is equivalent to hledger having been asked for that range directly.
+func sliceBalanceSheetTimeseries(ts *hledger.BalanceSheetTimeseries, begin, end string) *hledger.BalanceSheetTimeseries {
+	idxs := selectPeriodIndexes(ts.Periods, begin, end)
+	out := &hledger.BalanceSheetTimeseries{
+		Periods:  make([]string, len(idxs)),
+		NetWorth: make([][]hledger.Amount, len(idxs)),
+	}
+	for j, i := range idxs {
+		out.Periods[j] = ts.Periods[i]
+		out.NetWorth[j] = ts.NetWorth[i]
+	}
+	out.Subreports = make([]hledger.BSSubreport, len(ts.Subreports))
+	for s, sub := range ts.Subreports {
+		totals := make([][]hledger.Amount, len(idxs))
+		for j, i := range idxs {
+			totals[j] = sub.Totals[i]
+		}
+		out.Subreports[s] = hledger.BSSubreport{Name: sub.Name, Totals: totals}
+	}
+	return out
+}
+
+// sliceIncomeStatementTimeseries restricts ts to the periods in [begin, end),
+// recomputing each row's cross-period TotalAmounts over just that range (the
+// full-history fetch's TotalAmounts covers every period, not the requested
+// slice).
+func sliceIncomeStatementTimeseries(ts *hledger.IncomeStatementTimeseries, begin, end string) *hledger.IncomeStatementTimeseries {
+	idxs := selectPeriodIndexes(ts.Periods, begin, end)
+	out := &hledger.IncomeStatementTimeseries{
+		Periods:    make([]string, len(idxs)),
+		NetAmounts: make([][]hledger.Amount, len(idxs)),
+	}
+	for j, i := range idxs {
+		out.Periods[j] = ts.Periods[i]
+		out.NetAmounts[j] = ts.NetAmounts[i]
+	}
+	out.Subreports = make([]hledger.ISSubreport, len(ts.Subreports))
+	for s, sub := range ts.Subreports {
+		rows := make([]hledger.ISRow, len(sub.Rows))
+		for r, row := range sub.Rows {
+			perPeriod := make([][]hledger.Amount, len(idxs))
+			for j, i := range idxs {
+				perPeriod[j] = row.PerPeriodAmounts[i]
+			}
+			rows[r] = hledger.ISRow{
+				DisplayName:      row.DisplayName,
+				FullName:         row.FullName,
+				Indent:           row.Indent,
+				Section:          row.Section,
+				PerPeriodAmounts: perPeriod,
+				TotalAmounts:     sumAmounts(row.PerPeriodAmounts, idxs),
+			}
+		}
+		totals := make([][]hledger.Amount, len(idxs))
+		for j, i := range idxs {
+			totals[j] = sub.Totals[i]
+		}
+		out.Subreports[s] = hledger.ISSubreport{Name: sub.Name, Rows: rows, Totals: totals}
+	}
+	return out
+}
+
 func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {
-	ts, err := cachedNetWorth(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	var ts *hledger.BalanceSheetTimeseries
+	var err error
+	if isMonthAligned(req.Msg.Begin) && isMonthAligned(req.Msg.End) {
+		ts, err = cachedNetWorth(ctx, h.cache, h.hl, "", "")
+		if err == nil {
+			ts = sliceBalanceSheetTimeseries(ts, req.Msg.Begin, req.Msg.End)
+		}
+	} else {
+		ts, err = cachedNetWorth(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	}
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balance sheet timeseries failed")
 	}
@@ -748,7 +954,16 @@ func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Reques
 }
 
 func (h *Handler) GetIncomeStatementTimeseries(ctx context.Context, req *connect.Request[floatv1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[floatv1.GetIncomeStatementTimeseriesResponse], error) {
-	ts, err := cachedIncomeStatement(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	var ts *hledger.IncomeStatementTimeseries
+	var err error
+	if isMonthAligned(req.Msg.Begin) && isMonthAligned(req.Msg.End) {
+		ts, err = cachedIncomeStatement(ctx, h.cache, h.hl, "", "")
+		if err == nil {
+			ts = sliceIncomeStatementTimeseries(ts, req.Msg.Begin, req.Msg.End)
+		}
+	} else {
+		ts, err = cachedIncomeStatement(ctx, h.cache, h.hl, req.Msg.Begin, req.Msg.End)
+	}
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger income statement timeseries failed")
 	}
@@ -2595,7 +2810,7 @@ func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("import_batch_id is required"))
 	}
 	query := []string{"tag:float-import=" + req.Msg.ImportBatchId}
-	txns, err := cachedTransactions(ctx, h.cache, h.hl, query)
+	txns, err := filteredTransactions(ctx, h.cache, h.hl, query)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
@@ -2608,7 +2823,7 @@ func (h *Handler) GetImportedTransactions(ctx context.Context, req *connect.Requ
 }
 
 func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.ListImportsRequest]) (*connect.Response[floatv1.ListImportsResponse], error) {
-	txns, err := cachedTransactions(ctx, h.cache, h.hl, []string{"tag:float-import"})
+	txns, err := filteredTransactions(ctx, h.cache, h.hl, []string{"tag:float-import"})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
@@ -3372,6 +3587,26 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 func isExcludedAccount(account string, prefixes []string) bool {
 	for _, p := range prefixes {
 		if account == p || strings.HasPrefix(account, p+":") {
+			return true
+		}
+	}
+	return false
+}
+
+// accountMatchesPrefix reports whether account is prefix or one of its
+// subaccounts. Portfolio endpoints use this as a Go-side stand-in for the
+// bare account-name query term (e.g. "assets") they used to send to hledger
+// directly — it's an account-name filter, not accounting logic, so an exact
+// prefix match (rather than hledger's general infix regex matching) is an
+// intentional simplification.
+func accountMatchesPrefix(account, prefix string) bool {
+	return account == prefix || strings.HasPrefix(account, prefix+":")
+}
+
+// transactionTouchesPrefix reports whether any posting in txn is under prefix.
+func transactionTouchesPrefix(txn hledger.Transaction, prefix string) bool {
+	for _, p := range txn.Postings {
+		if accountMatchesPrefix(p.Account, prefix) {
 			return true
 		}
 	}

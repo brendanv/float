@@ -234,6 +234,41 @@ func TestListTransactionsWithQuery(t *testing.T) {
 	}
 }
 
+// TestListTransactionsWithQuery_SupportedVocabularyFiltersInGo verifies that
+// a query entirely within txfilter's supported vocabulary (Phase 2.2) is
+// served by fetching the full transaction list once and filtering in Go,
+// rather than passing the query tokens to hledger.
+func TestListTransactionsWithQuery_SupportedVocabularyFiltersInGo(t *testing.T) {
+	var capturedArgs []string
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		capturedArgs = args
+		return []byte(printJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil, nil)
+
+	resp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{
+		Query: []string{"acct:checking"},
+	}))
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+
+	joined := strings.Join(capturedArgs, " ")
+	if strings.Contains(joined, "acct:checking") {
+		t.Errorf("args %v should not include the query token (expected a full-history fetch filtered in Go)", capturedArgs)
+	}
+	if len(resp.Msg.Transactions) != 1 {
+		t.Fatalf("expected the Go filter to still match the fixture transaction, got %d", len(resp.Msg.Transactions))
+	}
+}
+
 func TestGetBalances(t *testing.T) {
 	h := mustHandler(t, map[string][]byte{
 		"bal": []byte(balJSON),
@@ -883,6 +918,11 @@ func TestGetNetWorthTimeseries_CacheError(t *testing.T) {
 	}
 }
 
+// TestGetNetWorthTimeseries_WithDateRange verifies that a month-aligned
+// begin/end is served by slicing a single full-history hledger fetch in Go
+// (Phase 2.5), rather than asking hledger for that date range directly:
+// `bs --historical` values are cumulative from account opening regardless of
+// begin, so trimming periods after the fact is equivalent.
 func TestGetNetWorthTimeseries_WithDateRange(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
@@ -898,20 +938,55 @@ func TestGetNetWorthTimeseries_WithDateRange(t *testing.T) {
 	}
 	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil, nil)
 
-	_, err = h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{
-		Begin: "2026-01-01",
-		End:   "2026-03-01",
+	resp, err := h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{
+		Begin: "2026-02-01",
+		End:   "",
 	}))
 	if err != nil {
 		t.Fatalf("GetNetWorthTimeseries: %v", err)
 	}
 
 	joined := strings.Join(capturedArgs, " ")
-	if !strings.Contains(joined, "2026-01-01") {
-		t.Errorf("args %v missing begin date", capturedArgs)
+	if strings.Contains(joined, "date:") {
+		t.Errorf("args %v should not include a date: query for a month-aligned range (expected a full-history fetch sliced in Go)", capturedArgs)
 	}
-	if !strings.Contains(joined, "2026-03-01") {
-		t.Errorf("args %v missing end date", capturedArgs)
+
+	snapshots := resp.Msg.Snapshots
+	if len(snapshots) != 1 || snapshots[0].Date != "2026-02-01" {
+		t.Fatalf("expected slicing to leave only the 2026-02-01 snapshot, got %+v", snapshots)
+	}
+}
+
+// TestGetNetWorthTimeseries_NonAlignedRangePassesThrough verifies that a
+// begin/end that isn't a first-of-month date still goes straight to hledger
+// (bs would otherwise generate a partial period anchored to that exact date,
+// which slicing the full-history period list can't reproduce).
+func TestGetNetWorthTimeseries_NonAlignedRangePassesThrough(t *testing.T) {
+	var capturedArgs []string
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		capturedArgs = args
+		return []byte(bsTimeseriesJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil, nil)
+
+	_, err = h.GetNetWorthTimeseries(t.Context(), connect.NewRequest(&floatv1.GetNetWorthTimeseriesRequest{
+		Begin: "2026-01-15",
+		End:   "",
+	}))
+	if err != nil {
+		t.Fatalf("GetNetWorthTimeseries: %v", err)
+	}
+
+	joined := strings.Join(capturedArgs, " ")
+	if !strings.Contains(joined, "2026-01-15") {
+		t.Errorf("args %v missing begin date for a non-month-aligned range", capturedArgs)
 	}
 }
 
@@ -1515,6 +1590,45 @@ func TestGetAccountRegister_PassesArgsToHledger(t *testing.T) {
 	}
 	if !strings.Contains(joined, "status:cleared") {
 		t.Errorf("args %v missing query token 'status:cleared'", capturedArgs)
+	}
+}
+
+// TestGetAccountRegister_SupportedVocabularyFiltersInGo verifies that a query
+// entirely within txfilter's supported vocabulary (Phase 2.3) is served by
+// fetching the account's unfiltered register once and filtering rows in Go,
+// rather than passing the query tokens to hledger.
+func TestGetAccountRegister_SupportedVocabularyFiltersInGo(t *testing.T) {
+	var capturedArgs []string
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		}
+		capturedArgs = args
+		return []byte(aregJSON), nil, nil
+	}
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	h := serverledger.NewHandler(c, nil, "", "", nil, nil, nil, nil)
+
+	resp, err := h.GetAccountRegister(t.Context(), connect.NewRequest(&floatv1.GetAccountRegisterRequest{
+		Account: "assets:checking",
+		Query:   []string{"status:*"},
+	}))
+	if err != nil {
+		t.Fatalf("GetAccountRegister: %v", err)
+	}
+
+	joined := strings.Join(capturedArgs, " ")
+	if strings.Contains(joined, "status:") {
+		t.Errorf("args %v should not include the query token (expected an unfiltered fetch filtered in Go)", capturedArgs)
+	}
+	if len(resp.Msg.Rows) != 1 {
+		t.Fatalf("expected status:* to leave only the Cleared row, got %d rows", len(resp.Msg.Rows))
+	}
+	if resp.Msg.Rows[0].Fid != "aa001100" {
+		t.Errorf("Fid = %q, want %q", resp.Msg.Rows[0].Fid, "aa001100")
 	}
 }
 
@@ -3336,6 +3450,56 @@ P 2026-01-25 VEUR 120.00 EUR
 		if sum < 99.9 || sum > 100.1 {
 			t.Errorf("PortfolioPct sum for %s = %.4f, want ~100", curr, sum)
 		}
+	}
+}
+
+// TestGetPortfolioHoldings_AccountPrefixScoping verifies that AccountPrefix
+// still isolates holdings correctly now that the handler fetches the full
+// unfiltered balance/transaction sets once and filters by prefix in Go
+// (Phase 2.4), instead of asking hledger for a prefix-scoped query.
+func TestGetPortfolioHoldings_AccountPrefixScoping(t *testing.T) {
+	dir := t.TempDir()
+
+	main := `; float main journal
+account assets:investments:aapl
+account assets:retirement:vwo
+account assets:checking
+
+include 2026/01.journal
+`
+	txns := `2026-01-05 Buy AAPL
+    assets:investments:aapl    10 AAPL @ 150.00 USD
+    assets:checking           -1500.00 USD
+
+2026-01-10 Buy VWO
+    assets:retirement:vwo      5 VWO @ 80.00 USD
+    assets:checking           -400.00 USD
+`
+
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte(main), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "2026/01.journal"), []byte(txns), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := mustRealHandler(t, dir)
+
+	resp, err := h.GetPortfolioHoldings(t.Context(), connect.NewRequest(&floatv1.GetPortfolioHoldingsRequest{
+		AccountPrefix: "assets:investments",
+	}))
+	if err != nil {
+		t.Fatalf("GetPortfolioHoldings: %v", err)
+	}
+
+	if len(resp.Msg.Holdings) != 1 || resp.Msg.Holdings[0].Symbol != "AAPL" {
+		t.Fatalf("expected only AAPL under assets:investments, got %+v", resp.Msg.Holdings)
+	}
+	if resp.Msg.Holdings[0].Account != "assets:investments:aapl" {
+		t.Errorf("Account = %q, want %q", resp.Msg.Holdings[0].Account, "assets:investments:aapl")
 	}
 }
 

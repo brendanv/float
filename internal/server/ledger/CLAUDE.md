@@ -25,6 +25,16 @@ Current cached families include:
 
 Pagination (`limit`/`offset`) is applied after loading/caching the full hledger result.
 
+## Filtering in Go (`internal/txfilter`)
+
+`ListTransactions`, `GetImportedTransactions`, `ListImports`, and `GetAccountRegister` prefer serving a query from a single canonical unfiltered fetch — `transactions:(nil)` / `aregister:<account>:(nil)` — filtered in Go, instead of a query-keyed hledger invocation. `filteredTransactions`/`filteredAregister` call `txfilter.Parse(query)` first: if every token is within its supported vocabulary (`date`, `acct`, `tag`, `payee`, `desc`, `status`, `code`, and `not:` negations), they load the unfiltered fetch and filter in memory; otherwise they fall back to a dedicated cached hledger query exactly as before. `internal/txfilter` has table-driven tests that run real hledger over fixtures and assert equivalence — extend those fixtures/cases rather than hand-verifying new token behavior.
+
+`GetAccountRegister`'s date filtering (`aregisterRowForFilter`) honors a posting-level date override on the *focused account's own posting*, matching `hledger areg`'s semantics — which differ from `print`'s (transaction-date-only) semantics that `txfilter`'s default date handling assumes. Accepted user-visible behavior change: because rows are dropped after hledger has already computed the register against the full account history, the running-balance column always shows the account's true historical running balance rather than a subset-relative sum.
+
+`GetPortfolioHoldings` and `GetPortfolioTimeseries` fetch the unfiltered `balances:0:(nil)`/`transactions:(nil)` datasets and filter by `AccountPrefix` in Go (`accountMatchesPrefix`/`transactionTouchesPrefix`) — this is a plain account-name-prefix match, not hledger's general regex matching, and is fine because `AccountPrefix` is always a literal prefix from the UI, not accounting logic.
+
+`GetNetWorthTimeseries` and `GetIncomeStatementTimeseries` serve a month-aligned `begin`/`end` (`isMonthAligned`: `""` or a first-of-month date) by fetching the full-history timeseries once and slicing `Periods`/`Totals`/`NetAmounts` in Go (`sliceBalanceSheetTimeseries`/`sliceIncomeStatementTimeseries`); a non-month-aligned range still goes straight to hledger, since `bs`/`is --monthly` would otherwise generate a partial period anchored to that exact date, which slicing the full-history period list can't reproduce. Income statement row totals (`ISRow.TotalAmounts`) are recomputed over just the sliced periods (`sumAmounts`), since the full-history fetch's row totals cover every period.
+
 ## RPC Categories
 
 **Cached queries:** `ListTransactions`, `GetBalances`, `GetAccountRegister`, `ListAccounts`, `ListTags`, `ListPayees`, `GetNetWorthTimeseries`, `GetIncomeStatementTimeseries`, portfolio timeseries helpers.
