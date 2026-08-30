@@ -201,7 +201,7 @@ export function AddTransactionModal({ open, onOpenChange, initialValues }) {
 
   return (
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
-      <ResponsiveDialogContent size="md" showCloseButton>
+      <ResponsiveDialogContent size="lg" showCloseButton>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>{initialValues ? "Duplicate Transaction" : "Add Transaction"}</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
