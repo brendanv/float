@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import {
   useReactTable,
   getCoreRowModel,
@@ -220,7 +219,6 @@ function postingSummary(postings) {
 
 export function TemplatesPage() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -292,14 +290,6 @@ export function TemplatesPage() {
       header: "",
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            title="Use in bulk entry"
-            onClick={() => navigate({ to: "/bulk-entry", search: { templateId: row.original.id } })}
-          >
-            <LayoutGrid className="size-3.5" />
-          </Button>
           <Button
             variant="ghost"
             size="icon-xs"
@@ -383,7 +373,7 @@ export function TemplatesPage() {
             <EmptyState
               icon={LayoutGrid}
               title="No templates yet"
-              description="Create a template to save a transaction shape for bulk entry."
+              description="Create a template to save a transaction shape for quick entry."
             />
           ) : (
             <>
