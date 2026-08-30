@@ -74,7 +74,7 @@ func (h *Handler) SetAIPrompt(ctx context.Context, req *connect.Request[floatv1.
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.DoWith(ctx, "set AI prompt", []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, "set AI prompt", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AI.Prompt = req.Msg.Prompt
@@ -102,7 +102,7 @@ func (h *Handler) SetAIModel(ctx context.Context, req *connect.Request[floatv1.S
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.DoWith(ctx, "set AI model", []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, "set AI model", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AI.Model = req.Msg.Model

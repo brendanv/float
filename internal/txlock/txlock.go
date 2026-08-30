@@ -2,6 +2,7 @@ package txlock
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -14,6 +15,12 @@ import (
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
 )
+
+// ErrNoChanges is a sentinel a caller's fn can return from DoWith/Do to signal
+// that it made no modifications to any snapshotted file. DoWith treats this as
+// success but skips hledger check, generation bump, and gitsnap commit — the
+// mutation is a genuine no-op, not a failure.
+var ErrNoChanges = errors.New("txlock: no changes made")
 
 // TxLock serializes all journal mutations and enforces the write protocol:
 // snapshot → write → hledger check → (revert on failure | bump generation on success).
@@ -66,6 +73,10 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 	logger.Debug("txlock: snapshotted files", "file_count", len(snap.present)+len(snap.absentExtras))
 
 	if err := fn(); err != nil {
+		if errors.Is(err, ErrNoChanges) {
+			logger.Debug("txlock: fn reported no changes; skipping check/bump/commit")
+			return nil
+		}
 		logger.Debug("txlock: reverting snapshot after write failure", "error", err)
 		revertErr := snap.revert(l.dataDir)
 		// Bump the generation even though the write failed: a concurrent read
@@ -101,12 +112,100 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 	return nil
 }
 
+// DoConfig serializes a mutation to non-journal files (config.toml,
+// rules.json, templates.json, bank profile rules files under rules/). It
+// snapshots and reverts the declared paths on failure but skips `hledger
+// check` and does NOT bump the generation counter — none of these mutations
+// can change any hledger query result. Gitsnap still commits on success.
+//
+// paths must not include any *.journal file; DoConfig refuses those so a
+// misclassified call site fails loudly instead of silently skipping
+// validation and cache invalidation for a journal-affecting write — use
+// DoWith for those.
+func (l *TxLock) DoConfig(ctx context.Context, msg string, paths []string, fn func() error) error {
+	logger := slogctx.FromContext(ctx)
+	for _, p := range paths {
+		if strings.HasSuffix(p, ".journal") {
+			return fmt.Errorf("txlock: DoConfig: refusing journal path %s (use DoWith)", p)
+		}
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	snap, err := snapshotConfigPaths(paths)
+	if err != nil {
+		return fmt.Errorf("txlock: snapshot: %w", err)
+	}
+	logger.Debug("txlock: snapshotted config files", "file_count", len(snap.present)+len(snap.absentExtras))
+
+	if err := fn(); err != nil {
+		if errors.Is(err, ErrNoChanges) {
+			logger.Debug("txlock: fn reported no changes; skipping commit")
+			return nil
+		}
+		logger.Debug("txlock: reverting config snapshot after write failure", "error", err)
+		if revertErr := snap.revert(); revertErr != nil {
+			return fmt.Errorf("txlock: fn failed (%w) and revert also failed: %v", err, revertErr)
+		}
+		return err
+	}
+
+	logger.Info("txlock: config write committed")
+	if l.snap != nil {
+		if snapErr := l.snap.Commit(ctx, msg); snapErr != nil {
+			logger.Warn("txlock: gitsnap commit failed", "error", snapErr)
+		}
+	}
+	return nil
+}
+
 func (l *TxLock) SetSnap(snap *gitsnap.Repo) {
 	l.snap = snap
 }
 
 func (l *TxLock) BumpGeneration() uint64 {
 	return l.gen.Add(1)
+}
+
+// configSnapshot captures pre-write state for a fixed list of non-journal
+// paths, used by DoConfig. Unlike txSnapshot it does not walk dataDir for
+// *.journal files, since DoConfig mutations never touch those.
+type configSnapshot struct {
+	present      map[string][]byte
+	absentExtras []string
+}
+
+func snapshotConfigPaths(paths []string) (*configSnapshot, error) {
+	s := &configSnapshot{present: make(map[string][]byte)}
+	for _, p := range paths {
+		content, err := os.ReadFile(p)
+		if os.IsNotExist(err) {
+			s.absentExtras = append(s.absentExtras, p)
+		} else if err != nil {
+			return nil, fmt.Errorf("snapshot: read %s: %w", p, err)
+		} else {
+			s.present[p] = content
+		}
+	}
+	return s, nil
+}
+
+func (s *configSnapshot) revert() error {
+	for path, content := range s.present {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return fmt.Errorf("revert: recreate dir for %s: %w", path, err)
+		}
+		if err := os.WriteFile(path, content, 0644); err != nil {
+			return fmt.Errorf("revert: restore %s: %w", path, err)
+		}
+	}
+	for _, p := range s.absentExtras {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("revert: delete new file %s: %w", p, err)
+		}
+	}
+	return nil
 }
 
 // txSnapshot captures pre-write file state for reverting on failure.

@@ -48,10 +48,10 @@ func ListAccountDeclarations(dataDir string) ([]AccountDeclaration, error) {
 func AppendAccountDeclaration(dataDir, name string) error {
 	line := fmt.Sprintf("account %s\n", name)
 
-	if err := EnsureAccountsFile(dataDir); err != nil {
+	if _, err := EnsureAccountsFile(dataDir); err != nil {
 		return err
 	}
-	if err := EnsureAccountsInclude(dataDir); err != nil {
+	if _, err := EnsureAccountsInclude(dataDir); err != nil {
 		return err
 	}
 
@@ -134,36 +134,37 @@ func DeleteAccountDeclaration(dataDir, name string) error {
 }
 
 // EnsureAccountsFile creates accounts.journal with a header comment if it doesn't exist.
+// Returns whether the file was created.
 // Exported so startup can call it before any AppendAccountDeclaration calls.
-func EnsureAccountsFile(dataDir string) error {
+func EnsureAccountsFile(dataDir string) (bool, error) {
 	path := filepath.Join(dataDir, accountsRelPath)
 	if _, err := os.Stat(path); err == nil {
-		return nil
+		return false, nil
 	}
 	header := "; float: account declarations\n"
 	if err := os.WriteFile(path, []byte(header), 0644); err != nil {
-		return fmt.Errorf("journal: create %s: %w", accountsRelPath, err)
+		return false, fmt.Errorf("journal: create %s: %w", accountsRelPath, err)
 	}
-	return nil
+	return true, nil
 }
 
 // EnsureAccountsInclude ensures "include accounts.journal" appears in main.journal
 // before any other include directives, so account declarations are in scope for
-// all prices and transactions.
+// all prices and transactions. Returns whether main.journal was modified.
 // Exported so startup can call it directly.
-func EnsureAccountsInclude(dataDir string) error {
+func EnsureAccountsInclude(dataDir string) (bool, error) {
 	mainPath := filepath.Join(dataDir, "main.journal")
 	directive := "include " + accountsRelPath
 
 	existing, err := os.ReadFile(mainPath)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("journal: read main.journal: %w", err)
+		return false, fmt.Errorf("journal: read main.journal: %w", err)
 	}
 
 	lines := strings.Split(string(existing), "\n")
 	for _, line := range lines {
 		if strings.TrimSpace(line) == directive {
-			return nil // already present
+			return false, nil // already present
 		}
 	}
 
@@ -186,5 +187,8 @@ func EnsureAccountsInclude(dataDir string) error {
 	if !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
-	return os.WriteFile(mainPath, []byte(content), 0644)
+	if err := os.WriteFile(mainPath, []byte(content), 0644); err != nil {
+		return false, err
+	}
+	return true, nil
 }

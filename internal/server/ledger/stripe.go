@@ -46,7 +46,7 @@ func (h *Handler) SetStripeDailyImportEnabled(ctx context.Context, req *connect.
 	if h.loadCfg() == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
-	if err := h.lock.DoWith(ctx, "set stripe daily import enabled", []string{h.configPath}, func() error {
+	if err := h.lock.DoConfig(ctx, "set stripe daily import enabled", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Stripe.DailyImportEnabled = req.Msg.Enabled
@@ -66,7 +66,7 @@ func (h *Handler) SetStripeCustomerId(ctx context.Context, req *connect.Request[
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	newID := strings.TrimSpace(req.Msg.CustomerId)
-	if err := h.lock.DoWith(ctx, "set stripe customer id", []string{h.configPath}, func() error {
+	if err := h.lock.DoConfig(ctx, "set stripe customer id", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Stripe.CustomerID = newID
@@ -98,7 +98,7 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 			logger.ErrorContext(ctx, "create stripe customer failed", "error", err)
 			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to create Stripe customer"))
 		}
-		if err := h.lock.DoWith(ctx, "save stripe customer id", []string{h.configPath}, func() error {
+		if err := h.lock.DoConfig(ctx, "save stripe customer id", []string{h.configPath}, func() error {
 			cur := h.loadCfg()
 			newCfg := *cur
 			newCfg.Stripe.CustomerID = newCustomerID
@@ -147,7 +147,7 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 		}
 	}
 
-	err := h.lock.DoWith(ctx, "link stripe accounts", []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, "link stripe accounts", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
 		copy(accounts, cur.Stripe.LinkedAccounts)
@@ -248,7 +248,7 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to disconnect Stripe account"))
 	}
 
-	err := h.lock.DoWith(ctx, fmt.Sprintf("unlink stripe account %s", req.Msg.StripeAccountId), []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("unlink stripe account %s", req.Msg.StripeAccountId), []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		updated := make([]config.StripeLinkedAccount, 0, len(cur.Stripe.LinkedAccounts))
 		for _, a := range cur.Stripe.LinkedAccounts {

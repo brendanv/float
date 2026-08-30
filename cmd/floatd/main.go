@@ -93,59 +93,63 @@ func main() {
 	}
 	lock.SetSnap(snap)
 
-	var backfillCount int
-	if err := lock.Do(context.Background(), "migrate transaction IDs", func() error {
-		n, err := journal.MigrateFIDs(*dataDir)
-		backfillCount = n
-		return err
+	var backfillCount, stripeMigrateCount, declaredCount int
+	var commodityChanged, accountsFileChanged, accountsIncludeChanged bool
+	if err := lock.Do(context.Background(), "startup migrations", func() error {
+		var err error
+
+		backfillCount, err = journal.MigrateFIDs(*dataDir)
+		if err != nil {
+			return fmt.Errorf("fid backfill: %w", err)
+		}
+
+		stripeMigrateCount, err = journal.MigrateStripeTxnTag(context.Background(), hl, *dataDir)
+		if err != nil {
+			return fmt.Errorf("stripe-txn tag migration: %w", err)
+		}
+
+		commodityChanged, err = journal.EnsureCommodityDirective(*dataDir, "USD")
+		if err != nil {
+			return fmt.Errorf("commodity directive: %w", err)
+		}
+
+		accountsFileChanged, err = journal.EnsureAccountsFile(*dataDir)
+		if err != nil {
+			return fmt.Errorf("account declarations startup: %w", err)
+		}
+		accountsIncludeChanged, err = journal.EnsureAccountsInclude(*dataDir)
+		if err != nil {
+			return fmt.Errorf("account declarations startup: %w", err)
+		}
+		undeclared, err := hl.UndeclaredAccounts(context.Background())
+		if err != nil {
+			return fmt.Errorf("account declarations startup: %w", err)
+		}
+		for _, name := range undeclared {
+			if err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
+				return fmt.Errorf("account declarations startup: %w", err)
+			}
+		}
+		declaredCount = len(undeclared)
+
+		changed := backfillCount > 0 || stripeMigrateCount > 0 || commodityChanged ||
+			accountsFileChanged || accountsIncludeChanged || declaredCount > 0
+		if !changed {
+			return txlock.ErrNoChanges
+		}
+		return nil
 	}); err != nil {
-		slog.Error("fid backfill", "error", err)
+		slog.Error("startup migrations", "error", err)
 		os.Exit(1)
 	}
 	if backfillCount > 0 {
 		slog.Info("fid backfill: assigned codes to transactions", "count", backfillCount)
 	}
-
-	var stripeMigrateCount int
-	if err := lock.Do(context.Background(), "migrate stripe-txn tags to float-stripe-txn", func() error {
-		n, err := journal.MigrateStripeTxnTag(context.Background(), hl, *dataDir)
-		stripeMigrateCount = n
-		return err
-	}); err != nil {
-		slog.Error("stripe-txn tag migration", "error", err)
-		os.Exit(1)
-	}
 	if stripeMigrateCount > 0 {
 		slog.Info("stripe-txn migration: moved tags to float-stripe-txn", "count", stripeMigrateCount)
 	}
-
-	if err := lock.Do(context.Background(), "ensure commodity directive", func() error {
-		return journal.EnsureCommodityDirective(*dataDir, "USD")
-	}); err != nil {
-		slog.Error("commodity directive", "error", err)
-		os.Exit(1)
-	}
-
-	if err := lock.Do(context.Background(), "declare undeclared accounts", func() error {
-		if err := journal.EnsureAccountsFile(*dataDir); err != nil {
-			return err
-		}
-		if err := journal.EnsureAccountsInclude(*dataDir); err != nil {
-			return err
-		}
-		undeclared, err := hl.UndeclaredAccounts(context.Background())
-		if err != nil {
-			return err
-		}
-		for _, name := range undeclared {
-			if err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		slog.Error("account declarations startup", "error", err)
-		os.Exit(1)
+	if declaredCount > 0 {
+		slog.Info("account declarations: declared undeclared accounts", "count", declaredCount)
 	}
 
 	authn := auth.New(os.Getenv("FLOAT_AUTH_PASSPHRASE"))

@@ -152,6 +152,34 @@ func cachedTransactions(ctx context.Context, c *cache.Cache[any], hl *hledger.Cl
 	})
 }
 
+// fetchByFIDs returns the transactions matching fids, selected in Go from the
+// full cached transaction list rather than a per-FID or per-batch hledger
+// query. Write RPCs use this for their post-write re-read: it costs the same
+// full parse as a "code:" query would, but populates the transactions:(nil)
+// cache entry for the new generation as a side effect, and shares that load
+// with any concurrent request via cache/singleflight.
+//
+// Do not use this for in-lock re-checks (e.g. Stripe dedup) — the journal is
+// mid-mutation there and the cache generation is stale until the write
+// commits; those call sites must keep using h.hl.Transactions directly.
+func (h *Handler) fetchByFIDs(ctx context.Context, fids []string) ([]hledger.Transaction, error) {
+	all, err := cachedTransactions(ctx, h.cache, h.hl, nil)
+	if err != nil {
+		return nil, err
+	}
+	want := make(map[string]bool, len(fids))
+	for _, fid := range fids {
+		want[fid] = true
+	}
+	out := make([]hledger.Transaction, 0, len(fids))
+	for _, t := range all {
+		if want[t.FID] {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 // cachedBalances fetches balances from cache or hledger.
 func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
 	return cachedGet(ctx, c, balancesKey(depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
@@ -1031,7 +1059,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		return nil, rpcErr(ctx, err, "add transaction failed")
 	}
 
-	txns, err := h.hl.Transactions(ctx, "code:"+fid)
+	txns, err := h.fetchByFIDs(ctx, []string{fid})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch new transaction failed", "fid", fid)
 	}
@@ -1113,7 +1141,7 @@ func (h *Handler) AddTransactions(ctx context.Context, req *connect.Request[floa
 		return nil, rpcErr(ctx, err, "add transactions failed")
 	}
 
-	txns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(fids))
+	txns, err := h.fetchByFIDs(ctx, fids)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch new transactions failed")
 	}
@@ -1215,7 +1243,7 @@ func (h *Handler) UpdateTransactionStatus(ctx context.Context, req *connect.Requ
 		}
 		return nil, rpcErr(ctx, err, "update transaction status failed", "fid", fid)
 	}
-	txns, err := h.hl.Transactions(ctx, "code:"+fid)
+	txns, err := h.fetchByFIDs(ctx, []string{fid})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch transaction after status update failed", "fid", fid)
 	}
@@ -1829,21 +1857,34 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("use BulkDeleteTransactions for bulk delete operations"))
 	}
 
-	err := h.lock.Do(ctx, bulkEditMessage(req.Msg.Fids, req.Msg.Operations), func() error {
-		for _, fid := range req.Msg.Fids {
+	type pendingEdit struct {
+		input journal.TransactionInput
+		src   journal.SourceLocation
+		fid   string
+	}
 
-			txns, err := h.hl.Transactions(ctx, "code:"+fid)
-			if err != nil {
-				return fmt.Errorf("bulk-edit: lookup fid %q: %w", fid, err)
-			}
-			if len(txns) == 0 {
+	err := h.lock.Do(ctx, bulkEditMessage(req.Msg.Fids, req.Msg.Operations), func() error {
+		txns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(req.Msg.Fids))
+		if err != nil {
+			return fmt.Errorf("bulk-edit: lookup fids: %w", err)
+		}
+		byFID := make(map[string]hledger.Transaction, len(txns))
+		countByFID := make(map[string]int, len(txns))
+		for _, t := range txns {
+			byFID[t.FID] = t
+			countByFID[t.FID]++
+		}
+
+		items := make([]pendingEdit, 0, len(req.Msg.Fids))
+		for _, fid := range req.Msg.Fids {
+			t, ok := byFID[fid]
+			if !ok {
 				return fmt.Errorf("bulk-edit: no transaction found with fid %q: %w", fid, journal.ErrNotFound)
 			}
-			if len(txns) > 1 {
-				return fmt.Errorf("bulk-edit: fid %q matched %d transactions (corrupt journal — run audit)", fid, len(txns))
+			if countByFID[fid] > 1 {
+				return fmt.Errorf("bulk-edit: fid %q matched %d transactions (corrupt journal — run audit)", fid, countByFID[fid])
 			}
-			t := txns[0]
-			src := &journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
+			src := journal.SourceLocation{File: t.SourcePos[0].File, Line: t.SourcePos[0].Line}
 			input, err := journal.InputFromTransaction(t)
 			if err != nil {
 				return fmt.Errorf("bulk-edit: fid %q: %w", fid, err)
@@ -1887,8 +1928,31 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 				}
 			}
 
-			if _, err := journal.WriteTransaction(ctx, h.hl, h.dataDir, input, src); err != nil {
-				return fmt.Errorf("bulk-edit: fid %q: write: %w", fid, err)
+			items = append(items, pendingEdit{input: input, src: src, fid: fid})
+		}
+
+		inputs := make([]journal.TransactionInput, len(items))
+		fids := make([]string, len(items))
+		for i, it := range items {
+			inputs[i] = it.input
+			fids[i] = it.fid
+		}
+		texts, err := journal.BatchFormatViaHledger(ctx, h.hl, inputs, fids)
+		if err != nil {
+			return fmt.Errorf("bulk-edit: batch format: %w", err)
+		}
+
+		byFile := make(map[string][]journal.BatchReplacement)
+		for i, it := range items {
+			byFile[it.src.File] = append(byFile[it.src.File], journal.BatchReplacement{
+				HeaderLine: it.src.Line,
+				FID:        it.fid,
+				NewText:    texts[i],
+			})
+		}
+		for file, reps := range byFile {
+			if err := journal.BatchReplaceTransactions(file, reps); err != nil {
+				return fmt.Errorf("bulk-edit: batch replace in %s: %w", file, err)
 			}
 		}
 		return nil
@@ -1900,7 +1964,7 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 		return nil, rpcErr(ctx, err, "bulk edit transactions failed")
 	}
 
-	editedTxns, err := h.hl.Transactions(ctx, journal.BuildFIDQuery(req.Msg.Fids))
+	editedTxns, err := h.fetchByFIDs(ctx, req.Msg.Fids)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "bulk edit: fetch after update failed")
 	}
@@ -2083,7 +2147,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 	if len(req.Msg.RulesContent) > 0 {
 		createExtraPaths = append(createExtraPaths, rulesFilePath)
 	}
-	err := h.lock.DoWith(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), createExtraPaths, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("create bank profile %q", req.Msg.Name), createExtraPaths, func() error {
 		// Write rules file if content provided.
 		if len(req.Msg.RulesContent) > 0 {
 			if err := os.MkdirAll(filepath.Dir(rulesFilePath), 0o755); err != nil {
@@ -2164,7 +2228,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 	}
 
 	var updated config.BankProfile
-	err := h.lock.DoWith(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), extraPaths, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("update bank profile %q", req.Msg.Name), extraPaths, func() error {
 		cur := h.loadCfg()
 		profiles := make([]config.BankProfile, len(cur.BankProfiles))
 		copy(profiles, cur.BankProfiles)
@@ -2248,7 +2312,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 		}
 	}
 
-	err := h.lock.DoWith(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), deleteExtraPaths, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("delete bank profile %q", req.Msg.Name), deleteExtraPaths, func() error {
 		cur := h.loadCfg()
 		idx := -1
 		for i, p := range cur.BankProfiles {
@@ -2328,7 +2392,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	}
 
 	// Build fingerprint set from existing transactions.
-	existing, err := h.hl.Transactions(ctx)
+	existing, err := cachedTransactions(ctx, h.cache, h.hl, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "fetch existing transactions failed")
 	}
@@ -2500,12 +2564,19 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 
 	// Fetch the imported transactions to return.
 	var txnProtos []*floatv1.Transaction
-	for _, fid := range importedFIDs {
-		txns, fetchErr := h.hl.Transactions(ctx, "code:"+fid)
-		if fetchErr != nil || len(txns) == 0 {
-			continue
+	if len(importedFIDs) > 0 {
+		txns, fetchErr := h.fetchByFIDs(ctx, importedFIDs)
+		if fetchErr == nil {
+			byFID := make(map[string]hledger.Transaction, len(txns))
+			for _, t := range txns {
+				byFID[t.FID] = t
+			}
+			for _, fid := range importedFIDs {
+				if t, ok := byFID[fid]; ok {
+					txnProtos = append(txnProtos, toProtoTransaction(t))
+				}
+			}
 		}
-		txnProtos = append(txnProtos, toProtoTransaction(txns[0]))
 	}
 
 	return stream.Send(&floatv1.ImportTransactionsResponse{
@@ -2691,7 +2762,7 @@ func (h *Handler) AddRule(ctx context.Context, req *connect.Request[floatv1.AddR
 	}
 
 	var newRules []rules.Rule
-	err := h.lock.DoWith(ctx, addRuleMessage(patterns), []string{rules.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, addRuleMessage(patterns), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -2793,7 +2864,7 @@ func (h *Handler) UpdateRule(ctx context.Context, req *connect.Request[floatv1.U
 	}
 
 	var updated rules.Rule
-	err := h.lock.DoWith(ctx, fmt.Sprintf("update rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("update rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -2835,7 +2906,7 @@ func (h *Handler) DeleteRule(ctx context.Context, req *connect.Request[floatv1.D
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
 
-	err := h.lock.DoWith(ctx, fmt.Sprintf("delete rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("delete rule %s", req.Msg.Id), []string{rules.FilePath(h.dataDir)}, func() error {
 		rulesList, loadErr := rules.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3128,7 +3199,7 @@ func (h *Handler) AddTemplate(ctx context.Context, req *connect.Request[floatv1.
 	}
 
 	var added templates.Template
-	err := h.lock.DoWith(ctx, fmt.Sprintf("add template: %s", req.Msg.Name), []string{templates.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("add template: %s", req.Msg.Name), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3176,7 +3247,7 @@ func (h *Handler) UpdateTemplate(ctx context.Context, req *connect.Request[float
 	}
 
 	var updated templates.Template
-	err := h.lock.DoWith(ctx, fmt.Sprintf("update template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("update template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3225,7 +3296,7 @@ func (h *Handler) DeleteTemplate(ctx context.Context, req *connect.Request[float
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("id is required"))
 	}
 
-	err := h.lock.DoWith(ctx, fmt.Sprintf("delete template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
+	err := h.lock.DoConfig(ctx, fmt.Sprintf("delete template %s", req.Msg.Id), []string{templates.FilePath(h.dataDir)}, func() error {
 		ts, loadErr := templates.Load(h.dataDir)
 		if loadErr != nil {
 			return loadErr
@@ -3279,7 +3350,7 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.DoWith(ctx, "set alphavantage api key", []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, "set alphavantage api key", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.AlphaVantage.APIKey = req.Msg.ApiKey
@@ -3333,7 +3404,7 @@ func (h *Handler) UpdatePortfolioSettings(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
 	}
 
-	err := h.lock.DoWith(ctx, "update portfolio settings", []string{h.configPath}, func() error {
+	err := h.lock.DoConfig(ctx, "update portfolio settings", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		newCfg := *cur
 		newCfg.Portfolio.ExcludedSymbols = req.Msg.ExcludedSymbols
