@@ -11,6 +11,11 @@ import (
 
 type ServerConfig struct {
 	Port int `toml:"port"` // default 8080 if zero
+	// HledgerConcurrency caps how many hledger processes may run at once.
+	// Each invocation parses the whole journal, so unbounded concurrency
+	// thrashes memory/CPU on small hardware under bursty concurrent RPCs.
+	// 0 (default) uses the client's built-in default (2).
+	HledgerConcurrency int `toml:"hledger_concurrency"`
 }
 
 type BankProfile struct {

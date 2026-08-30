@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
 )
 
@@ -72,6 +73,9 @@ func (w *Warmer) run(ctx context.Context) {
 	w.runMu.Lock()
 	defer w.runMu.Unlock()
 
+	// Warm loads never queue ahead of an interactive request for an hledger
+	// concurrency slot; see hledger.WithLowPriority.
+	ctx = hledger.WithLowPriority(ctx)
 	logger := slogctx.FromContext(ctx)
 	startGen := w.gen()
 	entries := w.entriesFn()

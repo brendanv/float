@@ -37,6 +37,27 @@ import (
 // single warm pass after the burst settles, instead of one pass per write.
 const warmDebounce = 500 * time.Millisecond
 
+// newStatsLogger returns a txlock.CommitHook that logs cache hit/miss/load
+// and hledger invocation counts accrued since the previous generation, at
+// Info level (so it reaches the StreamLogs RPC). txlock serializes commits
+// via its internal mutex, so the closure's plain counters are never accessed
+// concurrently.
+func newStatsLogger(c *cache.Cache[any], hl *hledger.Client) txlock.CommitHook {
+	var lastHits, lastMisses, lastLoads, lastInvocations uint64
+	return func(gen uint64) {
+		hits, misses, loads := c.Stats()
+		invocations := hl.Invocations()
+		slog.Info("generation stats since previous generation",
+			"generation", gen,
+			"cache_hits", hits-lastHits,
+			"cache_misses", misses-lastMisses,
+			"cache_loads", loads-lastLoads,
+			"hledger_invocations", invocations-lastInvocations,
+		)
+		lastHits, lastMisses, lastLoads, lastInvocations = hits, misses, loads, invocations
+	}
+}
+
 func main() {
 	dataDir := flag.String("data-dir", "", "path to float data directory (required)")
 	addr := flag.String("addr", "", "listen address (overrides config; default :8080)")
@@ -86,6 +107,7 @@ func main() {
 		slog.Error("hledger init", "error", err)
 		os.Exit(1)
 	}
+	hl.SetConcurrency(cfg.Server.HledgerConcurrency)
 
 	lock := txlock.New(*dataDir, hl)
 
@@ -170,6 +192,7 @@ func main() {
 
 	warmer := warm.New(lock.Generation, handler.WarmEntries, warmDebounce)
 	lock.OnCommit(warmer.Trigger)
+	lock.OnCommit(newStatsLogger(c, hl))
 
 	mux := http.NewServeMux()
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(

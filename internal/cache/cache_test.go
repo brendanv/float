@@ -71,6 +71,37 @@ func TestCache_GetAndStore(t *testing.T) {
 	}
 }
 
+func TestCache_Stats(t *testing.T) {
+	gen, genFn := fakeGen()
+	c := cache.New[string](genFn)
+
+	load := func(ctx context.Context) (string, error) {
+		return "v", nil
+	}
+
+	if _, err := c.Get(t.Context(), "key", load); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if hits, misses, loads := c.Stats(); hits != 0 || misses != 1 || loads != 1 {
+		t.Errorf("Stats() = (%d, %d, %d), want (0, 1, 1)", hits, misses, loads)
+	}
+
+	if _, err := c.Get(t.Context(), "key", load); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if hits, misses, loads := c.Stats(); hits != 1 || misses != 1 || loads != 1 {
+		t.Errorf("Stats() = (%d, %d, %d), want (1, 1, 1)", hits, misses, loads)
+	}
+
+	gen.Add(1)
+	if _, err := c.Get(t.Context(), "key", load); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if hits, misses, loads := c.Stats(); hits != 1 || misses != 2 || loads != 2 {
+		t.Errorf("Stats() = (%d, %d, %d), want (1, 2, 2)", hits, misses, loads)
+	}
+}
+
 func TestCache_LoadErrorNotCached(t *testing.T) {
 	_, genFn := fakeGen()
 	c := cache.New[string](genFn)

@@ -8,12 +8,41 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 
 	"github.com/brendanv/float/internal/slogctx"
 )
 
 const supportedVersion = "1.52"
+
+// defaultConcurrency bounds how many hledger processes run at once when the
+// caller doesn't configure server.hledger_concurrency. Each invocation parses
+// the whole journal, so unbounded concurrency thrashes memory/CPU on small
+// hardware under a burst of concurrent RPCs.
+const defaultConcurrency = 2
+
+// lowPriorityRetryInterval is how often a low-priority (warmer) invocation
+// re-checks for a free semaphore slot instead of queuing behind interactive
+// requests.
+const lowPriorityRetryInterval = 25 * time.Millisecond
+
+type lowPriorityKey struct{}
+
+// WithLowPriority marks ctx so that hledger invocations made with it never
+// queue ahead of normal (interactive) invocations for a concurrency slot.
+// internal/warm uses this for background cache-warming passes.
+func WithLowPriority(ctx context.Context) context.Context {
+	return context.WithValue(ctx, lowPriorityKey{}, true)
+}
+
+func isLowPriority(ctx context.Context) bool {
+	v, _ := ctx.Value(lowPriorityKey{}).(bool)
+	return v
+}
 
 // CommandRunner executes a command and returns its stdout, stderr, and error.
 // Inject a stub via NewWithRunner for testing.
@@ -32,6 +61,10 @@ type Client struct {
 	bin     string
 	journal string
 	runner  CommandRunner
+
+	semMu       sync.RWMutex
+	sem         *semaphore.Weighted
+	invocations atomic.Uint64
 }
 
 // New validates the binary exists and the version matches supportedVersion.
@@ -52,6 +85,7 @@ func NewWithRunner(bin, journal string, runner CommandRunner) (*Client, error) {
 
 func newClient(bin, journal string, runner CommandRunner) (*Client, error) {
 	c := &Client{bin: bin, journal: journal, runner: runner}
+	c.sem = semaphore.NewWeighted(defaultConcurrency)
 
 	stdout, _, err := c.run(context.Background(), "--version")
 	if err != nil {
@@ -81,9 +115,65 @@ func parseVersion(output string) (string, error) {
 	return version, nil
 }
 
-// run executes hledger with args via the configured runner.
-// At slog.LevelDebug it logs the command and duration on completion.
+// SetConcurrency changes the number of hledger processes allowed to run at
+// once. Intended to be called once at startup from server.hledger_concurrency;
+// n <= 0 is ignored (keeps the current limit).
+func (c *Client) SetConcurrency(n int) {
+	if n <= 0 {
+		return
+	}
+	c.semMu.Lock()
+	defer c.semMu.Unlock()
+	c.sem = semaphore.NewWeighted(int64(n))
+}
+
+// Invocations returns the cumulative count of hledger processes run by this
+// client since construction.
+func (c *Client) Invocations() uint64 {
+	return c.invocations.Load()
+}
+
+// acquire reserves a concurrency slot. Normal invocations block in FIFO order
+// via the semaphore; low-priority invocations (internal/warm) instead poll
+// with TryAcquire so they never queue ahead of an interactive request that
+// arrives while they're waiting.
+func (c *Client) acquire(ctx context.Context) error {
+	c.semMu.RLock()
+	sem := c.sem
+	c.semMu.RUnlock()
+
+	if !isLowPriority(ctx) {
+		return sem.Acquire(ctx, 1)
+	}
+	for {
+		if sem.TryAcquire(1) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(lowPriorityRetryInterval):
+		}
+	}
+}
+
+func (c *Client) release() {
+	c.semMu.RLock()
+	sem := c.sem
+	c.semMu.RUnlock()
+	sem.Release(1)
+}
+
+// run executes hledger with args via the configured runner, bounded by the
+// client's concurrency semaphore. At slog.LevelDebug it logs the command and
+// duration on completion.
 func (c *Client) run(ctx context.Context, args ...string) (stdout []byte, stderr []byte, err error) {
+	if err := c.acquire(ctx); err != nil {
+		return nil, nil, err
+	}
+	defer c.release()
+
+	c.invocations.Add(1)
 	start := time.Now()
 	stdout, stderr, err = c.runner(ctx, c.bin, args...)
 	slogctx.FromContext(ctx).Debug("hledger",

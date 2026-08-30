@@ -5,6 +5,14 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 ## Key Types
 
 - `Client` — wraps the hledger binary, the main journal path, and a command runner. `New(bin, journal)` resolves the binary and validates the pinned version (`1.52`). `NewWithRunner` injects a stub runner for tests.
+
+## Concurrency
+
+`Client.run` bounds concurrent hledger processes with a `golang.org/x/sync/semaphore.Weighted`, default 2 slots. Each invocation parses the whole journal, so unbounded concurrency thrashes memory/CPU on small hardware under bursty concurrent RPCs.
+
+- `SetConcurrency(n)` — change the slot count (n<=0 is a no-op). `cmd/floatd` calls this once at startup from `config.Server.HledgerConcurrency`.
+- `WithLowPriority(ctx)` — mark a caller's context as low-priority. Normal calls block on the semaphore in FIFO order; low-priority calls (`internal/warm`'s background warming passes) instead poll with `TryAcquire` every 25ms, so they never queue ahead of an interactive request that starts waiting after them.
+- `Invocations()` — cumulative count of hledger processes run by this client, used by `cmd/floatd` to log per-generation hledger invocation counts.
 - `Transaction` — parsed hledger transaction. Derived fields include `FID` from the transaction code, `Payee`/`Note` split on the first `|`, and `FloatMeta` for hidden `float-*` tags.
 - `Posting`, `Amount`, `CostJSON`, `BalanceAssertion` — typed forms of hledger JSON posting/amount data, including cost annotations and simple balance assertions.
 - `BalanceReport`, `BalanceRow` — `hledger bal -O json` output.

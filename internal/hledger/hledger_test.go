@@ -5,7 +5,10 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/brendanv/float/internal/hledger"
 )
@@ -1222,4 +1225,144 @@ func TestIncomeStatementTimeseries(t *testing.T) {
 			t.Fatalf("expected 2 net amount periods, got %d", len(ts.NetAmounts))
 		}
 	})
+}
+
+func TestSetConcurrencyLimitsInFlightInvocations(t *testing.T) {
+	const versionResp = "hledger 1.52, linux-x86_64\n"
+
+	var inFlight, maxInFlight atomic.Int64
+	release := make(chan struct{})
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		cur := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		for {
+			old := maxInFlight.Load()
+			if cur <= old || maxInFlight.CompareAndSwap(old, cur) {
+				break
+			}
+		}
+		<-release
+		return []byte(`[]`), nil, nil
+	}
+
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	c.SetConcurrency(2)
+
+	const n = 5
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = c.Transactions(t.Context())
+		}()
+	}
+
+	// Give every goroutine a chance to attempt its acquire before releasing.
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	wg.Wait()
+
+	if got := maxInFlight.Load(); got > 2 {
+		t.Errorf("max concurrent hledger invocations = %d, want <= 2", got)
+	}
+	// n Transactions() calls + 1 --version call from NewWithRunner.
+	if got := c.Invocations(); got != n+1 {
+		t.Errorf("Invocations() = %d, want %d", got, n+1)
+	}
+}
+
+// TestLowPriorityDoesNotBlockInteractive confirms that when both a
+// low-priority (warm) call and an interactive call are waiting for the same
+// single concurrency slot, the interactive call wins: a low-priority caller
+// polls with TryAcquire rather than queuing in the semaphore's FIFO, so it
+// never blocks an interactive request that arrives after it started waiting.
+func TestLowPriorityDoesNotBlockInteractive(t *testing.T) {
+	const versionResp = "hledger 1.52, linux-x86_64\n"
+
+	type kindKey struct{}
+	busyRelease := make(chan struct{})
+	slotRelease := make(chan struct{})
+
+	var mu sync.Mutex
+	var order []string
+	record := func(kind string) {
+		mu.Lock()
+		order = append(order, kind)
+		mu.Unlock()
+	}
+
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		kind, _ := ctx.Value(kindKey{}).(string)
+		record(kind)
+		if kind == "busy" {
+			<-busyRelease
+		} else {
+			<-slotRelease
+		}
+		return []byte(`[]`), nil, nil
+	}
+
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	c.SetConcurrency(1)
+
+	// Occupy the single slot so both later callers must wait for it.
+	busyDone := make(chan struct{})
+	go func() {
+		ctx := context.WithValue(t.Context(), kindKey{}, "busy")
+		_, _ = c.Transactions(ctx)
+		close(busyDone)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	// Warm (low-priority) starts polling for the slot first.
+	warmDone := make(chan struct{})
+	go func() {
+		ctx := context.WithValue(hledger.WithLowPriority(t.Context()), kindKey{}, "warm")
+		_, _ = c.Transactions(ctx)
+		close(warmDone)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	// Interactive arrives second but should still win the slot once it frees up.
+	interactiveDone := make(chan struct{})
+	go func() {
+		ctx := context.WithValue(t.Context(), kindKey{}, "interactive")
+		_, _ = c.Transactions(ctx)
+		close(interactiveDone)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	close(busyRelease)
+	<-busyDone
+
+	// Give the slot a moment to be claimed before releasing whoever got it,
+	// so the other caller (warm, if it lost) is left polling.
+	time.Sleep(100 * time.Millisecond)
+	close(slotRelease)
+
+	select {
+	case <-interactiveDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("interactive call did not complete")
+	}
+	<-warmDone
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(order) != 3 || order[1] != "interactive" {
+		t.Errorf("acquisition order = %v, want [busy interactive warm]", order)
+	}
 }

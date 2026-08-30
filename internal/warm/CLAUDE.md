@@ -10,6 +10,8 @@ Proactively populates `internal/cache` so steady-state browsing hits warm entrie
 
 Each `Entry.Load` should call the same `cached*` helper the RPC handler uses (e.g. `cachedTransactions`), so a warm load and a racing user request share one hledger invocation via the cache's singleflight, and strong consistency holds — everything is generation-keyed.
 
+`run()` marks its context with `hledger.WithLowPriority` before calling any entry, so warm loads poll for an hledger concurrency slot instead of queuing ahead of interactive requests (see `internal/hledger`'s concurrency semaphore).
+
 ## API
 
 - `New(gen, entriesFn, debounce)` — construct a Warmer.
