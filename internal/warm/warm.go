@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/slogctx"
 )
 
@@ -27,6 +26,7 @@ type Warmer struct {
 	gen       func() uint64
 	entriesFn func() []Entry
 	debounce  time.Duration
+	wait      func(ctx context.Context) error
 
 	runMu sync.Mutex
 
@@ -39,8 +39,13 @@ type Warmer struct {
 // recently-used-accounts LRU, reflects the latest state rather than whatever
 // it was at Warmer construction time); debounce coalesces bursts of writes
 // (imports, apply-rules) into a single warm pass after the burst settles.
-func New(gen func() uint64, entriesFn func() []Entry, debounce time.Duration) *Warmer {
-	return &Warmer{gen: gen, entriesFn: entriesFn, debounce: debounce}
+// wait, typically hledger.Client.WaitUncontended, is called before each entry
+// to wait for an idle moment on the hledger concurrency semaphore without
+// taking a slot or joining its FIFO queue — so a warm load only *starts* once
+// nothing interactive is waiting, but runs at normal priority once started.
+// nil skips this politeness wait (used in tests with no real hledger client).
+func New(gen func() uint64, entriesFn func() []Entry, debounce time.Duration, wait func(ctx context.Context) error) *Warmer {
+	return &Warmer{gen: gen, entriesFn: entriesFn, debounce: debounce, wait: wait}
 }
 
 // Start runs one warm pass immediately in the background. Intended for
@@ -73,9 +78,6 @@ func (w *Warmer) run(ctx context.Context) {
 	w.runMu.Lock()
 	defer w.runMu.Unlock()
 
-	// Warm loads never queue ahead of an interactive request for an hledger
-	// concurrency slot; see hledger.WithLowPriority.
-	ctx = hledger.WithLowPriority(ctx)
 	logger := slogctx.FromContext(ctx)
 	startGen := w.gen()
 	entries := w.entriesFn()
@@ -83,6 +85,17 @@ func (w *Warmer) run(ctx context.Context) {
 		if w.gen() != startGen {
 			logger.Debug("warm: aborting pass, generation moved", "entry", e.Name)
 			return
+		}
+		// Wait for an idle moment before starting this load, so it never
+		// queues ahead of interactive requests to acquire a concurrency
+		// slot. Once started, it runs at normal priority: any interactive
+		// request that joins it via singleflight is never stuck behind
+		// other queued low-priority work.
+		if w.wait != nil {
+			if err := w.wait(ctx); err != nil {
+				logger.Debug("warm: aborting pass, wait failed", "entry", e.Name, "error", err)
+				return
+			}
 		}
 		if err := e.Load(ctx); err != nil {
 			logger.Warn("warm: entry failed", "entry", e.Name, "error", err)

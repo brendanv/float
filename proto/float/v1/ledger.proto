@@ -518,6 +518,7 @@ message ImportTransactionsResult {
   int32 imported_count = 1;
   repeated Transaction transactions = 2;
   string import_batch_id = 3;
+  int32 skipped_duplicate_count = 4; // candidates skipped: fingerprint already on disk at write time
 }
 
 message ImportTransactionsResponse {

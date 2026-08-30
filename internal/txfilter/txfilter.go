@@ -30,12 +30,27 @@ type Filter struct {
 // back to passing the tokens straight through to hledger in that case.
 func Parse(tokens []string) (*Filter, bool) {
 	f := &Filter{preds: make([]predicate, 0, len(tokens))}
+	seen := make(map[string]bool, len(tokens))
 	for _, tok := range tokens {
 		negate := false
 		rest := tok
 		if r, ok := strings.CutPrefix(rest, "not:"); ok {
 			negate = true
 			rest = r
+		}
+		if !negate {
+			idx := strings.IndexByte(rest, ':')
+			if idx < 0 {
+				return nil, false
+			}
+			keyword := rest[:idx]
+			if seen[keyword] {
+				// hledger ORs repeated same-type positive terms; the flat
+				// AND-of-predicates Filter can't express that, so fall back
+				// to hledger for the whole query.
+				return nil, false
+			}
+			seen[keyword] = true
 		}
 		pred, ok := parseToken(rest)
 		if !ok {
@@ -202,22 +217,26 @@ func parseHledgerDate(s string) (time.Time, bool) {
 func parseTag(value string) (predicate, bool) {
 	key := value
 	hasValueMatch := false
-	var re *regexp.Regexp
+	var valueRE *regexp.Regexp
 	if i := strings.IndexByte(value, '='); i >= 0 {
 		key = value[:i]
 		var ok bool
-		re, ok = compileInfixRegex(value[i+1:])
+		valueRE, ok = compileInfixRegex(value[i+1:])
 		if !ok {
 			return nil, false
 		}
 		hasValueMatch = true
 	}
+	keyRE, ok := compileInfixRegex(key)
+	if !ok {
+		return nil, false
+	}
 	return func(t *hledger.Transaction) bool {
-		if tagMatch(t.Tags, key, re, hasValueMatch) {
+		if tagMatch(t.Tags, keyRE, valueRE, hasValueMatch) {
 			return true
 		}
 		for _, p := range t.Postings {
-			if tagMatch(p.Tags, key, re, hasValueMatch) {
+			if tagMatch(p.Tags, keyRE, valueRE, hasValueMatch) {
 				return true
 			}
 		}
@@ -225,12 +244,12 @@ func parseTag(value string) (predicate, bool) {
 	}, true
 }
 
-func tagMatch(tags [][2]string, key string, re *regexp.Regexp, hasValueMatch bool) bool {
+func tagMatch(tags [][2]string, keyRE, valueRE *regexp.Regexp, hasValueMatch bool) bool {
 	for _, kv := range tags {
-		if !strings.EqualFold(kv[0], key) {
+		if !keyRE.MatchString(kv[0]) {
 			continue
 		}
-		if !hasValueMatch || re.MatchString(kv[1]) {
+		if !hasValueMatch || valueRE.MatchString(kv[1]) {
 			return true
 		}
 	}
@@ -254,7 +273,12 @@ func parseStatus(value string) (predicate, bool) {
 	return func(t *hledger.Transaction) bool { return t.Status == want }, true
 }
 
-// parseCode matches the FID (transaction code) exactly.
+// parseCode matches the FID (transaction code) as a case-insensitive infix
+// regex, matching hledger's code: query semantics.
 func parseCode(value string) (predicate, bool) {
-	return func(t *hledger.Transaction) bool { return t.FID == value }, true
+	re, ok := compileInfixRegex(value)
+	if !ok {
+		return nil, false
+	}
+	return func(t *hledger.Transaction) bool { return re.MatchString(t.FID) }, true
 }

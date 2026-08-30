@@ -18,7 +18,7 @@ func TestWarmer_Start_RunsAllEntriesInOrder(t *testing.T) {
 		{Name: "a", Load: func(ctx context.Context) error { order = append(order, "a"); return nil }},
 		{Name: "b", Load: func(ctx context.Context) error { order = append(order, "b"); close(done); return nil }},
 	}
-	w := warm.New(gen.Load, func() []warm.Entry { return entries }, 10*time.Millisecond)
+	w := warm.New(gen.Load, func() []warm.Entry { return entries }, 10*time.Millisecond, nil)
 	w.Start(t.Context())
 
 	select {
@@ -47,7 +47,7 @@ func TestWarmer_AbortsWhenGenerationMoves(t *testing.T) {
 			return nil
 		}},
 	}
-	w := warm.New(gen.Load, func() []warm.Entry { return entries }, 10*time.Millisecond)
+	w := warm.New(gen.Load, func() []warm.Entry { return entries }, 10*time.Millisecond, nil)
 	w.Start(t.Context())
 
 	select {
@@ -69,7 +69,7 @@ func TestWarmer_TriggerDebouncesBursts(t *testing.T) {
 	entries := []warm.Entry{
 		{Name: "only", Load: func(ctx context.Context) error { runs.Add(1); return nil }},
 	}
-	w := warm.New(gen.Load, func() []warm.Entry { return entries }, 100*time.Millisecond)
+	w := warm.New(gen.Load, func() []warm.Entry { return entries }, 100*time.Millisecond, nil)
 
 	// A burst of triggers within the debounce window should collapse to one pass.
 	for i := 0; i < 5; i++ {
@@ -89,7 +89,7 @@ func TestWarmer_EntriesFnCalledFreshEachPass(t *testing.T) {
 	w := warm.New(gen.Load, func() []warm.Entry {
 		callCount.Add(1)
 		return []warm.Entry{{Name: "e", Load: func(ctx context.Context) error { return nil }}}
-	}, 10*time.Millisecond)
+	}, 10*time.Millisecond, nil)
 
 	w.Start(t.Context())
 	time.Sleep(50 * time.Millisecond)

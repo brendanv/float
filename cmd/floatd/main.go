@@ -122,7 +122,7 @@ func main() {
 	lock.SetSnap(snap)
 
 	var backfillCount, stripeMigrateCount, declaredCount int
-	var commodityChanged, accountsFileChanged, accountsIncludeChanged bool
+	var commodityChanged, accountsFileChanged, accountsIncludeChanged, migrationsChanged bool
 	if err := lock.Do(context.Background(), "startup migrations", func() error {
 		var err error
 
@@ -160,15 +160,26 @@ func main() {
 		}
 		declaredCount = len(undeclared)
 
-		changed := backfillCount > 0 || stripeMigrateCount > 0 || commodityChanged ||
+		migrationsChanged = backfillCount > 0 || stripeMigrateCount > 0 || commodityChanged ||
 			accountsFileChanged || accountsIncludeChanged || declaredCount > 0
-		if !changed {
+		if !migrationsChanged {
 			return txlock.ErrNoChanges
 		}
 		return nil
 	}); err != nil {
 		slog.Error("startup migrations", "error", err)
 		os.Exit(1)
+	}
+	if !migrationsChanged {
+		// lock.Do's ErrNoChanges fast path skips the generation bump, gitsnap
+		// commit, and hledger check that a real migration would have paid
+		// for. Run the check directly so a journal hand-edited into an
+		// invalid state while floatd was stopped still fails startup loudly,
+		// instead of surfacing as opaque per-RPC hledger errors later.
+		if err := hl.Check(context.Background()); err != nil {
+			slog.Error("startup check", "error", err)
+			os.Exit(1)
+		}
 	}
 	if backfillCount > 0 {
 		slog.Info("fid backfill: assigned codes to transactions", "count", backfillCount)
@@ -190,7 +201,7 @@ func main() {
 	c := cache.New[any](lock.Generation)
 	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg, broadcaster)
 
-	warmer := warm.New(lock.Generation, handler.WarmEntries, warmDebounce)
+	warmer := warm.New(lock.Generation, handler.WarmEntries, warmDebounce, hl.WaitUncontended)
 	lock.OnCommit(warmer.Trigger)
 	lock.OnCommit(newStatsLogger(c, hl))
 

@@ -69,6 +69,8 @@ func TestEquivalenceWithHledger(t *testing.T) {
 		{"combined acct and date", []string{"acct:checking", "date:2026/01/01..2026/02/01"}},
 		{"combined payee and status", []string{"payee:Amazon", "status:*"}},
 		{"code exact", []string{"code:aa001100"}},
+		{"tag key substring", []string{"tag:ost"}},
+		{"code substring", []string{"code:001"}},
 	}
 
 	for _, tt := range tests {
@@ -120,5 +122,66 @@ func TestParseUnsupportedTokensFallBack(t *testing.T) {
 func TestMixedSupportedAndUnsupportedFallsBack(t *testing.T) {
 	if _, ok := txfilter.Parse([]string{"acct:checking", "depth:2"}); ok {
 		t.Error("Parse with one unsupported token among supported ones should return ok=false")
+	}
+}
+
+// TestRepeatedKeywordFallsBack confirms Parse rejects repeated same-type
+// positive keyword tokens rather than silently ANDing them: hledger ORs
+// repeated terms of the same type (e.g. "desc:a desc:b" matches either), but
+// Filter.Match's flat predicate list can only express AND. Falling back lets
+// the caller's cachedTransactions/cachedAregister path query hledger
+// directly instead.
+func TestRepeatedKeywordFallsBack(t *testing.T) {
+	repeated := [][]string{
+		{"desc:amazon", "desc:payroll"},
+		{"acct:shopping", "acct:salary"},
+		{"tag:food", "tag:travel"},
+	}
+	for _, tokens := range repeated {
+		t.Run(tokens[0], func(t *testing.T) {
+			if _, ok := txfilter.Parse(tokens); ok {
+				t.Errorf("Parse(%v) = ok, want fallback (ok=false) for repeated keyword", tokens)
+			}
+		})
+	}
+}
+
+// TestRepeatedKeywordUnionEquivalence documents why TestRepeatedKeywordFallsBack
+// exists: hledger really does OR repeated same-type terms, which a flat
+// AND-of-predicates Filter cannot express.
+func TestRepeatedKeywordUnionEquivalence(t *testing.T) {
+	c := mustClient(t)
+	ctx := t.Context()
+
+	union, err := c.Transactions(ctx, "desc:amazon", "desc:payroll")
+	if err != nil {
+		t.Fatalf("hledger Transactions: %v", err)
+	}
+	amazonOnly, err := c.Transactions(ctx, "desc:amazon")
+	if err != nil {
+		t.Fatalf("hledger Transactions: %v", err)
+	}
+	if len(union) <= len(amazonOnly) {
+		t.Fatalf("expected hledger to OR repeated desc: terms (union %d > desc:amazon alone %d)", len(union), len(amazonOnly))
+	}
+}
+
+// TestTagSubstringNotExactEquivalence confirms hledger's tag: key matching is
+// an infix regex, not exact equality: a fixture tagged "posted" is also
+// matched by "tag:ost" (README finding #5).
+func TestTagSubstringNotExactEquivalence(t *testing.T) {
+	c := mustClient(t)
+	ctx := t.Context()
+
+	exact, err := c.Transactions(ctx, "tag:posted")
+	if err != nil {
+		t.Fatalf("hledger Transactions: %v", err)
+	}
+	substr, err := c.Transactions(ctx, "tag:ost")
+	if err != nil {
+		t.Fatalf("hledger Transactions: %v", err)
+	}
+	if len(exact) != len(substr) {
+		t.Fatalf("expected tag:posted and tag:ost to match the same set via infix regex, got %d vs %d", len(exact), len(substr))
 	}
 }

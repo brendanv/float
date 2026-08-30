@@ -10,11 +10,11 @@ Proactively populates `internal/cache` so steady-state browsing hits warm entrie
 
 Each `Entry.Load` should call the same `cached*` helper the RPC handler uses (e.g. `cachedTransactions`), so a warm load and a racing user request share one hledger invocation via the cache's singleflight, and strong consistency holds — everything is generation-keyed.
 
-`run()` marks its context with `hledger.WithLowPriority` before calling any entry, so warm loads poll for an hledger concurrency slot instead of queuing ahead of interactive requests (see `internal/hledger`'s concurrency semaphore).
+`run()` calls the injected `wait` function (typically `hledger.Client.WaitUncontended`) before each entry's `Load`, so a warm load only *starts* once the hledger concurrency semaphore is momentarily idle — it never queues ahead of interactive requests to begin. Once started, `Load` acquires its own slot at normal priority, so an interactive request that joins the load via singleflight is never stuck behind other queued low-priority work.
 
 ## API
 
-- `New(gen, entriesFn, debounce)` — construct a Warmer.
+- `New(gen, entriesFn, debounce, wait)` — construct a Warmer. `wait` is called before each entry; pass `nil` to skip the politeness wait (e.g. in tests with no real hledger client).
 - `Start(ctx)` — run one pass immediately in the background. Call this only after the server has started listening, so warming never delays boot.
 - `Trigger(gen)` — schedule a debounced pass; register this as a `txlock.TxLock.OnCommit` hook. Resets the debounce timer on each call, so a burst of writes (imports, apply-rules) collapses into one pass after the burst settles.
 

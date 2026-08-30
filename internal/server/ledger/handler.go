@@ -232,7 +232,14 @@ func cachedAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Clien
 // arguably a correction, not a regression, but it is user-visible.
 func filteredAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, account string, query []string) ([]hledger.AregisterRow, error) {
 	f, ok := txfilter.Parse(query)
-	if !ok {
+	if !ok || queryHasDateToken(query) {
+		// hledger areg's date: filtering matches on ANY posting's effective
+		// date (including posting-date overrides on legs other than the
+		// focused account), unlike print's transaction-date-only semantics
+		// that txfilter's date predicate assumes. Rather than guess at areg's
+		// exact rule, fall back to hledger for any date-filtered query and
+		// keep the Go path for the tag/status/payee/desc filters it was
+		// built for.
 		return cachedAregister(ctx, c, hl, account, query)
 	}
 	all, err := cachedAregister(ctx, c, hl, account, nil)
@@ -241,28 +248,22 @@ func filteredAregister(ctx context.Context, c *cache.Cache[any], hl *hledger.Cli
 	}
 	out := make([]hledger.AregisterRow, 0, len(all))
 	for _, row := range all {
-		t := aregisterRowForFilter(account, row)
-		if f.Match(&t) {
+		if f.Match(&row.Transaction) {
 			out = append(out, row)
 		}
 	}
 	return out, nil
 }
 
-// aregisterRowForFilter returns a copy of row's source transaction with Date
-// replaced by the focused account's own posting-date override, if any.
-// `hledger areg`'s date: filtering honors a posting-level date override on
-// the focused account's leg, unlike `print` (and txfilter's default date
-// handling), which uses only the transaction date.
-func aregisterRowForFilter(account string, row hledger.AregisterRow) hledger.Transaction {
-	t := row.Transaction
-	for _, p := range t.Postings {
-		if p.Date != nil && (p.Account == account || strings.HasPrefix(p.Account, account+":")) {
-			t.Date = *p.Date
-			break
+// queryHasDateToken reports whether query contains a date: or not:date:
+// token.
+func queryHasDateToken(query []string) bool {
+	for _, tok := range query {
+		if strings.HasPrefix(tok, "date:") || strings.HasPrefix(tok, "not:date:") {
+			return true
 		}
 	}
-	return t
+	return false
 }
 
 // cachedNetWorth fetches a balance sheet timeseries from cache or hledger.
@@ -859,11 +860,37 @@ func sumAmounts(perPeriod [][]hledger.Amount, idxs []int) []hledger.Amount {
 	return out
 }
 
+// monthSequence returns the first-of-month dates in [begin, end), in
+// hledger's "YYYY-MM-DD" period-label format. begin and end must both be
+// non-empty, month-aligned dates.
+func monthSequence(begin, end string) []string {
+	b, errB := time.Parse("2006-01-02", begin)
+	e, errE := time.Parse("2006-01-02", end)
+	if errB != nil || errE != nil {
+		return nil
+	}
+	var out []string
+	for d := b; d.Before(e); d = d.AddDate(0, 1, 0) {
+		out = append(out, d.Format("2006-01-02"))
+	}
+	return out
+}
+
 // sliceBalanceSheetTimeseries restricts ts to the periods in [begin, end).
 // bs --historical values are cumulative from account opening regardless of
 // begin, so (given a month-aligned begin/end, checked by the caller) trimming
 // periods is equivalent to hledger having been asked for that range directly.
+//
+// When begin and end are both given, the full-history fetch may not contain
+// every month in [begin, end) — hledger's own explicit-range bs generates a
+// period for every month regardless, zero-valued before the ledger's first
+// activity and carrying the last cumulative value forward after its last
+// activity. Reproduce that by walking the full month sequence, tracking the
+// most recently seen real period's values as pad for months missing from ts.
 func sliceBalanceSheetTimeseries(ts *hledger.BalanceSheetTimeseries, begin, end string) *hledger.BalanceSheetTimeseries {
+	if begin != "" && end != "" {
+		return padBalanceSheetTimeseries(ts, begin, end)
+	}
 	idxs := selectPeriodIndexes(ts.Periods, begin, end)
 	out := &hledger.BalanceSheetTimeseries{
 		Periods:  make([]string, len(idxs)),
@@ -884,44 +911,132 @@ func sliceBalanceSheetTimeseries(ts *hledger.BalanceSheetTimeseries, begin, end 
 	return out
 }
 
+// padBalanceSheetTimeseries builds the full [begin, end) month sequence,
+// filling months absent from ts with zero (before the ledger's first
+// activity) or the last-seen real period's values carried forward (after
+// its last activity, or across any gap).
+func padBalanceSheetTimeseries(ts *hledger.BalanceSheetTimeseries, begin, end string) *hledger.BalanceSheetTimeseries {
+	byPeriod := make(map[string]int, len(ts.Periods))
+	for i, p := range ts.Periods {
+		byPeriod[p] = i
+	}
+	months := monthSequence(begin, end)
+	out := &hledger.BalanceSheetTimeseries{
+		Periods:    months,
+		NetWorth:   make([][]hledger.Amount, len(months)),
+		Subreports: make([]hledger.BSSubreport, len(ts.Subreports)),
+	}
+	for s, sub := range ts.Subreports {
+		out.Subreports[s] = hledger.BSSubreport{Name: sub.Name, Totals: make([][]hledger.Amount, len(months))}
+	}
+	var lastNetWorth []hledger.Amount
+	lastTotals := make([][]hledger.Amount, len(ts.Subreports))
+	for j, m := range months {
+		if i, ok := byPeriod[m]; ok {
+			lastNetWorth = ts.NetWorth[i]
+			for s, sub := range ts.Subreports {
+				lastTotals[s] = sub.Totals[i]
+			}
+		}
+		out.NetWorth[j] = lastNetWorth
+		for s := range ts.Subreports {
+			out.Subreports[s].Totals[j] = lastTotals[s]
+		}
+	}
+	return out
+}
+
 // sliceIncomeStatementTimeseries restricts ts to the periods in [begin, end),
 // recomputing each row's cross-period TotalAmounts over just that range (the
 // full-history fetch's TotalAmounts covers every period, not the requested
-// slice).
+// slice). When begin and end are both given, the requested range may include
+// months absent from the full-history fetch (before the ledger's first
+// activity, or after its last) — those get an empty per-period entry (no
+// flow), matching hledger's own explicit-range is --monthly, which still
+// emits a zero-activity period rather than omitting it. Rows with no activity
+// in any selected period (padded or real) are dropped, mirroring a ranged
+// `is --monthly` only emitting rows for accounts with postings in range.
 func sliceIncomeStatementTimeseries(ts *hledger.IncomeStatementTimeseries, begin, end string) *hledger.IncomeStatementTimeseries {
-	idxs := selectPeriodIndexes(ts.Periods, begin, end)
-	out := &hledger.IncomeStatementTimeseries{
-		Periods:    make([]string, len(idxs)),
-		NetAmounts: make([][]hledger.Amount, len(idxs)),
+	var periods []string
+	// realIdx[j] is the index into ts.Periods/ts.NetAmounts for output period
+	// j, or -1 if that period is absent from the full-history fetch (padding).
+	var realIdx []int
+	if begin != "" && end != "" {
+		byPeriod := make(map[string]int, len(ts.Periods))
+		for i, p := range ts.Periods {
+			byPeriod[p] = i
+		}
+		periods = monthSequence(begin, end)
+		realIdx = make([]int, len(periods))
+		for j, m := range periods {
+			if i, ok := byPeriod[m]; ok {
+				realIdx[j] = i
+			} else {
+				realIdx[j] = -1
+			}
+		}
+	} else {
+		idxs := selectPeriodIndexes(ts.Periods, begin, end)
+		periods = make([]string, len(idxs))
+		for j, i := range idxs {
+			periods[j] = ts.Periods[i]
+		}
+		realIdx = idxs
 	}
-	for j, i := range idxs {
-		out.Periods[j] = ts.Periods[i]
-		out.NetAmounts[j] = ts.NetAmounts[i]
+
+	out := &hledger.IncomeStatementTimeseries{
+		Periods:    periods,
+		NetAmounts: make([][]hledger.Amount, len(periods)),
+	}
+	for j, i := range realIdx {
+		if i >= 0 {
+			out.NetAmounts[j] = ts.NetAmounts[i]
+		}
 	}
 	out.Subreports = make([]hledger.ISSubreport, len(ts.Subreports))
 	for s, sub := range ts.Subreports {
-		rows := make([]hledger.ISRow, len(sub.Rows))
-		for r, row := range sub.Rows {
-			perPeriod := make([][]hledger.Amount, len(idxs))
-			for j, i := range idxs {
-				perPeriod[j] = row.PerPeriodAmounts[i]
+		var rows []hledger.ISRow
+		for _, row := range sub.Rows {
+			perPeriod := make([][]hledger.Amount, len(periods))
+			anyActivity := false
+			for j, i := range realIdx {
+				if i >= 0 {
+					perPeriod[j] = row.PerPeriodAmounts[i]
+					if len(perPeriod[j]) > 0 {
+						anyActivity = true
+					}
+				}
 			}
-			rows[r] = hledger.ISRow{
+			if !anyActivity {
+				continue
+			}
+			rows = append(rows, hledger.ISRow{
 				DisplayName:      row.DisplayName,
 				FullName:         row.FullName,
 				Indent:           row.Indent,
 				Section:          row.Section,
 				PerPeriodAmounts: perPeriod,
-				TotalAmounts:     sumAmounts(row.PerPeriodAmounts, idxs),
-			}
+				TotalAmounts:     sumAmounts(perPeriod, allIndexes(len(perPeriod))),
+			})
 		}
-		totals := make([][]hledger.Amount, len(idxs))
-		for j, i := range idxs {
-			totals[j] = sub.Totals[i]
+		totals := make([][]hledger.Amount, len(periods))
+		for j, i := range realIdx {
+			if i >= 0 {
+				totals[j] = sub.Totals[i]
+			}
 		}
 		out.Subreports[s] = hledger.ISSubreport{Name: sub.Name, Rows: rows, Totals: totals}
 	}
 	return out
+}
+
+// allIndexes returns []int{0, 1, ..., n-1}.
+func allIndexes(n int) []int {
+	idxs := make([]int, n)
+	for i := range idxs {
+		idxs[i] = i
+	}
+	return idxs
 }
 
 func (h *Handler) GetNetWorthTimeseries(ctx context.Context, req *connect.Request[floatv1.GetNetWorthTimeseriesRequest]) (*connect.Response[floatv1.GetNetWorthTimeseriesResponse], error) {
@@ -2704,9 +2819,29 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	uploadFilePath := filepath.Join(h.dataDir, "uploads", filepath.FromSlash(importBatchID+".csv"))
 
 	var importedFIDs []string
+	var skippedDuplicates int32
 	err = h.lock.DoWith(ctx, fmt.Sprintf("import %d transactions (batch %s)", len(req.Msg.CandidateIndices), importBatchID), []string{uploadFilePath}, func() error {
+		// Re-fingerprint against the on-disk journal inside the lock: the
+		// preview's duplicate flags came from the cache, which is only
+		// invalidated by floatd's own writes and can be stale if the journal
+		// was edited externally (hand edit, floatctl, another tool) since the
+		// preview was fetched. h.hl.Transactions bypasses the cache
+		// deliberately, per the fetchByFIDs boundary comment above.
+		onDisk, fpErr := h.hl.Transactions(ctx)
+		if fpErr != nil {
+			return fmt.Errorf("re-read transactions for dedup: %w", fpErr)
+		}
+		fpSet := make(map[string]bool, len(onDisk))
+		for _, t := range onDisk {
+			fpSet[journal.TxnFingerprint(t)] = true
+		}
+
 		for i, c := range candidates {
 			if !selectedSet[int32(i)] {
+				continue
+			}
+			if fpSet[journal.TxnFingerprint(c)] {
+				skippedDuplicates++
 				continue
 			}
 			txInput, convErr := journal.HledgerTxnToInput(c)
@@ -2799,9 +2934,10 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	return stream.Send(&floatv1.ImportTransactionsResponse{
 		Payload: &floatv1.ImportTransactionsResponse_Result{
 			Result: &floatv1.ImportTransactionsResult{
-				ImportedCount: int32(len(importedFIDs)),
-				Transactions:  txnProtos,
-				ImportBatchId: importBatchID,
+				ImportedCount:         int32(len(importedFIDs)),
+				Transactions:          txnProtos,
+				ImportBatchId:         importBatchID,
+				SkippedDuplicateCount: skippedDuplicates,
 			},
 		},
 	})
@@ -3587,7 +3723,9 @@ func (h *Handler) SetAlphaVantageApiKey(ctx context.Context, req *connect.Reques
 
 // isExcludedAccount returns true if account matches any of the given prefixes exactly or as a path component.
 func isExcludedAccount(account string, prefixes []string) bool {
+	account = strings.ToLower(account)
 	for _, p := range prefixes {
+		p = strings.ToLower(p)
 		if account == p || strings.HasPrefix(account, p+":") {
 			return true
 		}
@@ -3600,8 +3738,10 @@ func isExcludedAccount(account string, prefixes []string) bool {
 // bare account-name query term (e.g. "assets") they used to send to hledger
 // directly — it's an account-name filter, not accounting logic, so an exact
 // prefix match (rather than hledger's general infix regex matching) is an
-// intentional simplification.
+// intentional simplification. Matching is case-insensitive to match hledger's
+// account-name query semantics.
 func accountMatchesPrefix(account, prefix string) bool {
+	account, prefix = strings.ToLower(account), strings.ToLower(prefix)
 	return account == prefix || strings.HasPrefix(account, prefix+":")
 }
 

@@ -1278,37 +1278,21 @@ func TestSetConcurrencyLimitsInFlightInvocations(t *testing.T) {
 	}
 }
 
-// TestLowPriorityDoesNotBlockInteractive confirms that when both a
-// low-priority (warm) call and an interactive call are waiting for the same
-// single concurrency slot, the interactive call wins: a low-priority caller
-// polls with TryAcquire rather than queuing in the semaphore's FIFO, so it
-// never blocks an interactive request that arrives after it started waiting.
-func TestLowPriorityDoesNotBlockInteractive(t *testing.T) {
+// TestSetConcurrencyMidFlightDoesNotPanic confirms an in-flight invocation
+// releases the same semaphore instance it acquired, not whatever c.sem has
+// been swapped to by a concurrent SetConcurrency call. Run with -race.
+func TestSetConcurrencyMidFlightDoesNotPanic(t *testing.T) {
 	const versionResp = "hledger 1.52, linux-x86_64\n"
-
-	type kindKey struct{}
-	busyRelease := make(chan struct{})
-	slotRelease := make(chan struct{})
-
-	var mu sync.Mutex
-	var order []string
-	record := func(kind string) {
-		mu.Lock()
-		order = append(order, kind)
-		mu.Unlock()
-	}
+	inFlight := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
 
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) > 0 && args[0] == "--version" {
 			return []byte(versionResp), nil, nil
 		}
-		kind, _ := ctx.Value(kindKey{}).(string)
-		record(kind)
-		if kind == "busy" {
-			<-busyRelease
-		} else {
-			<-slotRelease
-		}
+		once.Do(func() { close(inFlight) })
+		<-release
 		return []byte(`[]`), nil, nil
 	}
 
@@ -1318,51 +1302,75 @@ func TestLowPriorityDoesNotBlockInteractive(t *testing.T) {
 	}
 	c.SetConcurrency(1)
 
-	// Occupy the single slot so both later callers must wait for it.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = c.Transactions(t.Context())
+	}()
+
+	<-inFlight
+	c.SetConcurrency(4) // swap c.sem while the goroutine above still holds a slot on the old one
+	close(release)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Transactions did not complete")
+	}
+
+	// A second call should acquire cleanly against the new semaphore.
+	if _, err := c.Transactions(t.Context()); err != nil {
+		t.Errorf("Transactions after SetConcurrency: %v", err)
+	}
+}
+
+// TestWaitUncontendedBlocksWhileSlotsBusy confirms that WaitUncontended
+// doesn't return while the concurrency semaphore is fully occupied, and
+// returns promptly once a slot frees up — without itself ever holding a
+// slot, so it can't strand it or race a normal acquire for the released one.
+func TestWaitUncontendedBlocksWhileSlotsBusy(t *testing.T) {
+	const versionResp = "hledger 1.52, linux-x86_64\n"
+	busyRelease := make(chan struct{})
+
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "--version" {
+			return []byte(versionResp), nil, nil
+		}
+		<-busyRelease
+		return []byte(`[]`), nil, nil
+	}
+
+	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
+	if err != nil {
+		t.Fatalf("NewWithRunner: %v", err)
+	}
+	c.SetConcurrency(1)
+
 	busyDone := make(chan struct{})
 	go func() {
-		ctx := context.WithValue(t.Context(), kindKey{}, "busy")
-		_, _ = c.Transactions(ctx)
+		_, _ = c.Transactions(t.Context())
 		close(busyDone)
 	}()
 	time.Sleep(50 * time.Millisecond)
 
-	// Warm (low-priority) starts polling for the slot first.
-	warmDone := make(chan struct{})
+	waitDone := make(chan struct{})
 	go func() {
-		ctx := context.WithValue(hledger.WithLowPriority(t.Context()), kindKey{}, "warm")
-		_, _ = c.Transactions(ctx)
-		close(warmDone)
+		_ = c.WaitUncontended(t.Context())
+		close(waitDone)
 	}()
-	time.Sleep(50 * time.Millisecond)
 
-	// Interactive arrives second but should still win the slot once it frees up.
-	interactiveDone := make(chan struct{})
-	go func() {
-		ctx := context.WithValue(t.Context(), kindKey{}, "interactive")
-		_, _ = c.Transactions(ctx)
-		close(interactiveDone)
-	}()
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-waitDone:
+		t.Fatal("WaitUncontended returned while the only slot was busy")
+	case <-time.After(100 * time.Millisecond):
+	}
 
 	close(busyRelease)
 	<-busyDone
 
-	// Give the slot a moment to be claimed before releasing whoever got it,
-	// so the other caller (warm, if it lost) is left polling.
-	time.Sleep(100 * time.Millisecond)
-	close(slotRelease)
-
 	select {
-	case <-interactiveDone:
+	case <-waitDone:
 	case <-time.After(2 * time.Second):
-		t.Fatal("interactive call did not complete")
-	}
-	<-warmDone
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(order) != 3 || order[1] != "interactive" {
-		t.Errorf("acquisition order = %v, want [busy interactive warm]", order)
+		t.Fatal("WaitUncontended did not return after the slot freed up")
 	}
 }
