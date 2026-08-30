@@ -214,6 +214,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
   return (
     <InlineEdit
       display={display}
+      displayClassName="block truncate"
       canEdit={!!fid}
       editing={state.editing}
       onActivate={() => state.start(description)}
@@ -449,7 +450,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
   }
 
   return (
-    <div className="p-3" onClick={(e) => e.stopPropagation()}>
+    <div className="sticky left-0 max-w-[100cqw] p-3" onClick={(e) => e.stopPropagation()}>
       <Form onSubmit={handleSubmit}>
         <FormField label="Postings" error={error}>
           <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
@@ -742,20 +743,23 @@ const descriptionColumn = col.accessor((tx) => tx.description, {
     const { onStatusChange } = table.options.meta;
     const tx = row.original;
     return (
-      <span className="flex items-center gap-1.5">
-        <EditableDescriptionCell
-          fid={tx.fid}
-          description={tx.description}
-          date={tx.date}
-          postings={tx.postings}
-          payee={tx.payee}
-          note={tx.note}
-          onSaved={onStatusChange}
-        />
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="min-w-0 flex-1">
+          <EditableDescriptionCell
+            fid={tx.fid}
+            description={tx.description}
+            date={tx.date}
+            postings={tx.postings}
+            payee={tx.payee}
+            note={tx.note}
+            onSaved={onStatusChange}
+          />
+        </span>
         {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
       </span>
     );
   },
+  meta: { cellClass: "max-w-[28rem]" },
 });
 
 // Tags cell uses the same inline editor in both modes \u2014 falls back to a
@@ -1028,7 +1032,7 @@ export function TransactionTable({
   return (
     <div>
       {/* Desktop table */}
-      <div className="hidden overflow-x-auto sm:block">
+      <div className="hidden overflow-x-auto [container-type:inline-size] sm:block">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
