@@ -9,6 +9,7 @@ import { TagEditor } from "./tag-editor.jsx";
 import { ErrorBanner } from "./error-banner.jsx";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
 import {
   ResponsiveDialog,
@@ -16,6 +17,10 @@ import {
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
+
+// Above this many templates the picker switches from a row of pill buttons
+// to a searchable dropdown so it doesn't overwhelm the form.
+const TEMPLATE_PILL_LIMIT = 6;
 
 function defaultPostings(initialPostings) {
   if (initialPostings && initialPostings.length >= 2) {
@@ -31,12 +36,51 @@ function defaultPostings(initialPostings) {
   ];
 }
 
+function postingsFromTemplate(template) {
+  return template.postings.map((p) => ({
+    account: p.account || "",
+    commodity: p.commodity || "",
+    quantity: p.defaultQuantity || "",
+  }));
+}
+
+function TemplatePicker({ templates, selectedId, onSelect }) {
+  if (templates.length > TEMPLATE_PILL_LIMIT) {
+    return (
+      <Combobox
+        value={selectedId}
+        onChange={onSelect}
+        options={templates.map((t) => ({ value: t.id, label: t.name }))}
+        placeholder="Choose a template…"
+        searchPlaceholder="Search templates..."
+        emptyMessage="No template found."
+      />
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {templates.map((t) => (
+        <Button
+          key={t.id}
+          type="button"
+          size="xs"
+          variant={selectedId === t.id ? "default" : "outline"}
+          onClick={() => onSelect(selectedId === t.id ? "" : t.id)}
+        >
+          {t.name}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export function AddTransactionForm({ onSuccess, initialValues }) {
   const queryClient = useQueryClient();
   const [date, setDate] = useState(todayStr);
   const [description, setDescription] = useState(initialValues?.description || "");
   const [postings, setPostings] = useState(() => defaultPostings(initialValues?.postings));
   const [tags, setTags] = useState(() => initialValues?.tags || {});
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -44,6 +88,24 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
     queryKey: queryKeys.accounts(),
     queryFn: () => ledgerClient.listAccounts({}),
   });
+
+  // Templates only make sense when starting a fresh transaction, not when
+  // duplicating an existing one (initialValues already seeds the form).
+  const { data: templatesData } = useQuery({
+    queryKey: queryKeys.templates(),
+    queryFn: () => ledgerClient.listTemplates({}),
+    enabled: !initialValues,
+  });
+  const templates = templatesData?.templates ?? [];
+
+  function applyTemplate(id) {
+    setSelectedTemplateId(id);
+    const template = templates.find((t) => t.id === id);
+    if (!template) return;
+    setDescription([template.payee, template.note].filter(Boolean).join(" | "));
+    setPostings(postingsFromTemplate(template));
+    setTags(template.tags || {});
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -75,6 +137,15 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
   return (
     <Form onSubmit={handleSubmit}>
       {error && <ErrorBanner error={error} />}
+      {!initialValues && templates.length > 0 && (
+        <FormField label="Start from a template" hint="optional">
+          <TemplatePicker
+            templates={templates}
+            selectedId={selectedTemplateId}
+            onSelect={applyTemplate}
+          />
+        </FormField>
+      )}
       <FormRow cols={2}>
         <FormField label="Date" htmlFor="txn-date" className="sm:col-span-1">
           <Input
@@ -130,7 +201,7 @@ export function AddTransactionModal({ open, onOpenChange, initialValues }) {
 
   return (
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
-      <ResponsiveDialogContent size="md" showCloseButton>
+      <ResponsiveDialogContent size="lg" showCloseButton>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>{initialValues ? "Duplicate Transaction" : "Add Transaction"}</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>

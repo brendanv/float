@@ -70,6 +70,19 @@ test("add transaction modal mobile (drawer)", async ({ page }) => {
   await page.screenshot({ path: "test-results/mobile-add-transaction-modal.png", fullPage: true });
 });
 
+test("add transaction modal mobile with template selected", async ({ page }) => {
+  await page.goto("/#/");
+  await page.waitForTimeout(400);
+  await page.locator('[data-slot="sidebar-trigger"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('[data-slot="sidebar-menu-button"]:has-text("Add Transaction")').click();
+  await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+  await page.waitForTimeout(500);
+  await page.locator('[role="dialog"] button:has-text("Mortgage Payment")').click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: "test-results/mobile-add-transaction-modal-template.png", fullPage: true });
+});
+
 test("import create profile modal mobile (drawer)", async ({ page }) => {
   await page.goto("/#/import");
   await page.waitForSelector("select, .loading", { timeout: 5000 }).catch(() => {});

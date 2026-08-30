@@ -47,7 +47,7 @@ function DialogOverlay({
 const dialogSizeClasses = {
   sm: "sm:max-w-md",
   md: "sm:max-w-lg",
-  lg: "max-w-2xl",
+  lg: "sm:max-w-2xl",
   xl: "w-[90vw] max-w-5xl sm:max-w-5xl",
 };
 
