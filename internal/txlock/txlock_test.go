@@ -399,6 +399,157 @@ func TestTxLock_DoWith(t *testing.T) {
 	})
 }
 
+func TestTxLock_DoWith_ErrNoChanges(t *testing.T) {
+	// fn returns ErrNoChanges: DoWith must treat it as success but skip
+	// hledger check, the generation bump, and any file mutation it implies.
+	dir := setupDataDir(t)
+	l := mustTxLock(t, dir)
+	extraPath := filepath.Join(dir, "rules.json")
+	if err := os.WriteFile(extraPath, []byte(`[]`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var hookCalls int
+	l.OnCommit(func(gen uint64) { hookCalls++ })
+
+	err := l.DoWith(t.Context(), "no-op", []string{extraPath}, func() error {
+		return txlock.ErrNoChanges
+	})
+	if err != nil {
+		t.Fatalf("DoWith() with ErrNoChanges should succeed, got %v", err)
+	}
+	if got := l.Generation(); got != 0 {
+		t.Errorf("Generation() = %d, want 0 (no bump on ErrNoChanges)", got)
+	}
+	if hookCalls != 0 {
+		t.Errorf("commit hook fired %d times, want 0 on ErrNoChanges", hookCalls)
+	}
+	content, readErr := os.ReadFile(extraPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(content) != `[]` {
+		t.Errorf("extra file content changed: got %q", content)
+	}
+}
+
+func TestTxLock_DoConfig_RefusesJournalPath(t *testing.T) {
+	dir := setupDataDir(t)
+	l := txlock.New(dir, nil)
+
+	journalPath := filepath.Join(dir, "2026/01.journal")
+	called := false
+	err := l.DoConfig(t.Context(), "bad call site", []string{journalPath}, func() error {
+		called = true
+		return nil
+	})
+	if err == nil {
+		t.Fatal("DoConfig() with a .journal path should return an error")
+	}
+	if called {
+		t.Error("fn should not run when DoConfig refuses a .journal path")
+	}
+}
+
+func TestTxLock_DoConfig_SkipsCheckAndGenerationBump(t *testing.T) {
+	// Pass a nil hledger client: if DoConfig ever called client.Check, this
+	// would panic, proving the skip.
+	dir := setupDataDir(t)
+	l := txlock.New(dir, nil)
+	configPath := filepath.Join(dir, "config.toml")
+
+	var hookCalls int
+	l.OnCommit(func(gen uint64) { hookCalls++ })
+
+	err := l.DoConfig(t.Context(), "set setting", []string{configPath}, func() error {
+		return os.WriteFile(configPath, []byte("timezone = \"UTC\"\n"), 0644)
+	})
+	if err != nil {
+		t.Fatalf("DoConfig() error = %v", err)
+	}
+	if got := l.Generation(); got != 0 {
+		t.Errorf("Generation() = %d, want 0 (DoConfig must not bump generation)", got)
+	}
+	if hookCalls != 0 {
+		t.Errorf("commit hook fired %d times, want 0 (DoConfig never bumps generation)", hookCalls)
+	}
+	content, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(content) != "timezone = \"UTC\"\n" {
+		t.Errorf("config.toml content = %q, want written value", content)
+	}
+}
+
+func TestTxLock_DoConfig_RevertsOnFnError(t *testing.T) {
+	dir := setupDataDir(t)
+	l := txlock.New(dir, nil)
+
+	t.Run("new file removed on fn error", func(t *testing.T) {
+		configPath := filepath.Join(dir, "config.toml")
+		err := l.DoConfig(t.Context(), "test", []string{configPath}, func() error {
+			if writeErr := os.WriteFile(configPath, []byte("bad"), 0644); writeErr != nil {
+				return writeErr
+			}
+			return errors.New("fn failed")
+		})
+		if err == nil {
+			t.Fatal("DoConfig() should have returned fn error")
+		}
+		if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+			t.Error("new config file should have been removed after fn error")
+		}
+	})
+
+	t.Run("existing file restored on fn error", func(t *testing.T) {
+		rulesPath := filepath.Join(dir, "rules.json")
+		original := []byte(`[{"id":"aabbccdd","pattern":"AMAZON"}]`)
+		if err := os.WriteFile(rulesPath, original, 0644); err != nil {
+			t.Fatal(err)
+		}
+		err := l.DoConfig(t.Context(), "test", []string{rulesPath}, func() error {
+			if writeErr := os.WriteFile(rulesPath, []byte(`[]`), 0644); writeErr != nil {
+				return writeErr
+			}
+			return errors.New("fn failed")
+		})
+		if err == nil {
+			t.Fatal("DoConfig() should have returned fn error")
+		}
+		restored, readErr := os.ReadFile(rulesPath)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if string(restored) != string(original) {
+			t.Errorf("rules.json not restored: got %q, want %q", restored, original)
+		}
+	})
+}
+
+func TestTxLock_DoConfig_ErrNoChanges(t *testing.T) {
+	dir := setupDataDir(t)
+	l := txlock.New(dir, nil)
+	configPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("original"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := l.DoConfig(t.Context(), "no-op", []string{configPath}, func() error {
+		return txlock.ErrNoChanges
+	})
+	if err != nil {
+		t.Fatalf("DoConfig() with ErrNoChanges should succeed, got %v", err)
+	}
+	content, readErr := os.ReadFile(configPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(content) != "original" {
+		t.Errorf("config.toml content = %q, want unchanged", content)
+	}
+}
+
 func TestTxLock_Do_Concurrent(t *testing.T) {
 	// Two goroutines calling Do() concurrently must not corrupt the journal.
 	dir := setupDataDir(t)
