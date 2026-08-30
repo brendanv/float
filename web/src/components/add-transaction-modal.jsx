@@ -5,6 +5,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { todayStr } from "../format.js";
 import { PostingFields, toPostingInput } from "./posting-fields.jsx";
+import { TagEditor } from "./tag-editor.jsx";
 import { ErrorBanner } from "./error-banner.jsx";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
   const [date, setDate] = useState(todayStr);
   const [description, setDescription] = useState(initialValues?.description || "");
   const [postings, setPostings] = useState(() => defaultPostings(initialValues?.postings));
+  const [tags, setTags] = useState(() => initialValues?.tags || {});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -56,6 +58,7 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
         date,
         description: description.trim(),
         postings: postingInputs,
+        tags,
       });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
@@ -99,6 +102,9 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
           onChange={setPostings}
           accounts={accountsData?.accounts || []}
         />
+      </FormField>
+      <FormField label="Tags">
+        <TagEditor value={tags} onChange={setTags} />
       </FormField>
       <FormActions>
         <Button type="submit" isLoading={submitting} loadingText="Adding…">
