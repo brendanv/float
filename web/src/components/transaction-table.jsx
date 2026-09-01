@@ -380,7 +380,7 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
   );
 }
 
-function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
+function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
   function toFields(ps) {
     return (ps || []).map((p) => {
       const a = p.amounts && p.amounts[0];
@@ -435,6 +435,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
     setPostings(initialPostings);
     setTags(initialTags);
     setError(null);
+    if (onCancel) onCancel();
   }
 
   async function handleDelete() {
@@ -496,7 +497,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted }) {
             </Dialog>
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-            <Button type="button" variant="outline" size="xs" onClick={cancel} disabled={!isDirty || saving || deleting}>
+            <Button type="button" variant="outline" size="xs" onClick={cancel} disabled={saving || deleting}>
               Cancel
             </Button>
             <Button type="submit" size="xs" disabled={!isDirty || deleting} isLoading={saving}>
@@ -1002,6 +1003,7 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
               accounts={accounts}
               onSaved={() => { row.toggleExpanded(); if (onStatusChange) onStatusChange(); }}
               onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+              onCancel={() => row.toggleExpanded()}
             />
           </TableCell>
         </TableRow>
@@ -1141,6 +1143,7 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             accounts={accounts}
             onSaved={onStatusChange}
             onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+            onCancel={() => row.toggleExpanded()}
           />
         )}
       </CardContent>
