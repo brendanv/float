@@ -33,11 +33,11 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange }) 
     setRemovingKey(key);
     setError(null);
     try {
-      await ledgerClient.bulkEditTransactions({
+      const resp = await ledgerClient.bulkEditTransactions({
         fids: [fid],
         operations: [{ operation: { case: "removeTag", value: { key } } }],
       });
-      if (onChanged) onChanged();
+      if (onChanged) onChanged(resp.transactions?.[0]);
     } catch (err) {
       setError(err.message || String(err));
     } finally {
@@ -57,14 +57,14 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange }) 
     setWorking(true);
     setError(null);
     try {
-      await ledgerClient.bulkEditTransactions({
+      const resp = await ledgerClient.bulkEditTransactions({
         fids: [fid],
         operations: [{ operation: { case: "addTag", value: { key: tagKey.trim(), value: tagValue.trim() } } }],
       });
       setTagKey("");
       setTagValue("");
       setAdding(false);
-      if (onChanged) onChanged();
+      if (onChanged) onChanged(resp.transactions?.[0]);
     } catch (err) {
       setError(err.message || String(err));
     } finally {

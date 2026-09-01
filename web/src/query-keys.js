@@ -3,6 +3,10 @@ export const queryKeys = {
   balances:             (params) => ["balances", params],
   transactions:         (params) => ["transactions", params],
   accountRegister:      (params) => ["accountRegister", params],
+  // Prefixes matching every cached filter variant, for patching or
+  // invalidating all transaction lists / registers at once.
+  transactionsPrefix:    () => ["transactions"],
+  accountRegisterPrefix: () => ["accountRegister"],
   tags:                 () => ["tags"],
   prices:               () => ["prices"],
   accountDeclarations:  () => ["accountDeclarations"],

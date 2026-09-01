@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useSearch, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X, ArrowLeft, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import { patchTransaction, removeTransaction, revalidateTransactions } from "../lib/tx-cache.js";
 import { SearchControls } from "../components/search-controls.jsx";
 import { DATE_PRESETS, PAYEE_NONE } from "../components/search-presets.js";
 import { TransactionTable } from "../components/transaction-table.jsx";
@@ -345,6 +346,8 @@ export function TransactionsPage() {
     queryFn: () => ledgerClient.listTags({}),
   });
 
+  const allAccounts = useMemo(() => accountsData?.accounts || [], [accountsData]);
+
   const data = isAccountMode ? aregData : txData;
   const isLoading = isAccountMode ? aregLoading : txLoading;
   const error = isAccountMode ? aregError : txError;
@@ -362,18 +365,27 @@ export function TransactionsPage() {
     };
   }
 
-  function onStatusChange() {
-    if (isAccountMode) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accountRegister(aregParams) });
-    } else {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions(txParams) });
-    }
-  }
+  // Single-row edits splice the transaction the mutation returned into the
+  // cached lists so the row updates immediately, then revalidate in the
+  // background to pick up anything the patch can't know (a row that no longer
+  // matches the active filter, recomputed register running balances).
+  // useCallback so the memoized row components can bail out of re-rendering.
+  const onStatusChange = useCallback((updated) => {
+    patchTransaction(queryClient, updated);
+    revalidateTransactions(queryClient);
+  }, [queryClient]);
 
+  const onRowDeleted = useCallback((fid) => {
+    removeTransaction(queryClient, fid);
+    revalidateTransactions(queryClient);
+  }, [queryClient]);
+
+  // Bulk edits can change any number of rows in ways the response alone
+  // doesn't describe (deletes, tag changes across a selection), so they keep
+  // the blanket invalidation.
   function onBulkActionComplete() {
     setSelectedFids(new Set());
-    queryClient.invalidateQueries({ queryKey: ["transactions"] });
-    queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
+    revalidateTransactions(queryClient);
   }
 
   const transactions = !isAccountMode ? (data?.transactions || []) : [];
@@ -409,7 +421,7 @@ export function TransactionsPage() {
         onPayeeChange={onFilterChange(setPayee)}
         onSearchChange={onFilterChange(setSearch)}
         onStatusChange={onFilterChange(setStatus)}
-        accounts={accountsData?.accounts || []}
+        accounts={allAccounts}
         tags={tagsData?.tags || []}
       />
       {isLoading && <Loading />}
@@ -420,7 +432,7 @@ export function TransactionsPage() {
             <BulkActionBar
               selectedFids={selectedFids}
               transactions={bulkActionTransactions}
-              accounts={accountsData?.accounts || []}
+              accounts={allAccounts}
               onActionComplete={onBulkActionComplete}
               onClearSelection={() => setSelectedFids(new Set())}
             />
@@ -430,8 +442,8 @@ export function TransactionsPage() {
             registerRows={registerRows}
             focusedAccount={!isAccountMode ? account : undefined}
             onStatusChange={onStatusChange}
-            onDeleted={onBulkActionComplete}
-            accounts={accountsData?.accounts || []}
+            onDeleted={onRowDeleted}
+            accounts={allAccounts}
             selectedFids={selectedFids}
             onSelectionChange={setSelectedFids}
           />

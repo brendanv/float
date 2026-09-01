@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 import {
   useReactTable,
@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { TablePagination } from "./table-pagination.jsx";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -77,10 +78,21 @@ function generalDisplay(tx) {
   return { from: neg.account, to: pos.account, amount: formatAmounts(pos.amounts) };
 }
 
-// accountSplit returns the singular from/to accounts for a transaction, or
-// flags isMultiple when either side has more than one posting and the cells
-// should be merged into a single "multiple accounts" view.
+// accountSplit is called for every row from the from/to sort accessors and
+// again from each row component, so results are cached per transaction. The
+// transaction objects come from the query cache and are stable across renders,
+// and a patched row is a new object, so the cache never goes stale.
+const accountSplitCache = new WeakMap();
+
 function accountSplit(tx) {
+  const cached = accountSplitCache.get(tx);
+  if (cached) return cached;
+  const result = computeAccountSplit(tx);
+  accountSplitCache.set(tx, result);
+  return result;
+}
+
+function computeAccountSplit(tx) {
   const postings = tx.postings || [];
   if (postings.length === 0) return { from: "", to: "", isMultiple: false };
   if (postings.length === 1) {
@@ -147,8 +159,8 @@ function StatusButton({ fid, status, onStatusChange }) {
     const newStatus = status === "Cleared" ? "Pending" : "Cleared";
     setUpdating(true);
     try {
-      await ledgerClient.updateTransactionStatus({ fid, status: newStatus });
-      if (onStatusChange) onStatusChange();
+      const resp = await ledgerClient.updateTransactionStatus({ fid, status: newStatus });
+      if (onStatusChange) onStatusChange(resp.transaction);
     } finally {
       setUpdating(false);
     }
@@ -184,7 +196,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
   async function save() {
     if (state.draft.trim() === description) { state.cancel(); return; }
     await state.run(async () => {
-      await ledgerClient.updateTransaction({
+      const resp = await ledgerClient.updateTransaction({
         fid,
         description: state.draft.trim(),
         date,
@@ -195,7 +207,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
           cost: p.amounts?.[0]?.cost,
         })),
       });
-      if (onSaved) onSaved();
+      if (onSaved) onSaved(resp.transaction);
     });
   }
 
@@ -264,14 +276,14 @@ function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
           balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
         });
       });
-      await ledgerClient.updateTransaction({
+      const resp = await ledgerClient.updateTransaction({
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
         postings: newPostings,
         status: "Cleared",
       });
-      if (onSaved) onSaved();
+      if (onSaved) onSaved(resp.transaction);
     });
   }
 
@@ -339,7 +351,7 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
           balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
         });
       });
-      await ledgerClient.updateTransaction({
+      const resp = await ledgerClient.updateTransaction({
         fid: txData.fid,
         description: txData.description,
         date: txData.date,
@@ -347,7 +359,7 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
         status: "Cleared",
       });
       setTxData(null);
-      if (onSaved) onSaved();
+      if (onSaved) onSaved(resp.transaction);
     });
   }
 
@@ -415,7 +427,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
     const trimmed = postings.map(toPostingInput);
     const autoReview = trimmed.every((p) => !p.account.toLowerCase().includes("unknown"));
     try {
-      await ledgerClient.updateTransaction({
+      const resp = await ledgerClient.updateTransaction({
         fid: tx.fid,
         description: tx.description,
         date: tx.date,
@@ -423,7 +435,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
         tags,
         status: autoReview ? "Cleared" : (tx.status ?? ""),
       });
-      if (onSaved) onSaved();
+      if (onSaved) onSaved(resp.transaction);
     } catch (err) {
       setError(err.message || String(err));
     } finally {
@@ -443,7 +455,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
     try {
       await ledgerClient.deleteTransaction({ fid: tx.fid });
       setDeleteOpen(false);
-      if (onDeleted) onDeleted();
+      if (onDeleted) onDeleted(tx.fid);
     } catch (err) {
       setError(err.message || String(err));
     } finally {
@@ -537,6 +549,19 @@ function StripeIndicator({ id }) {
 
 const col = createColumnHelper();
 
+const NO_HIDDEN_COLUMNS = [];
+
+// toggleFid returns a new selection Set with fid flipped. Selection updates go
+// through this as a functional update rather than closing over the current Set:
+// row components are memoized, so a row that did not re-render would otherwise
+// hold a stale Set and clobber other rows' selection when clicked.
+function toggleFid(prev, fid) {
+  const next = new Set(prev);
+  if (next.has(fid)) next.delete(fid);
+  else next.add(fid);
+  return next;
+}
+
 const selectColumn = col.display({
   id: "select",
   header: ({ table }) => {
@@ -559,10 +584,7 @@ const selectColumn = col.display({
           checked={selectedFids?.has(row.original.fid) ?? false}
           onCheckedChange={() => {
             if (!row.original.fid) return;
-            const next = new Set(selectedFids);
-            if (next.has(row.original.fid)) next.delete(row.original.fid);
-            else next.add(row.original.fid);
-            onSelectionChange(next);
+            onSelectionChange((prev) => toggleFid(prev, row.original.fid));
           }}
         />
       </span>
@@ -823,11 +845,12 @@ export function TransactionTable({
   selectedFids,
   onSelectionChange,
   pageSize = 25,
-  hiddenColumns = [],
+  hiddenColumns = NO_HIDDEN_COLUMNS,
 }) {
   const [expanded, setExpanded] = useState({});
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
   const [sorting, setSorting] = useState([{ id: "date", desc: true }]);
+  const isMobile = useIsMobile();
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
   const isRegisterMode = !!registerRows;
@@ -838,18 +861,18 @@ export function TransactionTable({
   const allSelected = selectable && allFids.length > 0 && allFids.every((fid) => selectedFids.has(fid));
   const someSelected = selectable && allFids.some((fid) => selectedFids.has(fid));
 
-  function toggleSelectAll() {
+  const toggleSelectAll = useCallback(() => {
     if (!selectable) return;
-    if (allSelected) {
-      const next = new Set(selectedFids);
-      for (const fid of allFids) next.delete(fid);
-      onSelectionChange(next);
-    } else {
-      const next = new Set(selectedFids);
-      for (const fid of allFids) next.add(fid);
-      onSelectionChange(next);
-    }
-  }
+    onSelectionChange((prev) => {
+      const next = new Set(prev);
+      if (allFids.every((fid) => next.has(fid))) {
+        for (const fid of allFids) next.delete(fid);
+      } else {
+        for (const fid of allFids) next.add(fid);
+      }
+      return next;
+    });
+  }, [selectable, onSelectionChange, allFids]);
 
   const columnVisibility = useMemo(() => {
     const vis = { select: selectable };
@@ -872,8 +895,10 @@ export function TransactionTable({
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: (row) => !isRegisterMode && !!row.original.fid,
     getRowId: (row, idx) => row.fid ? row.fid : `${row.date}-${idx}`,
-    // Pass mutable state through meta so column cell renderers always read current values
-    meta: {
+    // Pass mutable state through meta so column cell renderers always read
+    // current values. Memoized because every cell renderer reads through
+    // table.options.meta, so a fresh literal invalidates all of them.
+    meta: useMemo(() => ({
       selectedFids,
       onSelectionChange,
       selectable,
@@ -884,7 +909,10 @@ export function TransactionTable({
       allSelected,
       someSelected,
       toggleSelectAll,
-    },
+    }), [
+      selectedFids, onSelectionChange, selectable, onStatusChange, onDeleted,
+      accounts, focusedAccount, allSelected, someSelected, toggleSelectAll,
+    ]),
   });
 
   if (rows.length === 0) {
@@ -894,60 +922,64 @@ export function TransactionTable({
   const pageRows = table.getRowModel().rows;
   const visibleColumnCount = table.getVisibleLeafColumns().length;
 
+  // Render one layout, not both. These used to be two always-mounted branches
+  // hidden from each other by CSS, so every row paid twice the reconciliation
+  // and mounted its inline-edit hooks twice.
   return (
     <div>
-      {/* Desktop table */}
-      <div className="hidden overflow-x-auto [container-type:inline-size] sm:block">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className={header.column.columnDef.meta?.headerClass}
-                  >
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {pageRows.map((row) => (
-              <TableRowGroup
-                key={row.id}
-                row={row}
-                isRegisterMode={isRegisterMode}
-                selectable={selectable}
-                selectedFids={selectedFids}
-                accounts={accounts}
-                onStatusChange={onStatusChange}
-                onDeleted={onDeleted}
-                visibleColumnCount={visibleColumnCount}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Mobile cards */}
-      <div className="-mx-4 flex flex-col gap-2 sm:hidden">
-        {pageRows.map((row) => (
-          <MobileCard
-            key={row.id}
-            row={row}
-            isRegisterMode={isRegisterMode}
-            focusedAccount={focusedAccount}
-            selectable={selectable}
-            selectedFids={selectedFids}
-            onSelectionChange={onSelectionChange}
-            onStatusChange={onStatusChange}
-            accounts={accounts}
-            onDeleted={onDeleted}
-          />
-        ))}
-      </div>
+      {isMobile ? (
+        <div className="-mx-4 flex flex-col gap-2">
+          {pageRows.map((row) => (
+            <MobileCard
+              key={row.id}
+              row={row}
+              isRegisterMode={isRegisterMode}
+              focusedAccount={focusedAccount}
+              selectable={selectable}
+              isSelected={selectable && !!row.original.fid && selectedFids.has(row.original.fid)}
+              isExpanded={row.getIsExpanded()}
+              onSelectionChange={onSelectionChange}
+              onStatusChange={onStatusChange}
+              accounts={accounts}
+              onDeleted={onDeleted}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto [container-type:inline-size]">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-background">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={header.column.columnDef.meta?.headerClass}
+                    >
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {pageRows.map((row) => (
+                <TableRowGroup
+                  key={row.id}
+                  row={row}
+                  isRegisterMode={isRegisterMode}
+                  isSelected={selectable && !!row.original.fid && selectedFids.has(row.original.fid)}
+                  isExpanded={row.getIsExpanded()}
+                  accounts={accounts}
+                  onStatusChange={onStatusChange}
+                  onDeleted={onDeleted}
+                  visibleColumnCount={visibleColumnCount}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <TablePagination table={table} />
     </div>
@@ -956,9 +988,12 @@ export function TransactionTable({
 
 // ── desktop row (with optional expansion) ─────────────────────────────────
 
-function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onDeleted, visibleColumnCount }) {
+// Memoized: without this, every checkbox click re-rendered every row on the
+// page. isSelected and isExpanded are passed explicitly rather than derived
+// from the selection Set or table state, so the memo can actually see them
+// change for the one row that changed.
+const TableRowGroup = memo(function TableRowGroup({ row, isRegisterMode, isSelected, isExpanded, accounts, onStatusChange, onDeleted, visibleColumnCount }) {
   const tx = row.original;
-  const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
   const split = isRegisterMode ? null : accountSplit(tx);
 
   return (
@@ -995,14 +1030,14 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
           );
         })}
       </TableRow>
-      {row.getIsExpanded() && (
+      {isExpanded && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
           <TableCell colSpan={visibleColumnCount} className="p-0">
             <EditableDetailRow
               tx={tx}
               accounts={accounts}
-              onSaved={() => { row.toggleExpanded(); if (onStatusChange) onStatusChange(); }}
-              onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+              onSaved={(updated) => { row.toggleExpanded(); if (onStatusChange) onStatusChange(updated); }}
+              onDeleted={(fid) => { row.toggleExpanded(); if (onDeleted) onDeleted(fid); }}
               onCancel={() => row.toggleExpanded()}
             />
           </TableCell>
@@ -1010,11 +1045,11 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
       )}
     </>
   );
-}
+});
 
 // ── mobile card ────────────────────────────────────────────────────────────
 
-function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
+const MobileCard = memo(function MobileCard({ row, isRegisterMode, focusedAccount, selectable, isSelected, isExpanded, onSelectionChange, onStatusChange, accounts, onDeleted }) {
   const tx = row.original;
   let amountCell = "";
   let balanceCell = "";
@@ -1035,8 +1070,6 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
     const display = generalDisplay(tx);
     amountCell = display?.amount || "";
   }
-
-  const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
 
   return (
     <Card
@@ -1059,10 +1092,7 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
                 checked={isSelected}
                 onCheckedChange={() => {
                   if (!tx.fid) return;
-                  const next = new Set(selectedFids);
-                  if (next.has(tx.fid)) next.delete(tx.fid);
-                  else next.add(tx.fid);
-                  onSelectionChange(next);
+                  onSelectionChange((prev) => toggleFid(prev, tx.fid));
                 }}
               />
             </span>
@@ -1137,16 +1167,16 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
             ))}
           </div>
         ))}
-        {row.getIsExpanded() && (
+        {isExpanded && (
           <EditableDetailRow
             tx={tx}
             accounts={accounts}
             onSaved={onStatusChange}
-            onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
+            onDeleted={(fid) => { row.toggleExpanded(); if (onDeleted) onDeleted(fid); }}
             onCancel={() => row.toggleExpanded()}
           />
         )}
       </CardContent>
     </Card>
   );
-}
+});
