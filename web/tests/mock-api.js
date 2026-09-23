@@ -838,7 +838,7 @@ export const mockTemplates = [
       { account: "liabilities:mortgage:interest", commodity: "USD", defaultQuantity: "600.00", comment: "" },
       { account: "liabilities:mortgage:escrow", commodity: "USD", defaultQuantity: "100.00", comment: "" },
     ],
-    tags: {},
+    tags: { category: "housing" },
   },
   {
     id: "tmpl0002",
