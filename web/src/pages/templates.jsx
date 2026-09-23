@@ -14,6 +14,7 @@ import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
+import { TagEditor } from "../components/tag-editor.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
@@ -98,6 +99,7 @@ function TemplateForm({ initial, onSave, onCancel, accounts }) {
       ? initial.postings.map((p) => ({ ...p }))
       : [emptyPosting(), emptyPosting()]
   );
+  const [tags, setTags] = useState(() => initial?.tags || {});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -133,7 +135,7 @@ function TemplateForm({ initial, onSave, onCancel, accounts }) {
           defaultQuantity: p.defaultQuantity.trim(),
           comment: p.comment?.trim() ?? "",
         })),
-        tags: {},
+        tags,
       });
     } catch (err) {
       setError(err);
@@ -197,6 +199,9 @@ function TemplateForm({ initial, onSave, onCancel, accounts }) {
             <Plus data-icon="inline-start" /> Add posting
           </Button>
         </div>
+      </FormField>
+      <FormField label="Tags" hint="applied to every transaction created from this template">
+        <TagEditor value={tags} onChange={setTags} />
       </FormField>
       <FormActions>
         {onCancel && (
@@ -283,6 +288,24 @@ export function TemplatesPage() {
       cell: ({ getValue }) => (
         <span className="font-mono text-xs text-muted-foreground">{postingSummary(getValue())}</span>
       ),
+      enableSorting: false,
+    }),
+    columnHelper.accessor("tags", {
+      header: "Tags",
+      cell: ({ getValue }) => {
+        const tags = getValue() || {};
+        const entries = Object.entries(tags);
+        if (entries.length === 0) return <span className="text-muted-foreground">—</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {entries.map(([k, v]) => (
+              <Badge key={k} variant="secondary" className="text-xs">
+                {v ? `${k}:${v}` : k}
+              </Badge>
+            ))}
+          </div>
+        );
+      },
       enableSorting: false,
     }),
     columnHelper.display({
