@@ -286,9 +286,12 @@ export function TemplatesPage() {
     columnHelper.accessor("postings", {
       header: "Accounts",
       cell: ({ getValue }) => (
-        <span className="font-mono text-xs text-muted-foreground">{postingSummary(getValue())}</span>
+        <span className="block whitespace-normal break-all font-mono text-xs text-muted-foreground">
+          {postingSummary(getValue())}
+        </span>
       ),
       enableSorting: false,
+      meta: { headerClass: "w-full min-w-40", cellClass: "min-w-40" },
     }),
     columnHelper.accessor("tags", {
       header: "Tags",
@@ -400,7 +403,7 @@ export function TemplatesPage() {
             />
           ) : (
             <>
-              <Table>
+              <Table className="w-full">
                 <TableHeader>
                   {table.getHeaderGroups().map((hg) => (
                     <TableRow key={hg.id}>
@@ -419,7 +422,10 @@ export function TemplatesPage() {
                   {table.getRowModel().rows.map((row) => (
                     <TableRow key={row.id}>
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
+                        <TableCell
+                          key={cell.id}
+                          className={cell.column.columnDef.meta?.cellClass}
+                        >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </TableCell>
                       ))}
