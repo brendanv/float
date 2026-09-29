@@ -6,22 +6,97 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+// TagForm is the key/value input row shared by "add a new tag" and "edit an
+// existing tag" — an add is just an edit with no original key.
+function TagForm({ draft, setDraft, onSave, onCancel, working, saveTitle }) {
+  const onKeyDown = inlineEditKeyHandler({ onSave, onCancel });
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      <Input
+        className="h-6 w-24"
+        placeholder="key"
+        value={draft.key}
+        onChange={(e) => setDraft({ ...draft, key: e.target.value })}
+        onKeyDown={onKeyDown}
+        autoFocus
+      />
+      <Input
+        className="h-6 w-28"
+        placeholder="value (optional)"
+        value={draft.value}
+        onChange={(e) => setDraft({ ...draft, value: e.target.value })}
+        onKeyDown={onKeyDown}
+      />
+      <Button type="button" variant="ghost" size="icon-xs" onClick={onSave} disabled={!draft.key.trim()} isLoading={working} title={saveTitle}>
+        <Check className="size-3" />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-xs" onClick={onCancel} disabled={working} title="Cancel">
+        <X className="size-3" />
+      </Button>
+    </span>
+  );
+}
+
 // TagEditor edits a transaction's tags. In immediate-save mode (`fid` set)
-// each add/remove fires its own bulkEditTransactions call. In controlled
+// each add/remove/edit fires its own bulkEditTransactions call. In controlled
 // mode (`value`/`onChange` set) edits only update local state so they can
 // be saved together with other field changes (or submitted as part of a
 // new transaction).
 export function TagEditor({ fid, tags, onChanged, className, value, onChange }) {
   const controlled = onChange != null;
   const currentTags = controlled ? (value || {}) : (tags || {});
-  const [adding, setAdding] = useState(false);
-  const [tagKey, setTagKey] = useState("");
-  const [tagValue, setTagValue] = useState("");
+  // null: form closed. "": adding a new tag. "<key>": editing that tag.
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState({ key: "", value: "" });
   const [working, setWorking] = useState(false);
   const [removingKey, setRemovingKey] = useState(null);
   const [error, setError] = useState(null);
 
   const isBusy = working || removingKey !== null;
+
+  function open(orig, value = "") {
+    if (isBusy || editing !== null) return;
+    setEditing(orig);
+    setDraft({ key: orig, value });
+    setError(null);
+  }
+
+  function close() {
+    setEditing(null);
+    setDraft({ key: "", value: "" });
+    setError(null);
+  }
+
+  async function save() {
+    const key = draft.key.trim();
+    if (!key) return;
+    const val = draft.value.trim();
+    const renamed = editing && key !== editing;
+    if (controlled) {
+      const next = { ...currentTags };
+      if (renamed) delete next[editing];
+      next[key] = val;
+      onChange(next);
+      close();
+      return;
+    }
+    setWorking(true);
+    setError(null);
+    try {
+      const operations = [];
+      if (renamed) {
+        operations.push({ operation: { case: "removeTag", value: { key: editing } } });
+      }
+      operations.push({ operation: { case: "addTag", value: { key, value: val } } });
+      await ledgerClient.bulkEditTransactions({ fids: [fid], operations });
+      if (onChanged) onChanged();
+      close();
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setWorking(false);
+    }
+  }
 
   async function removeTag(key) {
     if (controlled) {
@@ -45,95 +120,49 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange }) 
     }
   }
 
-  async function addTag() {
-    if (!tagKey.trim()) return;
-    if (controlled) {
-      onChange({ ...currentTags, [tagKey.trim()]: tagValue.trim() });
-      setTagKey("");
-      setTagValue("");
-      setAdding(false);
-      return;
-    }
-    setWorking(true);
-    setError(null);
-    try {
-      await ledgerClient.bulkEditTransactions({
-        fids: [fid],
-        operations: [{ operation: { case: "addTag", value: { key: tagKey.trim(), value: tagValue.trim() } } }],
-      });
-      setTagKey("");
-      setTagValue("");
-      setAdding(false);
-      if (onChanged) onChanged();
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  function cancelAdd() {
-    setAdding(false);
-    setTagKey("");
-    setTagValue("");
-    setError(null);
-  }
-
-  const onKey = inlineEditKeyHandler({ onSave: addTag, onCancel: cancelAdd });
-
   return (
     <div className={className}>
       <div className="flex flex-wrap items-center gap-1">
-        {Object.entries(currentTags).map(([k, v]) => (
-          <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
-            {v ? `${k}:${v}` : k}
-            {removingKey === k ? (
-              <Loader2 className="size-2.5 animate-spin" />
-            ) : (
+        {Object.entries(currentTags).map(([k, v]) =>
+          editing === k ? (
+            <TagForm key={k} draft={draft} setDraft={setDraft} onSave={save} onCancel={close} working={working} saveTitle="Save tag" />
+          ) : (
+            <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
               <button
                 type="button"
-                className="rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
-                onClick={(e) => { e.stopPropagation(); removeTag(k); }}
+                className="rounded-sm hover:underline disabled:opacity-50"
+                onClick={(e) => { e.stopPropagation(); open(k, v); }}
                 disabled={isBusy}
-                title={`Remove tag "${k}"`}
+                title={`Edit tag "${k}"`}
               >
-                <X className="size-2.5" />
+                {v ? `${k}:${v}` : k}
               </button>
-            )}
-          </Badge>
-        ))}
-        {adding ? (
-          <span className="flex flex-wrap items-center gap-1">
-            <Input
-              className="h-6 w-24"
-              placeholder="key"
-              value={tagKey}
-              onChange={(e) => setTagKey(e.target.value)}
-              onKeyDown={onKey}
-              autoFocus
-            />
-            <Input
-              className="h-6 w-28"
-              placeholder="value (optional)"
-              value={tagValue}
-              onChange={(e) => setTagValue(e.target.value)}
-              onKeyDown={onKey}
-            />
-            <Button type="button" variant="ghost" size="icon-xs" onClick={addTag} disabled={!tagKey.trim()} isLoading={working} title="Add tag">
-              <Check className="size-3" />
-            </Button>
-            <Button type="button" variant="ghost" size="icon-xs" onClick={cancelAdd} disabled={working} title="Cancel">
-              <X className="size-3" />
-            </Button>
-          </span>
+              {removingKey === k ? (
+                <Loader2 className="size-2.5 animate-spin" />
+              ) : (
+                <button
+                  type="button"
+                  className="rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
+                  onClick={(e) => { e.stopPropagation(); removeTag(k); }}
+                  disabled={isBusy}
+                  title={`Remove tag "${k}"`}
+                >
+                  <X className="size-2.5" />
+                </button>
+              )}
+            </Badge>
+          ),
+        )}
+        {editing === "" ? (
+          <TagForm draft={draft} setDraft={setDraft} onSave={save} onCancel={close} working={working} saveTitle="Add tag" />
         ) : (
           <Button
             type="button"
             variant="ghost"
             size="xs"
             className="text-muted-foreground"
-            onClick={(e) => { e.stopPropagation(); setAdding(true); }}
-            disabled={isBusy}
+            onClick={(e) => { e.stopPropagation(); open(""); }}
+            disabled={isBusy || editing !== null}
           >
             <Plus data-icon="inline-start" /> Tag
           </Button>
