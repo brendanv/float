@@ -397,6 +397,8 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
 
   const initialPostings = toFields(tx.postings);
   const initialTags = tx.tags || {};
+  const initialDate = tx.date;
+  const [date, setDate] = useState(initialDate);
   const [postings, setPostings] = useState(initialPostings);
   const [tags, setTags] = useState(initialTags);
   const [saving, setSaving] = useState(false);
@@ -405,7 +407,8 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
 
-  const isDirty = JSON.stringify(postings) !== JSON.stringify(initialPostings)
+  const isDirty = date !== initialDate
+    || JSON.stringify(postings) !== JSON.stringify(initialPostings)
     || JSON.stringify(tags) !== JSON.stringify(initialTags);
 
   async function handleSubmit(e) {
@@ -418,7 +421,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
       await ledgerClient.updateTransaction({
         fid: tx.fid,
         description: tx.description,
-        date: tx.date,
+        date,
         postings: trimmed,
         tags,
         status: autoReview ? "Cleared" : (tx.status ?? ""),
@@ -432,6 +435,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
   }
 
   function cancel() {
+    setDate(initialDate);
     setPostings(initialPostings);
     setTags(initialTags);
     setError(null);
@@ -454,6 +458,15 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
   return (
     <div className="sticky left-0 max-w-[100cqw] p-3" onClick={(e) => e.stopPropagation()}>
       <Form onSubmit={handleSubmit}>
+        <FormField label="Date" htmlFor={`txn-date-${tx.fid}`}>
+          <Input
+            id={`txn-date-${tx.fid}`}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
+        </FormField>
         <FormField label="Postings" error={error}>
           <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
         </FormField>
