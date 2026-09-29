@@ -28,6 +28,7 @@ function defaultPostings(initialPostings) {
       account: p.account || "",
       commodity: p.commodity || "",
       quantity: p.quantity || "",
+      ...(p.cost ? { cost: p.cost } : {}),
     }));
   }
   return [
