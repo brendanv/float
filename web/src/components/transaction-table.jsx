@@ -177,6 +177,21 @@ function StatusButton({ fid, status, onStatusChange }) {
   );
 }
 
+// existingPostingInput converts a posting from the API into a PostingInput
+// for UpdateTransaction, preserving its amount, cost, and balance assertion.
+// `account` optionally overrides the posting's account.
+function existingPostingInput(p, account = p.account) {
+  const a = p.amounts?.[0];
+  const ba = p.balanceAssertion;
+  return toPostingInput({
+    account,
+    commodity: a?.commodity ?? "",
+    quantity: a?.quantity ?? "",
+    cost: a?.cost,
+    balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
+  });
+}
+
 function EditableDescriptionCell({ fid, description, date, postings, payee, note, onSaved }) {
   const navigate = useNavigate();
   const state = useInlineEditState(description);
@@ -188,12 +203,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
         fid,
         description: state.draft.trim(),
         date,
-        postings: postings.map((p) => toPostingInput({
-          account: p.account,
-          commodity: p.amounts?.[0]?.commodity ?? "",
-          quantity: p.amounts?.[0]?.quantity ?? "",
-          cost: p.amounts?.[0]?.cost,
-        })),
+        postings: postings.map((p) => existingPostingInput(p)),
       });
       if (onSaved) onSaved();
     });
@@ -253,17 +263,8 @@ function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
     if (!state.draft || state.draft === account) { state.cancel(); return; }
     const oldAccount = matching[0].account;
     await state.run(async () => {
-      const newPostings = postings.map((p) => {
-        const a = p.amounts?.[0];
-        const ba = p.balanceAssertion;
-        return toPostingInput({
-          account: p.account === oldAccount ? state.draft : p.account,
-          commodity: a?.commodity ?? "",
-          quantity: a?.quantity ?? "",
-          cost: a?.cost,
-          balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
-        });
-      });
+      const newPostings = postings.map((p) =>
+        existingPostingInput(p, p.account === oldAccount ? state.draft : p.account));
       await ledgerClient.updateTransaction({
         fid: tx.fid,
         description: tx.description,
@@ -328,17 +329,8 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
     if (!txData || !state.draft) return;
     await state.run(async () => {
       const oldAccount = otherAccounts[0];
-      const newPostings = (txData.postings || []).map((p) => {
-        const a = p.amounts?.[0];
-        const ba = p.balanceAssertion;
-        return toPostingInput({
-          account: p.account === oldAccount ? state.draft : p.account,
-          commodity: a?.commodity ?? "",
-          quantity: a?.quantity ?? "",
-          cost: a?.cost,
-          balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
-        });
-      });
+      const newPostings = (txData.postings || []).map((p) =>
+        existingPostingInput(p, p.account === oldAccount ? state.draft : p.account));
       await ledgerClient.updateTransaction({
         fid: txData.fid,
         description: txData.description,
