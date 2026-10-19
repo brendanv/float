@@ -2,7 +2,7 @@ FROM debian:bookworm-slim AS hledger
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && HLEDGER_ARCH=$([ "$TARGETARCH" = "arm64" ] && echo arm64 || echo x64) \
-    && curl -fsSL "https://github.com/simonmichael/hledger/releases/download/1.52/hledger-linux-${HLEDGER_ARCH}.tar.gz" \
+    && curl -fsSL "https://github.com/simonmichael/hledger/releases/download/1.99.5/hledger-linux-${HLEDGER_ARCH}.tar.gz" \
        | tar xz -C /usr/local/bin/ \
     && hledger --version
 

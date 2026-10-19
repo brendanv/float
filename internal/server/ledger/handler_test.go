@@ -59,7 +59,7 @@ func versionRunner(t *testing.T, data map[string][]byte) hledger.CommandRunner {
 	t.Helper()
 	return func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		key := strings.Join(args, " ")
 		for k, v := range data {
@@ -98,7 +98,7 @@ const printJSON = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       },
       {
         "paccount": "income:salary",
@@ -109,7 +109,7 @@ const printJSON = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       }
     ],
     "tprecedingcomment": "",
@@ -207,7 +207,7 @@ func TestListTransactionsWithQuery(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte("[]"), nil, nil
@@ -242,7 +242,7 @@ func TestListTransactionsWithQuery_SupportedVocabularyFiltersInGo(t *testing.T) 
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte(printJSON), nil, nil
@@ -697,7 +697,7 @@ func errorRunner(t *testing.T) hledger.CommandRunner {
 	t.Helper()
 	return func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		return nil, nil, errors.New("hledger failed")
 	}
@@ -777,7 +777,7 @@ func TestListTransactions_CacheHit(t *testing.T) {
 	var calls atomic.Int64
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		calls.Add(1)
 		return []byte(printJSON), nil, nil
@@ -806,7 +806,7 @@ func TestGetBalances_CacheHit(t *testing.T) {
 	var calls atomic.Int64
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		calls.Add(1)
 		return []byte(balJSON), nil, nil
@@ -830,7 +830,7 @@ func TestListAccounts_CacheHit(t *testing.T) {
 	var calls atomic.Int64
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		calls.Add(1)
 		return []byte(accountsText), nil, nil
@@ -854,7 +854,7 @@ func TestGetNetWorthTimeseries_CacheHit(t *testing.T) {
 	var calls atomic.Int64
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		calls.Add(1)
 		return []byte(bsTimeseriesJSON), nil, nil
@@ -927,7 +927,7 @@ func TestGetNetWorthTimeseries_WithDateRange(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte(bsTimeseriesJSON), nil, nil
@@ -965,7 +965,7 @@ func TestGetNetWorthTimeseries_NonAlignedRangePassesThrough(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte(bsTimeseriesJSON), nil, nil
@@ -994,7 +994,7 @@ func TestGetBalances_WithDepthAndQuery(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte(balJSON), nil, nil
@@ -1379,7 +1379,7 @@ func TestListPayees_CacheHit(t *testing.T) {
 	var calls atomic.Int64
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		calls.Add(1)
 		return []byte(payeesText), nil, nil
@@ -1558,7 +1558,7 @@ func TestGetAccountRegister_PassesArgsToHledger(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte("[]"), nil, nil
@@ -1601,7 +1601,7 @@ func TestGetAccountRegister_SupportedVocabularyFiltersInGo(t *testing.T) {
 	var capturedArgs []string
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		capturedArgs = args
 		return []byte(aregJSON), nil, nil
@@ -1688,7 +1688,7 @@ func TestGetAccountRegister_Pagination(t *testing.T) {
 func TestGetAccountRegister_HledgerError(t *testing.T) {
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		return nil, []byte("boom"), errors.New("exec failed")
 	}
@@ -1713,7 +1713,7 @@ func TestGetAccountRegister_CacheHit(t *testing.T) {
 	var callCount atomic.Int32
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) == 1 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		callCount.Add(1)
 		return []byte(aregJSON), nil, nil
@@ -2556,7 +2556,7 @@ const printJSONWithCost = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       },
       {
         "paccount": "assets:investments:msft",
@@ -2571,7 +2571,7 @@ const printJSONWithCost = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       },
       {
         "paccount": "assets:checking",
@@ -2582,7 +2582,7 @@ const printJSONWithCost = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       }
     ],
     "tprecedingcomment": "",

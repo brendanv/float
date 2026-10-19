@@ -17,7 +17,7 @@ import (
 	"github.com/brendanv/float/internal/slogctx"
 )
 
-const supportedVersion = "1.52"
+const supportedVersion = "1.99.5"
 
 // defaultConcurrency bounds how many hledger processes run at once when the
 // caller doesn't configure server.hledger_concurrency. Each invocation parses
@@ -89,7 +89,7 @@ func newClient(bin, journal string, runner CommandRunner) (*Client, error) {
 	return c, nil
 }
 
-// parseVersion extracts version from "hledger 1.52, linux-x86_64\n".
+// parseVersion extracts version from "hledger 1.99.5, linux-x86_64\n".
 func parseVersion(output string) (string, error) {
 	output = strings.TrimSpace(output)
 	parts := strings.Split(output, " ")
