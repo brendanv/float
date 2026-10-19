@@ -21,6 +21,11 @@ const HiddenMetaPrefix = "float-"
 // hledger's accounting.
 const ClosedAccountTag = HiddenMetaPrefix + "closed"
 
+const (
+	TagLotRole   = "_ptype"
+	TagGenerated = "_generated-posting"
+)
+
 type AmountQuantity struct {
 	DecimalMantissa int64   `json:"decimalMantissa"`
 	DecimalPlaces   int     `json:"decimalPlaces"`
@@ -50,6 +55,13 @@ type Amount struct {
 	Commodity string           `json:"acommodity"`
 	Quantity  AmountQuantity   `json:"aquantity"`
 	Cost      *json.RawMessage `json:"acost"`
+	CostBasis *CostBasis       `json:"acostbasis"`
+}
+
+type CostBasis struct {
+	Date  *string `json:"cbDate"`
+	Label *string `json:"cbLabel"`
+	Cost  *Amount `json:"cbCost"`
 }
 
 type Posting struct {
@@ -63,6 +75,24 @@ type Posting struct {
 	Date             *string           `json:"pdate"`
 	Date2            *string           `json:"pdate2"`
 	BalanceAssertion *BalanceAssertion `json:"pbalanceassertion"`
+}
+
+func (p Posting) LotRole() string {
+	for _, t := range p.Tags {
+		if t[0] == TagLotRole {
+			return t[1]
+		}
+	}
+	return ""
+}
+
+func (p Posting) Generated() bool {
+	for _, t := range p.Tags {
+		if t[0] == TagGenerated {
+			return true
+		}
+	}
+	return false
 }
 
 // BalanceAssertion mirrors hledger's pbalanceassertion JSON object.
@@ -160,6 +190,16 @@ type BalanceRow struct {
 type BalanceReport struct {
 	Rows  []BalanceRow
 	Total []Amount
+}
+
+type LotRow struct {
+	Account   string
+	LotName   string
+	Date      string
+	Label     string
+	Units     Amount
+	UnitCost  *Amount
+	TotalCost []Amount
 }
 
 // AccountType represents the hledger account type letter (A, L, E, R, X, C, V).

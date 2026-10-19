@@ -1397,3 +1397,86 @@ func TestClosedAccounts(t *testing.T) {
 		})
 	}
 }
+
+func TestTransactionsLots(t *testing.T) {
+	c := mustClient(t, "lots.journal")
+	txns, err := c.Transactions(t.Context())
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+
+	byFID := map[string]hledger.Transaction{}
+	for _, tx := range txns {
+		byFID[tx.FID] = tx
+	}
+
+	findPosting := func(t *testing.T, fid, account string) hledger.Posting {
+		t.Helper()
+		tx, ok := byFID[fid]
+		if !ok {
+			t.Fatalf("transaction %q not found", fid)
+		}
+		for _, p := range tx.Postings {
+			if p.Account == account {
+				return p
+			}
+		}
+		t.Fatalf("posting %q not found in %q", account, fid)
+		return hledger.Posting{}
+	}
+
+	tests := []struct {
+		name          string
+		fid           string
+		account       string
+		wantRole      string
+		wantGenerated bool
+		wantBasis     bool
+		wantDate      string
+		wantLabel     string
+		wantCostQty   string
+	}{
+		{name: "explicit acquire", fid: "aa000001", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantCostQty: "50"},
+		{name: "labelled acquire", fid: "aa000002", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantDate: "2026-01-16", wantLabel: "mine", wantCostQty: "40"},
+		{name: "fractional cost", fid: "aa000004", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantCostQty: "1234.567"},
+		{name: "specid disposal", fid: "aa000005", account: "assets:brokerage", wantRole: "dispose", wantBasis: true, wantDate: "2026-01-15", wantCostQty: "50"},
+		{name: "cash leg", fid: "aa000005", account: "assets:cash"},
+		{name: "inferred gain", fid: "aa000005", account: "revenues:gain", wantRole: "gain", wantGenerated: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := findPosting(t, tt.fid, tt.account)
+			if got := p.LotRole(); got != tt.wantRole {
+				t.Errorf("LotRole = %q, want %q", got, tt.wantRole)
+			}
+			if got := p.Generated(); got != tt.wantGenerated {
+				t.Errorf("Generated = %v, want %v", got, tt.wantGenerated)
+			}
+			cb := p.Amounts[0].CostBasis
+			if !tt.wantBasis {
+				if cb != nil {
+					t.Errorf("CostBasis = %+v, want nil", cb)
+				}
+				return
+			}
+			if cb == nil || cb.Cost == nil {
+				t.Fatalf("CostBasis = %+v, want non-nil with cost", cb)
+			}
+			if tt.wantDate == "" && cb.Date != nil {
+				t.Errorf("CostBasis.Date = %q, want nil", *cb.Date)
+			}
+			if tt.wantDate != "" && (cb.Date == nil || *cb.Date != tt.wantDate) {
+				t.Errorf("CostBasis.Date = %v, want %q", cb.Date, tt.wantDate)
+			}
+			if tt.wantLabel == "" && cb.Label != nil {
+				t.Errorf("CostBasis.Label = %q, want nil", *cb.Label)
+			}
+			if tt.wantLabel != "" && (cb.Label == nil || *cb.Label != tt.wantLabel) {
+				t.Errorf("CostBasis.Label = %v, want %q", cb.Label, tt.wantLabel)
+			}
+			if cb.Cost.Commodity != "$" || cb.Cost.Quantity.Format() != tt.wantCostQty {
+				t.Errorf("CostBasis.Cost = %s %s, want $ %s", cb.Cost.Commodity, cb.Cost.Quantity.Format(), tt.wantCostQty)
+			}
+		})
+	}
+}

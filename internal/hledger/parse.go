@@ -412,3 +412,49 @@ func parsePayees(data []byte) []string {
 	}
 	return payees
 }
+
+func parseLotAccount(full string) (base, date, label string, ok bool) {
+	if !strings.HasSuffix(full, "}") {
+		return "", "", "", false
+	}
+	open := strings.LastIndex(full, ":{")
+	if open < 0 {
+		return "", "", "", false
+	}
+	base = full[:open]
+	inner := full[open+2 : len(full)-1]
+	if base == "" || len(inner) < 10 || !isISODate(inner[:10]) {
+		return "", "", "", false
+	}
+	date = inner[:10]
+	rest := inner[10:]
+	if rest != "" && rest[0] != ',' {
+		return "", "", "", false
+	}
+	rest = strings.TrimLeft(rest, ", ")
+	if strings.HasPrefix(rest, `"`) {
+		if end := strings.Index(rest[1:], `"`); end >= 0 {
+			label = rest[1 : 1+end]
+		}
+	}
+	return base, date, label, true
+}
+
+func isISODate(s string) bool {
+	if len(s) != 10 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		switch i {
+		case 4, 7:
+			if s[i] != '-' {
+				return false
+			}
+		default:
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		}
+	}
+	return true
+}
