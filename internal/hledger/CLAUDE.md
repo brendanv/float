@@ -15,6 +15,9 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 - `Invocations()` — cumulative count of hledger processes run by this client, used by `cmd/floatd` to log per-generation hledger invocation counts.
 - `Transaction` — parsed hledger transaction. Derived fields include `FID` from the transaction code, `Payee`/`Note` split on the first `|`, and `FloatMeta` for hidden `float-*` tags.
 - `Posting`, `Amount`, `CostJSON`, `BalanceAssertion` — typed forms of hledger JSON posting/amount data, including cost annotations and simple balance assertions.
+- `CostBasis` — lot cost basis (`cbDate`, `cbLabel`, `cbCost`), exposed as `Amount.CostBasis` (JSON `acostbasis`, nil when the amount has no lot annotation). On acquires `cbDate` is nil because the date comes from the transaction; on disposals it holds the selector as written, or the full inferred basis for a lotful commodity.
+- `LotRow` — one lot subaccount from `Lots()`: base `Account`, `LotName`, `Date`, `Label`, net `Units` (with `CostBasis`), `UnitCost`, and `TotalCost` amounts.
+- `Posting.LotRole()` / `Posting.Generated()` — read the hidden `TagLotRole` (`_ptype`) and `TagGenerated` (`_generated-posting`) posting tags.
 - `BalanceReport`, `BalanceRow` — `hledger bal -O json` output.
 - `RegisterRow` — `hledger reg -O json`, one row per posting.
 - `AregisterRow` — `hledger areg -O json`, one row per transaction touching the focused account, with change and running balance computed by hledger.
@@ -35,6 +38,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `PortfolioTimeseries(ctx, accounts, begin)` | `bs ... --value=end,USD` | portfolio value for explicit holding accounts |
 | `PortfolioCostBasisTimeseries(ctx, accounts, begin)` | `bs ... --cost` | portfolio cost-basis timeseries |
 | `Register(ctx, query...)` | `reg -O json` | flat posting rows |
+| `Lots(ctx, query...)` | `bal --lots -N -O json` + `bal --lots -B -N -O json` | two invocations; see Lots below |
 | `Aregister(ctx, account, query...)` | `areg -O json` | account-focused transaction rows |
 | `Accounts(ctx, tree)` | `accounts --types [--tree]` | tree=true populates children |
 | `UnusedAccounts(ctx)` | `accounts --unused` | declared but unused accounts |
@@ -58,6 +62,23 @@ Parsing helpers translate hledger's heterogeneous JSON arrays into typed structs
 `RunQuery` uses a deliberately small shell splitter that supports single and double quotes but not shell expansion or escapes. It automatically prepends `-f <journal>`. The first token must be an allowlisted read-only subcommand, and arguments that redirect hledger input/output (`-f`, `-o`, `--file`, `--output-file`, `--rules-file`) are rejected with `ErrUnsafeQuery`.
 
 All typed query methods (`Balances`, `Register`, `Transactions`, `Aregister`, ...) reject query terms starting with `-` with `ErrUnsafeQuery` — hledger parses flags anywhere in argv, so a flag-shaped query token could otherwise redirect output and bypass txlock.
+
+## Lots
+
+`Lots` joins the unit report and the `-B` cost report by full account name, keeping only rows whose account passes `parseLotAccount` (a final `{DATE[, "LABEL"][, COST]}` segment). Date and label come from the account name, because `cbDate`/`cbLabel` in `bal --lots` amounts are null/unreliable; the cost text in the name is ignored and the structured `cbCost` is used for `UnitCost`. The JSON does not merge acquire and disposal amounts within a lot row, so net units are summed per commodity with exact mantissa arithmetic (`sumAmounts`), never floats. Lots with zero net units are skipped.
+
+Hidden posting tags on `print -O json`:
+
+- `_ptype` — `acquire`, `dispose`, `transfer-from`, `transfer-to`, or `gain`.
+- `_generated-posting` — marks an inferred capital-gain posting that `print` shows as a real posting but is not in the journal text. Writers must skip these so hledger re-infers them.
+
+`holdings` is in the `RunQuery` allowlist for the debug UI. Do not use `holdings -O json` in typed code: its amounts are display strings (e.g. `"505,00 EUR"`), and parsing them would reimplement hledger's amount parsing.
+
+Limitations:
+
+- With the AVERAGE method, `bal --lots` shows each lot's original cost rather than the pool average.
+- hledger query terms are regexes, so a lot account name containing `{` can't be used directly as a query term.
+- Total-basis `{{...}}` is not modelled.
 
 ## Testing
 
