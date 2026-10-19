@@ -31,6 +31,16 @@ export function formatCost(cost) {
   return (cost.isTotal ? " @@ " : " @ ") + formatCurrency(cost.quantity, cost.commodity);
 }
 
+export function formatCostBasis(cb) {
+  if (!cb) return "";
+  const parts = [];
+  if (cb.date) parts.push(cb.date);
+  if (cb.label) parts.push(JSON.stringify(cb.label));
+  if (cb.cost?.quantity) parts.push(formatCurrency(cb.cost.quantity, cb.cost.commodity));
+  if (parts.length === 0) return "";
+  return " {" + parts.join(", ") + "}";
+}
+
 export function formatBalanceAssertion(ba) {
   if (!ba?.amount?.quantity) return "";
   return " = " + formatCurrency(ba.amount.quantity, ba.amount.commodity);
@@ -40,7 +50,7 @@ export function formatAmounts(amounts) {
   if (!amounts || amounts.length === 0) return "";
   const nonZero = amounts.filter((a) => parseFloat(a.quantity) !== 0);
   const display = nonZero.length > 0 ? nonZero : amounts;
-  return display.map((a) => formatCurrency(a.quantity, a.commodity) + formatCost(a.cost)).join(", ");
+  return display.map((a) => formatCurrency(a.quantity, a.commodity) + formatCostBasis(a.costBasis) + formatCost(a.cost)).join(", ");
 }
 
 export function formatDate(dateStr) {

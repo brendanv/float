@@ -22,7 +22,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatAmounts, formatCurrency, formatDate } from "../format.js";
-import { AccountInput, PostingFields, toPostingInput } from "./posting-fields.jsx";
+import { AccountInput, PostingFields, editablePostings, fieldsFromPosting, toPostingInput } from "./posting-fields.jsx";
 import { InlineEdit, inlineEditKeyHandler, useInlineEditState } from "./inline-edit.jsx";
 import { TableSortHeader } from "./table-sort-header.jsx";
 import { useNavigate } from "@tanstack/react-router";
@@ -188,12 +188,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
         fid,
         description: state.draft.trim(),
         date,
-        postings: postings.map((p) => toPostingInput({
-          account: p.account,
-          commodity: p.amounts?.[0]?.commodity ?? "",
-          quantity: p.amounts?.[0]?.quantity ?? "",
-          cost: p.amounts?.[0]?.cost,
-        })),
+        postings: editablePostings(postings).map((p) => toPostingInput(fieldsFromPosting(p))),
       });
       if (onSaved) onSaved();
     });
@@ -243,7 +238,7 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
 // posting). When the row has zero or multiple postings on that side, the
 // cell is not editable and falls back to the full edit view.
 function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
-  const postings = tx.postings || [];
+  const postings = editablePostings(tx.postings);
   const matching = postings.filter((p) => side === "from" ? firstQuantity(p) < 0 : firstQuantity(p) > 0);
   const account = matching.length === 1 ? matching[0].account : "";
   const state = useInlineEditState(account);
@@ -254,15 +249,8 @@ function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
     const oldAccount = matching[0].account;
     await state.run(async () => {
       const newPostings = postings.map((p) => {
-        const a = p.amounts?.[0];
-        const ba = p.balanceAssertion;
-        return toPostingInput({
-          account: p.account === oldAccount ? state.draft : p.account,
-          commodity: a?.commodity ?? "",
-          quantity: a?.quantity ?? "",
-          cost: a?.cost,
-          balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
-        });
+        const f = fieldsFromPosting(p);
+        return toPostingInput(p.account === oldAccount ? { ...f, account: state.draft } : f);
       });
       await ledgerClient.updateTransaction({
         fid: tx.fid,
@@ -328,16 +316,9 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
     if (!txData || !state.draft) return;
     await state.run(async () => {
       const oldAccount = otherAccounts[0];
-      const newPostings = (txData.postings || []).map((p) => {
-        const a = p.amounts?.[0];
-        const ba = p.balanceAssertion;
-        return toPostingInput({
-          account: p.account === oldAccount ? state.draft : p.account,
-          commodity: a?.commodity ?? "",
-          quantity: a?.quantity ?? "",
-          cost: a?.cost,
-          balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
-        });
+      const newPostings = editablePostings(txData.postings).map((p) => {
+        const f = fieldsFromPosting(p);
+        return toPostingInput(p.account === oldAccount ? { ...f, account: state.draft } : f);
       });
       await ledgerClient.updateTransaction({
         fid: txData.fid,
@@ -381,21 +362,8 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
 }
 
 function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
-  function toFields(ps) {
-    return (ps || []).map((p) => {
-      const a = p.amounts && p.amounts[0];
-      const ba = p.balanceAssertion;
-      return {
-        account: p.account,
-        commodity: a ? a.commodity : "",
-        quantity: a ? a.quantity : "",
-        cost: a ? a.cost : undefined,
-        balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
-      };
-    });
-  }
-
-  const initialPostings = toFields(tx.postings);
+  const initialPostings = editablePostings(tx.postings).map(fieldsFromPosting);
+  const generatedPostings = (tx.postings || []).filter((p) => p.generated);
   const initialTags = tx.tags || {};
   const initialDate = tx.date;
   const [date, setDate] = useState(initialDate);
@@ -469,6 +437,11 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
         </FormField>
         <FormField label="Postings" error={error}>
           <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
+          {generatedPostings.map((p, i) => (
+            <div key={i} className="mt-1 font-mono text-xs text-muted-foreground">
+              {p.account} {formatAmounts(p.amounts)} · inferred by hledger
+            </div>
+          ))}
         </FormField>
         <FormField label="Tags">
           <TagEditor value={tags} onChange={setTags} />
@@ -517,7 +490,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
         onOpenChange={setDuplicateOpen}
         initialValues={{
           description: tx.description,
-          postings: toFields(tx.postings),
+          postings: initialPostings,
           tags: tx.tags,
         }}
       />

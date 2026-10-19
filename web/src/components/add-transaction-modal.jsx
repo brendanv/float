@@ -29,6 +29,7 @@ function defaultPostings(initialPostings) {
       commodity: p.commodity || "",
       quantity: p.quantity || "",
       ...(p.cost ? { cost: p.cost } : {}),
+      ...(p.lot ? { lot: p.lot } : {}),
     }));
   }
   return [
