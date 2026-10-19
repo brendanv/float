@@ -31,6 +31,13 @@ type BalanceAssertionInput struct {
 	Total     bool
 }
 
+type CostBasisInput struct {
+	Date      string
+	Label     string
+	Commodity string
+	Quantity  string
+}
+
 // PostingInput represents one leg of a transaction.
 type PostingInput struct {
 	Account          string                 // e.g. "expenses:shopping"
@@ -38,6 +45,7 @@ type PostingInput struct {
 	Quantity         string                 // e.g. "45.00"; empty = auto-balance posting
 	Comment          string                 // optional inline comment text (without "; " prefix)
 	Cost             *CostInput             // optional cost annotation
+	CostBasis        *CostBasisInput        // optional lot selector / cost basis
 	BalanceAssertion *BalanceAssertionInput // optional balance assertion (= / =* / == / ==*)
 }
 
