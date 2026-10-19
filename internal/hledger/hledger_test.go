@@ -623,7 +623,7 @@ func TestPrintCSV(t *testing.T) {
 }
 
 func TestTransactionFID(t *testing.T) {
-	const versionResp = "hledger 1.52, linux-x86_64\n"
+	const versionResp = "hledger 1.99.5, linux-x86_64\n"
 	const printJSON = `[{"tindex":1,"tdate":"2026-01-05","tdate2":null,"tdescription":"PAYROLL","tcode":"aa001100","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":""},{"tindex":2,"tdate":"2026-01-15","tdate2":null,"tdescription":"AMAZON","tcode":"","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":""}]`
 
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
@@ -662,7 +662,7 @@ func TestTransactionFID(t *testing.T) {
 }
 
 func TestTransactionPayeeNote(t *testing.T) {
-	const versionResp = "hledger 1.52, linux-x86_64\n"
+	const versionResp = "hledger 1.99.5, linux-x86_64\n"
 	const printJSON = `[
 		{"tindex":1,"tdate":"2026-01-05","tdate2":null,"tdescription":"Acme Corp | Monthly invoice","tcode":"aa001100","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
 		{"tindex":2,"tdate":"2026-01-15","tdate2":null,"tdescription":"AMAZON","tcode":"","tcomment":"","ttags":[],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
@@ -784,7 +784,7 @@ func TestNewWithRunner(t *testing.T) {
 	called := false
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		called = true
-		return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+		return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 	}
 	c, err := hledger.NewWithRunner("hledger", "testdata/simple.journal", runner)
 	if err != nil {
@@ -820,7 +820,7 @@ func TestTags(t *testing.T) {
 			tagsOutput := tt.output
 			runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 				if len(args) > 0 && args[0] == "--version" {
-					return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+					return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 				}
 				return []byte(tagsOutput), nil, nil
 			}
@@ -858,7 +858,7 @@ func TestTags(t *testing.T) {
 
 func TestTransactionFloatMeta(t *testing.T) {
 	t.Run("unit_parses_hidden_meta_from_tags", func(t *testing.T) {
-		const versionResp = "hledger 1.52, linux-x86_64\n"
+		const versionResp = "hledger 1.99.5, linux-x86_64\n"
 		// Simulate hledger JSON output where one transaction has float- tags mixed with a user tag.
 		const printJSON = `[
 			{"tindex":1,"tdate":"2026-01-15","tdate2":null,"tdescription":"Amazon","tcode":"aa001100","tcomment":"","ttags":[["category","food"],["float-import-id","batch123"],["float-updated-at","2026-01-15T10:00:00Z"]],"tpostings":[],"tstatus":"","tprecedingcomment":"","tsourcepos":[{"sourceName":"","sourceLine":0,"sourceColumn":0},{"sourceName":"","sourceLine":0,"sourceColumn":0}]},
@@ -1032,7 +1032,7 @@ func TestPayees(t *testing.T) {
 			payeesOutput := tt.output
 			runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 				if len(args) > 0 && args[0] == "--version" {
-					return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+					return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 				}
 				return []byte(payeesOutput), nil, nil
 			}
@@ -1096,7 +1096,7 @@ func TestIncomeStatementTimeseries(t *testing.T) {
 }`
 		runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 			if len(args) > 0 && args[0] == "--version" {
-				return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+				return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 			}
 			return []byte(isJSON), nil, nil
 		}
@@ -1228,7 +1228,7 @@ func TestIncomeStatementTimeseries(t *testing.T) {
 }
 
 func TestSetConcurrencyLimitsInFlightInvocations(t *testing.T) {
-	const versionResp = "hledger 1.52, linux-x86_64\n"
+	const versionResp = "hledger 1.99.5, linux-x86_64\n"
 
 	var inFlight, maxInFlight atomic.Int64
 	release := make(chan struct{})
@@ -1282,7 +1282,7 @@ func TestSetConcurrencyLimitsInFlightInvocations(t *testing.T) {
 // releases the same semaphore instance it acquired, not whatever c.sem has
 // been swapped to by a concurrent SetConcurrency call. Run with -race.
 func TestSetConcurrencyMidFlightDoesNotPanic(t *testing.T) {
-	const versionResp = "hledger 1.52, linux-x86_64\n"
+	const versionResp = "hledger 1.99.5, linux-x86_64\n"
 	inFlight := make(chan struct{})
 	release := make(chan struct{})
 	var once sync.Once
@@ -1329,7 +1329,7 @@ func TestSetConcurrencyMidFlightDoesNotPanic(t *testing.T) {
 // returns promptly once a slot frees up — without itself ever holding a
 // slot, so it can't strand it or race a normal acquire for the released one.
 func TestWaitUncontendedBlocksWhileSlotsBusy(t *testing.T) {
-	const versionResp = "hledger 1.52, linux-x86_64\n"
+	const versionResp = "hledger 1.99.5, linux-x86_64\n"
 	busyRelease := make(chan struct{})
 
 	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {

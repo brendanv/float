@@ -27,7 +27,7 @@ func warmDispatchRunner(t *testing.T, calls *atomic.Int64) hledger.CommandRunner
 	t.Helper()
 	return func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 		if len(args) > 0 && args[0] == "--version" {
-			return []byte("hledger 1.52, linux-x86_64\n"), nil, nil
+			return []byte("hledger 1.99.5, linux-x86_64\n"), nil, nil
 		}
 		if calls != nil {
 			calls.Add(1)
