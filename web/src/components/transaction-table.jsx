@@ -475,15 +475,6 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
         </FormField>
         <FormActions align="between">
           <div className="flex gap-2">
-            <AddTransactionModal
-              open={duplicateOpen}
-              onOpenChange={setDuplicateOpen}
-              initialValues={{
-                description: tx.description,
-                postings: toFields(tx.postings),
-                tags: tx.tags,
-              }}
-            />
             <Button variant="outline" size="xs" disabled={saving || deleting} onClick={() => setDuplicateOpen(true)}>
               <Copy data-icon="inline-start" /> Duplicate
             </Button>
@@ -519,6 +510,17 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
           </div>
         </FormActions>
       </Form>
+      {/* Rendered outside <Form>: React events bubble through portals, so a
+          nested modal's submit would also trigger this row's update. */}
+      <AddTransactionModal
+        open={duplicateOpen}
+        onOpenChange={setDuplicateOpen}
+        initialValues={{
+          description: tx.description,
+          postings: toFields(tx.postings),
+          tags: tx.tags,
+        }}
+      />
     </div>
   );
 }
