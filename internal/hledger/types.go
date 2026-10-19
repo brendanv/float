@@ -52,7 +52,7 @@ type Posting struct {
 	Comment          string            `json:"pcomment"`
 	Tags             [][2]string       `json:"ptags"`
 	Status           string            `json:"pstatus"`
-	Type             string            `json:"ptype"`
+	Real             string            `json:"preal"` // RealPosting, VirtualPosting, or BalancedVirtualPosting
 	TransactionIndex string            `json:"ptransaction_"`
 	Date             *string           `json:"pdate"`
 	Date2            *string           `json:"pdate2"`

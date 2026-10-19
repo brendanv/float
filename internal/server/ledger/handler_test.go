@@ -98,7 +98,7 @@ const printJSON = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       },
       {
         "paccount": "income:salary",
@@ -109,7 +109,7 @@ const printJSON = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       }
     ],
     "tprecedingcomment": "",
@@ -2556,7 +2556,7 @@ const printJSONWithCost = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       },
       {
         "paccount": "assets:investments:msft",
@@ -2571,7 +2571,7 @@ const printJSONWithCost = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       },
       {
         "paccount": "assets:checking",
@@ -2582,7 +2582,7 @@ const printJSONWithCost = `[
         "pstatus": "Unmarked",
         "ptags": [],
         "ptransaction_": "1",
-        "ptype": "RegularPosting"
+        "preal": "RealPosting"
       }
     ],
     "tprecedingcomment": "",
