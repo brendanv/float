@@ -60,6 +60,7 @@ src/
 | `/rules` | `RulesPage` | Categorization rules editor, AI rule suggestions, and AI duplicate/contradiction detection |
 | `/connections` | `ConnectionsPage` | Stripe Financial Connections linking, refresh, fetch, import |
 | `/import` | `ImportPage` | CSV import wizard and bank profile rules content |
+| `/lots` | `LotsPage` | Open lots with acquisition date, units, and cost basis |
 | `/prices` | `PricesPage` | Commodity prices and Alpha Vantage backfill |
 | `/assertions` | `BalanceAssertionsPage` | Balance assertion drift status |
 | `/imports` | `ImportsHistoryPage` | Import batches and original CSV retrieval |

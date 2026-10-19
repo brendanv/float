@@ -4,6 +4,7 @@ export const queryKeys = {
   transactions:         (params) => ["transactions", params],
   accountRegister:      (params) => ["accountRegister", params],
   tags:                 () => ["tags"],
+  lots:                 (query) => ["lots", query],
   prices:               () => ["prices"],
   accountDeclarations:  () => ["accountDeclarations"],
   balanceAssertionStatus: () => ["balanceAssertionStatus"],
