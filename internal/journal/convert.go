@@ -38,6 +38,9 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 
 	var postings []PostingInput
 	for _, p := range t.Postings {
+		if p.Generated() {
+			continue
+		}
 		pi := PostingInput{
 			Account: p.Account,
 			Comment: strings.TrimSpace(p.Comment),
@@ -54,6 +57,7 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 					IsTotal:   cost.Tag == "TotalCost",
 				}
 			}
+			applyCostBasis(&pi, p, a)
 		}
 		pi.BalanceAssertion = balanceAssertionInputFromHledger(p.BalanceAssertion)
 		postings = append(postings, pi)

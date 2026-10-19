@@ -116,8 +116,11 @@ func InputFromTransaction(t hledger.Transaction) (TransactionInput, error) {
 
 // postingsFromTransaction converts hledger postings to []PostingInput.
 func postingsFromTransaction(t hledger.Transaction) []PostingInput {
-	postings := make([]PostingInput, len(t.Postings))
-	for i, p := range t.Postings {
+	postings := make([]PostingInput, 0, len(t.Postings))
+	for _, p := range t.Postings {
+		if p.Generated() {
+			continue
+		}
 		pi := PostingInput{
 			Account: p.Account,
 			Comment: strings.TrimSpace(p.Comment),
@@ -134,11 +137,37 @@ func postingsFromTransaction(t hledger.Transaction) []PostingInput {
 					IsTotal:   cost.Tag == "TotalCost",
 				}
 			}
+			applyCostBasis(&pi, p, a)
 		}
 		pi.BalanceAssertion = balanceAssertionInputFromHledger(p.BalanceAssertion)
-		postings[i] = pi
+		postings = append(postings, pi)
 	}
 	return postings
+}
+
+func applyCostBasis(pi *PostingInput, p hledger.Posting, a hledger.Amount) {
+	pi.CostBasis = costBasisInputFromHledger(a.CostBasis)
+	if pi.CostBasis != nil && pi.CostBasis.Quantity != "" && p.LotRole() == "acquire" {
+		pi.Cost = nil
+	}
+}
+
+func costBasisInputFromHledger(cb *hledger.CostBasis) *CostBasisInput {
+	if cb == nil {
+		return nil
+	}
+	out := &CostBasisInput{}
+	if cb.Date != nil {
+		out.Date = *cb.Date
+	}
+	if cb.Label != nil {
+		out.Label = *cb.Label
+	}
+	if cb.Cost != nil {
+		out.Commodity = cb.Cost.Commodity
+		out.Quantity = cb.Cost.Quantity.Format()
+	}
+	return out
 }
 
 // balanceAssertionInputFromHledger converts a parsed hledger balance assertion
