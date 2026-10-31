@@ -20,6 +20,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
+import { PopoverPortalContainerContext } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
 const ResponsiveDialogContext = React.createContext(false)
@@ -48,9 +49,10 @@ function ResponsiveDialogContent({
   ...props
 }) {
   const isMobile = React.useContext(ResponsiveDialogContext)
+  const [portalEl, setPortalEl] = React.useState(null)
   if (isMobile) {
     return (
-      <DrawerContent className={cn("overflow-y-auto", className)} {...props}>
+      <DrawerContent className={className} {...props}>
         {showCloseButton && (
           <DrawerClose asChild>
             <Button
@@ -63,8 +65,13 @@ function ResponsiveDialogContent({
             </Button>
           </DrawerClose>
         )}
-        {/* px-4 wrapper provides consistent side padding; header/footer override with px-0 */}
-        <div className="px-4">{children}</div>
+        {/* px-4 wrapper provides consistent side padding; header/footer override with px-0.
+            It is also the scroll container, so that popovers portaled into the
+            sibling below aren't clipped by it. */}
+        <PopoverPortalContainerContext.Provider value={portalEl}>
+          <div className="min-h-0 overflow-y-auto px-4">{children}</div>
+        </PopoverPortalContainerContext.Provider>
+        <div ref={setPortalEl} />
       </DrawerContent>
     )
   }
