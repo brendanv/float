@@ -106,6 +106,9 @@ const (
 	// LedgerServiceRenameAccountProcedure is the fully-qualified name of the LedgerService's
 	// RenameAccount RPC.
 	LedgerServiceRenameAccountProcedure = "/float.v1.LedgerService/RenameAccount"
+	// LedgerServiceSetAccountClosedProcedure is the fully-qualified name of the LedgerService's
+	// SetAccountClosed RPC.
+	LedgerServiceSetAccountClosedProcedure = "/float.v1.LedgerService/SetAccountClosed"
 	// LedgerServiceBulkEditTransactionsProcedure is the fully-qualified name of the LedgerService's
 	// BulkEditTransactions RPC.
 	LedgerServiceBulkEditTransactionsProcedure = "/float.v1.LedgerService/BulkEditTransactions"
@@ -298,6 +301,7 @@ type LedgerServiceClient interface {
 	DeclareAccount(context.Context, *connect.Request[v1.DeclareAccountRequest]) (*connect.Response[v1.DeclareAccountResponse], error)
 	DeleteAccountDeclaration(context.Context, *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error)
 	RenameAccount(context.Context, *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error)
+	SetAccountClosed(context.Context, *connect.Request[v1.SetAccountClosedRequest]) (*connect.Response[v1.SetAccountClosedResponse], error)
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	BulkDeleteTransactions(context.Context, *connect.Request[v1.BulkDeleteTransactionsRequest]) (*connect.ServerStreamForClient[v1.BulkDeleteTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
@@ -521,6 +525,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceRenameAccountProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("RenameAccount")),
+			connect.WithClientOptions(opts...),
+		),
+		setAccountClosed: connect.NewClient[v1.SetAccountClosedRequest, v1.SetAccountClosedResponse](
+			httpClient,
+			baseURL+LedgerServiceSetAccountClosedProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetAccountClosed")),
 			connect.WithClientOptions(opts...),
 		),
 		bulkEditTransactions: connect.NewClient[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse](
@@ -883,6 +893,7 @@ type ledgerServiceClient struct {
 	declareAccount               *connect.Client[v1.DeclareAccountRequest, v1.DeclareAccountResponse]
 	deleteAccountDeclaration     *connect.Client[v1.DeleteAccountDeclarationRequest, v1.DeleteAccountDeclarationResponse]
 	renameAccount                *connect.Client[v1.RenameAccountRequest, v1.RenameAccountResponse]
+	setAccountClosed             *connect.Client[v1.SetAccountClosedRequest, v1.SetAccountClosedResponse]
 	bulkEditTransactions         *connect.Client[v1.BulkEditTransactionsRequest, v1.BulkEditTransactionsResponse]
 	bulkDeleteTransactions       *connect.Client[v1.BulkDeleteTransactionsRequest, v1.BulkDeleteTransactionsResponse]
 	listSnapshots                *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
@@ -1063,6 +1074,11 @@ func (c *ledgerServiceClient) DeleteAccountDeclaration(ctx context.Context, req 
 // RenameAccount calls float.v1.LedgerService.RenameAccount.
 func (c *ledgerServiceClient) RenameAccount(ctx context.Context, req *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error) {
 	return c.renameAccount.CallUnary(ctx, req)
+}
+
+// SetAccountClosed calls float.v1.LedgerService.SetAccountClosed.
+func (c *ledgerServiceClient) SetAccountClosed(ctx context.Context, req *connect.Request[v1.SetAccountClosedRequest]) (*connect.Response[v1.SetAccountClosedResponse], error) {
+	return c.setAccountClosed.CallUnary(ctx, req)
 }
 
 // BulkEditTransactions calls float.v1.LedgerService.BulkEditTransactions.
@@ -1367,6 +1383,7 @@ type LedgerServiceHandler interface {
 	DeclareAccount(context.Context, *connect.Request[v1.DeclareAccountRequest]) (*connect.Response[v1.DeclareAccountResponse], error)
 	DeleteAccountDeclaration(context.Context, *connect.Request[v1.DeleteAccountDeclarationRequest]) (*connect.Response[v1.DeleteAccountDeclarationResponse], error)
 	RenameAccount(context.Context, *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error)
+	SetAccountClosed(context.Context, *connect.Request[v1.SetAccountClosedRequest]) (*connect.Response[v1.SetAccountClosedResponse], error)
 	BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error)
 	BulkDeleteTransactions(context.Context, *connect.Request[v1.BulkDeleteTransactionsRequest], *connect.ServerStream[v1.BulkDeleteTransactionsResponse]) error
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
@@ -1586,6 +1603,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceRenameAccountProcedure,
 		svc.RenameAccount,
 		connect.WithSchema(ledgerServiceMethods.ByName("RenameAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceSetAccountClosedHandler := connect.NewUnaryHandler(
+		LedgerServiceSetAccountClosedProcedure,
+		svc.SetAccountClosed,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetAccountClosed")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceBulkEditTransactionsHandler := connect.NewUnaryHandler(
@@ -1970,6 +1993,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceDeleteAccountDeclarationHandler.ServeHTTP(w, r)
 		case LedgerServiceRenameAccountProcedure:
 			ledgerServiceRenameAccountHandler.ServeHTTP(w, r)
+		case LedgerServiceSetAccountClosedProcedure:
+			ledgerServiceSetAccountClosedHandler.ServeHTTP(w, r)
 		case LedgerServiceBulkEditTransactionsProcedure:
 			ledgerServiceBulkEditTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceBulkDeleteTransactionsProcedure:
@@ -2187,6 +2212,10 @@ func (UnimplementedLedgerServiceHandler) DeleteAccountDeclaration(context.Contex
 
 func (UnimplementedLedgerServiceHandler) RenameAccount(context.Context, *connect.Request[v1.RenameAccountRequest]) (*connect.Response[v1.RenameAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RenameAccount is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetAccountClosed(context.Context, *connect.Request[v1.SetAccountClosedRequest]) (*connect.Response[v1.SetAccountClosedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAccountClosed is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) BulkEditTransactions(context.Context, *connect.Request[v1.BulkEditTransactionsRequest]) (*connect.Response[v1.BulkEditTransactionsResponse], error) {

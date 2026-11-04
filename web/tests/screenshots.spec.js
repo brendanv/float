@@ -768,3 +768,46 @@ test("logs page", async ({ page }) => {
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/logs.png", fullPage: true });
 });
+
+test("accounts page - closed accounts", async ({ page }) => {
+  const closedCalls = [];
+  page.on("request", (req) => {
+    if (req.url().includes("/SetAccountClosed")) closedCalls.push(JSON.parse(req.postData() || "{}"));
+  });
+  await page.goto("/#/accounts");
+  await page.getByRole("button", { name: "Rename assets:oldbank", exact: true }).waitFor();
+  // Directly closed account shows a badge and a Reopen action; its inherited
+  // sub-account gets neither (it reopens with its parent).
+  const oldbankRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:oldbank", exact: true }) });
+  await expect(oldbankRow.getByText("Closed", { exact: true })).toBeVisible();
+  await expect(oldbankRow.getByRole("button", { name: "Reopen" })).toBeVisible();
+  const childRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:oldbank:checking" }) });
+  await expect(childRow.getByRole("button", { name: /Reopen|Close/ })).toHaveCount(0);
+
+  const savingsRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:savings" }) });
+  await savingsRow.hover();
+  await savingsRow.getByRole("button", { name: "Close" }).click();
+  await expect.poll(() => closedCalls).toContainEqual({ name: "assets:savings", closed: true });
+  await page.screenshot({ path: "test-results/accounts-closed.png", fullPage: true });
+});
+
+test("closed accounts are hidden from home list and typeaheads", async ({ page }) => {
+  await page.goto("/#/");
+  await page.getByRole("link", { name: "assets:checking" }).waitFor();
+  await expect(page.getByRole("link", { name: "assets:oldbank" })).toHaveCount(0);
+
+  await page.goto("/#/accounts");
+  await page.getByRole("button", { name: "Rename assets:checking" }).click();
+  // Rename typeahead deliberately includes closed accounts.
+  await page.locator('[data-slot="dialog-content"] [role="combobox"]').click();
+  await expect(page.getByRole("option", { name: "assets:oldbank", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+
+  await page.goto("/#/add");
+  const combobox = page.locator('[role="combobox"]').first();
+  await combobox.click();
+  await page.waitForSelector('[role="option"]');
+  await expect(page.getByRole("option", { name: "assets:checking", exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: /oldbank/ })).toHaveCount(0);
+});

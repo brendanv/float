@@ -39,6 +39,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `Accounts(ctx, tree)` | `accounts --types [--tree]` | tree=true populates children |
 | `UnusedAccounts(ctx)` | `accounts --unused` | declared but unused accounts |
 | `UndeclaredAccounts(ctx)` | `accounts --undeclared` | used but not declared accounts |
+| `ClosedAccounts(ctx)` | `accounts tag:float-closed` | closed accounts, including sub-accounts inheriting the tag |
 | `Tags(ctx)` | `tags` | excludes the legacy/internal `fid` tag |
 | `Payees(ctx)` | `payees desc:.*[|].*` | payees only for descriptions containing `|` |
 | `Transactions(ctx, query...)` | `print -O json` | full transaction objects with source positions |
@@ -67,4 +68,5 @@ Integration tests in `hledger_test.go` run the real hledger binary against fixtu
 - `supportedVersion = "1.99.5"` — startup fails if the installed hledger differs.
 - `FIDLen = 8` — length of a float transaction code.
 - `HiddenMetaPrefix = "float-"` — internal metadata tag prefix filtered from user-facing APIs.
+- `ClosedAccountTag = "float-closed"` — account-directive tag marking an account closed. hledger inherits account tags to sub-accounts, so `tag:float-closed` / `not:tag:float-closed` match a closed account and everything beneath it. It does not affect accounting.
 - `AccountType*` constants mirror hledger account type letters (`A`, `L`, `E`, `R`, `X`, `C`, `V`).

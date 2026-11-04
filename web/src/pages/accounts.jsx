@@ -12,6 +12,7 @@ import { Page, PageCard } from "../components/page.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
@@ -25,13 +26,15 @@ import {
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
 
-function buildTree(declarations) {
+// buildTree merges account declarations with accounts that have postings but
+// no declaration, so any account can be renamed or closed from this page.
+function buildTree(declarations, usedAccountNames = []) {
   const byName = new Map(declarations.map((d) => [d.name, d]));
   const children = new Map();
 
   function ensureNode(name) {
     if (!byName.has(name)) {
-      byName.set(name, { name, hasPostings: null });
+      byName.set(name, { name, hasPostings: null, closed: false });
     }
     const parts = name.split(":");
     if (parts.length > 1) {
@@ -43,8 +46,9 @@ function buildTree(declarations) {
     }
   }
 
-  for (const d of [...declarations].sort((a, b) => a.name.localeCompare(b.name))) {
-    ensureNode(d.name);
+  const names = new Set([...declarations.map((d) => d.name), ...usedAccountNames]);
+  for (const name of [...names].sort((a, b) => a.localeCompare(b))) {
+    ensureNode(name);
   }
 
   for (const kids of children.values()) kids.sort();
@@ -53,12 +57,28 @@ function buildTree(declarations) {
   return { byName, children, roots };
 }
 
-function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, deletingName, declaredNames }) {
+// closedState returns "closed" when the account itself carries the closed
+// tag, "inherited" when an ancestor does (hledger inherits account tags), or
+// null when the account is open.
+function closedState(name, byName) {
+  if (byName.get(name)?.closed) return "closed";
+  const parts = name.split(":");
+  for (let i = parts.length - 1; i > 0; i--) {
+    if (byName.get(parts.slice(0, i).join(":"))?.closed) return "inherited";
+  }
+  return null;
+}
+
+const rowActionClass = "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity";
+
+function AccountTreeNode({ name, depth, tree }) {
+  const { byName, children, declaredNames, pendingName, onDelete, onRename, onSetClosed } = tree;
   const [expanded, setExpanded] = useState(true);
   const kids = children.get(name) ?? [];
   const decl = byName.get(name);
   const hasKids = kids.length > 0;
   const label = name.split(":").at(-1);
+  const closed = closedState(name, byName);
 
   return (
     <div>
@@ -79,7 +99,13 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, de
           )}
         </button>
         <div className="flex flex-1 items-center gap-1 min-w-0">
-          <span className="font-mono text-sm truncate" title={name}>{label}</span>
+          <span
+            className={cn("font-mono text-sm truncate", closed && "text-muted-foreground")}
+            title={closed === "inherited" ? `${name} (closed via parent account)` : name}
+          >
+            {label}
+          </span>
+          {closed === "closed" && <Badge variant="secondary">Closed</Badge>}
           <Button
             variant="ghost"
             size="icon-xs"
@@ -90,12 +116,23 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, de
             <Pencil className="size-3" />
           </Button>
         </div>
+        {closed !== "inherited" && (
+          <Button
+            variant="ghost"
+            size="xs"
+            className={rowActionClass}
+            isLoading={pendingName === name}
+            onClick={() => onSetClosed(name, !closed)}
+          >
+            {closed ? "Reopen" : "Close"}
+          </Button>
+        )}
         {declaredNames.has(name) && !decl?.hasPostings && (
           <Button
             variant="destructive-ghost"
             size="xs"
-            className="opacity-0 group-hover:opacity-100 transition-opacity mr-1"
-            isLoading={deletingName === name}
+            className={cn(rowActionClass, "mr-1")}
+            isLoading={pendingName === name}
             onClick={() => onDelete(name)}
           >
             Delete
@@ -105,17 +142,7 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, de
       {hasKids && expanded && (
         <div>
           {kids.map((child) => (
-            <AccountTreeNode
-              key={child}
-              name={child}
-              byName={byName}
-              children={children}
-              depth={depth + 1}
-              onDelete={onDelete}
-              onRename={onRename}
-              deletingName={deletingName}
-              declaredNames={declaredNames}
-            />
+            <AccountTreeNode key={child} name={child} depth={depth + 1} tree={tree} />
           ))}
         </div>
       )}
@@ -123,9 +150,11 @@ function AccountTreeNode({ name, byName, children, depth, onDelete, onRename, de
   );
 }
 
-function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNames, deletingName, onDelete, onRename }) {
+function RootAccountCard({ root, tree }) {
+  const { byName, children, declaredNames, pendingName, onDelete, onRename } = tree;
   const [open, setOpen] = useState(true);
-  const canDelete = declaredNames.has(root) && !rootDecl?.hasPostings;
+  const kids = children.get(root) ?? [];
+  const canDelete = declaredNames.has(root) && !byName.get(root)?.hasPostings;
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card>
@@ -158,7 +187,7 @@ function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNa
               <Button
                 variant="destructive-ghost"
                 size="xs"
-                isLoading={deletingName === root}
+                isLoading={pendingName === root}
                 onClick={() => onDelete(root)}
               >
                 Delete
@@ -171,17 +200,7 @@ function RootAccountCard({ root, rootDecl, kids, byName, childrenMap, declaredNa
             {kids.length > 0 ? (
               <div>
                 {kids.map((child) => (
-                  <AccountTreeNode
-                    key={child}
-                    name={child}
-                    byName={byName}
-                    children={childrenMap}
-                    depth={0}
-                    onDelete={onDelete}
-                    onRename={onRename}
-                    deletingName={deletingName}
-                    declaredNames={declaredNames}
-                  />
+                  <AccountTreeNode key={child} name={child} depth={0} tree={tree} />
                 ))}
               </div>
             ) : (
@@ -202,9 +221,14 @@ export function AccountsPage() {
     queryFn: () => ledgerClient.listAccountDeclarations({}),
   });
 
+  const { data: accountsData } = useQuery({
+    queryKey: queryKeys.accounts(),
+    queryFn: () => ledgerClient.listAccounts({}),
+  });
+
   const [name, setName] = useState("");
   const [formError, setFormError] = useState(null);
-  const [deletingName, setDeletingName] = useState(null);
+  const [pendingName, setPendingName] = useState(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameAccountName, setRenameAccountName] = useState("");
 
@@ -221,11 +245,26 @@ export function AccountsPage() {
   const deleteMutation = useMutation({
     mutationFn: ({ name }) => ledgerClient.deleteAccountDeclaration({ name }),
     onSuccess: () => {
-      setDeletingName(null);
+      setPendingName(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
     },
     onError: (err) => {
-      setDeletingName(null);
+      setPendingName(null);
+      setFormError(err);
+    },
+  });
+
+  const closedMutation = useMutation({
+    mutationFn: ({ name, closed }) => ledgerClient.setAccountClosed({ name, closed }),
+    onSuccess: () => {
+      setPendingName(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
+      queryClient.invalidateQueries({ queryKey: ["balances"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.balanceAssertionStatus() });
+    },
+    onError: (err) => {
+      setPendingName(null);
       setFormError(err);
     },
   });
@@ -237,9 +276,15 @@ export function AccountsPage() {
   }
 
   function handleDelete(name) {
-    setDeletingName(name);
+    setPendingName(name);
     setFormError(null);
     deleteMutation.mutate({ name });
+  }
+
+  function handleSetClosed(name, closed) {
+    setPendingName(name);
+    setFormError(null);
+    closedMutation.mutate({ name, closed });
   }
 
   function handleRename(name) {
@@ -250,11 +295,24 @@ export function AccountsPage() {
 
   const declarations = data?.declarations ?? [];
   const declaredNames = new Set(declarations.map((d) => d.name));
-  const { byName, children, roots } = buildTree(declarations);
+  const usedAccountNames = (accountsData?.accounts ?? []).map((a) => a.fullName);
+  const { byName, children, roots } = buildTree(declarations, usedAccountNames);
+  const tree = {
+    byName,
+    children,
+    declaredNames,
+    pendingName,
+    onDelete: handleDelete,
+    onRename: handleRename,
+    onSetClosed: handleSetClosed,
+  };
 
   return (
     <Page>
-      <PageHeader title="Account Declarations" />
+      <PageHeader
+        title="Accounts"
+        description="Declare, rename, and close accounts. Closed accounts are hidden from account pickers and home page totals; hledger reports are unchanged."
+      />
 
       <PageCard title="Declare Account">
         <Form onSubmit={handleSubmit}>
@@ -290,35 +348,20 @@ export function AccountsPage() {
 
       {isLoading && <Loading />}
       {fetchError && <ErrorBanner error={fetchError} />}
-      {data && declarations.length === 0 && (
+      {data && roots.length === 0 && (
         <Card>
           <CardContent>
             <EmptyState
               icon={BookOpen}
-              title="No account declarations yet"
+              title="No accounts yet"
               description="Declare accounts to get type-aware classification (assets, liabilities, income, expenses, equity)."
             />
           </CardContent>
         </Card>
       )}
-      {data && declarations.length > 0 && roots.map((root) => {
-        const rootDecl = byName.get(root);
-        const kids = children.get(root) ?? [];
-        return (
-          <RootAccountCard
-            key={root}
-            root={root}
-            rootDecl={rootDecl}
-            kids={kids}
-            byName={byName}
-            childrenMap={children}
-            declaredNames={declaredNames}
-            deletingName={deletingName}
-            onDelete={handleDelete}
-            onRename={handleRename}
-          />
-        );
-      })}
+      {data && roots.map((root) => (
+        <RootAccountCard key={root} root={root} tree={tree} />
+      ))}
 
       <RenameAccountDialog
         open={renameOpen}
@@ -417,6 +460,7 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
                 value={oldName}
                 onChange={handleOldNameChange}
                 accounts={accountsData?.accounts || []}
+                includeClosed
                 placeholder="Select account"
               />
             </FormField>

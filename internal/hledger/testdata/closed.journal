@@ -1,0 +1,10 @@
+; Fixture for ClosedAccounts: assets:old is closed via the float-closed
+; account tag; assets:old:savings (undeclared) inherits it.
+account assets:old  ; type: A, float-closed:
+account assets:checking
+account equity:opening
+
+2026-01-01 opening
+    assets:old:savings      100 USD
+    assets:checking         50 USD
+    equity:opening

@@ -80,7 +80,7 @@ data/
 ConnectRPC powers all clients. Protobufs live in `proto/float/v1/` and generated code is produced with Buf. `LedgerService` currently includes:
 
 - Core queries: transactions (with pagination), balances (raw or valued), account register, accounts, tags, payees, net worth, income statement, portfolio holdings/timeseries.
-- Mutations: add/update/delete transactions, status/date changes, bulk edit/delete, account declarations, account rename, prices, Alpha Vantage price backfill, snapshots.
+- Mutations: add/update/delete transactions, status/date changes, bulk edit/delete, account declarations, account rename, close/reopen accounts (`float-closed` account tag), prices, Alpha Vantage price backfill, snapshots.
 - Imports/rules: bank profile CRUD, CSV preview/import with import batches and original file storage, categorization rule CRUD, preview/apply rules.
 - Templates: saved transaction shapes (CRUD) stored in `templates.json` for quick recurring-transaction entry.
 - Integrations/settings/debug: Stripe Financial Connections, daily Stripe auto-import toggles, AI helper RPCs via OpenRouter, Alpha Vantage API key, timezone, raw hledger query, server log stream.

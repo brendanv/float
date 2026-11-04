@@ -560,6 +560,24 @@ func (c *Client) UnusedAccounts(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// ClosedAccounts runs `hledger accounts tag:float-closed -f <journal>`.
+// Returns every account marked closed, including sub-accounts that inherit the
+// tag from a closed parent.
+func (c *Client) ClosedAccounts(ctx context.Context) ([]string, error) {
+	args := []string{"accounts", "-f", c.journal, "tag:" + ClosedAccountTag}
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger accounts tag:%s: %w", ClosedAccountTag, err))
+	}
+	var names []string
+	for _, line := range strings.Split(string(stdout), "\n") {
+		if n := strings.TrimSpace(line); n != "" {
+			names = append(names, n)
+		}
+	}
+	return names, nil
+}
+
 // UndeclaredAccounts runs `hledger accounts --undeclared -f <journal>`.
 // Returns account names used in transactions but not declared with an `account` directive.
 // Returns an empty slice if all accounts are declared.

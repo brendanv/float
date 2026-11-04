@@ -5,8 +5,14 @@ import (
 	"context"
 	"sync"
 
+	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/warm"
 )
+
+// openAccountsQuery excludes postings to closed accounts. The web UI home page
+// requests depth-1 valued balances with exactly this query for its totals, so
+// it is warmed alongside the unfiltered depth-1 fetch.
+var openAccountsQuery = []string{"not:tag:" + hledger.ClosedAccountTag}
 
 // recentAccountsCap bounds the in-memory LRU of account names touched this
 // process lifetime, warmed alongside the fixed dataset set.
@@ -74,6 +80,10 @@ func (h *Handler) WarmEntries() []warm.Entry {
 			_, err := cachedAccounts(ctx, h.cache, h.hl)
 			return err
 		}},
+		{Name: "closedaccounts", Load: func(ctx context.Context) error {
+			_, err := cachedClosedAccounts(ctx, h.cache, h.hl)
+			return err
+		}},
 		{Name: "tags", Load: func(ctx context.Context) error {
 			_, err := cachedTags(ctx, h.cache, h.hl)
 			return err
@@ -92,6 +102,10 @@ func (h *Handler) WarmEntries() []warm.Entry {
 		}},
 		{Name: "balancesvalued depth 1", Load: func(ctx context.Context) error {
 			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", 1, nil)
+			return err
+		}},
+		{Name: "balancesvalued depth 1 open", Load: func(ctx context.Context) error {
+			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", 1, openAccountsQuery)
 			return err
 		}},
 		{Name: "networth", Load: func(ctx context.Context) error {

@@ -312,3 +312,103 @@ func TestEnsureAccountsInclude(t *testing.T) {
 		}
 	})
 }
+
+func TestSetClosedTag(t *testing.T) {
+	tests := []struct {
+		name   string
+		line   string
+		closed bool
+		want   string
+	}{
+		{name: "close bare", line: "account assets:old", closed: true, want: "account assets:old  ; float-closed:"},
+		{name: "close with type tag", line: "account assets:old  ; type: A", closed: true, want: "account assets:old  ; type: A, float-closed:"},
+		{name: "close already closed", line: "account assets:old  ; float-closed:", closed: true, want: "account assets:old  ; float-closed:"},
+		{name: "reopen only tag", line: "account assets:old  ; float-closed:", closed: false, want: "account assets:old"},
+		{name: "reopen keeps other tags", line: "account assets:old  ; type: A, float-closed:", closed: false, want: "account assets:old  ; type: A"},
+		{name: "reopen tag first", line: "account assets:old  ; float-closed:, type: A", closed: false, want: "account assets:old  ; type: A"},
+		{name: "reopen open account", line: "account assets:old  ; type: A", closed: false, want: "account assets:old  ; type: A"},
+		{name: "reopen bare", line: "account assets:old", closed: false, want: "account assets:old"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := setClosedTag(tt.line, tt.closed); got != tt.want {
+				t.Errorf("setClosedTag(%q, %v) = %q, want %q", tt.line, tt.closed, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSetAccountClosed(t *testing.T) {
+	writeAccounts := func(t *testing.T, content string) string {
+		t.Helper()
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "main.journal"), []byte("include accounts.journal\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "accounts.journal"), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	readAccounts := func(t *testing.T, dir string) string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(dir, "accounts.journal"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+
+	t.Run("close and reopen declared account", func(t *testing.T) {
+		dir := writeAccounts(t, "account assets:checking\naccount assets:old  ; type: A\n")
+		if err := SetAccountClosed(dir, "assets:old", true); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := readAccounts(t, dir), "account assets:checking\naccount assets:old  ; type: A, float-closed:\n"; got != want {
+			t.Errorf("after close:\n%q\nwant\n%q", got, want)
+		}
+		decls, err := ListAccountDeclarations(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decls[0].Closed || !decls[1].Closed {
+			t.Errorf("Closed flags = %v, %v; want false, true", decls[0].Closed, decls[1].Closed)
+		}
+		if err := SetAccountClosed(dir, "assets:old", false); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := readAccounts(t, dir), "account assets:checking\naccount assets:old  ; type: A\n"; got != want {
+			t.Errorf("after reopen:\n%q\nwant\n%q", got, want)
+		}
+	})
+
+	t.Run("close undeclared account declares it", func(t *testing.T) {
+		dir := writeAccounts(t, "account assets:checking\n")
+		if err := SetAccountClosed(dir, "assets:old", true); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := readAccounts(t, dir), "account assets:checking\naccount assets:old  ; float-closed:\n"; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("reopen undeclared account is a no-op", func(t *testing.T) {
+		dir := writeAccounts(t, "account assets:checking\n")
+		if err := SetAccountClosed(dir, "assets:old", false); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := readAccounts(t, dir), "account assets:checking\n"; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("rename preserves closed tag", func(t *testing.T) {
+		dir := writeAccounts(t, "account assets:old  ; float-closed:\naccount assets:old:sub\n")
+		if err := RenameAccountDeclaration(dir, "assets:old", "assets:legacy"); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := readAccounts(t, dir), "account assets:legacy  ; float-closed:\naccount assets:legacy:sub\n"; got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+}

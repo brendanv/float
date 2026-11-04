@@ -77,9 +77,9 @@ func TestWarmEntries_FixedSetAndExecution(t *testing.T) {
 
 	entries := h.WarmEntries()
 	wantNames := []string{
-		"transactions", "accounts", "tags", "payees",
+		"transactions", "accounts", "closedaccounts", "tags", "payees",
 		"balances", "balancesvalued depth 0", "balancesvalued depth 1",
-		"networth", "incomestatement",
+		"balancesvalued depth 1 open", "networth", "incomestatement",
 	}
 	if len(entries) != len(wantNames) {
 		t.Fatalf("WarmEntries() returned %d entries, want %d: %v", len(entries), len(wantNames), entries)
