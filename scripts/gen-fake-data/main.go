@@ -57,9 +57,9 @@ func run(outputDir string, numMonths int, rng *rand.Rand) error {
 	}
 
 	staticFiles := map[string]string{
-		"config.toml":              configTOML,
-		"accounts.journal":         accountsJournal,
-		"prices.journal":           "; float prices\n",
+		"config.toml":                configTOML,
+		"accounts.journal":           accountsJournal,
+		"prices.journal":             "; float prices\n",
 		"rules/chase-checking.rules": chaseCheckingRules,
 		"rules/chase-savings.rules":  chaseSavingsRules,
 		"rules/amex-credit.rules":    amexCreditRules,

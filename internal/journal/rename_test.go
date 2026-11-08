@@ -246,8 +246,8 @@ func TestRenameAccountInJournalFiles(t *testing.T) {
 
 	t.Run("no_match_returns_zero", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{
-			Seed:    301,
-			NumTxns: 3,
+			Seed:     301,
+			NumTxns:  3,
 			Accounts: []string{"assets:checking", "expenses:food"},
 		})
 

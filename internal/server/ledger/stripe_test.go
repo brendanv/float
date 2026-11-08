@@ -112,8 +112,8 @@ func TestStripeTransactionToHledger(t *testing.T) {
 				AmountCents:  500,
 				Currency:     "usd",
 				Description:  "Charge",
-				TransactedAt: base,                               // May 10
-				PostedAt:     base.Add(48 * time.Hour),           // May 12 (different!)
+				TransactedAt: base,                     // May 10
+				PostedAt:     base.Add(48 * time.Hour), // May 12 (different!)
 				Status:       "posted",
 			},
 			hledgerAccount: "assets:checking",

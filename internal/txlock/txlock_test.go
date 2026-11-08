@@ -79,8 +79,8 @@ func TestTxLock_Do(t *testing.T) {
 		check          func(t *testing.T, dir string)
 	}{
 		{
-			name: "valid write persists and bumps generation",
-			fn:   func(dir string) func() error { return addMonthFile(dir, "2026/01.journal", validTx) },
+			name:           "valid write persists and bumps generation",
+			fn:             func(dir string) func() error { return addMonthFile(dir, "2026/01.journal", validTx) },
 			wantGeneration: 1,
 			check: func(t *testing.T, dir string) {
 				data, err := os.ReadFile(filepath.Join(dir, "2026/01.journal"))
@@ -141,8 +141,8 @@ func TestTxLock_Do(t *testing.T) {
 			},
 		},
 		{
-			name: "second valid write bumps generation to 2",
-			fn:   func(dir string) func() error { return addMonthFile(dir, "2026/01.journal", validTx) },
+			name:           "second valid write bumps generation to 2",
+			fn:             func(dir string) func() error { return addMonthFile(dir, "2026/01.journal", validTx) },
 			wantGeneration: 2, // this test calls Do twice (see below)
 		},
 	}

@@ -88,7 +88,7 @@ func migrateFile(path string) (int, error) {
 			// Old format: extract fid value, move to code field, remove from comment.
 			fidMatch := fidTagRe.FindString(line) // e.g. "fid:aa001100"
 			fid := fidMatch[4:]                   // strip "fid:" prefix
-			rest := line[len(prefix):]             // description + comment
+			rest := line[len(prefix):]            // description + comment
 
 			// Remove the fid tag from the rest of the line.
 			rest = strings.Replace(rest, fidMatch, "", 1)

@@ -176,9 +176,9 @@ func parseBalanceSheetTimeseries(data []byte) (*BalanceSheetTimeseries, error) {
 		PrTotals prrRow `json:"prTotals"`
 	}
 	type bsJSON struct {
-		CbrDates      [][]dateEntry      `json:"cbrDates"`
-		CbrSubreports []json.RawMessage  `json:"cbrSubreports"`
-		CbrTotals     prrRow             `json:"cbrTotals"`
+		CbrDates      [][]dateEntry     `json:"cbrDates"`
+		CbrSubreports []json.RawMessage `json:"cbrSubreports"`
+		CbrTotals     prrRow            `json:"cbrTotals"`
 	}
 
 	var raw bsJSON

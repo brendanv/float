@@ -601,9 +601,9 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			priceDate = txDate
 		}
 		holding := &floatv1.Holding{
-			Account:  k.account,
-			Symbol:   k.symbol,
-			Quantity: fmt.Sprintf("%g", qty),
+			Account:   k.account,
+			Symbol:    k.symbol,
+			Quantity:  fmt.Sprintf("%g", qty),
 			PriceDate: priceDate,
 		}
 
@@ -2484,7 +2484,6 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 				}
 			}
 		}
-
 
 		idx := -1
 		for i, p := range profiles {

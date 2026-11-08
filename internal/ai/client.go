@@ -29,7 +29,7 @@ type Client struct {
 
 // ChatMessage is one turn in a conversation.
 type ChatMessage struct {
-	Role    string `json:"role"`    // "system" | "user" | "assistant"
+	Role    string `json:"role"` // "system" | "user" | "assistant"
 	Content string `json:"content"`
 }
 

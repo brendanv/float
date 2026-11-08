@@ -365,8 +365,8 @@ func TestWaitForRefresh(t *testing.T) {
 				"status":   "active",
 				"livemode": false,
 				"transaction_refresh": map[string]any{
-					"id":          "txnr_success",
-					"status":      "succeeded",
+					"id":                "txnr_success",
+					"status":            "succeeded",
 					"last_attempted_at": int64(1746835200),
 				},
 			})
@@ -391,8 +391,8 @@ func TestWaitForRefresh(t *testing.T) {
 				"status":   "active",
 				"livemode": false,
 				"transaction_refresh": map[string]any{
-					"id":          "txnr_failed",
-					"status":      "failed",
+					"id":                "txnr_failed",
+					"status":            "failed",
 					"last_attempted_at": int64(1746835200),
 				},
 			})
@@ -438,8 +438,8 @@ func TestWaitForRefresh(t *testing.T) {
 				"status":   "active",
 				"livemode": false,
 				"transaction_refresh": map[string]any{
-					"id":          "txnr_pending",
-					"status":      "pending",
+					"id":                "txnr_pending",
+					"status":            "pending",
 					"last_attempted_at": int64(1746835200),
 				},
 			})

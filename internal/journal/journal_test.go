@@ -193,11 +193,11 @@ func TestFormatViaHledger(t *testing.T) {
 
 func TestEnsureMonthFile(t *testing.T) {
 	tests := []struct {
-		name    string
-		year    int
-		month   int
-		setup   func(t *testing.T, dir string)
-		check   func(t *testing.T, dir, relPath string, created bool)
+		name  string
+		year  int
+		month int
+		setup func(t *testing.T, dir string)
+		check func(t *testing.T, dir, relPath string, created bool)
 	}{
 		{
 			name:  "creates file and directory",
@@ -265,10 +265,10 @@ func TestEnsureMonthFile(t *testing.T) {
 
 func TestUpdateMainIncludes(t *testing.T) {
 	tests := []struct {
-		name        string
-		initial     string
-		directive   string
-		check       func(t *testing.T, data string)
+		name      string
+		initial   string
+		directive string
+		check     func(t *testing.T, data string)
 	}{
 		{
 			name:      "adds directive to empty file",
