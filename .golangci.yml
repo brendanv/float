@@ -1,0 +1,84 @@
+version: "2"
+
+# Default linters (errcheck, govet, ineffassign, staticcheck, unused) plus
+# depguard/forbidigo rules that mechanically enforce the architecture
+# invariants in CLAUDE.md, so they fail the build instead of relying on
+# review. If a rule fires on legitimate code, prefer a targeted
+# `//nolint:<linter> // <reason>` over widening the rule.
+linters:
+  enable:
+    - depguard
+    - forbidigo
+
+  settings:
+    depguard:
+      rules:
+        hledger-is-the-only-subprocess:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!**/internal/hledger/**"
+          deny:
+            - pkg: os/exec
+              desc: >-
+                Only internal/hledger may run subprocesses. Accounting goes through
+                hledger; git snapshots use go-git (internal/gitsnap), never the git CLI.
+        core-packages-stay-transport-agnostic:
+          list-mode: lax
+          files:
+            - "**/internal/**"
+            - "!**/internal/server/**"
+            - "!**/internal/auth/**"
+            - "!**/internal/middleware/**"
+          deny:
+            - pkg: github.com/brendanv/float/gen
+              desc: Generated proto types belong to the API layer (internal/server); core packages use their own Go types.
+            - pkg: github.com/brendanv/float/internal/server
+              desc: Core packages must not depend on the API layer.
+            - pkg: connectrpc.com/connect
+              desc: Core packages must not depend on the RPC transport.
+        no-deprecated-ioutil:
+          files:
+            - "$all"
+          deny:
+            - pkg: io/ioutil
+              desc: Deprecated; use io and os.
+
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^os\.(WriteFile|Create|OpenFile|Rename|Remove|RemoveAll|Truncate)$
+          msg: >-
+            Data-directory writes must happen inside txlock.Do*/DoConfig via the owning
+            package (journal, rules, templates, config, ...). If this call is already
+            inside a txlock callback or touches only a temp file, add
+            `//nolint:forbidigo // <why>`.
+        - pattern: ^context\.(Background|TODO)$
+          msg: Use t.Context() / b.Context() in tests.
+
+  exclusions:
+    generated: lax
+    rules:
+      # File-write rule: packages that own a data-directory file format and are
+      # only called from inside txlock, plus txlock/gitsnap themselves and tooling.
+      - path: (internal/(journal|txlock|gitsnap|config|rules|templates|testgen)/|scripts/|cmd/floatctl/)
+        linters: [forbidigo]
+        text: "os\\."
+      # Tests may write fixtures freely.
+      - path: _test\.go
+        linters: [forbidigo]
+        text: "os\\."
+      # context.Background is only banned in tests.
+      - path-except: _test\.go
+        linters: [forbidigo]
+        text: "context\\."
+
+formatters:
+  enable:
+    - gofmt
+
+# Report every finding; the default caps hide most occurrences of a repeated
+# issue, which makes agents fix them one batch at a time.
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
