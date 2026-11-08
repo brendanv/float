@@ -543,13 +543,13 @@ func (c *Client) Accounts(ctx context.Context, tree bool) ([]*AccountNode, error
 	return parseAccountsFlat(string(stdout))
 }
 
-// UnusedAccounts runs `hledger accounts --unused -f <journal>`.
-// Returns declared account names that have no postings referencing them.
-func (c *Client) UnusedAccounts(ctx context.Context) ([]string, error) {
-	args := []string{"accounts", "--unused", "-f", c.journal}
+// accountNames runs `hledger accounts -f <journal> <extra...>` and returns
+// one account name per non-empty output line.
+func (c *Client) accountNames(ctx context.Context, extra ...string) ([]string, error) {
+	args := append([]string{"accounts", "-f", c.journal}, extra...)
 	stdout, stderr, err := c.run(ctx, args...)
 	if err != nil {
-		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger accounts --unused: %w", err))
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger accounts %s: %w", strings.Join(extra, " "), err))
 	}
 	var names []string
 	for _, line := range strings.Split(string(stdout), "\n") {
@@ -560,40 +560,24 @@ func (c *Client) UnusedAccounts(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
-// ClosedAccounts runs `hledger accounts tag:float-closed -f <journal>`.
+// UnusedAccounts runs `hledger accounts --unused`.
+// Returns declared account names that have no postings referencing them.
+func (c *Client) UnusedAccounts(ctx context.Context) ([]string, error) {
+	return c.accountNames(ctx, "--unused")
+}
+
+// ClosedAccounts runs `hledger accounts tag:float-closed`.
 // Returns every account marked closed, including sub-accounts that inherit the
 // tag from a closed parent.
 func (c *Client) ClosedAccounts(ctx context.Context) ([]string, error) {
-	args := []string{"accounts", "-f", c.journal, "tag:" + ClosedAccountTag}
-	stdout, stderr, err := c.run(ctx, args...)
-	if err != nil {
-		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger accounts tag:%s: %w", ClosedAccountTag, err))
-	}
-	var names []string
-	for _, line := range strings.Split(string(stdout), "\n") {
-		if n := strings.TrimSpace(line); n != "" {
-			names = append(names, n)
-		}
-	}
-	return names, nil
+	return c.accountNames(ctx, "tag:"+ClosedAccountTag)
 }
 
-// UndeclaredAccounts runs `hledger accounts --undeclared -f <journal>`.
+// UndeclaredAccounts runs `hledger accounts --undeclared`.
 // Returns account names used in transactions but not declared with an `account` directive.
 // Returns an empty slice if all accounts are declared.
 func (c *Client) UndeclaredAccounts(ctx context.Context) ([]string, error) {
-	args := []string{"accounts", "--undeclared", "-f", c.journal}
-	stdout, stderr, err := c.run(ctx, args...)
-	if err != nil {
-		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger accounts --undeclared: %w", err))
-	}
-	var names []string
-	for _, line := range strings.Split(string(stdout), "\n") {
-		if n := strings.TrimSpace(line); n != "" {
-			names = append(names, n)
-		}
-	}
-	return names, nil
+	return c.accountNames(ctx, "--undeclared")
 }
 
 // Tags runs `hledger tags -f <journal>` and returns the list of tag names in use,
