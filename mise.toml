@@ -46,6 +46,38 @@ depends = ["lint", "test"]
 description = "Full pre-commit gate: lint + vet + test"
 depends = ["lint", "vet", "test"]
 
+[tasks.test-race]
+description = "Run all Go tests with the race detector"
+run = "go test -race ./..."
+
+[tasks.proto-lint]
+description = "Lint .proto files"
+run = "buf lint"
+
+[tasks.proto-breaking]
+description = "Check .proto files for breaking changes against origin/main (override with BUF_AGAINST)"
+run = "buf breaking --against \"${BUF_AGAINST:-.git#ref=refs/remotes/origin/main}\""
+
+[tasks.proto-check]
+description = "Fail if committed Go protobuf code in gen/ is stale"
+run = """
+buf generate
+if ! git diff --quiet -- gen/ || [ -n "$(git ls-files --others --exclude-standard -- gen/)" ]; then
+  git status --short -- gen/
+  echo "gen/ is out of date: run 'mise run proto-gen' and commit the result." >&2
+  exit 1
+fi
+"""
+
+[tasks.web-test]
+description = "Run Playwright tests (fail on console/page errors, unmocked RPCs)"
+depends = ["web-gen"]
+run = "cd web && bun run test"
+
+[tasks.ci]
+description = "Everything CI runs: Go lint/vet/race tests, proto checks, web build and Playwright"
+depends = ["lint", "vet", "test-race", "proto-lint", "proto-breaking", "proto-check", "web-build", "web-test"]
+
 [tasks.build]
 description = "Regenerate protobuf code, build web UI, and compile floatd"
 depends = ["proto-gen"]

@@ -5,6 +5,12 @@ modules:
 lint:
   use:
     - STANDARD
+  except:
+    # Several RPCs intentionally share request/response messages
+    # (e.g. ImportTransactionsResponse, TransactionTemplate). Renaming them
+    # would churn generated Go/JS code for no wire-level benefit.
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_RESPONSE_STANDARD_NAME
 breaking:
   use:
     - FILE

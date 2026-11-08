@@ -13,7 +13,8 @@ Two binaries:
 mise run test        # go test ./...
 mise run lint        # golangci-lint run ./...
 mise run check       # lint + test
-mise run check-all   # lint + vet + test (full pre-commit gate)
+mise run check-all   # lint + vet + test (fast pre-commit gate)
+mise run ci          # everything CI runs: lint, vet, race tests, proto lint/breaking/codegen drift, web build, Playwright
 mise run proto-gen   # buf generate for Go + JS (after editing .proto files)
 mise run web-gen     # generate JS protobuf code only
 mise run web-build   # build web UI → internal/webui/dist/
@@ -96,6 +97,14 @@ A single shared passphrase (no per-user accounts) supplied via the `FLOAT_AUTH_P
 ### Web UI
 
 The web UI is React + Vite + TanStack + shadcn/ui under `web/` and is embedded in `floatd` through `internal/webui`.
+
+## CI and Verification
+
+CI (`.github/workflows/ci.yml`) runs the same mise tasks as `mise run ci`; keep the two in sync. Before reporting a change as done, run `mise run check-all`, plus `mise run web-test` for web changes and `mise run proto-check` for `.proto` changes.
+
+- `.golangci.yml` enforces the architecture rules below with depguard/forbidigo: `os/exec` only in `internal/hledger`; no `gen/`, `internal/server` or connect imports from core packages; no direct data-dir file writes outside the owning packages; no `context.Background()` in tests; gofmt. Don't widen a rule to get green; use a targeted `//nolint:<linter> // <reason>` only when the code is genuinely correct (e.g. a write already inside a `txlock` callback).
+- `protoc-gen-go`/`protoc-gen-connect-go` are pinned as `tool` deps in `go.mod` and run via `go tool`, so `buf generate` is reproducible.
+- Playwright specs fail on browser errors and unmocked RPCs — see `web/CLAUDE.md`.
 
 ## Go Practices
 
