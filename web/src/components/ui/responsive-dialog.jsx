@@ -126,7 +126,9 @@ function ResponsiveDialogFooter({ className, showCloseButton, children, ...props
 function ResponsiveDialogClose({ asChild, children, ...props }) {
   const isMobile = React.useContext(ResponsiveDialogContext)
   if (isMobile) return <DrawerClose asChild={asChild} {...props}>{children}</DrawerClose>
-  return <DialogClose asChild={asChild} {...props}>{children}</DialogClose>
+  // base-ui has no asChild; pass the child element as `render` instead.
+  if (asChild) return <DialogClose render={children} {...props} />
+  return <DialogClose {...props}>{children}</DialogClose>
 }
 
 export {
