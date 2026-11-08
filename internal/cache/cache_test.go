@@ -316,14 +316,14 @@ func BenchmarkCache_Hit(b *testing.B) {
 	c := cache.New[string](genFn)
 
 	// Pre-populate the cache.
-	c.Get(context.Background(), "key", func(ctx context.Context) (string, error) { //nolint:errcheck
+	c.Get(b.Context(), "key", func(ctx context.Context) (string, error) { //nolint:errcheck
 		return "value", nil
 	})
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			c.Get(context.Background(), "key", func(ctx context.Context) (string, error) { //nolint:errcheck
+			c.Get(b.Context(), "key", func(ctx context.Context) (string, error) { //nolint:errcheck
 				return "value", nil
 			})
 		}
@@ -352,7 +352,7 @@ func BenchmarkCache_Miss_WithHledger(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Unique key per iteration forces a cache miss and a real hledger call.
 		key := fmt.Sprintf("transactions:bench%d", i)
-		c.Get(context.Background(), key, func(ctx context.Context) (any, error) { //nolint:errcheck
+		c.Get(b.Context(), key, func(ctx context.Context) (any, error) { //nolint:errcheck
 			return hl.Transactions(ctx)
 		})
 	}
@@ -363,14 +363,14 @@ func BenchmarkCache_ConcurrentReads(b *testing.B) {
 	c := cache.New[string](genFn)
 
 	// Pre-populate.
-	c.Get(context.Background(), "hot", func(ctx context.Context) (string, error) { //nolint:errcheck
+	c.Get(b.Context(), "hot", func(ctx context.Context) (string, error) { //nolint:errcheck
 		return "value", nil
 	})
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			c.Get(context.Background(), "hot", func(ctx context.Context) (string, error) { //nolint:errcheck
+			c.Get(b.Context(), "hot", func(ctx context.Context) (string, error) { //nolint:errcheck
 				return "value", nil
 			})
 		}

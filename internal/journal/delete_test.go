@@ -20,7 +20,7 @@ func mustHledgerClient(t *testing.T, dataDir string) *hledger.Client {
 
 func TestDeleteTransaction(t *testing.T) {
 	t.Run("not_found", func(t *testing.T) {
-			dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 1, NumTxns: 3, WithFIDs: true})
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 1, NumTxns: 3, WithFIDs: true})
 		client := mustHledgerClient(t, dir)
 		err := DeleteTransaction(t.Context(), client, dir, "00000000")
 		if err == nil {

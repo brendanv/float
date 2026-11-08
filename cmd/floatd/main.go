@@ -96,7 +96,7 @@ func main() {
 	mainJournal := filepath.Join(*dataDir, "main.journal")
 	if _, err := os.Stat(mainJournal); os.IsNotExist(err) {
 		slog.Info("main.journal not found, creating empty file", "path", mainJournal)
-		if err := os.WriteFile(mainJournal, nil, 0644); err != nil {
+		if err := os.WriteFile(mainJournal, nil, 0644); err != nil { //nolint:forbidigo // startup bootstrap, before any txlock exists
 			slog.Error("create main.journal", "error", err)
 			os.Exit(1)
 		}

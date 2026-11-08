@@ -5,6 +5,7 @@ export default defineConfig({
   outputDir: "./test-results",
   snapshotDir: "./test-snapshots",
   reporter: "list",
+  forbidOnly: !!process.env.CI,
   use: {
     baseURL: "http://localhost:5174",
     screenshot: "on",
@@ -13,7 +14,14 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        // Optional override for environments whose preinstalled Chromium
+        // doesn't match the pinned Playwright version.
+        ...(process.env.PW_CHROMIUM_PATH && {
+          launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH },
+        }),
+      },
     },
   ],
   webServer: {

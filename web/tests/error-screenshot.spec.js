@@ -1,5 +1,8 @@
-import { test } from "@playwright/test";
+import { test } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
+
+// This test deliberately makes AddTransaction fail.
+test.use({ allowedErrors: [/status of 400/] });
 
 test("error banner - multiline hledger error", async ({ page }) => {
   await mockLedgerApi(page);

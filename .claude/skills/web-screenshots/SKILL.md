@@ -157,13 +157,21 @@ test("my new page", async ({ page }) => {
 
 ### Updating mock data
 
-Edit `web/tests/mock-api.js`. The `mockLedgerApi` function intercepts Connect RPC requests by matching the method name at the end of the URL (e.g. `ListAccounts`, `GetBalances`, `ListTransactions`). Add new cases to the `switch` block for additional RPC methods.
+Edit `web/tests/mock-api.js`. The `mockLedgerApi` function intercepts Connect RPC requests by matching the method name at the end of the URL (e.g. `ListAccounts`, `GetBalances`, `ListTransactions`). Add new cases to the `switch` block for additional RPC methods — an RPC that falls through to `default` fails the test (see below).
 
 ## Configuration
 
 Playwright config: `web/playwright.config.js`
 
 - Starts Vite dev server on port **5174** (separate from the normal dev port 5173 to avoid conflicts)
-- Uses system Chromium (already installed at `/root/.cache/ms-playwright/chromium-1194`)
+- Uses Playwright's bundled Chromium. If the preinstalled browser doesn't match 1.56.1 (e.g. Claude Code on the web), set `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`
 - `@playwright/test` is pinned to **1.56.1** to match the system browser version
 - Screenshots are saved to `web/test-results/` (gitignored)
+
+## Failing on errors
+
+Specs import `test`/`expect` from `./fixtures.js`, not `@playwright/test`. The fixture fails a test on any uncaught page error, `console.error` (including React warnings), visible Vite error overlay, or unmocked `LedgerService` RPC. Fix the cause rather than suppressing it; for tests that deliberately trigger an error use `test.use({ allowedErrors: [/status of 400/] })`.
+
+## Failing on errors
+
+Specs import `test`/`expect` from `./fixtures.js`, not `@playwright/test`. The fixture fails a test on any uncaught page error, `console.error` (including React warnings), visible Vite error overlay, or unmocked `LedgerService` RPC. Fix the cause rather than suppressing it; for tests that deliberately trigger an error use `test.use({ allowedErrors: [/status of 400/] })`.

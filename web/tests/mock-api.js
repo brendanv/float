@@ -1090,21 +1090,25 @@ export const mockImports = [
   {
     importBatchId: "2026-03-28-a1b2c3d4",
     date: "2026-03-28",
+    source: "csv",
     transactionCount: 3,
   },
   {
     importBatchId: "2026-03-15-b2c3d4e5",
     date: "2026-03-15",
+    source: "stripe",
     transactionCount: 5,
   },
   {
     importBatchId: "2026-02-28-c3d4e5f6",
     date: "2026-02-28",
+    source: "csv",
     transactionCount: 8,
   },
   {
     importBatchId: "2026-01-31-d4e5f6a7",
     date: "2026-01-31",
+    source: "csv",
     transactionCount: 12,
   },
 ];
@@ -1489,6 +1493,10 @@ function encodeConnectStreamingBody(messages) {
   parts.push(eosHeader, trailer);
   return Buffer.concat(parts);
 }
+
+// LedgerService methods each page called that fell through to the default
+// case below. tests/fixtures.js fails the test if this is non-empty.
+export const unmockedCalls = new WeakMap();
 
 export async function mockLedgerApi(
   page,
@@ -2090,6 +2098,8 @@ export async function mockLedgerApi(
         };
         break;
       default:
+        if (!unmockedCalls.has(page)) unmockedCalls.set(page, new Set());
+        unmockedCalls.get(page).add(method);
         body = {};
     }
 

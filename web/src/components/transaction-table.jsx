@@ -479,10 +479,10 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
               <Copy data-icon="inline-start" /> Duplicate
             </Button>
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-              <DialogTrigger asChild>
-                <Button variant="destructive-ghost" size="xs" disabled={saving || deleting}>
-                  <Trash2 data-icon="inline-start" /> Delete
-                </Button>
+              <DialogTrigger
+                render={<Button variant="destructive-ghost" size="xs" disabled={saving || deleting} />}
+              >
+                <Trash2 data-icon="inline-start" /> Delete
               </DialogTrigger>
               <DialogContent showCloseButton={false}>
                 <DialogHeader>

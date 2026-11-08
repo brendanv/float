@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { mockLedgerApi, mockStripeImportCandidates } from "./mock-api.js";
 
 test.beforeEach(async ({ page }) => {
@@ -16,7 +16,6 @@ test("home page", async ({ page }) => {
 test("transactions page", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions.png", fullPage: true });
 });
@@ -24,7 +23,6 @@ test("transactions page", async ({ page }) => {
 test("transactions page - delete confirmation", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   // Click the date cell (a stable target that won't intercept with the inline tag editor)
   await page.click("tbody tr:first-child td:nth-child(2)");
@@ -37,7 +35,6 @@ test("transactions page - delete confirmation", async ({ page }) => {
 test("transactions page - expanded edit row", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.click("tbody tr:first-child td:nth-child(2)");
   await page.waitForTimeout(200);
@@ -47,7 +44,6 @@ test("transactions page - expanded edit row", async ({ page }) => {
 test("balance assertions page", async ({ page }) => {
   await page.goto("/#/assertions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/balance-assertions.png", fullPage: true });
 });
@@ -55,7 +51,6 @@ test("balance assertions page", async ({ page }) => {
 test("balance assertions page - expanded editor", async ({ page }) => {
   await page.goto("/#/assertions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.click("tbody tr:first-child");
   await page.waitForTimeout(200);
@@ -65,7 +60,6 @@ test("balance assertions page - expanded editor", async ({ page }) => {
 test("transactions page - from cell inline edit", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   // Activate the inline "From" cell on the first row (a normal 2-posting
   // transaction). The From column is the 6th cell: select, date, status,
@@ -129,7 +123,6 @@ test("prices page", async ({ page }) => {
 test("accounts page", async ({ page }) => {
   await page.goto("/#/accounts");
   await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(600);
   await page.screenshot({ path: "test-results/accounts.png", fullPage: true });
 });
@@ -137,7 +130,6 @@ test("accounts page", async ({ page }) => {
 test("accounts page - rename dialog input", async ({ page }) => {
   await page.goto("/#/accounts");
   await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Rename assets:checking" }).click();
   await page.waitForSelector('[data-slot="dialog-content"]');
@@ -154,7 +146,6 @@ test("accounts page - rename dialog input", async ({ page }) => {
 test("accounts page - rename dialog typeahead open", async ({ page }) => {
   await page.goto("/#/accounts");
   await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Rename assets:checking" }).click();
   await page.waitForSelector('[data-slot="dialog-content"]');
@@ -169,7 +160,6 @@ test("accounts page - rename dialog typeahead open", async ({ page }) => {
 test("accounts page - rename dialog confirm", async ({ page }) => {
   await page.goto("/#/accounts");
   await page.waitForSelector("h2, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Rename assets:checking" }).click();
   await page.waitForSelector('[data-slot="dialog-content"]');
@@ -187,7 +177,6 @@ test("accounts page - rename dialog confirm", async ({ page }) => {
 test("transactions page - status filter select", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   const statusSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'Reviewed' }) }).first();
   await expect(statusSelect).toHaveValue("all");
@@ -201,7 +190,6 @@ test("transactions page - mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");
   await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-mobile.png", fullPage: true });
 });
@@ -209,7 +197,6 @@ test("transactions page - mobile", async ({ page }) => {
 test("transactions page - payee filter", async ({ page }) => {
   await page.goto("/#/transactions?payee=Whole+Foods+Market");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-payee-filter.png", fullPage: true });
 });
@@ -217,7 +204,6 @@ test("transactions page - payee filter", async ({ page }) => {
 test("transactions page - account register view", async ({ page }) => {
   await page.goto("/#/transactions?account=assets%3Achecking");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-account-register.png", fullPage: true });
 });
@@ -225,7 +211,6 @@ test("transactions page - account register view", async ({ page }) => {
 test("transactions page - account register bulk edit toolbar", async ({ page }) => {
   await page.goto("/#/transactions?account=assets%3Achecking");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   const checkboxes = await page.locator("tbody [data-slot='checkbox']").all();
   for (const cb of checkboxes.slice(0, 3)) {
@@ -239,7 +224,6 @@ test("transactions page - account register bulk edit toolbar", async ({ page }) 
 test("transactions page - account register edit account", async ({ page }) => {
   await page.goto("/#/transactions?account=assets%3Achecking");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   // Click the first editable other-account cell
   await page.locator('[title="Click to change account"]').first().click();
@@ -251,7 +235,6 @@ test("transactions page - account register edit account", async ({ page }) => {
 test("transactions page - account register edit account dropdown open", async ({ page }) => {
   await page.goto("/#/transactions?account=assets%3Achecking");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   // Click the first editable other-account cell to open the editor
   await page.locator('[title="Click to change account"]').first().click();
@@ -267,7 +250,6 @@ test("transactions page - account register mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions?account=assets%3Achecking");
   await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-account-register-mobile.png", fullPage: true });
 });
@@ -276,7 +258,6 @@ test("transactions page - account register mobile edit account", async ({ page }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions?account=assets%3Achecking");
   await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   // Target visible elements only — the desktop table is display:none on mobile viewports
   await page.locator('[title="Click to change account"]:visible').first().click();
@@ -289,7 +270,6 @@ test("transactions page - mobile bulk edit toolbar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");
   await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   const checkboxes = await page.locator(".card input[type=checkbox]").all();
   for (const cb of checkboxes.slice(0, 3)) {
@@ -302,7 +282,6 @@ test("transactions page - mobile bulk edit toolbar", async ({ page }) => {
 test("transactions page - bulk edit toolbar", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   // Check the first three transaction checkboxes (base-ui renders button[data-slot="checkbox"], not input)
   const checkboxes = await page.locator("tbody [data-slot='checkbox']").all();
@@ -316,7 +295,6 @@ test("transactions page - bulk edit toolbar", async ({ page }) => {
 test("transactions page - bulk add-tag mode", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   const checkboxes = await page.locator("tbody [data-slot='checkbox']").all();
   for (const cb of checkboxes.slice(0, 2)) {
@@ -347,25 +325,20 @@ test("import page - paste CSV mode", async ({ page }) => {
 
 test("import page - profile selected with edit delete buttons", async ({ page }) => {
   await page.goto("/#/import");
-  await page.waitForSelector('[data-testid="select-trigger"], button[role="combobox"], [role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // Open the Select dropdown and pick a profile
-  const trigger = page.locator('[role="combobox"]').first();
-  await trigger.click();
-  await page.waitForTimeout(200);
-  await page.locator('[role="option"]').first().click();
+  // Pick the first bank profile from the native select
+  await page.locator("select").first().selectOption({ index: 1 });
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/import-profile-selected.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 320 } });
 });
 
 test("import page - edit profile modal", async ({ page }) => {
   await page.goto("/#/import");
-  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // Select a profile
-  await page.locator('[role="combobox"]').first().click();
-  await page.waitForTimeout(200);
-  await page.locator('[role="option"]').first().click();
+  // Pick the first bank profile from the native select
+  await page.locator("select").first().selectOption({ index: 1 });
   await page.waitForTimeout(300);
   // Click edit button
   await page.locator(".lucide-pencil").click();
@@ -376,12 +349,10 @@ test("import page - edit profile modal", async ({ page }) => {
 
 test("import page - delete profile dialog", async ({ page }) => {
   await page.goto("/#/import");
-  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  // Select a profile
-  await page.locator('[role="combobox"]').first().click();
-  await page.waitForTimeout(200);
-  await page.locator('[role="option"]').first().click();
+  // Pick the first bank profile from the native select
+  await page.locator("select").first().selectOption({ index: 1 });
   await page.waitForTimeout(300);
   // Use JS click to bypass the file input that overlaps this button at some viewport sizes
   await page.locator(".lucide-trash-2").click();
@@ -392,7 +363,7 @@ test("import page - delete profile dialog", async ({ page }) => {
 
 test("import page - create profile modal", async ({ page }) => {
   await page.goto("/#/import");
-  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Click the "+" (Plus) button to open the create profile modal
   await page.locator(".lucide-plus").click();
@@ -403,7 +374,7 @@ test("import page - create profile modal", async ({ page }) => {
 
 test("import page - create profile modal with CSV wizard", async ({ page }) => {
   await page.goto("/#/import");
-  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.locator(".lucide-plus").click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
@@ -421,11 +392,10 @@ test("import page - create profile modal with CSV wizard", async ({ page }) => {
 
 async function loadImportPreview(page) {
   await page.goto("/#/import");
-  await page.waitForSelector('[role="combobox"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  await page.locator('[role="combobox"]').first().click();
-  await page.waitForTimeout(200);
-  await page.locator('[role="option"]').first().click();
+  // Pick the first bank profile from the native select
+  await page.locator("select").first().selectOption({ index: 1 });
   await page.waitForTimeout(200);
   await page.locator('#csv-file').setInputFiles({
     name: "bank.csv",
@@ -576,7 +546,6 @@ test("portfolio page", async ({ page }) => {
 test("payees page", async ({ page }) => {
   await page.goto("/#/payees");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/payees.png", fullPage: true });
 });
@@ -584,7 +553,6 @@ test("payees page", async ({ page }) => {
 test("payees page - set payee inline form open", async ({ page }) => {
   await page.goto("/#/payees");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   // Click "Set payee" on the first description row
   await page.locator("button:has-text('Set payee')").first().click();
@@ -595,7 +563,6 @@ test("payees page - set payee inline form open", async ({ page }) => {
 test("payees page - suggest rules wizard source step", async ({ page }) => {
   await page.goto("/#/payees");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   await page.locator("button:has-text('Suggest Rules')").click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
@@ -606,7 +573,6 @@ test("payees page - suggest rules wizard source step", async ({ page }) => {
 test("payees page - suggest rules wizard suggestions step", async ({ page }) => {
   await page.goto("/#/payees");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   await page.locator("button:has-text('Suggest Rules')").click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
@@ -619,7 +585,6 @@ test("payees page - suggest rules wizard suggestions step", async ({ page }) => 
 test("payees page - uncategorized filter active", async ({ page }) => {
   await page.goto("/#/payees");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   // Enable the "Uncategorized only" checkbox
   await page.locator("[data-slot='checkbox']").click();
@@ -631,7 +596,6 @@ test("payees page - mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/payees");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/payees-mobile.png", fullPage: true });
 });
@@ -762,7 +726,6 @@ test("query page - natural language with details open", async ({ page }) => {
 test("connections page - with linked accounts", async ({ page }) => {
   await page.goto("/#/connections");
   await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/connections.png", fullPage: true });
 });
@@ -773,7 +736,6 @@ test("connections page - disabled (no env var)", async ({ page }) => {
   });
   await page.goto("/#/connections");
   await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/connections-disabled.png", fullPage: true });
 });
@@ -781,7 +743,6 @@ test("connections page - disabled (no env var)", async ({ page }) => {
 test("connections page - fetch transactions panel", async ({ page }) => {
   await page.goto("/#/connections");
   await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   const fetchBtn = page.locator("button:has-text('Fetch Transactions')").first();
   await fetchBtn.click();
@@ -793,7 +754,6 @@ test("connections page - fetch transactions panel", async ({ page }) => {
 test("connections page - fetch all panel", async ({ page }) => {
   await page.goto("/#/connections");
   await page.waitForSelector("h1, .loading", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   const fetchAllBtn = page.getByRole("button", { name: "Fetch All", exact: true }).first();
   await fetchAllBtn.click();

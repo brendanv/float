@@ -1,5 +1,8 @@
 name: CI
 
+# Every job delegates to a mise task so `mise run ci` locally runs the same
+# checks. Keep the two in sync when adding a check.
+
 on:
   pull_request:
   push:
@@ -25,6 +28,7 @@ jobs:
           cd web
           bun install --frozen-lockfile
 
+  # Go: lint (incl. architecture rules in .golangci.yml), vet, race tests.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -33,5 +37,60 @@ jobs:
       - name: Install mise
         uses: jdx/mise-action@v4
 
-      - name: Run tests
-        run: go test ./...
+      - name: Lint
+        run: mise run lint
+
+      - name: Vet
+        run: mise run vet
+
+      - name: Test (race)
+        run: mise run test-race
+
+  proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v4
+
+      - name: Fetch main for breaking-change comparison
+        run: git fetch --no-tags --depth=1 origin main
+
+      - name: Lint
+        run: mise run proto-lint
+
+      - name: Breaking changes vs main
+        run: mise run proto-breaking
+
+      - name: Generated code is up to date
+        run: mise run proto-check
+
+  web:
+    # Pinned: @playwright/test is pinned to 1.56.1, which can't install
+    # Chromium or its system deps on ubuntu-latest (26.04). Move this forward
+    # together with the Playwright version.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mise
+        uses: jdx/mise-action@v4
+
+      - name: Build
+        run: mise run web-build
+
+      - name: Install Playwright Chromium
+        run: cd web && bunx playwright install --with-deps chromium
+
+      - name: Playwright
+        run: mise run web-test
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

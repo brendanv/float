@@ -374,7 +374,7 @@ func TestApplyMatch(t *testing.T) {
 			wantStatus:  "Cleared",
 		},
 		{
-			name: "all_changes",
+			name:  "all_changes",
 			input: baseInput("AMAZON.COM", "expenses:food"),
 			rule: Rule{
 				ID:           "r1",

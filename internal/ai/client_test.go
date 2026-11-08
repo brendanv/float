@@ -1,7 +1,6 @@
 package ai_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -243,7 +242,7 @@ func TestClient_UsesAuthorizationHeader(t *testing.T) {
 	defer srv.Close()
 
 	cl := ai.NewClient("my-secret-key", "test-model", ai.WithBaseURL(srv.URL))
-	_, _ = cl.SuggestRules(context.Background(), []ai.TxnSummary{
+	_, _ = cl.SuggestRules(t.Context(), []ai.TxnSummary{
 		{FID: "x", Description: "TEST", Amount: "-1.00 $", Date: "2026-01-01"},
 	}, nil, nil, "")
 

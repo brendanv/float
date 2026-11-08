@@ -328,7 +328,7 @@ func TestRunDailyStripeImport_UsesTransactedAtNotPostedAt(t *testing.T) {
 		{
 			"id": "fca_txn_datecheck", "object": "financial_connections.transaction",
 			"account": "fca_dates", "amount": int64(-2000), "currency": "usd",
-			"description": "HARDWARE STORE",
+			"description":   "HARDWARE STORE",
 			"transacted_at": int64(1746835200), // 2025-05-10 00:00:00 UTC
 			"status":        "posted", "livemode": false,
 			"status_transitions": map[string]any{

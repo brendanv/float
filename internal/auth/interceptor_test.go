@@ -9,9 +9,9 @@ import (
 
 	"connectrpc.com/connect"
 
-	"github.com/brendanv/float/internal/auth"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
+	"github.com/brendanv/float/internal/auth"
 )
 
 // stubLedger implements just enough of LedgerService to exercise the

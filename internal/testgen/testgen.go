@@ -197,8 +197,8 @@ func GenerateDataDir(t testing.TB, opts Options) string {
 
 	// Collect transactions per month key "YYYY/MM"
 	type txn struct {
-		date   time.Time
-		text   string
+		date time.Time
+		text string
 	}
 	monthTxns := make(map[string][]txn)
 	var monthOrder []string

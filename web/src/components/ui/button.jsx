@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva } from "class-variance-authority";
 import { Loader2 } from "lucide-react";
@@ -41,7 +42,9 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
+// forwardRef is required on React 18: base-ui triggers (TooltipTrigger,
+// DialogTrigger, etc.) pass a ref to their `render` element.
+const Button = forwardRef(function Button({
   className,
   variant = "default",
   size = "default",
@@ -50,9 +53,10 @@ function Button({
   disabled,
   children,
   ...props
-}) {
+}, ref) {
   return (
     <ButtonPrimitive
+      ref={ref}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || isLoading}
@@ -67,6 +71,6 @@ function Button({
       {isLoading ? loadingText : children}
     </ButtonPrimitive>
   );
-}
+});
 
 export { Button, buttonVariants }

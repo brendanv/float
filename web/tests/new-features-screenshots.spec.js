@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 test.beforeEach(async ({ page }) => {
@@ -8,7 +8,6 @@ test.beforeEach(async ({ page }) => {
 test("templates page", async ({ page }) => {
   await page.goto("/#/templates");
   await page.waitForSelector("table, h2", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/templates.png", fullPage: true });
 });
@@ -16,7 +15,6 @@ test("templates page", async ({ page }) => {
 test("templates page - new template form", async ({ page }) => {
   await page.goto("/#/templates");
   await page.waitForSelector("table, h2", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(400);
   // Click "New Template" button
   await page.getByRole("button", { name: "New Template" }).click();
@@ -27,7 +25,6 @@ test("templates page - new template form", async ({ page }) => {
 test("transactions page - duplicate button", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   // Click first transaction row to expand it
   await page.locator("tbody tr").first().click();

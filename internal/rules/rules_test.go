@@ -25,9 +25,9 @@ func TestMatch(t *testing.T) {
 		{"STARBUCKS #1234", "rule2"},
 		{"Starbucks Coffee", "rule2"},
 		{"Whole Foods Market", "rule3"},
-		{"not whole foods", ""},       // doesn't match ^Whole Foods
+		{"not whole foods", ""}, // doesn't match ^Whole Foods
 		{"Unknown merchant", ""},
-		{"starbucks daily", "rule2"},  // case-insensitive
+		{"starbucks daily", "rule2"}, // case-insensitive
 	}
 
 	for _, tc := range tests {
@@ -212,10 +212,10 @@ func TestPreview(t *testing.T) {
 		wantMarkReviewed map[string]bool
 	}{
 		{
-			name:     "match_payee_and_account",
-			rules:    []Rule{amazon},
-			txns:     []hledger.Transaction{{FID: "aabb1122", Description: "AMAZON.COM", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}}},
-			wantFIDs: []string{"aabb1122"},
+			name:        "match_payee_and_account",
+			rules:       []Rule{amazon},
+			txns:        []hledger.Transaction{{FID: "aabb1122", Description: "AMAZON.COM", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}}},
+			wantFIDs:    []string{"aabb1122"},
 			wantPayee:   map[string]*string{"aabb1122": sp("Amazon")},
 			wantAccount: map[string]*string{"aabb1122": sp("expenses:shopping")},
 		},
@@ -232,7 +232,7 @@ func TestPreview(t *testing.T) {
 			wantFIDs: []string{},
 		},
 		{
-			name: "skip_when_no_changes_needed",
+			name:  "skip_when_no_changes_needed",
 			rules: []Rule{amazon},
 			txns: []hledger.Transaction{{
 				FID: "aabb1122", Description: "AMAZON.COM",
@@ -271,8 +271,8 @@ func TestPreview(t *testing.T) {
 			wantTags: map[string]map[string]string{"dd445566": {"store": "wf"}},
 		},
 		{
-			name:     "multiple_transactions_only_matching_ones_returned",
-			rules:    []Rule{amazon},
+			name:  "multiple_transactions_only_matching_ones_returned",
+			rules: []Rule{amazon},
 			txns: []hledger.Transaction{
 				{FID: "aabb1122", Description: "AMAZON.COM", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}},
 				{FID: "ccdd3344", Description: "STARBUCKS", Postings: []hledger.Posting{{Account: "assets:checking"}, {Account: "expenses:unknown"}}},
@@ -356,9 +356,9 @@ func TestPreview(t *testing.T) {
 
 func TestCategoryPostingIndex(t *testing.T) {
 	tests := []struct {
-		name     string
-		txn      hledger.Transaction
-		wantIdx  int
+		name    string
+		txn     hledger.Transaction
+		wantIdx int
 	}{
 		{
 			name: "standard 2-posting (asset + expense)",

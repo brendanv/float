@@ -58,7 +58,7 @@ func TestCreateFCSession(t *testing.T) {
 	})
 	mockStripeBackend(t, mux)
 
-	secret, err := CreateFCSession(context.Background(), "sk_test_xxx", "acct_test123")
+	secret, err := CreateFCSession(t.Context(), "sk_test_xxx", "acct_test123")
 	if err != nil {
 		t.Fatalf("CreateFCSession: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestListSessionAccounts(t *testing.T) {
 			})
 			mockStripeBackend(t, mux)
 
-			accounts, err := ListSessionAccounts(context.Background(), "sk_test_xxx", "fcsess_test123")
+			accounts, err := ListSessionAccounts(t.Context(), "sk_test_xxx", "fcsess_test123")
 			if err != nil {
 				t.Fatalf("ListSessionAccounts: %v", err)
 			}
@@ -163,7 +163,7 @@ func TestSubscribeTransactions(t *testing.T) {
 	})
 	mockStripeBackend(t, mux)
 
-	err := SubscribeTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
+	err := SubscribeTransactions(t.Context(), "sk_test_xxx", "fca_test_abc")
 	if err != nil {
 		t.Fatalf("SubscribeTransactions: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestRefreshTransactions(t *testing.T) {
 	})
 	mockStripeBackend(t, mux)
 
-	err := RefreshTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
+	err := RefreshTransactions(t.Context(), "sk_test_xxx", "fca_test_abc")
 	if err != nil {
 		t.Fatalf("RefreshTransactions: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		txns, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
+		txns, err := ListTransactions(t.Context(), "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
@@ -308,7 +308,7 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		txns, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
+		txns, err := ListTransactions(t.Context(), "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
@@ -345,7 +345,7 @@ func TestListTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		_, err := ListTransactions(context.Background(), "sk_test_xxx", "fca_test_abc")
+		_, err := ListTransactions(t.Context(), "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("ListTransactions: %v", err)
 		}
@@ -365,15 +365,15 @@ func TestWaitForRefresh(t *testing.T) {
 				"status":   "active",
 				"livemode": false,
 				"transaction_refresh": map[string]any{
-					"id":          "txnr_success",
-					"status":      "succeeded",
+					"id":                "txnr_success",
+					"status":            "succeeded",
 					"last_attempted_at": int64(1746835200),
 				},
 			})
 		})
 		mockStripeBackend(t, mux)
 
-		refreshID, err := WaitForRefresh(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		refreshID, err := WaitForRefresh(t.Context(), nil, "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("WaitForRefresh: %v", err)
 		}
@@ -391,15 +391,15 @@ func TestWaitForRefresh(t *testing.T) {
 				"status":   "active",
 				"livemode": false,
 				"transaction_refresh": map[string]any{
-					"id":          "txnr_failed",
-					"status":      "failed",
+					"id":                "txnr_failed",
+					"status":            "failed",
 					"last_attempted_at": int64(1746835200),
 				},
 			})
 		})
 		mockStripeBackend(t, mux)
 
-		_, err := WaitForRefresh(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		_, err := WaitForRefresh(t.Context(), nil, "sk_test_xxx", "fca_test_abc")
 		if err == nil {
 			t.Fatal("expected error for failed refresh, got nil")
 		}
@@ -420,7 +420,7 @@ func TestWaitForRefresh(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		refreshID, err := WaitForRefresh(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		refreshID, err := WaitForRefresh(t.Context(), nil, "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("WaitForRefresh with no refresh: %v", err)
 		}
@@ -438,15 +438,15 @@ func TestWaitForRefresh(t *testing.T) {
 				"status":   "active",
 				"livemode": false,
 				"transaction_refresh": map[string]any{
-					"id":          "txnr_pending",
-					"status":      "pending",
+					"id":                "txnr_pending",
+					"status":            "pending",
 					"last_attempted_at": int64(1746835200),
 				},
 			})
 		})
 		mockStripeBackend(t, mux)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel() // cancel immediately
 
 		_, err := WaitForRefresh(ctx, nil, "sk_test_xxx", "fca_test_abc")
@@ -483,7 +483,7 @@ func TestMaybeRefreshTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		kickoff, err := MaybeRefreshTransactions(t.Context(), nil, "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("MaybeRefreshTransactions: %v", err)
 		}
@@ -516,7 +516,7 @@ func TestMaybeRefreshTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		kickoff, err := MaybeRefreshTransactions(t.Context(), nil, "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("MaybeRefreshTransactions: %v", err)
 		}
@@ -554,7 +554,7 @@ func TestMaybeRefreshTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		kickoff, err := MaybeRefreshTransactions(t.Context(), nil, "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("MaybeRefreshTransactions: %v", err)
 		}
@@ -603,7 +603,7 @@ func TestMaybeRefreshTransactions(t *testing.T) {
 		})
 		mockStripeBackend(t, mux)
 
-		kickoff, err := MaybeRefreshTransactions(context.Background(), nil, "sk_test_xxx", "fca_test_abc")
+		kickoff, err := MaybeRefreshTransactions(t.Context(), nil, "sk_test_xxx", "fca_test_abc")
 		if err != nil {
 			t.Fatalf("MaybeRefreshTransactions: %v", err)
 		}
@@ -636,7 +636,7 @@ func TestWaitForRefreshWithProgress(t *testing.T) {
 
 		var statuses []string
 		var lastRefreshID string
-		refreshID, err := WaitForRefreshWithProgress(context.Background(), nil, "sk_test_xxx", "fca_test_abc", func(p RefreshProgress) {
+		refreshID, err := WaitForRefreshWithProgress(t.Context(), nil, "sk_test_xxx", "fca_test_abc", func(p RefreshProgress) {
 			statuses = append(statuses, p.Status)
 			if p.RefreshID != "" {
 				lastRefreshID = p.RefreshID
@@ -681,7 +681,7 @@ func TestWaitForRefreshWithProgress(t *testing.T) {
 
 		// Use a context with a short deadline so the test fails fast if polling
 		// gets stuck; the mock should transition on the second call.
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
 		var sawPolling, sawSucceeded bool

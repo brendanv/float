@@ -292,10 +292,10 @@ func runJournalStats(args []string) error {
 
 // auditResult is the JSON output of `journal audit`.
 type auditResult struct {
-	MissingIncludes  []string            `json:"missing_includes"`
-	DuplicateFIDs    map[string][]string `json:"duplicate_fids"`
-	UnincludedFiles  []string            `json:"unincluded_files"`
-	OK               bool                `json:"ok"`
+	MissingIncludes []string            `json:"missing_includes"`
+	DuplicateFIDs   map[string][]string `json:"duplicate_fids"`
+	UnincludedFiles []string            `json:"unincluded_files"`
+	OK              bool                `json:"ok"`
 }
 
 var journalIncludeRe = regexp.MustCompile(`^include\s+(.+)`)
@@ -706,7 +706,6 @@ func runJournalImport(args []string) error {
 	fmt.Printf("imported %d transaction(s)\n", imported)
 	return nil
 }
-
 
 func runJournalSnapshots(args []string) error {
 	fset := flag.NewFlagSet("journal snapshots", flag.ExitOnError)

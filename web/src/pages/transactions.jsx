@@ -173,14 +173,10 @@ function BulkActionBar({ selectedFids, transactions, accounts, onActionComplete,
             </Button>
           )}
           <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-            <DialogTrigger asChild>
-              <Button
-                variant="destructive-ghost"
-                size="xs"
-                disabled={working}
-              >
-                <Trash2 className="size-3" data-icon="inline-start" /> Delete
-              </Button>
+            <DialogTrigger
+              render={<Button variant="destructive-ghost" size="xs" disabled={working} />}
+            >
+              <Trash2 className="size-3" data-icon="inline-start" /> Delete
             </DialogTrigger>
             <DialogContent showCloseButton={false}>
               <DialogHeader>

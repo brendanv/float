@@ -427,10 +427,10 @@ func TestCreateStripeLinkSession(t *testing.T) {
 		mux.HandleFunc("/v1/financial_connections/sessions", func(w http.ResponseWriter, _ *http.Request) {
 			sessionCreated = true
 			writeStripeJSON(w, map[string]any{
-				"id":            "fcsess_new123",
-				"object":        "financial_connections.session",
-				"client_secret": "fcsess_new123_secret",
-				"livemode":      false,
+				"id":             "fcsess_new123",
+				"object":         "financial_connections.session",
+				"client_secret":  "fcsess_new123_secret",
+				"livemode":       false,
 				"account_holder": map[string]any{"type": "customer"},
 				"accounts": map[string]any{
 					"object": "list", "data": []any{}, "has_more": false,
@@ -477,10 +477,10 @@ func TestCreateStripeLinkSession(t *testing.T) {
 		mux.HandleFunc("/v1/financial_connections/sessions", func(w http.ResponseWriter, _ *http.Request) {
 			sessionCreated = true
 			writeStripeJSON(w, map[string]any{
-				"id":            "fcsess_reuse123",
-				"object":        "financial_connections.session",
-				"client_secret": "fcsess_reuse123_secret",
-				"livemode":      false,
+				"id":             "fcsess_reuse123",
+				"object":         "financial_connections.session",
+				"client_secret":  "fcsess_reuse123_secret",
+				"livemode":       false,
 				"account_holder": map[string]any{"type": "customer"},
 				"accounts": map[string]any{
 					"object": "list", "data": []any{}, "has_more": false,
@@ -787,7 +787,7 @@ func TestFetchStripeTransactions(t *testing.T) {
 			Date:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
 			Description: "already imported",
 			FloatMeta:   map[string]string{"float-stripe-txn": "fca_txn_dup"},
-			Postings: []journal.PostingInput{{Account: "assets:checking", Commodity: "USD", Quantity: "50.00"}, {Account: "expenses:unknown", Commodity: "USD", Quantity: "-50.00"}},
+			Postings:    []journal.PostingInput{{Account: "assets:checking", Commodity: "USD", Quantity: "50.00"}, {Account: "expenses:unknown", Commodity: "USD", Quantity: "-50.00"}},
 		}); err != nil {
 			t.Fatalf("append transaction: %v", err)
 		}

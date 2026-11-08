@@ -601,9 +601,9 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			priceDate = txDate
 		}
 		holding := &floatv1.Holding{
-			Account:  k.account,
-			Symbol:   k.symbol,
-			Quantity: fmt.Sprintf("%g", qty),
+			Account:   k.account,
+			Symbol:    k.symbol,
+			Quantity:  fmt.Sprintf("%g", qty),
 			PriceDate: priceDate,
 		}
 
@@ -2396,7 +2396,7 @@ func (h *Handler) CreateBankProfile(ctx context.Context, req *connect.Request[fl
 			if err := os.MkdirAll(filepath.Dir(rulesFilePath), 0o755); err != nil {
 				return fmt.Errorf("create rules dir: %w", err)
 			}
-			if err := os.WriteFile(rulesFilePath, req.Msg.RulesContent, 0o644); err != nil {
+			if err := os.WriteFile(rulesFilePath, req.Msg.RulesContent, 0o644); err != nil { //nolint:forbidigo // inside txlock.DoConfig
 				return fmt.Errorf("write rules file: %w", err)
 			}
 		}
@@ -2485,7 +2485,6 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 			}
 		}
 
-
 		idx := -1
 		for i, p := range profiles {
 			if p.Name == req.Msg.Name {
@@ -2499,7 +2498,7 @@ func (h *Handler) UpdateBankProfile(ctx context.Context, req *connect.Request[fl
 
 		if len(req.Msg.RulesContent) > 0 {
 			rulesPath := filepath.Join(h.dataDir, profiles[idx].RulesFile)
-			if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil {
+			if err := os.WriteFile(rulesPath, req.Msg.RulesContent, 0o644); err != nil { //nolint:forbidigo // inside txlock.DoConfig
 				return fmt.Errorf("write rules file: %w", err)
 			}
 		}
@@ -2582,7 +2581,7 @@ func (h *Handler) DeleteBankProfile(ctx context.Context, req *connect.Request[fl
 
 		if req.Msg.DeleteRulesFile && rulesFile != "" {
 			rulesPath := filepath.Join(h.dataDir, rulesFile)
-			if err := os.Remove(rulesPath); err != nil && !os.IsNotExist(err) {
+			if err := os.Remove(rulesPath); err != nil && !os.IsNotExist(err) { //nolint:forbidigo // inside txlock.DoConfig
 				slogctx.FromContext(ctx).WarnContext(ctx, "failed to delete rules file", "path", rulesPath, "error", err)
 			}
 		}
@@ -2620,7 +2619,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
 	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
+	defer func() { _ = os.Remove(tmp.Name()) }() //nolint:forbidigo // temp file outside the data dir
 	if _, err := tmp.Write(req.Msg.CsvData); err != nil {
 		_ = tmp.Close()
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
@@ -2700,7 +2699,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 	if err != nil {
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("create temp file: %w", err))
 	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
+	defer func() { _ = os.Remove(tmp.Name()) }() //nolint:forbidigo // temp file outside the data dir
 	if _, err := tmp.Write(req.Msg.CsvData); err != nil {
 		_ = tmp.Close()
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("write temp file: %w", err))
@@ -2816,7 +2815,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		// importBatchID may contain a "/" (profile-slug/date-fid), so we create the subdirectory.
 		if mkErr := os.MkdirAll(filepath.Dir(uploadFilePath), 0o755); mkErr != nil {
 			logger.ErrorContext(ctx, "create uploads dir failed", "error", mkErr)
-		} else if wErr := os.WriteFile(uploadFilePath, req.Msg.CsvData, 0o644); wErr != nil {
+		} else if wErr := os.WriteFile(uploadFilePath, req.Msg.CsvData, 0o644); wErr != nil { //nolint:forbidigo // inside txlock.DoWith
 			logger.ErrorContext(ctx, "save uploaded CSV failed", "error", wErr)
 		}
 		return nil
