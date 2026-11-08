@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 test.beforeEach(async ({ page }) => {
@@ -8,7 +8,6 @@ test.beforeEach(async ({ page }) => {
 test("transactions page - expand row with cost-annotated posting", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
   await page.click("tr:has-text('buy AAPL')");
   await page.waitForTimeout(300);

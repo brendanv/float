@@ -21,6 +21,7 @@ bun install           # install dependencies
 bun run dev           # Vite dev server on :5173 (proxies /float.v1.LedgerService → :8080)
 bun run build         # build → ../internal/webui/dist/ (also: mise run web-build from root)
 bun run screenshots   # capture Playwright screenshots with mocked API data
+bun run test          # run every Playwright spec (also: mise run web-test from root)
 ```
 
 During development run `mise run floatd` concurrently with `bun run dev` unless using screenshot tests, which mock the API and do not need `floatd`.
@@ -101,3 +102,9 @@ Add components with `bunx shadcn@latest add <component>`, which writes to `src/c
 ## Screenshots / Visual Testing
 
 Playwright specs in `tests/` mock ConnectRPC responses using `tests/mock-api.js`; no live server is required. Desktop, mobile, and feature-specific screenshot specs cover major pages. Use the `web-screenshots` skill or `bun run screenshots` to regenerate. Config lives in `playwright.config.js`.
+
+Specs must import `test`/`expect` from `./fixtures.js`, not `@playwright/test`. The fixture fails a test on any uncaught page error, `console.error` (including React dev warnings), a visible Vite error overlay, or a `LedgerService` RPC that falls through to the `default` case in `mock-api.js`. Fix the cause instead of suppressing it; a test that deliberately triggers an error can use `test.use({ allowedErrors: [/status of 400/] })`.
+
+React is 18: components that receive a ref (anything used as a base-ui `render` element, or as a Radix/vaul child) must use `forwardRef`. base-ui primitives (`Dialog*`, `Tooltip*`, …) take `render={<Button />}`, not `asChild`; vaul's `Drawer*` primitives still use `asChild`.
+
+If the preinstalled Chromium doesn't match the pinned Playwright, set `PW_CHROMIUM_PATH` (e.g. `/opt/pw-browsers/chromium` in Claude Code on the web).

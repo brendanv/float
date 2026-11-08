@@ -1,5 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
+
+// These tests exercise rejected logins and unauthenticated RPCs.
+test.use({ allowedErrors: [/status of 401/] });
 
 test("login page renders without app shell", async ({ page }) => {
   await mockLedgerApi(page);

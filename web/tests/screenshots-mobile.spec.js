@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 test.use({ viewport: { width: 390, height: 844 } });

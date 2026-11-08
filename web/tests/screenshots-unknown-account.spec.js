@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 const unknownTransactions = [
@@ -46,7 +46,6 @@ test.beforeEach(async ({ page }) => {
 test("bulk update unknown account - toolbar button visible", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
 
   // Select all three unknown-account transactions
@@ -61,7 +60,6 @@ test("bulk update unknown account - toolbar button visible", async ({ page }) =>
 test("bulk update unknown account - account combobox open", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
 
   // Select all unknown transactions
@@ -80,7 +78,6 @@ test("bulk update unknown account - account combobox open", async ({ page }) => 
 test("bulk update unknown account - combobox with dropdown open", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
 
   const checkboxes = await page.locator("tbody [data-slot='checkbox']").all();
