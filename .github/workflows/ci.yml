@@ -67,7 +67,10 @@ jobs:
         run: mise run proto-check
 
   web:
-    runs-on: ubuntu-latest
+    # Pinned: @playwright/test is pinned to 1.56.1, which can't install
+    # Chromium or its system deps on ubuntu-latest (26.04). Move this forward
+    # together with the Playwright version.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
