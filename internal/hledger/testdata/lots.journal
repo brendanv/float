@@ -1,6 +1,15 @@
+; Lot-tracking fixture. Each block exercises a distinct lot behaviour; see
+; TestTransactionsLots / TestLots for the expected hledger interpretation.
+
 commodity $1,000.00
 
+; Default lot method: disposals need a selector unless only one lot matches.
 commodity AAPL ; lots:
+
+; FIFO lot method: disposals without a selector consume the oldest lots first.
+commodity VTI ; lots: FIFO
+
+commodity BTC ; lots:
 
 P 2026-03-01 AAPL $70
 
@@ -22,4 +31,45 @@ P 2026-03-01 AAPL $70
 
 2026-02-01 (aa000005) Sell AAPL
     assets:brokerage    -5 AAPL {2026-01-15} @ $70
+    assets:cash
+
+; Label-only selector disposing of an entire lot at a loss: the lot must
+; disappear from Lots() and the inferred gain posting is positive (a loss).
+2026-01-17 (cc000001) Buy AAPL short-term
+    assets:brokerage    2 AAPL {2026-01-17, "short", $65}
+    assets:cash
+
+2026-02-02 (cc000002) Sell short-term lot at a loss
+    assets:brokerage    -2 AAPL {"short"} @ $55
+    assets:cash
+
+; FIFO disposal spanning two lots: the first lot is fully consumed (zero net
+; units, skipped by Lots) and the second partially. hledger reports an empty
+; cost basis on the disposal because no single lot describes it.
+2026-01-10 (bb000001) Buy VTI first lot
+    assets:ira    2 VTI {$100}
+    assets:cash
+
+2026-01-11 (bb000002) Buy VTI second lot
+    assets:ira    3 VTI {$110}
+    assets:cash
+
+2026-02-10 (bb000003) Sell VTI FIFO across lots
+    assets:ira    -3 VTI @ $120
+    assets:cash
+
+; Lot transfer between accounts: no gain, and the same lot then exists under
+; two base accounts.
+2026-02-20 (dd000001) Transfer AAPL lot to IRA
+    assets:ira          2 AAPL {2026-01-15, $50}
+    assets:brokerage   -2 AAPL {2026-01-15, $50}
+
+; Fractional units with a digit-grouped cost; the disposal has no selector and
+; relies on there being a single BTC lot.
+2026-02-15 (ee000001) Buy BTC fractional
+    assets:crypto    0.5 BTC {$40,000}
+    assets:cash
+
+2026-02-25 (ee000002) Sell some BTC
+    assets:crypto    -0.125 BTC @ $48,000
     assets:cash

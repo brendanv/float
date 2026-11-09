@@ -388,12 +388,13 @@ func parseAccountsFlat(text string) ([]*AccountNode, error) {
 }
 
 // parseTags parses `hledger tags` output: one tag name per line.
-// Filters out empty lines.
+// Filters out empty lines and hledger's internal `_`-prefixed tags (e.g. the
+// `_ptype` / `_generated-posting` tags it adds to lot postings).
 func parseTags(data []byte) []string {
 	var tags []string
 	for _, line := range strings.Split(string(data), "\n") {
 		t := strings.TrimSpace(line)
-		if t != "" {
+		if t != "" && !strings.HasPrefix(t, "_") {
 			tags = append(tags, t)
 		}
 	}

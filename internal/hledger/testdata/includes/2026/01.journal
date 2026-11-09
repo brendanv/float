@@ -1,0 +1,7 @@
+2026-01-01 (aa000001) opening balance
+    assets:checking    $1000.00
+    equity:opening
+
+2026-01-15 (bb000002) Buy AAPL
+    assets:brokerage    5 AAPL {$60}
+    assets:checking

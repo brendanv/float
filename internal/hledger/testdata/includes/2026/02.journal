@@ -1,0 +1,7 @@
+2026-02-05 (cc000003) PAYROLL
+    assets:checking    $500.00
+    income:salary
+
+2026-02-10 (dd000004) Groceries
+    expenses:food      $45.00
+    assets:checking

@@ -44,7 +44,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `UnusedAccounts(ctx)` | `accounts --unused` | declared but unused accounts |
 | `UndeclaredAccounts(ctx)` | `accounts --undeclared` | used but not declared accounts |
 | `ClosedAccounts(ctx)` | `accounts tag:float-closed` | closed accounts, including sub-accounts inheriting the tag |
-| `Tags(ctx)` | `tags` | excludes the legacy/internal `fid` tag |
+| `Tags(ctx)` | `tags` | excludes hledger-internal `_`-prefixed tags (`_ptype`, `_generated-posting` on lot postings) |
 | `Payees(ctx)` | `payees desc:.*[|].*` | payees only for descriptions containing `|` |
 | `Transactions(ctx, query...)` | `print -O json` | full transaction objects with source positions |
 | `PrintCSV(ctx, csvFile, rulesFile)` | `print -O json --rules-file <rules> -f <csv>` | CSV import preview; no journal file is written |
@@ -78,11 +78,21 @@ Limitations:
 
 - With the AVERAGE method, `bal --lots` shows each lot's original cost rather than the pool average.
 - hledger query terms are regexes, so a lot account name containing `{` can't be used directly as a query term.
+- hledger applies `cur:` after `-B` cost conversion, so a commodity query (e.g. `cur:AAPL`) leaves `TotalCost` empty. The web UI only sends `acct:` filters.
 - Total-basis `{{...}}` is not modelled.
 
 ## Testing
 
 Integration tests in `hledger_test.go` run the real hledger binary against fixture files in `testdata/`. Use `NewWithRunner` for unit tests of callers that should not execute hledger.
+
+Fixtures (also used by `internal/journal`, `internal/server/ledger` and `cmd/floatctl` tests — update their expectations when changing one):
+
+- `simple.journal`, `empty.journal`, `hiddenmeta.journal`, `closed.journal`, `assertions.journal` — basic, hidden-meta, closed-account and assertion-variant cases.
+- `investments.journal` — `@` costs plus P directives for valued/cost balances and portfolio timeseries.
+- `lots.journal` — one block per lot behaviour: specific-ID, labelled, label-only and selectorless disposals, a FIFO disposal spanning lots (empty `{}` basis, fully-consumed lot), a lot transfer between accounts, fractional units, gains and losses.
+- `includes/` — multi-file layout like a real data dir (`main.journal` of includes, typed account declarations, prices, month files).
+- `invalid.journal`, `badassertion.journal`, `badlot.journal` — must fail `Check()`.
+- `import.csv` / `import_edge.csv` + `import.rules` — CSV import, including quoted commas, thousands separators and unmatched rows.
 
 ## Constants / Tags
 

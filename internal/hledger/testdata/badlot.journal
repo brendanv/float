@@ -1,0 +1,10 @@
+; Disposes of more units than the selected lot holds: Check() must reject it.
+commodity AAPL ; lots:
+
+2026-01-15 (aa000001) Buy AAPL
+    assets:brokerage    10 AAPL {$50}
+    assets:cash
+
+2026-02-01 (aa000002) Oversell AAPL lot
+    assets:brokerage    -15 AAPL {2026-01-15} @ $70
+    assets:cash

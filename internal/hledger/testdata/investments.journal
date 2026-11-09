@@ -1,5 +1,7 @@
 ; Investments journal for testing BalancesValued.
-; Prices dated 2026-04-26 so --value=now,USD is deterministic when run on that date.
+; The 2026-04-26 P directives are the latest prices, so --value=now,USD is
+; deterministic on any run date after them. Before April, valuation uses the
+; market prices hledger infers from the @ costs.
 P 2026-04-26 AAPL 178.50 USD
 P 2026-04-26 MSFT 398.75 USD
 
