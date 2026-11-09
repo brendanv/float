@@ -21,6 +21,9 @@ export const mockAccounts = [
   { name: "salary", fullName: "income:salary", type: "C", depth: 2 },
   { name: "investments", fullName: "assets:investments", type: "A", depth: 2 },
   { name: "aapl", fullName: "assets:investments:aapl", type: "A", depth: 3 },
+  // Closed account (and a sub-account inheriting the closed tag).
+  { name: "oldbank", fullName: "assets:oldbank", type: "A", depth: 2, closed: true },
+  { name: "checking", fullName: "assets:oldbank:checking", type: "A", depth: 3, closed: true },
 ];
 
 export const mockBalanceRows = [
@@ -960,6 +963,7 @@ export const mockAccountDeclarations = [
   { aid: "n3c4d5e6", name: "expenses:housing:insurance", hasPostings: false },
   { aid: "j0e1f2a3", name: "income:salary", hasPostings: true },
   { aid: "k1f2a3b4", name: "liabilities:creditcard", hasPostings: true },
+  { aid: "o4d5e6f7", name: "assets:oldbank", hasPostings: false, closed: true },
 ];
 
 export const mockPortfolioHoldings = {
@@ -1840,6 +1844,9 @@ export async function mockLedgerApi(
         body = { declaration: { aid: "new00001", name: reqBody.name } };
         break;
       case "DeleteAccountDeclaration":
+        body = {};
+        break;
+      case "SetAccountClosed":
         body = {};
         break;
       case "ListPrices":

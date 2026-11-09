@@ -55,7 +55,7 @@ src/
 | `/monthly` | `MonthlyDashboardPage` | Income statement / revenue and expense dashboard |
 | `/transactions` | `TransactionsPage` | Searchable, pageable transaction list |
 | `/portfolio` | `PortfolioPage` | Holdings, allocation, market value, cost basis/gain |
-| `/accounts` | `AccountsPage` | Account declarations/tree and register |
+| `/accounts` | `AccountsPage` | Account tree (declared + used accounts): declare, rename, delete, close/reopen |
 | `/payees` | `PayeesPage` | Payee list and filtering entry point |
 | `/rules` | `RulesPage` | Categorization rules editor, AI rule suggestions, and AI duplicate/contradiction detection |
 | `/connections` | `ConnectionsPage` | Stripe Financial Connections linking, refresh, fetch, import |

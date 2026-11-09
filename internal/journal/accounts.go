@@ -6,16 +6,59 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/brendanv/float/internal/hledger"
 )
 
 const accountsRelPath = "accounts.journal"
 
 // AccountDeclaration is a parsed `account` directive from accounts.journal.
 type AccountDeclaration struct {
-	Name string // full account name, e.g. "assets:checking"
+	Name   string // full account name, e.g. "assets:checking"
+	Closed bool   // directive itself carries the float-closed tag (not inherited from a parent)
 }
 
 var accountDeclRe = regexp.MustCompile(`^account\s+(\S+)`)
+
+// closedTagRe matches the float-closed tag in a same-line directive comment.
+// Tags are comma-separated, so the tag name starts the comment or follows
+// whitespace or a comma.
+var closedTagRe = regexp.MustCompile(`(?:^|[\s,])` + regexp.QuoteMeta(hledger.ClosedAccountTag) + `:`)
+
+// splitDirectiveComment splits a directive line into the part before its
+// same-line comment (right-trimmed) and the comment text after ";" ("" if none).
+func splitDirectiveComment(line string) (head, comment string) {
+	i := strings.IndexByte(line, ';')
+	if i < 0 {
+		return line, ""
+	}
+	return strings.TrimRight(line[:i], " \t"), line[i+1:]
+}
+
+// setClosedTag returns the directive line with the float-closed tag added to
+// or removed from its same-line comment, preserving any other comment text and
+// tags (e.g. "type: A").
+func setClosedTag(line string, closed bool) string {
+	head, comment := splitDirectiveComment(line)
+	var kept []string
+	for _, seg := range strings.Split(comment, ",") {
+		if !closedTagRe.MatchString(seg) {
+			kept = append(kept, seg)
+		}
+	}
+	rest := strings.TrimRight(strings.Join(kept, ","), " \t")
+	if closed {
+		tag := hledger.ClosedAccountTag + ":"
+		if strings.TrimSpace(rest) == "" {
+			return head + "  ; " + tag
+		}
+		return head + "  ;" + rest + ", " + tag
+	}
+	if strings.TrimSpace(rest) == "" {
+		return head
+	}
+	return head + "  ;" + rest
+}
 
 // ListAccountDeclarations reads accounts.journal and returns all parsed account directives.
 // Returns an empty slice (not an error) if accounts.journal does not yet exist.
@@ -36,7 +79,8 @@ func ListAccountDeclarations(dataDir string) ([]AccountDeclaration, error) {
 		if m == nil {
 			continue
 		}
-		decls = append(decls, AccountDeclaration{Name: m[1]})
+		_, comment := splitDirectiveComment(line)
+		decls = append(decls, AccountDeclaration{Name: m[1], Closed: closedTagRe.MatchString(comment)})
 	}
 	return decls, nil
 }
@@ -46,8 +90,13 @@ func ListAccountDeclarations(dataDir string) ([]AccountDeclaration, error) {
 // includes so account declarations are in scope for all transactions and prices).
 // Does NOT acquire txlock — callers must wrap in txlock.Do().
 func AppendAccountDeclaration(dataDir, name string) error {
-	line := fmt.Sprintf("account %s\n", name)
+	return appendAccountDirective(dataDir, "account "+name)
+}
 
+// appendAccountDirective appends one directive line to accounts.journal,
+// creating the file and its main.journal include if needed. A missing final
+// newline in the existing file is repaired so the new line stays separate.
+func appendAccountDirective(dataDir, line string) error {
 	if _, err := EnsureAccountsFile(dataDir); err != nil {
 		return err
 	}
@@ -56,12 +105,20 @@ func AppendAccountDeclaration(dataDir, name string) error {
 	}
 
 	path := filepath.Join(dataDir, accountsRelPath)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("journal: read %s: %w", accountsRelPath, err)
+	}
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		line = "\n" + line
+	}
+
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("journal: open %s: %w", accountsRelPath, err)
 	}
 	defer func() { _ = f.Close() }()
-	if _, err := f.WriteString(line); err != nil {
+	if _, err := f.WriteString(line + "\n"); err != nil {
 		return fmt.Errorf("journal: write %s: %w", accountsRelPath, err)
 	}
 	return nil
@@ -84,20 +141,51 @@ func RenameAccountDeclaration(dataDir, oldName, newName string) error {
 	lines := strings.Split(string(data), "\n")
 	found := false
 	for i, line := range lines {
-		m := accountDeclRe.FindStringSubmatch(line)
+		m := accountDeclRe.FindStringSubmatchIndex(line)
 		if m == nil {
 			continue
 		}
-		if m[1] == oldName {
-			lines[i] = fmt.Sprintf("account %s", newName)
+		name := line[m[2]:m[3]]
+		// Replace only the name so trailing comments/tags (type:, float-closed:) survive.
+		if name == oldName {
+			lines[i] = line[:m[2]] + newName + line[m[3]:]
 			found = true
-		} else if strings.HasPrefix(m[1], oldName+":") {
-			lines[i] = fmt.Sprintf("account %s%s", newName, m[1][len(oldName):])
+		} else if strings.HasPrefix(name, oldName+":") {
+			lines[i] = line[:m[2]] + newName + name[len(oldName):] + line[m[3]:]
 			found = true
 		}
 	}
 	if !found {
 		return fmt.Errorf("journal: account declaration %q not found: %w", oldName, ErrNotFound)
+	}
+
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
+}
+
+// SetAccountClosed adds or removes the float-closed tag on name's directive in
+// accounts.journal. Closing an undeclared account appends a new declaration
+// carrying the tag; reopening an undeclared or already-open account is a no-op.
+// Does NOT acquire txlock — callers must wrap in txlock.Do().
+func SetAccountClosed(dataDir, name string, closed bool) error {
+	path := filepath.Join(dataDir, accountsRelPath)
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("journal: read %s: %w", accountsRelPath, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	found := false
+	for i, line := range lines {
+		if m := accountDeclRe.FindStringSubmatch(line); m != nil && m[1] == name {
+			lines[i] = setClosedTag(line, closed)
+			found = true
+		}
+	}
+	if !found {
+		if !closed {
+			return nil
+		}
+		return appendAccountDirective(dataDir, setClosedTag("account "+name, true))
 	}
 
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)

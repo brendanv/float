@@ -15,6 +15,12 @@ const FIDLen = 8
 // Example: "float-import-id", "float-updated-at".
 const HiddenMetaPrefix = "float-"
 
+// ClosedAccountTag is the account-directive tag float uses to mark an account
+// closed. hledger inherits account tags to sub-accounts, so `tag:float-closed`
+// matches a closed account and everything beneath it. It has no effect on
+// hledger's accounting.
+const ClosedAccountTag = HiddenMetaPrefix + "closed"
+
 type AmountQuantity struct {
 	DecimalMantissa int64   `json:"decimalMantissa"`
 	DecimalPlaces   int     `json:"decimalPlaces"`

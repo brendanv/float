@@ -845,8 +845,9 @@ func TestListAccounts_CacheHit(t *testing.T) {
 		t.Fatalf("second call: %v", err)
 	}
 
-	if calls.Load() != 1 {
-		t.Errorf("hledger called %d times, want 1", calls.Load())
+	// One `accounts --types` call plus one `accounts tag:float-closed` call.
+	if calls.Load() != 2 {
+		t.Errorf("hledger called %d times, want 2", calls.Load())
 	}
 }
 

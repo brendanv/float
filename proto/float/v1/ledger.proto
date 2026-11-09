@@ -47,6 +47,7 @@ message Account {
   string name = 1; // short segment
   string full_name = 2; // full colon path
   string type = 3; // "A", "L", "E", "R", "X", "C", "V"
+  bool closed = 4; // true if this account or an ancestor is marked closed (float-closed tag)
 }
 
 message NetWorthSnapshot {
@@ -293,6 +294,7 @@ message AccountDeclaration {
   reserved "aid";
   string name = 2; // full account name, e.g. "assets:checking"
   bool has_postings = 3; // true if at least one posting references this account
+  bool closed = 4; // true if this declaration itself carries the float-closed tag (not inherited)
 }
 
 message ListAccountDeclarationsRequest {}
@@ -314,6 +316,17 @@ message DeleteAccountDeclarationRequest {
 }
 
 message DeleteAccountDeclarationResponse {}
+
+// SetAccountClosedRequest marks an account closed (or reopens it). Closed is
+// float-only metadata — a float-closed tag on the account directive — that
+// hides the account (and its sub-accounts) from pickers and home totals; it
+// does not affect hledger reports. Closing an undeclared account declares it.
+message SetAccountClosedRequest {
+  string name = 1;  // full account name
+  bool closed = 2;
+}
+
+message SetAccountClosedResponse {}
 
 message RenameAccountRequest {
   string old_name = 1; // current full account name, e.g. "assets:checking"
@@ -1077,6 +1090,7 @@ service LedgerService {
   rpc DeclareAccount(DeclareAccountRequest) returns (DeclareAccountResponse);
   rpc DeleteAccountDeclaration(DeleteAccountDeclarationRequest) returns (DeleteAccountDeclarationResponse);
   rpc RenameAccount(RenameAccountRequest) returns (RenameAccountResponse);
+  rpc SetAccountClosed(SetAccountClosedRequest) returns (SetAccountClosedResponse);
   rpc BulkEditTransactions(BulkEditTransactionsRequest) returns (BulkEditTransactionsResponse);
   rpc BulkDeleteTransactions(BulkDeleteTransactionsRequest) returns (stream BulkDeleteTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);

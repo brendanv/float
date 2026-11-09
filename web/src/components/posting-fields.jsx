@@ -16,10 +16,12 @@ export function AccountInput({
   excludePrefixes = [],
   includeAccountPrefixes = includePrefixes,
   excludeAccountPrefixes = excludePrefixes,
+  includeClosed = false,
 }) {
   const options = filterAndSortAccountNames(accounts, {
     includePrefixes: includeAccountPrefixes,
     excludePrefixes: excludeAccountPrefixes,
+    includeClosed,
   });
   return (
     <Combobox

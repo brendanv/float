@@ -18,7 +18,7 @@ Current cached families include:
 - `balances:<depth>:<sorted-query>`
 - `balancesvalued:<valueSpec>:<depth>:<sorted-query>`
 - `aregister:<account>:<sorted-query>`
-- `accounts`, `tags`, `payees`
+- `accounts`, `closedaccounts`, `tags`, `payees`
 - `networth:<begin>:<end>`
 - `incomestmt:<begin>:<end>`
 - `portfolio:<accounts>:<begin>` and `portfoliocost:<accounts>:<begin>`
@@ -27,7 +27,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 ## Proactive Warming (`warm.go`)
 
-`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1, full-history `networth`/`incomestmt`, plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
+`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`closedaccounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1 (plus depth 1 with `openAccountsQuery`, the home page totals query), full-history `networth`/`incomestmt`, plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
 
 ## Filtering in Go (`internal/txfilter`)
 
@@ -61,7 +61,9 @@ Transaction writes convert proto input into `journal.TransactionInput`, call jou
 
 ### Accounts and Assertions
 
-Account declarations are managed in `accounts.journal`; `RenameAccount` updates both declarations and posting lines. `GetBalanceAssertionStatus` ranks asset/liability accounts by transactions since their last simple balance assertion.
+Account declarations are managed in `accounts.journal`; `RenameAccount` updates both declarations and posting lines. `GetBalanceAssertionStatus` ranks asset/liability accounts by transactions since their last simple balance assertion, skipping closed accounts.
+
+Closed accounts: `SetAccountClosed` toggles the `float-closed` tag on the account directive (float-only metadata; hledger reports are unaffected). `ListAccounts` sets `Account.closed` from `cachedClosedAccounts` (hledger `accounts tag:float-closed`, so sub-accounts inherit), and `ListAccountDeclarations` reports the directly-set flag. The web UI hides closed accounts from account pickers (`filterAndSortAccountNames`, opt back in with `includeClosed`) and the home account list, and computes home totals with `not:tag:float-closed`.
 
 ### Imports and Bank Profiles
 

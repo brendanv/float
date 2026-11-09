@@ -40,7 +40,8 @@ Balance assertions that are more complex than the simple `=` form are preserved 
 
 ## Accounts / Commodities / Prices
 
-- `ListAccountDeclarations`, `AppendAccountDeclaration`, `DeleteAccountDeclaration`, `RenameAccountDeclaration` — manage `accounts.journal` declaration lines.
+- `ListAccountDeclarations`, `AppendAccountDeclaration`, `DeleteAccountDeclaration`, `RenameAccountDeclaration` — manage `accounts.journal` declaration lines. Rename replaces only the name, preserving same-line comments/tags.
+- `SetAccountClosed(dataDir, name, closed)` — add/remove the `float-closed:` tag in a declaration's same-line comment (preserving other tags such as `type:`). Closing an undeclared account appends a declaration; reopening an undeclared one is a no-op. `AccountDeclaration.Closed` reports the directly-set tag only (not inheritance).
 - `EnsureAccountsFile`, `EnsureAccountsInclude` — startup bootstrap for account declarations.
 - `RenameAccountInJournalFiles(dataDir, oldName, newName)` — line-oriented posting account rename across journal files.
 - `EnsureCommodityDirective(dataDir, code)` — ensure a `commodity` directive exists.

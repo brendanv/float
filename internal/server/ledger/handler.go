@@ -329,6 +329,24 @@ func cachedAccounts(ctx context.Context, c *cache.Cache[any], hl *hledger.Client
 	})
 }
 
+const closedAccountsKey = "closedaccounts"
+
+// cachedClosedAccounts fetches the set of closed account names (including
+// sub-accounts inheriting the tag) from cache or hledger.
+func cachedClosedAccounts(ctx context.Context, c *cache.Cache[any], hl *hledger.Client) (map[string]bool, error) {
+	return cachedGet(ctx, c, closedAccountsKey, func(ctx context.Context) (map[string]bool, error) {
+		names, err := hl.ClosedAccounts(ctx)
+		if err != nil {
+			return nil, err
+		}
+		set := make(map[string]bool, len(names))
+		for _, n := range names {
+			set[n] = true
+		}
+		return set, nil
+	})
+}
+
 const unusedAccountsKey = "unusedaccounts"
 
 // cachedUnusedAccounts fetches unused account names from cache or hledger.
@@ -1134,9 +1152,14 @@ func (h *Handler) ListAccounts(ctx context.Context, req *connect.Request[floatv1
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger accounts failed")
 	}
+	closed, err := cachedClosedAccounts(ctx, h.cache, h.hl)
+	if err != nil {
+		return nil, rpcErr(ctx, err, "hledger closed accounts failed")
+	}
 	accounts := make([]*floatv1.Account, len(nodes))
 	for i, n := range nodes {
 		accounts[i] = toProtoAccount(n)
+		accounts[i].Closed = closed[n.FullName]
 	}
 	return connect.NewResponse(&floatv1.ListAccountsResponse{Accounts: accounts}), nil
 }
@@ -1153,9 +1176,17 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger accounts failed")
 	}
+	closed, err := cachedClosedAccounts(ctx, h.cache, h.hl)
+	if err != nil {
+		return nil, rpcErr(ctx, err, "hledger closed accounts failed")
+	}
 	// Cash (C) is an hledger subtype of Asset, so treat it as an asset too.
+	// Closed accounts are skipped: there is nothing left to reconcile.
 	accountType := make(map[string]hledger.AccountType, len(nodes))
 	for _, n := range nodes {
+		if closed[n.FullName] {
+			continue
+		}
 		switch n.Type {
 		case hledger.AccountTypeAsset, hledger.AccountTypeCash:
 			accountType[n.FullName] = hledger.AccountTypeAsset
@@ -1675,7 +1706,8 @@ func aggregateAmountsByCommodity(amounts []hledger.Amount) []*floatv1.Amount {
 
 func toProtoAccountDeclaration(d journal.AccountDeclaration) *floatv1.AccountDeclaration {
 	return &floatv1.AccountDeclaration{
-		Name: d.Name,
+		Name:   d.Name,
+		Closed: d.Closed,
 	}
 }
 
@@ -2019,6 +2051,24 @@ func (h *Handler) DeleteAccountDeclaration(ctx context.Context, req *connect.Req
 		return nil, rpcErr(ctx, err, "delete account declaration failed", "name", req.Msg.Name)
 	}
 	return connect.NewResponse(&floatv1.DeleteAccountDeclarationResponse{}), nil
+}
+
+func (h *Handler) SetAccountClosed(ctx context.Context, req *connect.Request[floatv1.SetAccountClosedRequest]) (*connect.Response[floatv1.SetAccountClosedResponse], error) {
+	name := strings.TrimSpace(req.Msg.Name)
+	if name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
+	}
+	verb := "reopen"
+	if req.Msg.Closed {
+		verb = "close"
+	}
+	err := h.lock.Do(ctx, fmt.Sprintf("%s account: %s", verb, name), func() error {
+		return journal.SetAccountClosed(h.dataDir, name, req.Msg.Closed)
+	})
+	if err != nil {
+		return nil, rpcErr(ctx, err, "set account closed failed", "name", name, "closed", req.Msg.Closed)
+	}
+	return connect.NewResponse(&floatv1.SetAccountClosedResponse{}), nil
 }
 
 func (h *Handler) RenameAccount(ctx context.Context, req *connect.Request[floatv1.RenameAccountRequest]) (*connect.Response[floatv1.RenameAccountResponse], error) {

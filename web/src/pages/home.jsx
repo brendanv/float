@@ -11,6 +11,7 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { DashboardGrid, Page, PageCard } from "../components/page.jsx";
 import { PageHeader } from "../components/page-header.jsx";
+import { OPEN_ACCOUNTS_QUERY } from "@/lib/accounts";
 
 export function HomePage() {
   const initial = DATE_PRESETS[0].fn();
@@ -25,8 +26,8 @@ export function HomePage() {
   });
 
   const { data: balancesData } = useQuery({
-    queryKey: queryKeys.balances({ depth: 1, value: "now,USD" }),
-    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD" }),
+    queryKey: queryKeys.balances({ depth: 1, value: "now,USD", query: OPEN_ACCOUNTS_QUERY }),
+    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD", query: OPEN_ACCOUNTS_QUERY }),
   });
 
   const { data: accountBalancesData } = useQuery({
@@ -36,7 +37,9 @@ export function HomePage() {
 
   const balanceRows = balancesData?.report?.rows || [];
   const allAccounts = accountsData?.accounts || [];
-  const sidebarAccounts = allAccounts.filter((a) => a.type === "A" || a.type === "C" || a.type === "L");
+  const sidebarAccounts = allAccounts.filter(
+    (a) => !a.closed && (a.type === "A" || a.type === "C" || a.type === "L"),
+  );
   const accountBalanceRows = accountBalancesData?.report?.rows || [];
 
   return (

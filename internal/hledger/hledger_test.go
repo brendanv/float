@@ -1374,3 +1374,26 @@ func TestWaitUncontendedBlocksWhileSlotsBusy(t *testing.T) {
 		t.Fatal("WaitUncontended did not return after the slot freed up")
 	}
 }
+
+func TestClosedAccounts(t *testing.T) {
+	tests := []struct {
+		name    string
+		journal string
+		want    []string
+	}{
+		{name: "closed parent and inherited child", journal: "closed.journal", want: []string{"assets:old", "assets:old:savings"}},
+		{name: "no closed accounts", journal: "simple.journal", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := mustClient(t, tt.journal)
+			got, err := c.ClosedAccounts(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Errorf("ClosedAccounts() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
