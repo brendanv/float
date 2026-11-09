@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"context"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -36,6 +37,9 @@ func warmDispatchRunner(t *testing.T, calls *atomic.Int64) hledger.CommandRunner
 		case "print":
 			return []byte(printJSON), nil, nil
 		case "bal":
+			if slices.Contains(args, "svg") {
+				return []byte(`<svg xmlns="http://www.w3.org/2000/svg"><g><title>x</title></g></svg>`), nil, nil
+			}
 			return []byte(balJSON), nil, nil
 		case "bs":
 			return []byte(bsTimeseriesJSON), nil, nil
@@ -80,6 +84,7 @@ func TestWarmEntries_FixedSetAndExecution(t *testing.T) {
 		"transactions", "accounts", "closedaccounts", "tags", "payees",
 		"balances", "balancesvalued depth 0", "balancesvalued depth 1",
 		"balancesvalued depth 1 open", "networth", "incomestatement",
+		"chart:type:X", "chart:type:R",
 	}
 	if len(entries) != len(wantNames) {
 		t.Fatalf("WarmEntries() returned %d entries, want %d: %v", len(entries), len(wantNames), entries)

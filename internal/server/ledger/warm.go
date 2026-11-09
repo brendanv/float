@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"context"
 	"sync"
+	"time"
 
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/warm"
@@ -13,6 +14,15 @@ import (
 // requests depth-1 valued balances with exactly this query for its totals, so
 // it is warmed alongside the unfiltered depth-1 fetch.
 var openAccountsQuery = []string{"not:tag:" + hledger.ClosedAccountTag}
+
+// currentMonthQuery returns the hledger date query the web UI home page uses
+// for its default "this month" period: date:<first of month>..<first of next
+// month>, evaluated in loc.
+func currentMonthQuery(now time.Time, loc *time.Location) []string {
+	n := now.In(loc)
+	first := time.Date(n.Year(), n.Month(), 1, 0, 0, 0, 0, loc)
+	return []string{"date:" + first.Format(time.DateOnly) + ".." + first.AddDate(0, 1, 0).Format(time.DateOnly)}
+}
 
 // recentAccountsCap bounds the in-memory LRU of account names touched this
 // process lifetime, warmed alongside the fixed dataset set.
@@ -116,6 +126,16 @@ func (h *Handler) WarmEntries() []warm.Entry {
 			_, err := cachedIncomeStatement(ctx, h.cache, h.hl, "", "")
 			return err
 		}},
+	}
+	for _, spec := range homeInsightsChartSpecs(currentMonthQuery(time.Now(), h.loadCfg().Location())) {
+		spec := spec
+		entries = append(entries, warm.Entry{
+			Name: "chart:" + spec.Query[len(spec.Query)-1],
+			Load: func(ctx context.Context) error {
+				_, err := cachedChart(ctx, h.cache, h.hl, spec)
+				return err
+			},
+		})
 	}
 	for _, account := range h.recentAccounts.snapshot() {
 		account := account

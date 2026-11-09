@@ -127,6 +127,8 @@ const (
 	// LedgerServiceGetIncomeStatementTimeseriesProcedure is the fully-qualified name of the
 	// LedgerService's GetIncomeStatementTimeseries RPC.
 	LedgerServiceGetIncomeStatementTimeseriesProcedure = "/float.v1.LedgerService/GetIncomeStatementTimeseries"
+	// LedgerServiceGetChartProcedure is the fully-qualified name of the LedgerService's GetChart RPC.
+	LedgerServiceGetChartProcedure = "/float.v1.LedgerService/GetChart"
 	// LedgerServiceListBankProfilesProcedure is the fully-qualified name of the LedgerService's
 	// ListBankProfiles RPC.
 	LedgerServiceListBankProfilesProcedure = "/float.v1.LedgerService/ListBankProfiles"
@@ -308,6 +310,7 @@ type LedgerServiceClient interface {
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
 	GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error)
 	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
+	GetChart(context.Context, *connect.Request[v1.GetChartRequest]) (*connect.Response[v1.GetChartResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
 	CreateBankProfile(context.Context, *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error)
@@ -567,6 +570,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceGetIncomeStatementTimeseriesProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("GetIncomeStatementTimeseries")),
+			connect.WithClientOptions(opts...),
+		),
+		getChart: connect.NewClient[v1.GetChartRequest, v1.GetChartResponse](
+			httpClient,
+			baseURL+LedgerServiceGetChartProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("GetChart")),
 			connect.WithClientOptions(opts...),
 		),
 		listBankProfiles: connect.NewClient[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse](
@@ -900,6 +909,7 @@ type ledgerServiceClient struct {
 	restoreSnapshot              *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
 	getSnapshotDiff              *connect.Client[v1.GetSnapshotDiffRequest, v1.GetSnapshotDiffResponse]
 	getIncomeStatementTimeseries *connect.Client[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse]
+	getChart                     *connect.Client[v1.GetChartRequest, v1.GetChartResponse]
 	listBankProfiles             *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
 	createBankProfile            *connect.Client[v1.CreateBankProfileRequest, v1.CreateBankProfileResponse]
 	getBankProfileContent        *connect.Client[v1.GetBankProfileContentRequest, v1.GetBankProfileContentResponse]
@@ -1109,6 +1119,11 @@ func (c *ledgerServiceClient) GetSnapshotDiff(ctx context.Context, req *connect.
 // GetIncomeStatementTimeseries calls float.v1.LedgerService.GetIncomeStatementTimeseries.
 func (c *ledgerServiceClient) GetIncomeStatementTimeseries(ctx context.Context, req *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error) {
 	return c.getIncomeStatementTimeseries.CallUnary(ctx, req)
+}
+
+// GetChart calls float.v1.LedgerService.GetChart.
+func (c *ledgerServiceClient) GetChart(ctx context.Context, req *connect.Request[v1.GetChartRequest]) (*connect.Response[v1.GetChartResponse], error) {
+	return c.getChart.CallUnary(ctx, req)
 }
 
 // ListBankProfiles calls float.v1.LedgerService.ListBankProfiles.
@@ -1390,6 +1405,7 @@ type LedgerServiceHandler interface {
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
 	GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error)
 	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
+	GetChart(context.Context, *connect.Request[v1.GetChartRequest]) (*connect.Response[v1.GetChartResponse], error)
 	// Import
 	ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error)
 	CreateBankProfile(context.Context, *connect.Request[v1.CreateBankProfileRequest]) (*connect.Response[v1.CreateBankProfileResponse], error)
@@ -1645,6 +1661,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceGetIncomeStatementTimeseriesProcedure,
 		svc.GetIncomeStatementTimeseries,
 		connect.WithSchema(ledgerServiceMethods.ByName("GetIncomeStatementTimeseries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceGetChartHandler := connect.NewUnaryHandler(
+		LedgerServiceGetChartProcedure,
+		svc.GetChart,
+		connect.WithSchema(ledgerServiceMethods.ByName("GetChart")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceListBankProfilesHandler := connect.NewUnaryHandler(
@@ -2007,6 +2029,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetSnapshotDiffHandler.ServeHTTP(w, r)
 		case LedgerServiceGetIncomeStatementTimeseriesProcedure:
 			ledgerServiceGetIncomeStatementTimeseriesHandler.ServeHTTP(w, r)
+		case LedgerServiceGetChartProcedure:
+			ledgerServiceGetChartHandler.ServeHTTP(w, r)
 		case LedgerServiceListBankProfilesProcedure:
 			ledgerServiceListBankProfilesHandler.ServeHTTP(w, r)
 		case LedgerServiceCreateBankProfileProcedure:
@@ -2240,6 +2264,10 @@ func (UnimplementedLedgerServiceHandler) GetSnapshotDiff(context.Context, *conne
 
 func (UnimplementedLedgerServiceHandler) GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetIncomeStatementTimeseries is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) GetChart(context.Context, *connect.Request[v1.GetChartRequest]) (*connect.Response[v1.GetChartResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetChart is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) ListBankProfiles(context.Context, *connect.Request[v1.ListBankProfilesRequest]) (*connect.Response[v1.ListBankProfilesResponse], error) {

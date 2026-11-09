@@ -21,6 +21,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 - `AccountNode` — account tree/flat node from `hledger accounts --types`.
 - `BalanceSheetTimeseries` — monthly balance sheet/net worth data from `hledger bs`.
 - `IncomeStatementTimeseries`, `ISSubreport`, `ISRow` — monthly income statement data from `hledger is`.
+- `ChartSpec`, `Chart` — typed request/result for hledger's SVG charts (`-O svg`). `Chart.SVG` is sanitized markup safe to inline in the web UI.
 - `CheckError` — returned by `Check()` when `hledger check` exits non-zero; `.Output` contains stderr.
 
 ## Client Methods
@@ -34,6 +35,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 | `IncomeStatementTimeseries(ctx, begin, end)` | `is --monthly --tree -O json` | revenue/expense monthly dashboard |
 | `PortfolioTimeseries(ctx, accounts, begin)` | `bs ... --value=end,USD` | portfolio value for explicit holding accounts |
 | `PortfolioCostBasisTimeseries(ctx, accounts, begin)` | `bs ... --cost` | portfolio cost-basis timeseries |
+| `Chart(ctx, spec)` | `bal -O svg [--depth N] [--invert] [-S]` | sanitized SVG chart; see "SVG Charts" below |
 | `Register(ctx, query...)` | `reg -O json` | flat posting rows |
 | `Aregister(ctx, account, query...)` | `areg -O json` | account-focused transaction rows |
 | `Accounts(ctx, tree)` | `accounts --types [--tree]` | tree=true populates children |
@@ -58,6 +60,17 @@ Parsing helpers translate hledger's heterogeneous JSON arrays into typed structs
 `RunQuery` uses a deliberately small shell splitter that supports single and double quotes but not shell expansion or escapes. It automatically prepends `-f <journal>`. The first token must be an allowlisted read-only subcommand, and arguments that redirect hledger input/output (`-f`, `-o`, `--file`, `--output-file`, `--rules-file`) are rejected with `ErrUnsafeQuery`.
 
 All typed query methods (`Balances`, `Register`, `Transactions`, `Aregister`, ...) reject query terms starting with `-` with `ErrUnsafeQuery` — hledger parses flags anywhere in argv, so a flag-shaped query token could otherwise redirect output and bypass txlock.
+
+## SVG Charts (`chart.go`)
+
+`Chart` renders a chart with hledger's built-in `-O svg` output (single-period `bal` only for now; add `ChartKind`s for other reports) and passes it through `sanitizeSVG` before returning:
+
+- Re-serializes the XML through an element/attribute allowlist covering what hledger emits; anything else (`script`, `foreignObject`, event handlers, `href`, `style` attributes, non-fragment `url()`) is dropped, as is a `<style>` that loads resources. hledger already escapes journal text; this is defence in depth because the web UI inlines the markup.
+- Prefixes every `id` and `url(#id)` reference with a content hash, since hledger derives clip-path IDs from bar geometry and multiple charts share one page.
+- With `ChartSpec.DarkSelector` set, rescopes hledger's `@media (prefers-color-scheme:dark)` block to `:where(<selector>) .hledger-chart ...`, so the chart follows a class-toggled theme at unchanged specificity.
+- `Chart.Title` is the root `<title>` (single-period `bal` charts have none); `Chart.Empty` is true when no data series (`<g>`) were drawn.
+
+When upgrading hledger, rerun the chart tests and `go run ./scripts/gen-chart-fixtures` (web Playwright fixtures); a new element or attribute in hledger's output is silently dropped until added to the allowlists.
 
 ## Testing
 

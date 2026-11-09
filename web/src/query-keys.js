@@ -1,6 +1,7 @@
 export const queryKeys = {
   accounts:             () => ["accounts"],
   balances:             (params) => ["balances", params],
+  chart:                (params) => ["chart", params],
   transactions:         (params) => ["transactions", params],
   accountRegister:      (params) => ["accountRegister", params],
   tags:                 () => ["tags"],

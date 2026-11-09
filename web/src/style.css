@@ -235,3 +235,39 @@ input[type="date"]::-webkit-date-and-time-value {
 input[type="date"]::-webkit-calendar-picker-indicator {
   flex-shrink: 0;
 }
+
+/*
+ * hledger SVG charts (GetChart, rendered by components/hledger-chart.jsx).
+ * hledger draws a self-contained chart with its own palette; map its chrome
+ * (background, text, grid, totals) onto the app theme tokens so it follows
+ * light/dark mode, and keep hledger's account-type series colours. These
+ * selectors out-rank hledger's embedded `.hledger-chart .x` rules (whose dark
+ * variants floatd rescopes to `:where(.dark)`).
+ *
+ * The chart's coordinate space is a fixed 880px wide and scales to fit, so on
+ * narrow screens keep a minimum width and scroll rather than shrink text.
+ */
+.hledger-chart-host {
+  overflow-x: auto;
+}
+.hledger-chart-host .hledger-chart {
+  display: block;
+  width: 100%;
+  min-width: 560px;
+  max-width: none;
+  height: auto;
+  font-family: inherit;
+}
+.hledger-chart-host .hledger-chart .bg { fill: transparent; }
+.hledger-chart-host .hledger-chart .title,
+.hledger-chart-host .hledger-chart .heading { fill: var(--foreground); }
+.hledger-chart-host .hledger-chart .label,
+.hledger-chart-host .hledger-chart .value,
+.hledger-chart-host .hledger-chart .tick { fill: var(--muted-foreground); }
+.hledger-chart-host .hledger-chart .grid { stroke: var(--border); }
+.hledger-chart-host .hledger-chart .axis { stroke: var(--input); }
+.hledger-chart-host .hledger-chart .line.total,
+.hledger-chart-host .hledger-chart .mark.total,
+.hledger-chart-host .hledger-chart .average { stroke: var(--foreground); }
+.hledger-chart-host .hledger-chart .clip { fill: var(--foreground); }
+.hledger-chart-host .hledger-chart .hatch { stroke: var(--card); }

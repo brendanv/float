@@ -1397,3 +1397,91 @@ func TestClosedAccounts(t *testing.T) {
 		})
 	}
 }
+
+func TestChart(t *testing.T) {
+	tests := []struct {
+		name      string
+		journal   string
+		spec      hledger.ChartSpec
+		want      []string
+		notWant   []string
+		wantEmpty bool
+		wantErr   error
+	}{
+		{
+			name:    "expense bars sorted by amount",
+			journal: "simple.journal",
+			spec:    hledger.ChartSpec{Kind: hledger.ChartBalance, Depth: 2, SortByAmount: true, Query: []string{"expenses"}},
+			want:    []string{`class="hledger-chart"`, "<title>expenses:food · Balance · $120.00</title>", "<title>expenses:shopping · Balance · $60.00</title>"},
+		},
+		{
+			name:    "inverted revenue is positive",
+			journal: "simple.journal",
+			spec:    hledger.ChartSpec{Kind: hledger.ChartBalance, Invert: true, Query: []string{"income"}},
+			want:    []string{"<title>income:salary · Balance · $7000.00</title>"},
+		},
+		{
+			name:    "dark styles rescoped to selector",
+			journal: "simple.journal",
+			spec:    hledger.ChartSpec{Kind: hledger.ChartBalance, DarkSelector: ".dark", Query: []string{"expenses"}},
+			want:    []string{":where(.dark) .hledger-chart .bg{"},
+			notWant: []string{"prefers-color-scheme"},
+		},
+		{
+			name:      "no matching postings is empty",
+			journal:   "simple.journal",
+			spec:      hledger.ChartSpec{Kind: hledger.ChartBalance, Query: []string{"date:2030"}},
+			wantEmpty: true,
+		},
+		{
+			name:      "empty journal",
+			journal:   "empty.journal",
+			spec:      hledger.ChartSpec{Kind: hledger.ChartBalance},
+			wantEmpty: true,
+		},
+		{
+			name:    "flag-shaped query rejected",
+			journal: "simple.journal",
+			spec:    hledger.ChartSpec{Kind: hledger.ChartBalance, Query: []string{"-o/tmp/x.svg"}},
+			wantErr: hledger.ErrUnsafeQuery,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := mustClient(t, tt.journal)
+			got, err := c.Chart(t.Context(), tt.spec)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("Chart() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Chart() error = %v", err)
+			}
+			if !strings.HasPrefix(got.SVG, `<svg xmlns="http://www.w3.org/2000/svg"`) {
+				t.Errorf("SVG does not start with an <svg> root: %.80s", got.SVG)
+			}
+			for _, s := range tt.want {
+				if !strings.Contains(got.SVG, s) {
+					t.Errorf("SVG missing %q", s)
+				}
+			}
+			for _, s := range tt.notWant {
+				if strings.Contains(got.SVG, s) {
+					t.Errorf("SVG unexpectedly contains %q", s)
+				}
+			}
+			if got.Empty != tt.wantEmpty {
+				t.Errorf("Empty = %v, want %v", got.Empty, tt.wantEmpty)
+			}
+		})
+	}
+}
+
+func TestChartUnknownKind(t *testing.T) {
+	c := mustClient(t, "simple.journal")
+	if _, err := c.Chart(t.Context(), hledger.ChartSpec{}); err == nil {
+		t.Fatal("Chart() with zero Kind: want error")
+	}
+}

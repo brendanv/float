@@ -1,84 +1,48 @@
-import { useQuery } from "@tanstack/react-query";
-import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
-import { cn } from "@/lib/utils";
-import { formatAmounts } from "../format.js";
+import { ChartKind } from "@/gen/float/v1/ledger_pb.js";
+import { HledgerChartSvg, useHledgerChart } from "./hledger-chart.jsx";
+import { Loading } from "./loading.jsx";
+import { ErrorBanner } from "./error-banner.jsx";
 
-function parseAmount(amounts) {
-  if (!amounts || amounts.length === 0) return 0;
-  return Math.abs(parseFloat(amounts[0].quantity) || 0);
+function insightsChartParams(periodQuery, typeQuery, invert) {
+  return {
+    kind: ChartKind.BALANCE,
+    depth: 2,
+    sortByAmount: true,
+    invert,
+    query: [...periodQuery, typeQuery],
+  };
 }
 
-function BarChart({ rows, colorClass }) {
-  if (!rows || rows.length === 0) return null;
-
-  const maxVal = Math.max(...rows.map((r) => parseAmount(r.amounts)), 1);
-
+function ChartSection({ title, chart }) {
+  if (!chart || chart.empty) return null;
   return (
-    <div className="flex flex-col gap-1">
-      {rows.map((row) => {
-        const val = parseAmount(row.amounts);
-        const pct = (val / maxVal) * 100;
-        return (
-          <div key={row.fullName} className="flex items-center gap-2">
-            <span
-              className="w-2/5 flex-none truncate pr-1 text-right text-xs text-muted-foreground"
-              title={row.fullName}
-            >
-              {row.displayName || row.fullName}
-            </span>
-            <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
-              <div
-                className={cn("h-full rounded transition-all duration-300", colorClass)}
-                style={{ width: pct + "%" }}
-              />
-            </div>
-            <span className="w-20 flex-none text-right font-mono text-xs sm:w-24">
-              {formatAmounts(row.amounts)}
-            </span>
-          </div>
-        );
-      })}
+    <div className="mb-6">
+      <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h5>
+      <HledgerChartSvg chart={chart} />
     </div>
   );
 }
 
+// Keep these params in sync with homeInsightsChartSpecs in
+// internal/server/ledger/handler_chart.go, which warms them for this month.
 export function InsightsChart({ periodQuery }) {
-  const expenseParams = { depth: 2, query: [...periodQuery, "type:X"] };
-  const revenueParams = { depth: 2, query: [...periodQuery, "type:R"] };
+  const expenses = useHledgerChart(insightsChartParams(periodQuery, "type:X", false));
+  // Revenues are negative in hledger; invert so their bars grow upward.
+  const revenue = useHledgerChart(insightsChartParams(periodQuery, "type:R", true));
 
-  const { data: expensesData, isLoading: expensesLoading } = useQuery({
-    queryKey: queryKeys.balances(expenseParams),
-    queryFn: () => ledgerClient.getBalances(expenseParams),
-  });
+  if (expenses.isLoading || revenue.isLoading) return <Loading />;
+  if (expenses.error || revenue.error) {
+    return <ErrorBanner error={expenses.error || revenue.error} />;
+  }
 
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
-    queryKey: queryKeys.balances(revenueParams),
-    queryFn: () => ledgerClient.getBalances(revenueParams),
-  });
-
-  const expenseRows = expensesData?.report?.rows || [];
-  const revenueRows = revenueData?.report?.rows || [];
-
+  const bothEmpty = expenses.data?.empty && revenue.data?.empty;
   return (
     <div>
-      {expenseRows.length > 0 && (
-        <div className="mb-6">
-          <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Expenses
-          </h5>
-          <BarChart rows={expenseRows} colorClass="bg-destructive" />
-        </div>
-      )}
-      {revenueRows.length > 0 && (
-        <div className="mb-6">
-          <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Revenue
-          </h5>
-          <BarChart rows={revenueRows} colorClass="bg-success" />
-        </div>
-      )}
-      {expenseRows.length === 0 && revenueRows.length === 0 && !expensesLoading && !revenueLoading && (
+      <ChartSection title="Expenses" chart={expenses.data} />
+      <ChartSection title="Revenue" chart={revenue.data} />
+      {bothEmpty && (
         <p className="text-sm text-muted-foreground">No expense or revenue data for this period.</p>
       )}
     </div>

@@ -94,6 +94,31 @@ message GetIncomeStatementTimeseriesResponse {
   repeated AmountList net_amounts = 3; // net income per period
 }
 
+// ChartKind selects which hledger report a chart is drawn from.
+enum ChartKind {
+  CHART_KIND_UNSPECIFIED = 0;
+  // Single-period `hledger balance` chart: one bar per account.
+  CHART_KIND_BALANCE = 1;
+}
+
+message GetChartRequest {
+  ChartKind kind = 1;
+  repeated string query = 2;
+  int32 depth = 3;           // 0 = no --depth flag
+  bool invert = 4;           // --invert, e.g. to draw revenues as positive
+  bool sort_by_amount = 5;   // -S, largest amounts first
+}
+
+// GetChartResponse carries an hledger-rendered SVG chart. The markup is
+// sanitized server-side (allowlisted SVG elements/attributes only, IDs
+// namespaced per chart) so clients can inline it. Dark-mode styles apply
+// under an ancestor with the `dark` class.
+message GetChartResponse {
+  string svg = 1;
+  string title = 2;  // hledger's chart title; "" if none
+  bool empty = 3;    // true when the report has no data to draw
+}
+
 message ListTransactionsRequest {
   repeated string query = 1; // hledger query tokens (optional)
   int32 limit = 2;           // max transactions to return; 0 = no limit
@@ -1097,6 +1122,7 @@ service LedgerService {
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
   rpc GetSnapshotDiff(GetSnapshotDiffRequest) returns (GetSnapshotDiffResponse);
   rpc GetIncomeStatementTimeseries(GetIncomeStatementTimeseriesRequest) returns (GetIncomeStatementTimeseriesResponse);
+  rpc GetChart(GetChartRequest) returns (GetChartResponse);
 
   // Import
   rpc ListBankProfiles(ListBankProfilesRequest) returns (ListBankProfilesResponse);

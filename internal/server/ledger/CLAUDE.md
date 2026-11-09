@@ -22,12 +22,13 @@ Current cached families include:
 - `networth:<begin>:<end>`
 - `incomestmt:<begin>:<end>`
 - `portfolio:<accounts>:<begin>` and `portfoliocost:<accounts>:<begin>`
+- `chart:<kind>:<depth>:<invert>:<sortByAmount>:<sorted-query>`
 
 Pagination (`limit`/`offset`) is applied after loading/caching the full hledger result.
 
 ## Proactive Warming (`warm.go`)
 
-`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`closedaccounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1 (plus depth 1 with `openAccountsQuery`, the home page totals query), full-history `networth`/`incomestmt`, plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
+`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`closedaccounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1 (plus depth 1 with `openAccountsQuery`, the home page totals query), full-history `networth`/`incomestmt`, the home page Insights charts for the current month in the configured timezone (`homeInsightsChartSpecs` + `currentMonthQuery`, entries `chart:type:X`/`chart:type:R` — keep in sync with `web/src/components/insights-chart.jsx`), plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
 
 ## Filtering in Go (`internal/txfilter`)
 
@@ -41,7 +42,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 ## RPC Categories
 
-**Cached queries:** `ListTransactions`, `GetBalances`, `GetAccountRegister`, `ListAccounts`, `ListTags`, `ListPayees`, `GetNetWorthTimeseries`, `GetIncomeStatementTimeseries`, portfolio timeseries helpers.
+**Cached queries:** `ListTransactions`, `GetBalances`, `GetAccountRegister`, `ListAccounts`, `ListTags`, `ListPayees`, `GetNetWorthTimeseries`, `GetIncomeStatementTimeseries`, `GetChart`, portfolio timeseries helpers.
 
 **Read/query helpers with limited or no cache:** `GetPortfolioHoldings` (uses balances plus `prices.journal`), `GetBalanceAssertionStatus`, `ListPrices`, `ListAccountDeclarations`, `ListSnapshots`, `GetSnapshotDiff`, `ListBankProfiles`, `GetBankProfileContent`, `PreviewImport`, `GetImportedTransactions`, `ListImports`, `GetImportFile`, `ListRules`, `PreviewApplyRules`, settings reads, `RunHledgerQuery`, `ExportJournal`, and `StreamLogs`.
 
@@ -54,6 +55,10 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 ### Transactions / Bulk Editing
 
 Transaction writes convert proto input into `journal.TransactionInput`, call journal text helpers under txlock, then re-read via hledger before returning. Bulk edit supports mark reviewed/unreviewed, add/remove tag, set/clear payee, and delete. Bulk delete streams progress.
+
+### Charts
+
+`GetChart` (`handler_chart.go`) maps a `ChartKind` plus typed options to `hledger.ChartSpec` and returns hledger's sanitized SVG (`svg`, `title`, `empty`). Dark-mode styles are always rescoped to `.dark` (`chartDarkSelector`), the web UI's theme class. Unknown kinds, negative depth and flag-shaped query terms are `InvalidArgument`.
 
 ### Prices / Portfolio / Alpha Vantage
 

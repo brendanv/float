@@ -99,6 +99,10 @@ Invalidate the relevant query keys after mutations. Keep query-key construction 
 
 Add components with `bunx shadcn@latest add <component>`, which writes to `src/components/ui/`. Use the `shadcn` skill when composing or repairing shadcn components.
 
+## hledger Charts
+
+Prefer hledger's own SVG charts over hand-rolled ones where hledger has a fitting chart. `src/components/hledger-chart.jsx` exports `useHledgerChart(params)` (calls `GetChart`) and `HledgerChartSvg`, which inlines the server-sanitized SVG. `style.css` (`.hledger-chart-host`) maps the chart's background/text/grid onto theme tokens and gives it a minimum width with horizontal scroll on narrow screens; series colours are hledger's. Playwright mocks serve real chart SVGs from `tests/fixtures/chart-*.svg`, generated from `tests/fixtures/charts.journal` by `go run ./scripts/gen-chart-fixtures` (rerun after hledger upgrades).
+
 ## Screenshots / Visual Testing
 
 Playwright specs in `tests/` mock ConnectRPC responses using `tests/mock-api.js`; no live server is required. Desktop, mobile, and feature-specific screenshot specs cover major pages. Use the `web-screenshots` skill or `bun run screenshots` to regenerate. Config lives in `playwright.config.js`.

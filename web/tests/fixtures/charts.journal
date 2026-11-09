@@ -1,0 +1,44 @@
+; Source journal for the mocked GetChart SVGs in this directory.
+; Regenerate with: go run ./scripts/gen-chart-fixtures
+; Amounts mirror mockExpenseBalanceRows / mockRevenueBalanceRows in mock-api.js.
+account assets:checking      ; type: A
+account income:salary        ; type: R
+account expenses:rent        ; type: X
+account expenses:groceries   ; type: X
+account expenses:dining      ; type: X
+account expenses:utilities   ; type: X
+account expenses:subscriptions ; type: X
+account expenses:transport   ; type: X
+account expenses:shopping    ; type: X
+
+2026-04-01 Employer | Salary
+    assets:checking         $5200.00
+    income:salary
+
+2026-04-02 Landlord | Rent
+    expenses:rent           $1500.00
+    assets:checking
+
+2026-04-05 Market | Groceries
+    expenses:groceries       $450.00
+    assets:checking
+
+2026-04-08 Bistro | Dinner
+    expenses:dining          $210.00
+    assets:checking
+
+2026-04-10 Power Co | Electricity
+    expenses:utilities       $175.00
+    assets:checking
+
+2026-04-12 Streaming | Subscriptions
+    expenses:subscriptions    $57.43
+    assets:checking
+
+2026-04-14 Transit | Fare
+    expenses:transport        $57.45
+    assets:checking
+
+2026-04-18 Store | Shopping
+    expenses:shopping         $34.99
+    assets:checking

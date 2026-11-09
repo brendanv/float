@@ -2,6 +2,18 @@
 // The Connect protocol sends POST requests with JSON bodies; responses are
 // plain JSON objects matching the proto message shapes.
 
+import { readFileSync } from "node:fs";
+
+// GetChart SVGs rendered by floatd's real chart path from
+// tests/fixtures/charts.journal (go run ./scripts/gen-chart-fixtures).
+const chartFixture = (name) =>
+  readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
+export const mockChartSvgs = {
+  expenses: chartFixture("chart-expenses.svg"),
+  revenue: chartFixture("chart-revenue.svg"),
+  empty: chartFixture("chart-empty.svg"),
+};
+
 export const mockAccounts = [
   { name: "assets", fullName: "assets", type: "A", depth: 1 },
   { name: "checking", fullName: "assets:checking", type: "A", depth: 2 },
@@ -1511,6 +1523,7 @@ export async function mockLedgerApi(
     portfolioHoldings,
     stripeEnabled = true,
     aiEnabled = true,
+    chartsEmpty = false,
   } = {},
 ) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
@@ -1607,6 +1620,19 @@ export async function mockLedgerApi(
         else
           rows = reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows;
         body = { report: { rows } };
+        break;
+      }
+      case "GetChart": {
+        const query = reqBody.query || [];
+        if (chartsEmpty) {
+          body = { svg: mockChartSvgs.empty, empty: true };
+        } else if (query.includes("type:X")) {
+          body = { svg: mockChartSvgs.expenses };
+        } else if (query.includes("type:R")) {
+          body = { svg: mockChartSvgs.revenue };
+        } else {
+          body = { svg: mockChartSvgs.empty, empty: true };
+        }
         break;
       }
       case "ListPayees": {

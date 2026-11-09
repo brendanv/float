@@ -1,0 +1,213 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="hledger-chart" width="880" height="338" viewBox="0 0 880 338" role="img">
+<style>.hledger-chart{max-width:100%;height:auto;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px}
+.hledger-chart .title{font-size:17px;font-weight:600}
+.hledger-chart .heading{font-size:15px;font-weight:600}
+.hledger-chart .value,.hledger-chart .tick{font-variant-numeric:tabular-nums}
+.hledger-chart .grid,.hledger-chart .axis{stroke-width:1}
+.hledger-chart .line{fill:none;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
+.hledger-chart .mark{stroke-width:2.5}
+.hledger-chart .average{stroke-width:2;stroke-dasharray:5 4}
+.hledger-chart .hit,.hledger-chart .plot{fill:transparent}
+.hledger-chart .hatch{stroke-width:2.5}
+.hledger-chart .bg{fill:#fcfcfb}
+.hledger-chart .title{fill:#0b0b0b}
+.hledger-chart .heading{fill:#0b0b0b}
+.hledger-chart .label{fill:#52514e}
+.hledger-chart .value{fill:#52514e}
+.hledger-chart .tick{fill:#898781}
+.hledger-chart .grid{stroke:#e1e0d9}
+.hledger-chart .axis{stroke:#c3c2b7}
+.hledger-chart .line.total{stroke:#0b0b0b}
+.hledger-chart .mark.total{stroke:#0b0b0b}
+.hledger-chart .average{stroke:#0b0b0b}
+.hledger-chart .clip{fill:#0b0b0b}
+.hledger-chart .hatch{stroke:#fcfcfb}
+.hledger-chart .fill.ta0{fill:#2a78d6}
+.hledger-chart .line.ta0{stroke:#2a78d6}
+.hledger-chart .fill.ta1{fill:#1d5496}
+.hledger-chart .line.ta1{stroke:#1d5496}
+.hledger-chart .fill.ta2{fill:#7faee6}
+.hledger-chart .line.ta2{stroke:#7faee6}
+.hledger-chart .fill.ta3{fill:#b4d0f1}
+.hledger-chart .line.ta3{stroke:#b4d0f1}
+.hledger-chart .fill.tl0{fill:#eda100}
+.hledger-chart .line.tl0{stroke:#eda100}
+.hledger-chart .fill.tl1{fill:#a67100}
+.hledger-chart .line.tl1{stroke:#a67100}
+.hledger-chart .fill.tl2{fill:#f4c766}
+.hledger-chart .line.tl2{stroke:#f4c766}
+.hledger-chart .fill.tl3{fill:#f9dea6}
+.hledger-chart .line.tl3{stroke:#f9dea6}
+.hledger-chart .fill.te0{fill:#4a3aa7}
+.hledger-chart .line.te0{stroke:#4a3aa7}
+.hledger-chart .fill.te1{fill:#342975}
+.hledger-chart .line.te1{stroke:#342975}
+.hledger-chart .fill.te2{fill:#9289ca}
+.hledger-chart .line.te2{stroke:#9289ca}
+.hledger-chart .fill.te3{fill:#c0bae0}
+.hledger-chart .line.te3{stroke:#c0bae0}
+.hledger-chart .fill.tr0{fill:#008300}
+.hledger-chart .line.tr0{stroke:#008300}
+.hledger-chart .fill.tr1{fill:#005c00}
+.hledger-chart .line.tr1{stroke:#005c00}
+.hledger-chart .fill.tr2{fill:#66b566}
+.hledger-chart .line.tr2{stroke:#66b566}
+.hledger-chart .fill.tr3{fill:#a6d4a6}
+.hledger-chart .line.tr3{stroke:#a6d4a6}
+.hledger-chart .fill.tx0{fill:#e34948}
+.hledger-chart .line.tx0{stroke:#e34948}
+.hledger-chart .fill.tx1{fill:#9f3332}
+.hledger-chart .line.tx1{stroke:#9f3332}
+.hledger-chart .fill.tx2{fill:#ee9291}
+.hledger-chart .line.tx2{stroke:#ee9291}
+.hledger-chart .fill.tx3{fill:#f5bfbf}
+.hledger-chart .line.tx3{stroke:#f5bfbf}
+.hledger-chart .fill.s0{fill:#2a78d6}
+.hledger-chart .line.s0{stroke:#2a78d6}
+.hledger-chart .fill.s1{fill:#eb6834}
+.hledger-chart .line.s1{stroke:#eb6834}
+.hledger-chart .fill.s2{fill:#1baf7a}
+.hledger-chart .line.s2{stroke:#1baf7a}
+.hledger-chart .fill.s3{fill:#eda100}
+.hledger-chart .line.s3{stroke:#eda100}
+.hledger-chart .fill.s4{fill:#e87ba4}
+.hledger-chart .line.s4{stroke:#e87ba4}
+.hledger-chart .fill.s5{fill:#008300}
+.hledger-chart .line.s5{stroke:#008300}
+.hledger-chart .fill.s6{fill:#4a3aa7}
+.hledger-chart .line.s6{stroke:#4a3aa7}
+.hledger-chart .fill.s7{fill:#e34948}
+.hledger-chart .line.s7{stroke:#e34948}
+.hledger-chart .fill.other{fill:#898781}
+.hledger-chart .line.other{stroke:#898781}
+.hledger-chart .fill.oa{fill:#6381a3}
+.hledger-chart .line.oa{stroke:#6381a3}
+.hledger-chart .fill.ol{fill:#b1914d}
+.hledger-chart .line.ol{stroke:#b1914d}
+.hledger-chart .fill.oe{fill:#706890}
+.hledger-chart .line.oe{stroke:#706890}
+.hledger-chart .fill.or{fill:#52854d}
+.hledger-chart .line.or{stroke:#52854d}
+.hledger-chart .fill.ox{fill:#ad6e6a}
+.hledger-chart .line.ox{stroke:#ad6e6a}
+.hledger-chart .fill.lone{fill:#1597b0}
+.hledger-chart .line.lone{stroke:#1597b0}
+.hledger-chart .fill.neutral{fill:#52514e}
+.hledger-chart .line.neutral{stroke:#52514e}
+
+:where(.dark) .hledger-chart .bg{fill:#1a1a19}
+:where(.dark) .hledger-chart .title{fill:#ffffff}
+:where(.dark) .hledger-chart .heading{fill:#ffffff}
+:where(.dark) .hledger-chart .label{fill:#c3c2b7}
+:where(.dark) .hledger-chart .value{fill:#c3c2b7}
+:where(.dark) .hledger-chart .tick{fill:#898781}
+:where(.dark) .hledger-chart .grid{stroke:#2c2c2a}
+:where(.dark) .hledger-chart .axis{stroke:#383835}
+:where(.dark) .hledger-chart .line.total{stroke:#ffffff}
+:where(.dark) .hledger-chart .mark.total{stroke:#ffffff}
+:where(.dark) .hledger-chart .average{stroke:#ffffff}
+:where(.dark) .hledger-chart .clip{fill:#ffffff}
+:where(.dark) .hledger-chart .hatch{stroke:#1a1a19}
+:where(.dark) .hledger-chart .fill.ta0{fill:#3987e5}
+:where(.dark) .hledger-chart .line.ta0{stroke:#3987e5}
+:where(.dark) .hledger-chart .fill.ta1{fill:#88b7ef}
+:where(.dark) .hledger-chart .line.ta1{stroke:#88b7ef}
+:where(.dark) .hledger-chart .fill.ta2{fill:#285ea0}
+:where(.dark) .hledger-chart .line.ta2{stroke:#285ea0}
+:where(.dark) .hledger-chart .fill.ta3{fill:#bad5f6}
+:where(.dark) .hledger-chart .line.ta3{stroke:#bad5f6}
+:where(.dark) .hledger-chart .fill.tl0{fill:#c98500}
+:where(.dark) .hledger-chart .line.tl0{stroke:#c98500}
+:where(.dark) .hledger-chart .fill.tl1{fill:#dfb666}
+:where(.dark) .hledger-chart .line.tl1{stroke:#dfb666}
+:where(.dark) .hledger-chart .fill.tl2{fill:#8d5d00}
+:where(.dark) .hledger-chart .line.tl2{stroke:#8d5d00}
+:where(.dark) .hledger-chart .fill.tl3{fill:#ecd4a6}
+:where(.dark) .hledger-chart .line.tl3{stroke:#ecd4a6}
+:where(.dark) .hledger-chart .fill.te0{fill:#9085e9}
+:where(.dark) .hledger-chart .line.te0{stroke:#9085e9}
+:where(.dark) .hledger-chart .fill.te1{fill:#bcb6f2}
+:where(.dark) .hledger-chart .line.te1{stroke:#bcb6f2}
+:where(.dark) .hledger-chart .fill.te2{fill:#655da3}
+:where(.dark) .hledger-chart .line.te2{stroke:#655da3}
+:where(.dark) .hledger-chart .fill.te3{fill:#d8d4f7}
+:where(.dark) .hledger-chart .line.te3{stroke:#d8d4f7}
+:where(.dark) .hledger-chart .fill.tr0{fill:#008300}
+:where(.dark) .hledger-chart .line.tr0{stroke:#008300}
+:where(.dark) .hledger-chart .fill.tr1{fill:#66b566}
+:where(.dark) .hledger-chart .line.tr1{stroke:#66b566}
+:where(.dark) .hledger-chart .fill.tr2{fill:#005c00}
+:where(.dark) .hledger-chart .line.tr2{stroke:#005c00}
+:where(.dark) .hledger-chart .fill.tr3{fill:#a6d4a6}
+:where(.dark) .hledger-chart .line.tr3{stroke:#a6d4a6}
+:where(.dark) .hledger-chart .fill.tx0{fill:#e66767}
+:where(.dark) .hledger-chart .line.tx0{stroke:#e66767}
+:where(.dark) .hledger-chart .fill.tx1{fill:#f0a4a4}
+:where(.dark) .hledger-chart .line.tx1{stroke:#f0a4a4}
+:where(.dark) .hledger-chart .fill.tx2{fill:#a14848}
+:where(.dark) .hledger-chart .line.tx2{stroke:#a14848}
+:where(.dark) .hledger-chart .fill.tx3{fill:#f6caca}
+:where(.dark) .hledger-chart .line.tx3{stroke:#f6caca}
+:where(.dark) .hledger-chart .fill.s0{fill:#3987e5}
+:where(.dark) .hledger-chart .line.s0{stroke:#3987e5}
+:where(.dark) .hledger-chart .fill.s1{fill:#d95926}
+:where(.dark) .hledger-chart .line.s1{stroke:#d95926}
+:where(.dark) .hledger-chart .fill.s2{fill:#199e70}
+:where(.dark) .hledger-chart .line.s2{stroke:#199e70}
+:where(.dark) .hledger-chart .fill.s3{fill:#c98500}
+:where(.dark) .hledger-chart .line.s3{stroke:#c98500}
+:where(.dark) .hledger-chart .fill.s4{fill:#d55181}
+:where(.dark) .hledger-chart .line.s4{stroke:#d55181}
+:where(.dark) .hledger-chart .fill.s5{fill:#008300}
+:where(.dark) .hledger-chart .line.s5{stroke:#008300}
+:where(.dark) .hledger-chart .fill.s6{fill:#9085e9}
+:where(.dark) .hledger-chart .line.s6{stroke:#9085e9}
+:where(.dark) .hledger-chart .fill.s7{fill:#e66767}
+:where(.dark) .hledger-chart .line.s7{stroke:#e66767}
+:where(.dark) .hledger-chart .fill.other{fill:#898781}
+:where(.dark) .hledger-chart .line.other{stroke:#898781}
+:where(.dark) .hledger-chart .fill.oa{fill:#6987a9}
+:where(.dark) .hledger-chart .line.oa{stroke:#6987a9}
+:where(.dark) .hledger-chart .fill.ol{fill:#a3864d}
+:where(.dark) .hledger-chart .line.ol{stroke:#a3864d}
+:where(.dark) .hledger-chart .fill.oe{fill:#8c86ab}
+:where(.dark) .hledger-chart .line.oe{stroke:#8c86ab}
+:where(.dark) .hledger-chart .fill.or{fill:#52854d}
+:where(.dark) .hledger-chart .line.or{stroke:#52854d}
+:where(.dark) .hledger-chart .fill.ox{fill:#ae7a77}
+:where(.dark) .hledger-chart .line.ox{stroke:#ae7a77}
+:where(.dark) .hledger-chart .fill.lone{fill:#22a6be}
+:where(.dark) .hledger-chart .line.lone{stroke:#22a6be}
+:where(.dark) .hledger-chart .fill.neutral{fill:#c3c2b7}
+:where(.dark) .hledger-chart .line.neutral{stroke:#c3c2b7}
+
+</style>
+<rect class="bg" width="100%" height="100%"></rect>
+<line class="axis" x1="70.7" x2="864" y1="296" y2="296"></line>
+<text class="tick" x="62.7" y="301" text-anchor="end">0</text>
+<line class="grid" x1="70.7" x2="864" y1="252.7" y2="252.7"></line>
+<text class="tick" x="62.7" y="257.7" text-anchor="end">1000</text>
+<line class="grid" x1="70.7" x2="864" y1="209.3" y2="209.3"></line>
+<text class="tick" x="62.7" y="214.3" text-anchor="end">2000</text>
+<line class="grid" x1="70.7" x2="864" y1="166" y2="166"></line>
+<text class="tick" x="62.7" y="171" text-anchor="end">3000</text>
+<line class="grid" x1="70.7" x2="864" y1="122.7" y2="122.7"></line>
+<text class="tick" x="62.7" y="127.7" text-anchor="end">4000</text>
+<line class="grid" x1="70.7" x2="864" y1="79.3" y2="79.3"></line>
+<text class="tick" x="62.7" y="84.3" text-anchor="end">5000</text>
+<line class="grid" x1="70.7" x2="864" y1="36" y2="36"></line>
+<text class="tick" x="62.7" y="41" text-anchor="end">$6000</text>
+<text class="label" x="467.4" y="312" text-anchor="middle">income:salary</text>
+<defs>
+<clipPath id="hcfbec1d7d-hledger-chart-clip-barv_435.4_296_-225.3">
+<path d="M 435.4 296 V 73.7 Q 435.4 70.7 438.4 70.7 H 496.4 Q 499.4 70.7 499.4 73.7 V 296 Z"></path>
+</clipPath>
+</defs>
+<g clip-path="url(#hcfbec1d7d-hledger-chart-clip-barv_435.4_296_-225.3)">
+<g>
+<title>income:salary · Balance · $5200.00</title>
+<path class="fill tr0" d="M 435.4 296 V 70.7 Q 435.4 70.7 435.4 70.7 H 499.4 Q 499.4 70.7 499.4 70.7 V 296 Z"></path>
+</g>
+</g>
+<text class="value" x="467.4" y="64.7" text-anchor="middle">$5200.00</text>
+</svg>
