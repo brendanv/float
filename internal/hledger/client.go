@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"os/exec"
 	"strings"
 	"sync"
@@ -732,22 +731,7 @@ func sumAmounts(amounts []Amount) []Amount {
 			out = append(out, a)
 			continue
 		}
-		sum := &out[i]
-		places := max(sum.Quantity.DecimalPlaces, a.Quantity.DecimalPlaces)
-		sm := scaleMantissa(sum.Quantity.DecimalMantissa, places-sum.Quantity.DecimalPlaces)
-		am := scaleMantissa(a.Quantity.DecimalMantissa, places-a.Quantity.DecimalPlaces)
-		sum.Quantity = AmountQuantity{
-			DecimalMantissa: sm + am,
-			DecimalPlaces:   places,
-			FloatingPoint:   float64(sm+am) / math.Pow10(places),
-		}
+		out[i].Quantity = out[i].Quantity.Add(a.Quantity)
 	}
 	return out
-}
-
-func scaleMantissa(m int64, places int) int64 {
-	for ; places > 0; places-- {
-		m *= 10
-	}
-	return m
 }

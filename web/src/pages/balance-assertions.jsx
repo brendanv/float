@@ -8,7 +8,7 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { Page, PageCard } from "../components/page.jsx";
 import { PageHeader } from "../components/page-header.jsx";
-import { PostingFields, toPostingInput } from "../components/posting-fields.jsx";
+import { PostingFields, editablePostings, fieldsFromPosting, toPostingInput } from "../components/posting-fields.jsx";
 import { formatCurrency, formatDate } from "../format.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,18 +63,8 @@ function AssertionBadge({ lastAssertionDate, transactionsSinceLastAssertion = 0 
 // an empty balance-assertion ("=") input on the posting for `account` so the user
 // just types the real balance and saves.
 function toFields(postings, account) {
-  return (postings || []).map((p) => {
-    const a = p.amounts && p.amounts[0];
-    const ba = p.balanceAssertion;
-    const field = {
-      account: p.account,
-      commodity: a ? a.commodity : "",
-      quantity: a ? a.quantity : "",
-      cost: a ? a.cost : undefined,
-      balanceAssertion: ba?.amount
-        ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity }
-        : undefined,
-    };
+  return editablePostings(postings).map((p) => {
+    const field = fieldsFromPosting(p);
     if (p.account === account && !field.balanceAssertion) {
       field.balanceAssertion = { commodity: field.commodity || "", quantity: "" };
     }

@@ -46,17 +46,23 @@ export function fieldsFromPosting(p) {
   const a = p.amounts?.[0];
   const ba = p.balanceAssertion;
   const cb = a?.costBasis;
+  let cost = a ? a.cost : undefined;
+  let lotCost = cb?.cost;
+  if (p.lotRole === "acquire" && lotCost?.quantity) {
+    if (cost?.isTotal) lotCost = undefined;
+    else cost = undefined;
+  }
   return {
     account: p.account,
     commodity: a ? a.commodity : "",
     quantity: a ? a.quantity : "",
-    cost: a ? a.cost : undefined,
+    cost,
     lot: cb
       ? {
           date: cb.date ?? "",
           label: cb.label ?? "",
-          costQuantity: cb.cost?.quantity ?? "",
-          costCommodity: cb.cost?.commodity ?? "",
+          costQuantity: lotCost?.quantity ?? "",
+          costCommodity: lotCost?.commodity ?? "",
         }
       : undefined,
     balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,

@@ -99,11 +99,13 @@ func TestLotRoundTrip(t *testing.T) {
 		bigCostFID  = "aa000004"
 		labelledFID = "aa000002"
 		disposalFID = "aa000005"
+		totalFID    = "aa000006"
 	)
 
 	tests := []struct {
 		name     string
 		fid      string
+		extra    string
 		mutate   func(t *testing.T, dir, fid string)
 		wantText []string
 	}{
@@ -162,11 +164,36 @@ func TestLotRoundTrip(t *testing.T) {
 			},
 			wantText: []string{"{1234.567 $}"},
 		},
+		{
+			name:  "modify tags on total cost acquire",
+			fid:   totalFID,
+			extra: "\n2026-01-26 (aa000006) Buy AAPL total cost\n    assets:brokerage    3 AAPL @@ $100\n    assets:cash\n",
+			mutate: func(t *testing.T, dir, fid string) {
+				client := mustHledgerClient(t, dir)
+				if err := ModifyTags(t.Context(), client, dir, fid, map[string]string{"k": "v"}); err != nil {
+					t.Fatalf("ModifyTags: %v", err)
+				}
+			},
+			wantText: []string{"@@ 100 $"},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := lotsDataDir(t)
+			if tc.extra != "" {
+				f, err := os.OpenFile(filepath.Join(dir, "main.journal"), os.O_APPEND|os.O_WRONLY, 0o644)
+				if err != nil {
+					t.Fatalf("open main.journal: %v", err)
+				}
+				_, err = f.WriteString(tc.extra)
+				if cerr := f.Close(); err == nil {
+					err = cerr
+				}
+				if err != nil {
+					t.Fatalf("append fixture: %v", err)
+				}
+			}
 			before, err := mustHledgerClient(t, dir).Lots(t.Context())
 			if err != nil {
 				t.Fatalf("Lots before: %v", err)

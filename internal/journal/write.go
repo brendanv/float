@@ -133,7 +133,7 @@ func postingsFromTransaction(t hledger.Transaction) []PostingInput {
 			if cost != nil {
 				pi.Cost = &CostInput{
 					Commodity: cost.Contents.Commodity,
-					Quantity:  cost.Contents.Quantity.Format(),
+					Quantity:  strings.TrimPrefix(cost.Contents.Quantity.Format(), "-"),
 					IsTotal:   cost.Tag == "TotalCost",
 				}
 			}
@@ -147,9 +147,15 @@ func postingsFromTransaction(t hledger.Transaction) []PostingInput {
 
 func applyCostBasis(pi *PostingInput, p hledger.Posting, a hledger.Amount) {
 	pi.CostBasis = costBasisInputFromHledger(a.CostBasis)
-	if pi.CostBasis != nil && pi.CostBasis.Quantity != "" && p.LotRole() == "acquire" {
-		pi.Cost = nil
+	if pi.CostBasis == nil || pi.CostBasis.Quantity == "" || p.LotRole() != "acquire" {
+		return
 	}
+	if pi.Cost != nil && pi.Cost.IsTotal {
+		pi.CostBasis.Commodity = ""
+		pi.CostBasis.Quantity = ""
+		return
+	}
+	pi.Cost = nil
 }
 
 func costBasisInputFromHledger(cb *hledger.CostBasis) *CostBasisInput {

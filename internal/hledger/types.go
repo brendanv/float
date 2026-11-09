@@ -3,6 +3,7 @@ package hledger
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -49,6 +50,23 @@ func (q AmountQuantity) Format() string {
 		return sign + "0." + strings.Repeat("0", q.DecimalPlaces-len(s)) + s
 	}
 	return sign + s[:len(s)-q.DecimalPlaces] + "." + s[len(s)-q.DecimalPlaces:]
+}
+
+func (q AmountQuantity) Add(o AmountQuantity) AmountQuantity {
+	places := max(q.DecimalPlaces, o.DecimalPlaces)
+	m := scaleMantissa(q.DecimalMantissa, places-q.DecimalPlaces) + scaleMantissa(o.DecimalMantissa, places-o.DecimalPlaces)
+	return AmountQuantity{
+		DecimalMantissa: m,
+		DecimalPlaces:   places,
+		FloatingPoint:   float64(m) / math.Pow10(places),
+	}
+}
+
+func scaleMantissa(m int64, places int) int64 {
+	for ; places > 0; places-- {
+		m *= 10
+	}
+	return m
 }
 
 type Amount struct {

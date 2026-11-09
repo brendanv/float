@@ -34,7 +34,7 @@ Text-level journal file manipulation: month files, transaction append/update/del
 
 ## Lots
 
-Round-tripping (`InputFromTransaction`, `HledgerTxnToInput`) copies `acostbasis` into `PostingInput.CostBasis` and skips postings hledger generated (`Posting.Generated()`, i.e. inferred capital-gain postings) so hledger re-infers them. On acquire postings the redundant `@` cost hledger reports alongside the basis is dropped.
+Round-tripping (`InputFromTransaction`, `HledgerTxnToInput`) copies `acostbasis` into `PostingInput.CostBasis` and skips postings hledger generated (`Posting.Generated()`, i.e. inferred capital-gain postings) so hledger re-infers them. On acquire postings the redundant `@` cost hledger reports alongside the basis is dropped, except a total `@@` cost: that is kept and the basis cost dropped instead, because hledger reports the per-unit basis rounded to 10 places and it would no longer balance. The web UI's `fieldsFromPosting` applies the same rule.
 
 Accepted consequence: for a lotful commodity, a round-tripped disposal is written with the selector hledger inferred (e.g. `{2026-01-15, $50}`), which pins that lot. Formatting via `print --infer-costs` on a temp file without the commodity's `lots:` directive may also add a redundant `@ COST` to acquires; this is valid and leaves lots unchanged.
 
