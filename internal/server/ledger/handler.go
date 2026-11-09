@@ -103,6 +103,10 @@ func balancesKey(depth int, query []string) string {
 	return fmt.Sprintf("balances:%d:%s", depth, normalizedQueryKeyPart(query))
 }
 
+func lotsKey(query []string) string {
+	return "lots:" + normalizedQueryKeyPart(query)
+}
+
 func accountRegisterKey(account string, query []string) string {
 	return fmt.Sprintf("aregister:%s:%s", account, normalizedQueryKeyPart(query))
 }
@@ -202,6 +206,12 @@ func (h *Handler) fetchByFIDs(ctx context.Context, fids []string) ([]hledger.Tra
 func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
 	return cachedGet(ctx, c, balancesKey(depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
 		return hl.Balances(ctx, depth, query...)
+	})
+}
+
+func cachedLots(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, query []string) ([]hledger.LotRow, error) {
+	return cachedGet(ctx, c, lotsKey(query), func(ctx context.Context) ([]hledger.LotRow, error) {
+		return hl.Lots(ctx, query...)
 	})
 }
 
@@ -430,44 +440,16 @@ func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.
 	}), nil
 }
 
-// exactQty accumulates a commodity quantity using exact integer arithmetic
-// (mantissa / 10^scale) to avoid float64 rounding errors that produce
-// near-zero residuals for fully-liquidated positions (e.g. 6e-14 instead of 0).
-type exactQty struct {
-	mantissa int64
-	scale    int
-}
-
-func (q *exactQty) add(mantissa int64, decimalPlaces int) {
-	m := mantissa
-	p := decimalPlaces
-	if p > q.scale {
-		factor := int64(1)
-		for i := 0; i < p-q.scale; i++ {
-			factor *= 10
-		}
-		q.mantissa *= factor
-		q.scale = p
-	} else if p < q.scale {
-		factor := int64(1)
-		for i := 0; i < q.scale-p; i++ {
-			factor *= 10
-		}
-		m *= factor
+func (h *Handler) ListLots(ctx context.Context, req *connect.Request[floatv1.ListLotsRequest]) (*connect.Response[floatv1.ListLotsResponse], error) {
+	rows, err := cachedLots(ctx, h.cache, h.hl, req.Msg.Query)
+	if err != nil {
+		return nil, rpcErr(ctx, err, "hledger lots failed")
 	}
-	q.mantissa += m
-}
-
-func (q exactQty) float() float64 {
-	v := float64(q.mantissa)
-	if q.scale > 0 {
-		divisor := float64(1)
-		for i := 0; i < q.scale; i++ {
-			divisor *= 10
-		}
-		v /= divisor
+	lots := make([]*floatv1.Lot, len(rows))
+	for i, r := range rows {
+		lots[i] = toProtoLot(r)
 	}
-	return v
+	return connect.NewResponse(&floatv1.ListLotsResponse{Lots: lots}), nil
 }
 
 // currencySymbols is the set of commodity codes treated as plain fiat currency.
@@ -565,7 +547,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 		total    float64
 		currency string
 	}
-	aggregated := make(map[holdingKey]exactQty)
+	aggregated := make(map[holdingKey]hledger.AmountQuantity)
 	costByHolding := make(map[holdingKey]costBasis)
 	var holdingOrder []holdingKey
 	for _, row := range raw.Rows {
@@ -586,9 +568,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 			if _, seen := aggregated[k]; !seen {
 				holdingOrder = append(holdingOrder, k)
 			}
-			cur := aggregated[k]
-			cur.add(amt.Quantity.DecimalMantissa, amt.Quantity.DecimalPlaces)
-			aggregated[k] = cur
+			aggregated[k] = aggregated[k].Add(amt.Quantity)
 
 			if c, err := amt.ParseCost(); err == nil && c != nil {
 				var lotCost float64
@@ -610,10 +590,10 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	var holdings []*floatv1.Holding
 	for _, k := range holdingOrder {
 		eq := aggregated[k]
-		if eq.mantissa == 0 {
+		if eq.DecimalMantissa == 0 {
 			continue
 		}
-		qty := eq.float()
+		qty := eq.FloatingPoint
 		priceDate := latestPriceInfo[k.symbol].date
 		if txDate := lastTxDateByCommodity[k.symbol]; txDate > priceDate {
 			priceDate = txDate
@@ -850,30 +830,19 @@ func selectPeriodIndexes(periods []string, begin, end string) []int {
 // commodity, using exact integer arithmetic to avoid float64 rounding
 // residue. Used to recompute a row's cross-period total after slicing.
 func sumAmounts(perPeriod [][]hledger.Amount, idxs []int) []hledger.Amount {
-	sums := make(map[string]*exactQty)
+	sums := make(map[string]hledger.AmountQuantity)
 	var order []string
 	for _, i := range idxs {
 		for _, amt := range perPeriod[i] {
-			q, ok := sums[amt.Commodity]
-			if !ok {
-				q = &exactQty{}
-				sums[amt.Commodity] = q
+			if _, ok := sums[amt.Commodity]; !ok {
 				order = append(order, amt.Commodity)
 			}
-			q.add(amt.Quantity.DecimalMantissa, amt.Quantity.DecimalPlaces)
+			sums[amt.Commodity] = sums[amt.Commodity].Add(amt.Quantity)
 		}
 	}
 	out := make([]hledger.Amount, len(order))
 	for i, c := range order {
-		q := sums[c]
-		out[i] = hledger.Amount{
-			Commodity: c,
-			Quantity: hledger.AmountQuantity{
-				DecimalMantissa: q.mantissa,
-				DecimalPlaces:   q.scale,
-				FloatingPoint:   q.float(),
-			},
-		}
+		out[i] = hledger.Amount{Commodity: c, Quantity: sums[c]}
 	}
 	return out
 }
@@ -1396,6 +1365,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 			Quantity:         p.Quantity,
 			Comment:          p.Comment,
 			Cost:             protoToJournalCost(p.Cost),
+			CostBasis:        protoToJournalCostBasis(p.CostBasis),
 			BalanceAssertion: protoToJournalAssertion(p.BalanceAssertion),
 		}
 	}
@@ -1459,6 +1429,7 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 			Quantity:         p.Quantity,
 			Comment:          p.Comment,
 			Cost:             protoToJournalCost(p.Cost),
+			CostBasis:        protoToJournalCostBasis(p.CostBasis),
 			BalanceAssertion: protoToJournalAssertion(p.BalanceAssertion),
 		}
 	}
@@ -1578,7 +1549,41 @@ func toProtoPosting(p hledger.Posting) *floatv1.Posting {
 		Amounts:          amounts,
 		Comment:          p.Comment,
 		BalanceAssertion: toProtoBalanceAssertion(p.BalanceAssertion),
+		LotRole:          p.LotRole(),
+		Generated:        p.Generated(),
 	}
+}
+
+func toProtoLot(r hledger.LotRow) *floatv1.Lot {
+	out := &floatv1.Lot{
+		Account:   r.Account,
+		LotName:   r.LotName,
+		Date:      r.Date,
+		Label:     r.Label,
+		Units:     toProtoAmount(r.Units),
+		TotalCost: toProtoAmounts(r.TotalCost),
+	}
+	if r.UnitCost != nil {
+		out.UnitCost = toProtoAmount(*r.UnitCost)
+	}
+	return out
+}
+
+func toProtoCostBasis(cb *hledger.CostBasis) *floatv1.CostBasis {
+	if cb == nil {
+		return nil
+	}
+	out := &floatv1.CostBasis{}
+	if cb.Date != nil {
+		out.Date = *cb.Date
+	}
+	if cb.Label != nil {
+		out.Label = *cb.Label
+	}
+	if cb.Cost != nil {
+		out.Cost = toProtoAmount(*cb.Cost)
+	}
+	return out
 }
 
 // toProtoBalanceAssertion exposes only the simple = form via gRPC.
@@ -1605,6 +1610,7 @@ func toProtoAmount(a hledger.Amount) *floatv1.Amount {
 			IsTotal:   cost.Tag == "TotalCost",
 		}
 	}
+	out.CostBasis = toProtoCostBasis(a.CostBasis)
 	return out
 }
 
@@ -1680,25 +1686,23 @@ func toProtoAmounts(amounts []hledger.Amount) []*floatv1.Amount {
 // aggregateAmountsByCommodity sums amounts that share the same commodity.
 // Zero-balance commodities are omitted from the result.
 func aggregateAmountsByCommodity(amounts []hledger.Amount) []*floatv1.Amount {
-	totals := make(map[string]exactQty)
+	totals := make(map[string]hledger.AmountQuantity)
 	var order []string
 	for _, a := range amounts {
 		if _, seen := totals[a.Commodity]; !seen {
 			order = append(order, a.Commodity)
 		}
-		cur := totals[a.Commodity]
-		cur.add(a.Quantity.DecimalMantissa, a.Quantity.DecimalPlaces)
-		totals[a.Commodity] = cur
+		totals[a.Commodity] = totals[a.Commodity].Add(a.Quantity)
 	}
 	var result []*floatv1.Amount
 	for _, commodity := range order {
 		eq := totals[commodity]
-		if eq.mantissa == 0 {
+		if eq.DecimalMantissa == 0 {
 			continue
 		}
 		result = append(result, &floatv1.Amount{
 			Commodity: commodity,
-			Quantity:  fmt.Sprintf("%g", eq.float()),
+			Quantity:  fmt.Sprintf("%g", eq.FloatingPoint),
 		})
 	}
 	return result
@@ -3436,6 +3440,21 @@ func protoToJournalCost(c *floatv1.Cost) *journal.CostInput {
 		Quantity:  c.Quantity,
 		IsTotal:   c.IsTotal,
 	}
+}
+
+func protoToJournalCostBasis(cb *floatv1.CostBasis) *journal.CostBasisInput {
+	if cb == nil {
+		return nil
+	}
+	out := &journal.CostBasisInput{
+		Date:  cb.Date,
+		Label: cb.Label,
+	}
+	if cb.Cost != nil {
+		out.Commodity = cb.Cost.Commodity
+		out.Quantity = cb.Cost.Quantity
+	}
+	return out
 }
 
 // protoToJournalAssertion converts a proto BalanceAssertion to the journal

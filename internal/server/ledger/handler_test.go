@@ -3684,3 +3684,129 @@ include 2026/01.journal
 		t.Errorf("SkippedCommodities = %d, want 1", resp.Msg.SkippedCommodities)
 	}
 }
+
+func mustLotsHandler(t *testing.T) *serverledger.Handler {
+	t.Helper()
+	c, err := hledger.New("hledger", "../../hledger/testdata/lots.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	return serverledger.NewHandler(c, nil, "", "", nil, nil, nil, nil)
+}
+
+func TestListLots(t *testing.T) {
+	h := mustLotsHandler(t)
+	resp, err := h.ListLots(t.Context(), connect.NewRequest(&floatv1.ListLotsRequest{}))
+	if err != nil {
+		t.Fatalf("ListLots: %v", err)
+	}
+	lots := resp.Msg.Lots
+	if len(lots) != 4 {
+		t.Fatalf("len(lots) = %d, want 4", len(lots))
+	}
+	for _, l := range lots {
+		if l.Account != "assets:brokerage" {
+			t.Errorf("lot %q account = %q, want assets:brokerage", l.LotName, l.Account)
+		}
+		if l.Units == nil || l.Units.Commodity != "AAPL" {
+			t.Errorf("lot %q units = %v, want AAPL", l.LotName, l.Units)
+		}
+		if l.UnitCost == nil {
+			t.Errorf("lot %q unit cost is nil", l.LotName)
+		}
+		if len(l.TotalCost) == 0 {
+			t.Errorf("lot %q has no total cost", l.LotName)
+		}
+	}
+
+	var labelled *floatv1.Lot
+	for _, l := range lots {
+		if l.Label == "mine" {
+			labelled = l
+		}
+	}
+	if labelled == nil {
+		t.Fatal("labelled lot not found")
+	}
+	if labelled.Date != "2026-01-16" {
+		t.Errorf("labelled lot date = %q, want 2026-01-16", labelled.Date)
+	}
+	if labelled.Units.Quantity != "4" && !strings.HasPrefix(labelled.Units.Quantity, "4") {
+		t.Errorf("labelled lot units = %q, want 4", labelled.Units.Quantity)
+	}
+}
+
+func TestListLots_QueryFilters(t *testing.T) {
+	h := mustLotsHandler(t)
+	resp, err := h.ListLots(t.Context(), connect.NewRequest(&floatv1.ListLotsRequest{Query: []string{"acct:nonexistent"}}))
+	if err != nil {
+		t.Fatalf("ListLots: %v", err)
+	}
+	if len(resp.Msg.Lots) != 0 {
+		t.Errorf("len(lots) = %d, want 0", len(resp.Msg.Lots))
+	}
+}
+
+func TestListTransactions_LotFields(t *testing.T) {
+	h := mustLotsHandler(t)
+	resp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	byFID := map[string]*floatv1.Transaction{}
+	for _, tx := range resp.Msg.Transactions {
+		byFID[tx.Fid] = tx
+	}
+
+	tests := []struct {
+		fid, account, role string
+		generated          bool
+		date, label        string
+		costCommodity      string
+		hasBasis           bool
+	}{
+		{fid: "aa000001", account: "assets:brokerage", role: "acquire", hasBasis: true, costCommodity: "$"},
+		{fid: "aa000002", account: "assets:brokerage", role: "acquire", hasBasis: true, date: "2026-01-16", label: "mine", costCommodity: "$"},
+		{fid: "aa000005", account: "assets:brokerage", role: "dispose", hasBasis: true, date: "2026-01-15", costCommodity: "$"},
+		{fid: "aa000005", account: "revenues:gain", role: "gain", generated: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.fid+"/"+tt.account, func(t *testing.T) {
+			tx, ok := byFID[tt.fid]
+			if !ok {
+				t.Fatalf("transaction %q not found", tt.fid)
+			}
+			var p *floatv1.Posting
+			for _, cand := range tx.Postings {
+				if cand.Account == tt.account {
+					p = cand
+				}
+			}
+			if p == nil {
+				t.Fatalf("posting %q not found", tt.account)
+			}
+			if p.LotRole != tt.role {
+				t.Errorf("LotRole = %q, want %q", p.LotRole, tt.role)
+			}
+			if p.Generated != tt.generated {
+				t.Errorf("Generated = %v, want %v", p.Generated, tt.generated)
+			}
+			cb := p.Amounts[0].CostBasis
+			if (cb != nil) != tt.hasBasis {
+				t.Fatalf("CostBasis = %v, hasBasis want %v", cb, tt.hasBasis)
+			}
+			if cb == nil {
+				return
+			}
+			if cb.Date != tt.date || cb.Label != tt.label {
+				t.Errorf("CostBasis date/label = %q/%q, want %q/%q", cb.Date, cb.Label, tt.date, tt.label)
+			}
+			if (cb.Cost != nil) != (tt.costCommodity != "") {
+				t.Fatalf("CostBasis.Cost = %v, want commodity %q", cb.Cost, tt.costCommodity)
+			}
+			if cb.Cost != nil && cb.Cost.Commodity != tt.costCommodity {
+				t.Errorf("CostBasis.Cost commodity = %q, want %q", cb.Cost.Commodity, tt.costCommodity)
+			}
+		})
+	}
+}

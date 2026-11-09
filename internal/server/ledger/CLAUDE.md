@@ -17,6 +17,7 @@ Current cached families include:
 - `transactions:<sorted-query>`
 - `balances:<depth>:<sorted-query>`
 - `balancesvalued:<valueSpec>:<depth>:<sorted-query>`
+- `lots:<sorted-query>` (not warmed)
 - `aregister:<account>:<sorted-query>`
 - `accounts`, `closedaccounts`, `tags`, `payees`
 - `networth:<begin>:<end>`
@@ -41,7 +42,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 ## RPC Categories
 
-**Cached queries:** `ListTransactions`, `GetBalances`, `GetAccountRegister`, `ListAccounts`, `ListTags`, `ListPayees`, `GetNetWorthTimeseries`, `GetIncomeStatementTimeseries`, portfolio timeseries helpers.
+**Cached queries:** `ListTransactions`, `GetBalances`, `GetAccountRegister`, `ListLots`, `ListAccounts`, `ListTags`, `ListPayees`, `GetNetWorthTimeseries`, `GetIncomeStatementTimeseries`, portfolio timeseries helpers.
 
 **Read/query helpers with limited or no cache:** `GetPortfolioHoldings` (uses balances plus `prices.journal`), `GetBalanceAssertionStatus`, `ListPrices`, `ListAccountDeclarations`, `ListSnapshots`, `GetSnapshotDiff`, `ListBankProfiles`, `GetBankProfileContent`, `PreviewImport`, `GetImportedTransactions`, `ListImports`, `GetImportFile`, `ListRules`, `PreviewApplyRules`, settings reads, `RunHledgerQuery`, `ExportJournal`, and `StreamLogs`.
 

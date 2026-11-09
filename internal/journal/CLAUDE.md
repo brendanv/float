@@ -27,9 +27,16 @@ Text-level journal file manipulation: month files, transaction append/update/del
 ## Formatting Types
 
 - `TransactionInput` — date, status, payee/description/comment, tags, postings, import batch, and Stripe transaction ID.
-- `PostingInput` — account, commodity/quantity, comment, optional cost, optional simple balance assertion.
+- `PostingInput` — account, commodity/quantity, comment, optional cost, optional lot cost basis, optional simple balance assertion.
 - `CostInput` — unit or total cost annotations.
+- `CostBasisInput` — hledger lot selector/cost basis, rendered as `{DATE, "LABEL", COST}` before any `@` cost; empty parts are omitted and an all-empty value renders nothing.
 - `BalanceAssertionInput` — simple `=` balance assertion only.
+
+## Lots
+
+Round-tripping (`InputFromTransaction`, `HledgerTxnToInput`) copies `acostbasis` into `PostingInput.CostBasis` and skips postings hledger generated (`Posting.Generated()`, i.e. inferred capital-gain postings) so hledger re-infers them. On acquire postings the redundant `@` cost hledger reports alongside the basis is dropped, except a total `@@` cost: that is kept and the basis cost dropped instead, because hledger reports the per-unit basis rounded to 10 places and it would no longer balance. The web UI's `fieldsFromPosting` applies the same rule.
+
+Accepted consequence: for a lotful commodity, a round-tripped disposal is written with the selector hledger inferred (e.g. `{2026-01-15, $50}`), which pins that lot. Formatting via `print --infer-costs` on a temp file without the commodity's `lots:` directive may also add a redundant `@ COST` to acquires; this is valid and leaves lots unchanged.
 
 Balance assertions that are more complex than the simple `=` form are preserved by line-oriented rewrites but not represented in the public input type.
 

@@ -1397,3 +1397,159 @@ func TestClosedAccounts(t *testing.T) {
 		})
 	}
 }
+
+func TestTransactionsLots(t *testing.T) {
+	c := mustClient(t, "lots.journal")
+	txns, err := c.Transactions(t.Context())
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+
+	byFID := map[string]hledger.Transaction{}
+	for _, tx := range txns {
+		byFID[tx.FID] = tx
+	}
+
+	findPosting := func(t *testing.T, fid, account string) hledger.Posting {
+		t.Helper()
+		tx, ok := byFID[fid]
+		if !ok {
+			t.Fatalf("transaction %q not found", fid)
+		}
+		for _, p := range tx.Postings {
+			if p.Account == account {
+				return p
+			}
+		}
+		t.Fatalf("posting %q not found in %q", account, fid)
+		return hledger.Posting{}
+	}
+
+	tests := []struct {
+		name          string
+		fid           string
+		account       string
+		wantRole      string
+		wantGenerated bool
+		wantBasis     bool
+		wantDate      string
+		wantLabel     string
+		wantCostQty   string
+	}{
+		{name: "explicit acquire", fid: "aa000001", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantCostQty: "50"},
+		{name: "labelled acquire", fid: "aa000002", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantDate: "2026-01-16", wantLabel: "mine", wantCostQty: "40"},
+		{name: "fractional cost", fid: "aa000004", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantCostQty: "1234.567"},
+		{name: "specid disposal", fid: "aa000005", account: "assets:brokerage", wantRole: "dispose", wantBasis: true, wantDate: "2026-01-15", wantCostQty: "50"},
+		{name: "cash leg", fid: "aa000005", account: "assets:cash"},
+		{name: "inferred gain", fid: "aa000005", account: "revenues:gain", wantRole: "gain", wantGenerated: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := findPosting(t, tt.fid, tt.account)
+			if got := p.LotRole(); got != tt.wantRole {
+				t.Errorf("LotRole = %q, want %q", got, tt.wantRole)
+			}
+			if got := p.Generated(); got != tt.wantGenerated {
+				t.Errorf("Generated = %v, want %v", got, tt.wantGenerated)
+			}
+			cb := p.Amounts[0].CostBasis
+			if !tt.wantBasis {
+				if cb != nil {
+					t.Errorf("CostBasis = %+v, want nil", cb)
+				}
+				return
+			}
+			if cb == nil || cb.Cost == nil {
+				t.Fatalf("CostBasis = %+v, want non-nil with cost", cb)
+			}
+			if tt.wantDate == "" && cb.Date != nil {
+				t.Errorf("CostBasis.Date = %q, want nil", *cb.Date)
+			}
+			if tt.wantDate != "" && (cb.Date == nil || *cb.Date != tt.wantDate) {
+				t.Errorf("CostBasis.Date = %v, want %q", cb.Date, tt.wantDate)
+			}
+			if tt.wantLabel == "" && cb.Label != nil {
+				t.Errorf("CostBasis.Label = %q, want nil", *cb.Label)
+			}
+			if tt.wantLabel != "" && (cb.Label == nil || *cb.Label != tt.wantLabel) {
+				t.Errorf("CostBasis.Label = %v, want %q", cb.Label, tt.wantLabel)
+			}
+			if cb.Cost.Commodity != "$" || cb.Cost.Quantity.Format() != tt.wantCostQty {
+				t.Errorf("CostBasis.Cost = %s %s, want $ %s", cb.Cost.Commodity, cb.Cost.Quantity.Format(), tt.wantCostQty)
+			}
+		})
+	}
+}
+
+func TestLots(t *testing.T) {
+	c := mustClient(t, "lots.journal")
+
+	tests := []struct {
+		name    string
+		query   []string
+		want    map[string]struct{ date, label, units, unitCost, totalCost string }
+		wantErr error
+	}{
+		{
+			name: "all lots",
+			want: map[string]struct{ date, label, units, unitCost, totalCost string }{
+				"assets:brokerage:{2026-01-15, $50}":         {"2026-01-15", "", "5", "50", "250"},
+				`assets:brokerage:{2026-01-16, "mine", $40}`: {"2026-01-16", "mine", "4", "40", "160"},
+				"assets:brokerage:{2026-01-20, $60}":         {"2026-01-20", "", "3", "60", "180"},
+				"assets:brokerage:{2026-01-25, $1,234.567}":  {"2026-01-25", "", "1", "1234.567", "1234.567"},
+			},
+		},
+		{
+			name:  "query filters lots",
+			query: []string{"assets:brokerage:.2026-01-20"},
+			want: map[string]struct{ date, label, units, unitCost, totalCost string }{
+				"assets:brokerage:{2026-01-20, $60}": {"2026-01-20", "", "3", "60", "180"},
+			},
+		},
+		{
+			name:  "non-lot account yields no lots",
+			query: []string{"assets:cash"},
+			want:  map[string]struct{ date, label, units, unitCost, totalCost string }{},
+		},
+		{name: "unsafe query rejected", query: []string{"--output-file=/tmp/x"}, wantErr: hledger.ErrUnsafeQuery},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lots, err := c.Lots(t.Context(), tt.query...)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Lots: %v", err)
+			}
+			if len(lots) != len(tt.want) {
+				t.Fatalf("got %d lots, want %d: %+v", len(lots), len(tt.want), lots)
+			}
+			for _, l := range lots {
+				w, ok := tt.want[l.Account+":"+l.LotName]
+				if !ok {
+					t.Errorf("unexpected lot %q", l.Account+":"+l.LotName)
+					continue
+				}
+				if l.Account != "assets:brokerage" {
+					t.Errorf("Account = %q", l.Account)
+				}
+				if l.Date != w.date || l.Label != w.label {
+					t.Errorf("%s: date/label = %q/%q, want %q/%q", l.LotName, l.Date, l.Label, w.date, w.label)
+				}
+				if l.Units.Commodity != "AAPL" || l.Units.Quantity.Format() != w.units {
+					t.Errorf("%s: Units = %s %s, want AAPL %s", l.LotName, l.Units.Commodity, l.Units.Quantity.Format(), w.units)
+				}
+				if l.UnitCost == nil || l.UnitCost.Commodity != "$" || l.UnitCost.Quantity.Format() != w.unitCost {
+					t.Errorf("%s: UnitCost = %+v, want $ %s", l.LotName, l.UnitCost, w.unitCost)
+				}
+				if len(l.TotalCost) != 1 || l.TotalCost[0].Commodity != "$" || l.TotalCost[0].Quantity.Format() != w.totalCost {
+					t.Errorf("%s: TotalCost = %+v, want $ %s", l.LotName, l.TotalCost, w.totalCost)
+				}
+			}
+		})
+	}
+}

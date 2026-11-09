@@ -62,6 +62,7 @@ export function AddTransactionPage() {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
       queryClient.invalidateQueries({ queryKey: ["balances"] });
+      queryClient.invalidateQueries({ queryKey: ["lots"] });
       queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
       setSuccess(true);
       setTimeout(() => navigate({ to: "/transactions" }), 1000);

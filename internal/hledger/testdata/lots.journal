@@ -1,0 +1,25 @@
+commodity $1,000.00
+
+commodity AAPL ; lots:
+
+P 2026-03-01 AAPL $70
+
+2026-01-15 (aa000001) Buy AAPL
+    assets:brokerage    10 AAPL {$50}
+    assets:cash
+
+2026-01-16 (aa000002) Buy AAPL labelled
+    assets:brokerage    4 AAPL {2026-01-16, "mine", $40}
+    assets:cash
+
+2026-01-20 (aa000003) Buy AAPL explicit
+    assets:brokerage    3 AAPL {$60}
+    assets:cash
+
+2026-01-25 (aa000004) Buy AAPL big cost
+    assets:brokerage    1 AAPL {$1,234.567}
+    assets:cash
+
+2026-02-01 (aa000005) Sell AAPL
+    assets:brokerage    -5 AAPL {2026-01-15} @ $70
+    assets:cash

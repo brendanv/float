@@ -527,6 +527,100 @@ export const mockTransactions = [
     ],
     tags: {},
   },
+  {
+    fid: "l1o2t3a4",
+    date: "2026-01-15",
+    description: "Buy AAPL",
+    status: "Cleared",
+    postings: [
+      {
+        account: "assets:investments:aapl",
+        amounts: [
+          {
+            commodity: "AAPL",
+            quantity: "10",
+            costBasis: { cost: { commodity: "USD", quantity: "175.00" } },
+          },
+        ],
+        lotRole: "acquire",
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "-1750.00" }],
+      },
+    ],
+    tags: {},
+  },
+  {
+    fid: "l5o6t7s8",
+    date: "2026-03-20",
+    description: "Sell AAPL",
+    status: "Cleared",
+    postings: [
+      {
+        account: "assets:investments:aapl",
+        amounts: [
+          {
+            commodity: "AAPL",
+            quantity: "-4",
+            costBasis: { date: "2026-01-15" },
+            cost: { commodity: "USD", quantity: "190.00", isTotal: false },
+          },
+        ],
+        lotRole: "dispose",
+      },
+      {
+        account: "assets:checking",
+        amounts: [{ commodity: "USD", quantity: "760.00" }],
+      },
+      {
+        account: "income:capital-gains",
+        amounts: [{ commodity: "USD", quantity: "-60.00" }],
+        lotRole: "gain",
+        generated: true,
+      },
+    ],
+    tags: {},
+  },
+];
+
+export const mockLots = [
+  {
+    account: "assets:investments:aapl",
+    lotName: "2026-01-15",
+    date: "2026-01-15",
+    label: "",
+    units: { commodity: "AAPL", quantity: "6" },
+    unitCost: { commodity: "USD", quantity: "175.00" },
+    totalCost: [{ commodity: "USD", quantity: "1050.00" }],
+  },
+  {
+    account: "assets:investments:aapl",
+    lotName: "2026-02-10, \"drip\"",
+    date: "2026-02-10",
+    label: "drip",
+    units: { commodity: "AAPL", quantity: "2.5" },
+    unitCost: { commodity: "USD", quantity: "182.40" },
+    totalCost: [{ commodity: "USD", quantity: "456.00" }],
+  },
+  {
+    account: "assets:investments:vti",
+    lotName: "2025-11-03",
+    date: "2025-11-03",
+    label: "",
+    units: { commodity: "VTI", quantity: "12" },
+    unitCost: { commodity: "USD", quantity: "245.10" },
+    totalCost: [{ commodity: "USD", quantity: "2941.20" }],
+  },
+  {
+    account: "assets:investments:vti",
+    lotName: "2026-02-28, \"rebalance\"",
+    date: "2026-02-28",
+    label: "rebalance",
+    units: { commodity: "VTI", quantity: "5" },
+    unitCost: { commodity: "USD", quantity: "258.75" },
+    totalCost: [{ commodity: "USD", quantity: "1293.75" }],
+  },
 ];
 
 export const mockPrices = [
@@ -1649,6 +1743,9 @@ export async function mockLedgerApi(
         body = { transactions: txs };
         break;
       }
+      case "ListLots":
+        body = { lots: mockLots };
+        break;
       case "GetAccountRegister":
         body = {
           rows: accountRegisterRows ?? mockAccountRegisterRows,

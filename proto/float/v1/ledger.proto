@@ -8,6 +8,33 @@ message Amount {
   string commodity = 1; // e.g. "USD"
   string quantity = 2; // e.g. "25.00" (formatted decimal)
   Cost cost = 3;       // optional cost annotation, e.g. 10 AAPL @ 175.00 USD
+  CostBasis cost_basis = 4; // optional lot cost basis, e.g. {2026-01-15, "lot1", 175.00 USD}
+}
+
+// CostBasis is an hledger lot cost basis. Empty strings mean unspecified or inferred.
+message CostBasis {
+  string date = 1;  // "YYYY-MM-DD"; empty = unspecified
+  string label = 2; // lot label; empty = unspecified
+  Amount cost = 3;  // per-unit cost; unset = inferred
+}
+
+// Lot is one open lot of a commodity held in an account.
+message Lot {
+  string account = 1;
+  string lot_name = 2;  // hledger lot identifier
+  string date = 3;      // acquisition date "YYYY-MM-DD"
+  string label = 4;     // lot label; may be empty
+  Amount units = 5;     // units currently held
+  Amount unit_cost = 6; // per-unit cost
+  repeated Amount total_cost = 7; // total cost of the lot, one per cost commodity
+}
+
+message ListLotsRequest {
+  repeated string query = 1; // hledger query terms
+}
+
+message ListLotsResponse {
+  repeated Lot lots = 1;
 }
 
 message Posting {
@@ -15,6 +42,8 @@ message Posting {
   repeated Amount amounts = 2;
   string comment = 3;
   optional BalanceAssertion balance_assertion = 4; // only set for the simple = form
+  string lot_role = 5;  // "acquire", "dispose", "transfer-from", "transfer-to", "gain", or ""
+  bool generated = 6;   // true for an inferred gain posting that is not in the journal text
 }
 
 message Transaction {
@@ -199,6 +228,7 @@ message PostingInput {
   string comment = 4;
   Cost cost = 5;         // optional; e.g. 10 AAPL @ 175.00 USD
   BalanceAssertion balance_assertion = 6; // optional; the simple = form only
+  CostBasis cost_basis = 7; // optional lot selector or cost basis
 }
 
 message AddTransactionRequest {
@@ -1160,4 +1190,5 @@ service LedgerService {
   rpc RunHledgerQuery(RunHledgerQueryRequest) returns (RunHledgerQueryResponse);
   rpc StreamLogs(StreamLogsRequest) returns (stream StreamLogsResponse);
   rpc ExportJournal(ExportJournalRequest) returns (ExportJournalResponse);
+  rpc ListLots(ListLotsRequest) returns (ListLotsResponse);
 }
