@@ -4,7 +4,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 
 ## Key Types
 
-- `Client` — wraps the hledger binary, the main journal path, and a command runner. `New(bin, journal)` resolves the binary and validates the pinned version (`1.99.5`). `NewWithRunner` injects a stub runner for tests.
+- `Client` — wraps the hledger binary, the main journal path, and a command runner. `New(bin, journal)` resolves the binary and validates the pinned version (`1.99.6`). `NewWithRunner` injects a stub runner for tests.
 
 ## Concurrency
 
@@ -65,7 +65,7 @@ Integration tests in `hledger_test.go` run the real hledger binary against fixtu
 
 ## Constants / Tags
 
-- `supportedVersion = "1.99.5"` — startup fails if the installed hledger differs.
+- `supportedVersion = "1.99.6"` — startup fails if the installed hledger differs.
 - `FIDLen = 8` — length of a float transaction code.
 - `HiddenMetaPrefix = "float-"` — internal metadata tag prefix filtered from user-facing APIs.
 - `ClosedAccountTag = "float-closed"` — account-directive tag marking an account closed. hledger inherits account tags to sub-accounts, so `tag:float-closed` / `not:tag:float-closed` match a closed account and everything beneath it. It does not affect accounting.
