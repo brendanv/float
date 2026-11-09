@@ -3700,39 +3700,39 @@ func TestListLots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListLots: %v", err)
 	}
+	type want struct{ account, date, label, commodity, units, unitCost, totalCost string }
+	wantByName := map[string]want{
+		"assets:brokerage:{2026-01-15, $50}":         {"assets:brokerage", "2026-01-15", "", "AAPL", "3", "50", "150"},
+		`assets:brokerage:{2026-01-16, "mine", $40}`: {"assets:brokerage", "2026-01-16", "mine", "AAPL", "4", "40", "160"},
+		"assets:brokerage:{2026-01-20, $60}":         {"assets:brokerage", "2026-01-20", "", "AAPL", "3", "60", "180"},
+		"assets:brokerage:{2026-01-25, $1,234.567}":  {"assets:brokerage", "2026-01-25", "", "AAPL", "1", "1234.567", "1234.567"},
+		"assets:ira:{2026-01-15, $50}":               {"assets:ira", "2026-01-15", "", "AAPL", "2", "50", "100"},
+		"assets:ira:{2026-01-11, $110}":              {"assets:ira", "2026-01-11", "", "VTI", "2", "110", "220"},
+		"assets:crypto:{2026-02-15, $40,000}":        {"assets:crypto", "2026-02-15", "", "BTC", "0.375", "40000", "15000"},
+	}
 	lots := resp.Msg.Lots
-	if len(lots) != 4 {
-		t.Fatalf("len(lots) = %d, want 4", len(lots))
+	if len(lots) != len(wantByName) {
+		t.Fatalf("len(lots) = %d, want %d: %v", len(lots), len(wantByName), lots)
 	}
 	for _, l := range lots {
-		if l.Account != "assets:brokerage" {
-			t.Errorf("lot %q account = %q, want assets:brokerage", l.LotName, l.Account)
+		full := l.Account + ":" + l.LotName
+		w, ok := wantByName[full]
+		if !ok {
+			t.Errorf("unexpected lot %q", full)
+			continue
 		}
-		if l.Units == nil || l.Units.Commodity != "AAPL" {
-			t.Errorf("lot %q units = %v, want AAPL", l.LotName, l.Units)
+		if l.Date != w.date || l.Label != w.label {
+			t.Errorf("%s: date/label = %q/%q, want %q/%q", full, l.Date, l.Label, w.date, w.label)
 		}
-		if l.UnitCost == nil {
-			t.Errorf("lot %q unit cost is nil", l.LotName)
+		if l.Units == nil || l.Units.Commodity != w.commodity || l.Units.Quantity != w.units {
+			t.Errorf("%s: units = %v, want %s %s", full, l.Units, w.units, w.commodity)
 		}
-		if len(l.TotalCost) == 0 {
-			t.Errorf("lot %q has no total cost", l.LotName)
+		if l.UnitCost == nil || l.UnitCost.Commodity != "$" || l.UnitCost.Quantity != w.unitCost {
+			t.Errorf("%s: unit cost = %v, want $ %s", full, l.UnitCost, w.unitCost)
 		}
-	}
-
-	var labelled *floatv1.Lot
-	for _, l := range lots {
-		if l.Label == "mine" {
-			labelled = l
+		if len(l.TotalCost) != 1 || l.TotalCost[0].Commodity != "$" || l.TotalCost[0].Quantity != w.totalCost {
+			t.Errorf("%s: total cost = %v, want $ %s", full, l.TotalCost, w.totalCost)
 		}
-	}
-	if labelled == nil {
-		t.Fatal("labelled lot not found")
-	}
-	if labelled.Date != "2026-01-16" {
-		t.Errorf("labelled lot date = %q, want 2026-01-16", labelled.Date)
-	}
-	if labelled.Units.Quantity != "4" && !strings.HasPrefix(labelled.Units.Quantity, "4") {
-		t.Errorf("labelled lot units = %q, want 4", labelled.Units.Quantity)
 	}
 }
 
@@ -3769,6 +3769,10 @@ func TestListTransactions_LotFields(t *testing.T) {
 		{fid: "aa000002", account: "assets:brokerage", role: "acquire", hasBasis: true, date: "2026-01-16", label: "mine", costCommodity: "$"},
 		{fid: "aa000005", account: "assets:brokerage", role: "dispose", hasBasis: true, date: "2026-01-15", costCommodity: "$"},
 		{fid: "aa000005", account: "revenues:gain", role: "gain", generated: true},
+		// FIFO disposal spanning two lots: hledger reports an empty {} basis.
+		{fid: "bb000003", account: "assets:ira", role: "dispose", hasBasis: true},
+		{fid: "dd000001", account: "assets:ira", role: "transfer-to", hasBasis: true, date: "2026-01-15", costCommodity: "$"},
+		{fid: "dd000001", account: "assets:brokerage", role: "transfer-from", hasBasis: true, date: "2026-01-15", costCommodity: "$"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.fid+"/"+tt.account, func(t *testing.T) {

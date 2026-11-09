@@ -1,0 +1,5 @@
+; Mirrors a float data directory: main.journal only holds includes.
+include accounts.journal
+include prices.journal
+include 2026/01.journal
+include 2026/02.journal

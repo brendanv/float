@@ -581,7 +581,7 @@ func (c *Client) UndeclaredAccounts(ctx context.Context) ([]string, error) {
 }
 
 // Tags runs `hledger tags -f <journal>` and returns the list of tag names in use,
-// excluding the internal "fid" tag.
+// excluding hledger's internal `_`-prefixed tags.
 func (c *Client) Tags(ctx context.Context) ([]string, error) {
 	args := []string{"tags", "-f", c.journal}
 

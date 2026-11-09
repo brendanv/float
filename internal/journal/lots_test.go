@@ -94,6 +94,20 @@ func TestPostingAmountStringCostBasis(t *testing.T) {
 	}
 }
 
+func modifyTagsKV(t *testing.T, dir, fid string) {
+	t.Helper()
+	if err := ModifyTags(t.Context(), mustHledgerClient(t, dir), dir, fid, map[string]string{"k": "v"}); err != nil {
+		t.Fatalf("ModifyTags: %v", err)
+	}
+}
+
+func statusCleared(t *testing.T, dir, fid string) {
+	t.Helper()
+	if err := UpdateTransactionStatus(t.Context(), mustHledgerClient(t, dir), dir, fid, "Cleared"); err != nil {
+		t.Fatalf("UpdateTransactionStatus: %v", err)
+	}
+}
+
 func TestLotRoundTrip(t *testing.T) {
 	const (
 		bigCostFID  = "aa000004"
@@ -103,11 +117,12 @@ func TestLotRoundTrip(t *testing.T) {
 	)
 
 	tests := []struct {
-		name     string
-		fid      string
-		extra    string
-		mutate   func(t *testing.T, dir, fid string)
-		wantText []string
+		name        string
+		fid         string
+		extra       string
+		mutate      func(t *testing.T, dir, fid string)
+		wantText    []string
+		notWantText []string
 	}{
 		{
 			name: "modify tags on disposal",
@@ -163,6 +178,39 @@ func TestLotRoundTrip(t *testing.T) {
 				}
 			},
 			wantText: []string{"{1234.567 $}"},
+		},
+		{
+			name:     "modify tags on label-only disposal",
+			fid:      "cc000002",
+			mutate:   modifyTagsKV,
+			wantText: []string{`"short"`, "@ 55 $"},
+		},
+		{
+			// The empty {} basis must not be written back, or the FIFO
+			// disposal would be pinned to nothing and fail to balance.
+			name:        "modify tags on FIFO disposal across lots",
+			fid:         "bb000003",
+			mutate:      modifyTagsKV,
+			wantText:    []string{"-3 VTI @ 120 $"},
+			notWantText: []string{"{}"},
+		},
+		{
+			name:     "modify tags on lot transfer",
+			fid:      "dd000001",
+			mutate:   modifyTagsKV,
+			wantText: []string{"2 AAPL {2026-01-15, 50 $}", "-2 AAPL {2026-01-15, 50 $}"},
+		},
+		{
+			name:     "status on fractional disposal",
+			fid:      "ee000002",
+			mutate:   statusCleared,
+			wantText: []string{"-0.125 BTC", "@ 48000 $"},
+		},
+		{
+			name:     "modify tags on fractional acquire",
+			fid:      "ee000001",
+			mutate:   modifyTagsKV,
+			wantText: []string{"0.5 BTC {40000 $}"},
 		},
 		{
 			name:  "modify tags on total cost acquire",
@@ -230,6 +278,11 @@ func TestLotRoundTrip(t *testing.T) {
 			for _, w := range tc.wantText {
 				if !strings.Contains(text, w) {
 					t.Errorf("journal missing %q:\n%s", w, text)
+				}
+			}
+			for _, w := range tc.notWantText {
+				if strings.Contains(text, w) {
+					t.Errorf("journal unexpectedly contains %q:\n%s", w, text)
 				}
 			}
 			if strings.Contains(text, "revenues:gain") {
