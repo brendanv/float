@@ -31,6 +31,13 @@ type BalanceAssertionInput struct {
 	Total     bool
 }
 
+type CostBasisInput struct {
+	Date      string
+	Label     string
+	Commodity string
+	Quantity  string
+}
+
 // PostingInput represents one leg of a transaction.
 type PostingInput struct {
 	Account          string                 // e.g. "expenses:shopping"
@@ -38,6 +45,7 @@ type PostingInput struct {
 	Quantity         string                 // e.g. "45.00"; empty = auto-balance posting
 	Comment          string                 // optional inline comment text (without "; " prefix)
 	Cost             *CostInput             // optional cost annotation
+	CostBasis        *CostBasisInput        // optional lot selector / cost basis
 	BalanceAssertion *BalanceAssertionInput // optional balance assertion (= / =* / == / ==*)
 }
 
@@ -62,6 +70,9 @@ func postingAmountString(p PostingInput) string {
 		return ""
 	}
 	s := p.Quantity + " " + p.Commodity
+	if cb := costBasisString(p.CostBasis); cb != "" {
+		s += " " + cb
+	}
 	if p.Cost != nil {
 		op := "@"
 		if p.Cost.IsTotal {
@@ -70,6 +81,26 @@ func postingAmountString(p PostingInput) string {
 		s += " " + op + " " + p.Cost.Quantity + " " + p.Cost.Commodity
 	}
 	return s
+}
+
+func costBasisString(cb *CostBasisInput) string {
+	if cb == nil {
+		return ""
+	}
+	var parts []string
+	if cb.Date != "" {
+		parts = append(parts, cb.Date)
+	}
+	if cb.Label != "" {
+		parts = append(parts, `"`+cb.Label+`"`)
+	}
+	if cb.Quantity != "" || cb.Commodity != "" {
+		parts = append(parts, cb.Quantity+" "+cb.Commodity)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
 }
 
 // postingAssertionString builds the hledger balance-assertion suffix

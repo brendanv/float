@@ -6,6 +6,7 @@ import {
   TrendingUp,
   BarChart2,
   Briefcase,
+  Layers,
   Tag,
   PlusCircle,
   History,
@@ -49,6 +50,7 @@ const NAV_FINANCES = [
   { href: "/monthly", label: "Monthly", icon: BarChart2 },
   { href: "/transactions", label: "Transactions", icon: List },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
+  { href: "/lots", label: "Lots", icon: Layers },
 ];
 
 const NAV_MANAGE = [

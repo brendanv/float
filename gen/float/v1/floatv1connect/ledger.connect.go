@@ -274,6 +274,8 @@ const (
 	// LedgerServiceExportJournalProcedure is the fully-qualified name of the LedgerService's
 	// ExportJournal RPC.
 	LedgerServiceExportJournalProcedure = "/float.v1.LedgerService/ExportJournal"
+	// LedgerServiceListLotsProcedure is the fully-qualified name of the LedgerService's ListLots RPC.
+	LedgerServiceListLotsProcedure = "/float.v1.LedgerService/ListLots"
 )
 
 // LedgerServiceClient is a client for the float.v1.LedgerService service.
@@ -367,6 +369,7 @@ type LedgerServiceClient interface {
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest]) (*connect.ServerStreamForClient[v1.StreamLogsResponse], error)
 	ExportJournal(context.Context, *connect.Request[v1.ExportJournalRequest]) (*connect.Response[v1.ExportJournalResponse], error)
+	ListLots(context.Context, *connect.Request[v1.ListLotsRequest]) (*connect.Response[v1.ListLotsResponse], error)
 }
 
 // NewLedgerServiceClient constructs a client for the float.v1.LedgerService service. By default, it
@@ -872,6 +875,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("ExportJournal")),
 			connect.WithClientOptions(opts...),
 		),
+		listLots: connect.NewClient[v1.ListLotsRequest, v1.ListLotsResponse](
+			httpClient,
+			baseURL+LedgerServiceListLotsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ListLots")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -959,6 +968,7 @@ type ledgerServiceClient struct {
 	runHledgerQuery              *connect.Client[v1.RunHledgerQueryRequest, v1.RunHledgerQueryResponse]
 	streamLogs                   *connect.Client[v1.StreamLogsRequest, v1.StreamLogsResponse]
 	exportJournal                *connect.Client[v1.ExportJournalRequest, v1.ExportJournalResponse]
+	listLots                     *connect.Client[v1.ListLotsRequest, v1.ListLotsResponse]
 }
 
 // ListTransactions calls float.v1.LedgerService.ListTransactions.
@@ -1371,6 +1381,11 @@ func (c *ledgerServiceClient) ExportJournal(ctx context.Context, req *connect.Re
 	return c.exportJournal.CallUnary(ctx, req)
 }
 
+// ListLots calls float.v1.LedgerService.ListLots.
+func (c *ledgerServiceClient) ListLots(ctx context.Context, req *connect.Request[v1.ListLotsRequest]) (*connect.Response[v1.ListLotsResponse], error) {
+	return c.listLots.CallUnary(ctx, req)
+}
+
 // LedgerServiceHandler is an implementation of the float.v1.LedgerService service.
 type LedgerServiceHandler interface {
 	ListTransactions(context.Context, *connect.Request[v1.ListTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
@@ -1462,6 +1477,7 @@ type LedgerServiceHandler interface {
 	RunHledgerQuery(context.Context, *connect.Request[v1.RunHledgerQueryRequest]) (*connect.Response[v1.RunHledgerQueryResponse], error)
 	StreamLogs(context.Context, *connect.Request[v1.StreamLogsRequest], *connect.ServerStream[v1.StreamLogsResponse]) error
 	ExportJournal(context.Context, *connect.Request[v1.ExportJournalRequest]) (*connect.Response[v1.ExportJournalResponse], error)
+	ListLots(context.Context, *connect.Request[v1.ListLotsRequest]) (*connect.Response[v1.ListLotsResponse], error)
 }
 
 // NewLedgerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1963,6 +1979,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("ExportJournal")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceListLotsHandler := connect.NewUnaryHandler(
+		LedgerServiceListLotsProcedure,
+		svc.ListLots,
+		connect.WithSchema(ledgerServiceMethods.ByName("ListLots")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/float.v1.LedgerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LedgerServiceListTransactionsProcedure:
@@ -2129,6 +2151,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceStreamLogsHandler.ServeHTTP(w, r)
 		case LedgerServiceExportJournalProcedure:
 			ledgerServiceExportJournalHandler.ServeHTTP(w, r)
+		case LedgerServiceListLotsProcedure:
+			ledgerServiceListLotsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -2464,4 +2488,8 @@ func (UnimplementedLedgerServiceHandler) StreamLogs(context.Context, *connect.Re
 
 func (UnimplementedLedgerServiceHandler) ExportJournal(context.Context, *connect.Request[v1.ExportJournalRequest]) (*connect.Response[v1.ExportJournalResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ExportJournal is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ListLots(context.Context, *connect.Request[v1.ListLotsRequest]) (*connect.Response[v1.ListLotsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ListLots is not implemented"))
 }

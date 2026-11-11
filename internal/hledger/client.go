@@ -224,7 +224,7 @@ var runQueryAllowedCommands = map[string]bool{
 	"bse": true, "balancesheetequity": true,
 	"cf": true, "cashflow": true,
 	"check": true, "codes": true, "commodities": true,
-	"descriptions": true, "files": true,
+	"descriptions": true, "files": true, "holdings": true,
 	"is": true, "incomestatement": true,
 	"notes": true, "payees": true, "prices": true, "print": true,
 	"r": true, "reg": true, "register": true,
@@ -581,7 +581,7 @@ func (c *Client) UndeclaredAccounts(ctx context.Context) ([]string, error) {
 }
 
 // Tags runs `hledger tags -f <journal>` and returns the list of tag names in use,
-// excluding the internal "fid" tag.
+// excluding hledger's internal `_`-prefixed tags.
 func (c *Client) Tags(ctx context.Context) ([]string, error) {
 	args := []string{"tags", "-f", c.journal}
 
@@ -663,4 +663,75 @@ func (c *Client) PrintCSV(ctx context.Context, csvFile, rulesFile string) ([]Tra
 	}
 
 	return parseTransactions(stdout)
+}
+
+func (c *Client) Lots(ctx context.Context, query ...string) ([]LotRow, error) {
+	if err := validateQueryTerms(query); err != nil {
+		return nil, err
+	}
+
+	run := func(extra ...string) (*BalanceReport, error) {
+		args := append([]string{"bal", "--lots"}, extra...)
+		args = append(args, "-N", "-O", "json", "-f", c.journal)
+		args = append(args, query...)
+		stdout, stderr, err := c.run(ctx, args...)
+		if err != nil {
+			return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger bal --lots: %w", err))
+		}
+		return parseBalanceReport(stdout)
+	}
+
+	units, err := run()
+	if err != nil {
+		return nil, err
+	}
+	costs, err := run("-B")
+	if err != nil {
+		return nil, err
+	}
+
+	totalByAccount := make(map[string][]Amount, len(costs.Rows))
+	for _, row := range costs.Rows {
+		totalByAccount[row.FullName] = sumAmounts(row.Amounts)
+	}
+
+	lots := make([]LotRow, 0, len(units.Rows))
+	for _, row := range units.Rows {
+		base, date, label, ok := parseLotAccount(row.FullName)
+		if !ok {
+			continue
+		}
+		net := sumAmounts(row.Amounts)
+		if len(net) == 0 {
+			continue
+		}
+		lot := LotRow{
+			Account:   base,
+			LotName:   row.FullName[len(base)+1:],
+			Date:      date,
+			Label:     label,
+			Units:     net[0],
+			TotalCost: totalByAccount[row.FullName],
+		}
+		if cb := lot.Units.CostBasis; cb != nil {
+			lot.UnitCost = cb.Cost
+		}
+		lots = append(lots, lot)
+	}
+	return lots, nil
+}
+
+func sumAmounts(amounts []Amount) []Amount {
+	var out []Amount
+	index := map[string]int{}
+	for _, a := range amounts {
+		i, ok := index[a.Commodity]
+		if !ok {
+			index[a.Commodity] = len(out)
+			out = append(out, a)
+			continue
+		}
+		out[i].Quantity = out[i].Quantity.Add(a.Quantity)
+	}
+	return out
 }

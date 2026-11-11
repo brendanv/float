@@ -1,4 +1,4 @@
-import { X, Plus, Tag, Scale } from "lucide-react";
+import { X, Plus, Tag, Scale, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
@@ -36,6 +36,37 @@ export function AccountInput({
       className={className}
     />
   );
+}
+
+export function editablePostings(postings) {
+  return (postings || []).filter((p) => !p.generated);
+}
+
+export function fieldsFromPosting(p) {
+  const a = p.amounts?.[0];
+  const ba = p.balanceAssertion;
+  const cb = a?.costBasis;
+  let cost = a ? a.cost : undefined;
+  let lotCost = cb?.cost;
+  if (p.lotRole === "acquire" && lotCost?.quantity) {
+    if (cost?.isTotal) lotCost = undefined;
+    else cost = undefined;
+  }
+  return {
+    account: p.account,
+    commodity: a ? a.commodity : "",
+    quantity: a ? a.quantity : "",
+    cost,
+    lot: cb
+      ? {
+          date: cb.date ?? "",
+          label: cb.label ?? "",
+          costQuantity: lotCost?.quantity ?? "",
+          costCommodity: lotCost?.commodity ?? "",
+        }
+      : undefined,
+    balanceAssertion: ba?.amount ? { commodity: ba.amount.commodity, quantity: ba.amount.quantity } : undefined,
+  };
 }
 
 function CostFields({ cost, onChange, onRemove }) {
@@ -81,6 +112,69 @@ function CostFields({ cost, onChange, onRemove }) {
           }
         />
         <TooltipContent>Remove price</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+function LotFields({ lot, onChange, onRemove }) {
+  const l = lot || { date: "", label: "", costQuantity: "", costCommodity: "" };
+  return (
+    <div className="ml-4 flex flex-wrap items-center gap-2 border-l pl-3">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="h-8 shrink-0 select-none rounded border border-input bg-background px-2 font-mono text-xs leading-8">
+              {"{ }"}
+            </span>
+          }
+        />
+        <TooltipContent>On a sale, date or label selects the lot. On a buy, cost sets the basis.</TooltipContent>
+      </Tooltip>
+      <Input
+        type="date"
+        value={l.date}
+        onChange={(e) => onChange({ ...l, date: e.target.value })}
+        className="w-36 shrink-0"
+      />
+      <Input
+        type="text"
+        placeholder="Label"
+        value={l.label}
+        onInput={(e) => onChange({ ...l, label: e.target.value })}
+        className="w-24 shrink-0"
+      />
+      <Input
+        type="number"
+        step="any"
+        placeholder="Cost"
+        value={l.costQuantity}
+        onInput={(e) => onChange({ ...l, costQuantity: e.target.value })}
+        className="w-20 shrink-0 sm:w-24"
+      />
+      <Input
+        type="text"
+        placeholder="USD"
+        value={l.costCommodity}
+        onInput={(e) => onChange({ ...l, costCommodity: e.target.value })}
+        className="w-16 shrink-0"
+      />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onRemove}
+              type="button"
+              aria-label="Remove lot"
+              className="shrink-0"
+            >
+              <X />
+            </Button>
+          }
+        />
+        <TooltipContent>Remove lot</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -148,6 +242,19 @@ export function PostingFields({ postings, onChange, accounts }) {
     onChange(next);
   }
 
+  function updateLot(index, lot) {
+    update(index, { lot });
+  }
+
+  function removeLot(index) {
+    const next = postings.map((p, i) => {
+      if (i !== index) return p;
+      const { lot: _, ...rest } = p;
+      return rest;
+    });
+    onChange(next);
+  }
+
   function updateAssertion(index, ba) {
     update(index, { balanceAssertion: ba });
   }
@@ -177,6 +284,7 @@ export function PostingFields({ postings, onChange, accounts }) {
       {postings.map((p, i) => {
         const hasCost = !!p.cost;
         const hasAssertion = !!p.balanceAssertion;
+        const hasLot = !!p.lot;
         return (
           <div key={i} className="flex flex-col gap-1">
             <div className="flex items-start gap-2">
@@ -219,6 +327,25 @@ export function PostingFields({ postings, onChange, accounts }) {
                   <TooltipContent>Add price</TooltipContent>
                 </Tooltip>
               )}
+              {!hasLot && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => updateLot(i, { date: "", label: "", costQuantity: "", costCommodity: "" })}
+                        type="button"
+                        aria-label="Add lot / cost basis"
+                        className="shrink-0"
+                      >
+                        <Layers />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>Add lot / cost basis</TooltipContent>
+                </Tooltip>
+              )}
               {!hasAssertion && (
                 <Tooltip>
                   <TooltipTrigger
@@ -256,6 +383,13 @@ export function PostingFields({ postings, onChange, accounts }) {
                 onRemove={() => removeCost(i)}
               />
             )}
+            {hasLot && (
+              <LotFields
+                lot={p.lot}
+                onChange={(l) => updateLot(i, l)}
+                onRemove={() => removeLot(i)}
+              />
+            )}
             {hasAssertion && (
               <AssertionFields
                 assertion={p.balanceAssertion}
@@ -288,6 +422,21 @@ export function toPostingInput(p) {
       quantity: String(p.cost.quantity).trim(),
       isTotal: !!p.cost.isTotal,
     };
+  }
+  if (p.lot) {
+    const date = (p.lot.date || "").trim();
+    const label = (p.lot.label || "").trim();
+    const costQuantity = String(p.lot.costQuantity ?? "").trim();
+    if (date || label || costQuantity) {
+      const costBasis = { date, label };
+      if (costQuantity) {
+        costBasis.cost = {
+          commodity: (p.lot.costCommodity || "").trim(),
+          quantity: costQuantity,
+        };
+      }
+      out.costBasis = costBasis;
+    }
   }
   if (p.balanceAssertion?.quantity && String(p.balanceAssertion.quantity).trim()) {
     out.balanceAssertion = {

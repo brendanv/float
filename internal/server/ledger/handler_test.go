@@ -3684,3 +3684,133 @@ include 2026/01.journal
 		t.Errorf("SkippedCommodities = %d, want 1", resp.Msg.SkippedCommodities)
 	}
 }
+
+func mustLotsHandler(t *testing.T) *serverledger.Handler {
+	t.Helper()
+	c, err := hledger.New("hledger", "../../hledger/testdata/lots.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	return serverledger.NewHandler(c, nil, "", "", nil, nil, nil, nil)
+}
+
+func TestListLots(t *testing.T) {
+	h := mustLotsHandler(t)
+	resp, err := h.ListLots(t.Context(), connect.NewRequest(&floatv1.ListLotsRequest{}))
+	if err != nil {
+		t.Fatalf("ListLots: %v", err)
+	}
+	type want struct{ account, date, label, commodity, units, unitCost, totalCost string }
+	wantByName := map[string]want{
+		"assets:brokerage:{2026-01-15, $50}":         {"assets:brokerage", "2026-01-15", "", "AAPL", "3", "50", "150"},
+		`assets:brokerage:{2026-01-16, "mine", $40}`: {"assets:brokerage", "2026-01-16", "mine", "AAPL", "4", "40", "160"},
+		"assets:brokerage:{2026-01-20, $60}":         {"assets:brokerage", "2026-01-20", "", "AAPL", "3", "60", "180"},
+		"assets:brokerage:{2026-01-25, $1,234.567}":  {"assets:brokerage", "2026-01-25", "", "AAPL", "1", "1234.567", "1234.567"},
+		"assets:ira:{2026-01-15, $50}":               {"assets:ira", "2026-01-15", "", "AAPL", "2", "50", "100"},
+		"assets:ira:{2026-01-11, $110}":              {"assets:ira", "2026-01-11", "", "VTI", "2", "110", "220"},
+		"assets:crypto:{2026-02-15, $40,000}":        {"assets:crypto", "2026-02-15", "", "BTC", "0.375", "40000", "15000"},
+	}
+	lots := resp.Msg.Lots
+	if len(lots) != len(wantByName) {
+		t.Fatalf("len(lots) = %d, want %d: %v", len(lots), len(wantByName), lots)
+	}
+	for _, l := range lots {
+		full := l.Account + ":" + l.LotName
+		w, ok := wantByName[full]
+		if !ok {
+			t.Errorf("unexpected lot %q", full)
+			continue
+		}
+		if l.Date != w.date || l.Label != w.label {
+			t.Errorf("%s: date/label = %q/%q, want %q/%q", full, l.Date, l.Label, w.date, w.label)
+		}
+		if l.Units == nil || l.Units.Commodity != w.commodity || l.Units.Quantity != w.units {
+			t.Errorf("%s: units = %v, want %s %s", full, l.Units, w.units, w.commodity)
+		}
+		if l.UnitCost == nil || l.UnitCost.Commodity != "$" || l.UnitCost.Quantity != w.unitCost {
+			t.Errorf("%s: unit cost = %v, want $ %s", full, l.UnitCost, w.unitCost)
+		}
+		if len(l.TotalCost) != 1 || l.TotalCost[0].Commodity != "$" || l.TotalCost[0].Quantity != w.totalCost {
+			t.Errorf("%s: total cost = %v, want $ %s", full, l.TotalCost, w.totalCost)
+		}
+	}
+}
+
+func TestListLots_QueryFilters(t *testing.T) {
+	h := mustLotsHandler(t)
+	resp, err := h.ListLots(t.Context(), connect.NewRequest(&floatv1.ListLotsRequest{Query: []string{"acct:nonexistent"}}))
+	if err != nil {
+		t.Fatalf("ListLots: %v", err)
+	}
+	if len(resp.Msg.Lots) != 0 {
+		t.Errorf("len(lots) = %d, want 0", len(resp.Msg.Lots))
+	}
+}
+
+func TestListTransactions_LotFields(t *testing.T) {
+	h := mustLotsHandler(t)
+	resp, err := h.ListTransactions(t.Context(), connect.NewRequest(&floatv1.ListTransactionsRequest{}))
+	if err != nil {
+		t.Fatalf("ListTransactions: %v", err)
+	}
+	byFID := map[string]*floatv1.Transaction{}
+	for _, tx := range resp.Msg.Transactions {
+		byFID[tx.Fid] = tx
+	}
+
+	tests := []struct {
+		fid, account, role string
+		generated          bool
+		date, label        string
+		costCommodity      string
+		hasBasis           bool
+	}{
+		{fid: "aa000001", account: "assets:brokerage", role: "acquire", hasBasis: true, costCommodity: "$"},
+		{fid: "aa000002", account: "assets:brokerage", role: "acquire", hasBasis: true, date: "2026-01-16", label: "mine", costCommodity: "$"},
+		{fid: "aa000005", account: "assets:brokerage", role: "dispose", hasBasis: true, date: "2026-01-15", costCommodity: "$"},
+		{fid: "aa000005", account: "revenues:gain", role: "gain", generated: true},
+		// FIFO disposal spanning two lots: hledger reports an empty {} basis.
+		{fid: "bb000003", account: "assets:ira", role: "dispose", hasBasis: true},
+		{fid: "dd000001", account: "assets:ira", role: "transfer-to", hasBasis: true, date: "2026-01-15", costCommodity: "$"},
+		{fid: "dd000001", account: "assets:brokerage", role: "transfer-from", hasBasis: true, date: "2026-01-15", costCommodity: "$"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.fid+"/"+tt.account, func(t *testing.T) {
+			tx, ok := byFID[tt.fid]
+			if !ok {
+				t.Fatalf("transaction %q not found", tt.fid)
+			}
+			var p *floatv1.Posting
+			for _, cand := range tx.Postings {
+				if cand.Account == tt.account {
+					p = cand
+				}
+			}
+			if p == nil {
+				t.Fatalf("posting %q not found", tt.account)
+			}
+			if p.LotRole != tt.role {
+				t.Errorf("LotRole = %q, want %q", p.LotRole, tt.role)
+			}
+			if p.Generated != tt.generated {
+				t.Errorf("Generated = %v, want %v", p.Generated, tt.generated)
+			}
+			cb := p.Amounts[0].CostBasis
+			if (cb != nil) != tt.hasBasis {
+				t.Fatalf("CostBasis = %v, hasBasis want %v", cb, tt.hasBasis)
+			}
+			if cb == nil {
+				return
+			}
+			if cb.Date != tt.date || cb.Label != tt.label {
+				t.Errorf("CostBasis date/label = %q/%q, want %q/%q", cb.Date, cb.Label, tt.date, tt.label)
+			}
+			if (cb.Cost != nil) != (tt.costCommodity != "") {
+				t.Fatalf("CostBasis.Cost = %v, want commodity %q", cb.Cost, tt.costCommodity)
+			}
+			if cb.Cost != nil && cb.Cost.Commodity != tt.costCommodity {
+				t.Errorf("CostBasis.Cost commodity = %q, want %q", cb.Cost.Commodity, tt.costCommodity)
+			}
+		})
+	}
+}

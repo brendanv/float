@@ -1,0 +1,8 @@
+account assets:checking      ; type: C
+account assets:brokerage     ; type: A
+account expenses:food        ; type: X
+account income:salary        ; type: R
+account equity:opening       ; type: E
+
+commodity $1,000.00
+commodity AAPL ; lots:

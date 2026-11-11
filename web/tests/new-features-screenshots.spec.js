@@ -31,3 +31,30 @@ test("transactions page - duplicate button", async ({ page }) => {
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/transactions-duplicate.png", fullPage: true });
 });
+
+test("lots page", async ({ page }) => {
+  await page.goto("/#/lots");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/lots.png", fullPage: true });
+});
+
+test("lots page - mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/lots");
+  await page.waitForSelector("text=drip", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/lots-mobile.png", fullPage: true });
+});
+
+test("transactions page - lot disposal expanded", async ({ page }) => {
+  await page.goto("/#/transactions");
+  await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
+  await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
+  await page.waitForTimeout(300);
+  await page.locator("tbody tr", { hasText: "Sell AAPL" }).first().getByText("2026-03-20").click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: "test-results/transactions-lot-disposal.png", fullPage: true });
+});

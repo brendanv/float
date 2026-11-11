@@ -359,6 +359,7 @@ export function TransactionsPage() {
   }
 
   function onStatusChange() {
+    queryClient.invalidateQueries({ queryKey: ["lots"] });
     if (isAccountMode) {
       queryClient.invalidateQueries({ queryKey: queryKeys.accountRegister(aregParams) });
     } else {
@@ -370,6 +371,7 @@ export function TransactionsPage() {
     setSelectedFids(new Set());
     queryClient.invalidateQueries({ queryKey: ["transactions"] });
     queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
+    queryClient.invalidateQueries({ queryKey: ["lots"] });
   }
 
   const transactions = !isAccountMode ? (data?.transactions || []) : [];

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -47,30 +48,37 @@ func TestNew(t *testing.T) {
 
 func TestCheck(t *testing.T) {
 	tests := []struct {
-		name         string
-		journal      string
-		wantErr      bool
-		wantCheckErr bool
+		name       string
+		journal    string
+		wantOutput string // non-empty means Check must fail with a *CheckError containing this
 	}{
 		{name: "valid journal", journal: "simple.journal"},
-		{name: "invalid journal", journal: "invalid.journal", wantErr: true, wantCheckErr: true},
 		{name: "empty journal", journal: "empty.journal"},
+		{name: "assertions", journal: "assertions.journal"},
+		{name: "investments", journal: "investments.journal"},
+		{name: "lots", journal: "lots.journal"},
+		{name: "closed accounts", journal: "closed.journal"},
+		{name: "hidden meta", journal: "hiddenmeta.journal"},
+		{name: "unbalanced transaction", journal: "invalid.journal", wantOutput: "UNBALANCED TRANSACTION"},
+		{name: "failed balance assertion", journal: "badassertion.journal", wantOutput: "Balance assertion failed"},
+		{name: "oversold lot", journal: "badlot.journal", wantOutput: "Insufficient lots"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := mustClient(t, tt.journal)
 			err := c.Check(t.Context())
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("Check() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantOutput == "" {
+				if err != nil {
+					t.Fatalf("Check() = %v, want nil", err)
+				}
+				return
 			}
-			if tt.wantCheckErr {
-				var checkErr *hledger.CheckError
-				if !errors.As(err, &checkErr) {
-					t.Errorf("expected *CheckError, got: %T", err)
-				}
-				if checkErr.Error() == "" {
-					t.Error("expected non-empty error message")
-				}
+			var checkErr *hledger.CheckError
+			if !errors.As(err, &checkErr) {
+				t.Fatalf("Check() = %v (%T), want *CheckError", err, err)
+			}
+			if !strings.Contains(checkErr.Output, tt.wantOutput) {
+				t.Errorf("CheckError.Output = %q, want it to contain %q", checkErr.Output, tt.wantOutput)
 			}
 		})
 	}
@@ -173,61 +181,44 @@ func TestBalances(t *testing.T) {
 	}
 }
 
+// amountsByAccount flattens a balance report to account -> "QTY COMMODITY" strings.
+func amountsByAccount(report *hledger.BalanceReport) map[string][]string {
+	out := map[string][]string{}
+	for _, row := range report.Rows {
+		for _, a := range row.Amounts {
+			out[row.FullName] = append(out[row.FullName], a.Quantity.Format()+" "+a.Commodity)
+		}
+	}
+	return out
+}
+
 func TestBalancesValued(t *testing.T) {
 	c := mustClient(t, "investments.journal")
 
-	// Raw balances should show commodity amounts.
 	raw, err := c.Balances(t.Context(), 0, "assets:investments")
 	if err != nil {
 		t.Fatalf("Balances: %v", err)
 	}
-	rawByAccount := map[string][]hledger.Amount{}
-	for _, row := range raw.Rows {
-		rawByAccount[row.FullName] = row.Amounts
+	wantRaw := map[string][]string{
+		"assets:investments:aapl": {"10 AAPL"},
+		"assets:investments:msft": {"5 MSFT"},
 	}
-	if amts := rawByAccount["assets:investments:aapl"]; len(amts) == 0 || amts[0].Commodity != "AAPL" {
-		t.Errorf("expected AAPL commodity in raw balances, got %+v", amts)
-	}
-	if amts := rawByAccount["assets:investments:msft"]; len(amts) == 0 || amts[0].Commodity != "MSFT" {
-		t.Errorf("expected MSFT commodity in raw balances, got %+v", amts)
+	if got := amountsByAccount(raw); !reflect.DeepEqual(got, wantRaw) {
+		t.Errorf("raw balances = %v, want %v", got, wantRaw)
 	}
 
-	// Valued balances should convert commodities to USD via prices.journal P directives.
+	// The 2026-04-26 P directives are the latest prices, so now,USD is
+	// deterministic for any run date after them: 10 × 178.50 and 5 × 398.75.
 	valued, err := c.BalancesValued(t.Context(), "now,USD", 0, "assets:investments")
 	if err != nil {
 		t.Fatalf("BalancesValued: %v", err)
 	}
-	valuedByAccount := map[string][]hledger.Amount{}
-	for _, row := range valued.Rows {
-		valuedByAccount[row.FullName] = row.Amounts
+	wantValued := map[string][]string{
+		"assets:investments:aapl": {"1785 USD"},
+		"assets:investments:msft": {"1993.75 USD"},
 	}
-
-	// AAPL: 10 shares × $178.50 = $1785.00
-	if amts := valuedByAccount["assets:investments:aapl"]; len(amts) == 0 {
-		t.Error("assets:investments:aapl missing from valued balances")
-	} else {
-		amt := amts[0]
-		if amt.Commodity != "USD" {
-			t.Errorf("expected USD commodity after valuation, got %q", amt.Commodity)
-		}
-		got := amt.Quantity.FloatingPoint
-		if got < 1784 || got > 1786 {
-			t.Errorf("expected AAPL value ≈ 1785.00, got %v", got)
-		}
-	}
-
-	// MSFT: 5 shares × $398.75 = $1993.75
-	if amts := valuedByAccount["assets:investments:msft"]; len(amts) == 0 {
-		t.Error("assets:investments:msft missing from valued balances")
-	} else {
-		amt := amts[0]
-		if amt.Commodity != "USD" {
-			t.Errorf("expected USD commodity after valuation, got %q", amt.Commodity)
-		}
-		got := amt.Quantity.FloatingPoint
-		if got < 1992 || got > 1995 {
-			t.Errorf("expected MSFT value ≈ 1993.75, got %v", got)
-		}
+	if got := amountsByAccount(valued); !reflect.DeepEqual(got, wantValued) {
+		t.Errorf("valued balances = %v, want %v", got, wantValued)
 	}
 }
 
@@ -238,76 +229,115 @@ func TestBalancesCost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BalancesCost: %v", err)
 	}
-	costByAccount := map[string][]hledger.Amount{}
-	for _, row := range cost.Rows {
-		costByAccount[row.FullName] = row.Amounts
+	want := map[string][]string{
+		"assets:investments:aapl": {"1750 USD"},
+		"assets:investments:msft": {"2000 USD"},
 	}
+	if got := amountsByAccount(cost); !reflect.DeepEqual(got, want) {
+		t.Errorf("cost balances = %v, want %v", got, want)
+	}
+}
 
-	// AAPL: 10 shares @ $175 = $1750 cost basis
-	if amts := costByAccount["assets:investments:aapl"]; len(amts) == 0 {
-		t.Error("assets:investments:aapl missing from cost balances")
-	} else {
-		amt := amts[0]
-		if amt.Commodity != "USD" {
-			t.Errorf("expected USD cost commodity for AAPL, got %q", amt.Commodity)
+// assetsTotals returns the Assets subreport totals as "QTY COMMODITY" per period.
+func assetsTotals(t *testing.T, ts *hledger.BalanceSheetTimeseries) []string {
+	t.Helper()
+	for _, sub := range ts.Subreports {
+		if sub.Name != "Assets" {
+			continue
 		}
-		got := amt.Quantity.FloatingPoint
-		if got < 1749 || got > 1751 {
-			t.Errorf("expected AAPL cost ≈ 1750.00, got %v", got)
+		out := make([]string, len(sub.Totals))
+		for i, amts := range sub.Totals {
+			var parts []string
+			for _, a := range amts {
+				parts = append(parts, a.Quantity.Format()+" "+a.Commodity)
+			}
+			out[i] = strings.Join(parts, ", ")
 		}
+		return out
 	}
-
-	// MSFT: 5 shares @ $400 = $2000 cost basis
-	if amts := costByAccount["assets:investments:msft"]; len(amts) == 0 {
-		t.Error("assets:investments:msft missing from cost balances")
-	} else {
-		amt := amts[0]
-		if amt.Commodity != "USD" {
-			t.Errorf("expected USD cost commodity for MSFT, got %q", amt.Commodity)
-		}
-		got := amt.Quantity.FloatingPoint
-		if got < 1999 || got > 2001 {
-			t.Errorf("expected MSFT cost ≈ 2000.00, got %v", got)
-		}
-	}
+	t.Fatal("Assets subreport not found")
+	return nil
 }
 
 func TestPortfolioTimeseries(t *testing.T) {
 	c := mustClient(t, "investments.journal")
 
-	ts, err := c.PortfolioTimeseries(t.Context(), []string{"assets:investments"}, "")
-	if err != nil {
-		t.Fatalf("PortfolioTimeseries: %v", err)
+	tests := []struct {
+		name        string
+		begin       string
+		wantPeriods []string
+		wantTotals  []string
+	}{
+		{
+			// Jan–Mar are valued at the market prices inferred from the @
+			// costs; April picks up the P directives.
+			name:        "full history",
+			wantPeriods: []string{"2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01"},
+			wantTotals:  []string{"1750 USD", "3750 USD", "3750 USD", "3778.75 USD"},
+		},
+		{
+			name:        "begin is historical",
+			begin:       "2026-02-01",
+			wantPeriods: []string{"2026-02-01", "2026-03-01", "2026-04-01"},
+			wantTotals:  []string{"3750 USD", "3750 USD", "3778.75 USD"},
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, err := c.PortfolioTimeseries(t.Context(), []string{"assets:investments"}, tt.begin)
+			if err != nil {
+				t.Fatalf("PortfolioTimeseries: %v", err)
+			}
+			if !reflect.DeepEqual(ts.Periods, tt.wantPeriods) {
+				t.Errorf("Periods = %v, want %v", ts.Periods, tt.wantPeriods)
+			}
+			if got := assetsTotals(t, ts); !reflect.DeepEqual(got, tt.wantTotals) {
+				t.Errorf("Assets totals = %v, want %v", got, tt.wantTotals)
+			}
+		})
+	}
+}
 
-	// investments.journal has transactions in 2026-01 and 2026-02.
-	if len(ts.Periods) < 1 {
-		t.Fatalf("expected at least 1 period, got %d", len(ts.Periods))
+func TestPortfolioCostBasisTimeseries(t *testing.T) {
+	tests := []struct {
+		name        string
+		journal     string
+		accounts    []string
+		wantPeriods []string
+		wantTotals  []string
+	}{
+		{
+			name:        "@ unit costs",
+			journal:     "investments.journal",
+			accounts:    []string{"assets:investments"},
+			wantPeriods: []string{"2026-01-01", "2026-02-01"},
+			wantTotals:  []string{"1750 USD", "3750 USD"},
+		},
+		{
+			// Lot acquires carry only a {} basis; hledger infers the @ cost
+			// from it, so --cost still yields the cost basis. February nets
+			// out the disposed and transferred-away lots.
+			name:        "lot cost basis",
+			journal:     "lots.journal",
+			accounts:    []string{"assets:brokerage"},
+			wantPeriods: []string{"2026-01-01", "2026-02-01"},
+			wantTotals:  []string{"2204.567 $", "1724.567 $"},
+		},
 	}
-
-	var assetsSub *hledger.BSSubreport
-	for i := range ts.Subreports {
-		if ts.Subreports[i].Name == "Assets" {
-			assetsSub = &ts.Subreports[i]
-			break
-		}
-	}
-	if assetsSub == nil {
-		t.Fatal("Assets subreport not found")
-		return
-	}
-
-	// Last period should include both AAPL and MSFT valued at period-end prices.
-	// With --value=end,USD and P directives at 2026-04-26, the last period
-	// after both purchases will show total investment value > 0.
-	last := len(ts.Periods) - 1
-	if len(assetsSub.Totals[last]) == 0 {
-		t.Error("expected non-empty Assets totals in last period")
-	} else {
-		v := assetsSub.Totals[last][0].Quantity.FloatingPoint
-		if v <= 0 {
-			t.Errorf("expected positive portfolio value in last period, got %v", v)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := mustClient(t, tt.journal)
+			ts, err := c.PortfolioCostBasisTimeseries(t.Context(), tt.accounts, "")
+			if err != nil {
+				t.Fatalf("PortfolioCostBasisTimeseries: %v", err)
+			}
+			if !reflect.DeepEqual(ts.Periods, tt.wantPeriods) {
+				t.Errorf("Periods = %v, want %v", ts.Periods, tt.wantPeriods)
+			}
+			if got := assetsTotals(t, ts); !reflect.DeepEqual(got, tt.wantTotals) {
+				t.Errorf("Assets totals = %v, want %v", got, tt.wantTotals)
+			}
+		})
 	}
 }
 
@@ -602,6 +632,35 @@ func TestPrintCSV(t *testing.T) {
 			},
 		},
 		{
+			// Quoted field with a comma, thousands separator, an integer
+			// amount, unmatched rows falling back to expenses/income:unknown,
+			// and out-of-order rows (hledger sorts by date).
+			name:      "edge cases",
+			csvFile:   "testdata/import_edge.csv",
+			rulesFile: "testdata/import.rules",
+			check: func(t *testing.T, txns []hledger.Transaction) {
+				type row struct{ date, desc, account, checking string }
+				want := []row{
+					{"2026-01-05", "PAYROLL DIRECT DEPOSIT", "income:salary", "3500.00"},
+					{"2026-01-15", "AMAZON MARKETPLACE, SEATTLE WA", "expenses:shopping", "-45.00"},
+					{"2026-01-20", "WHOLE FOODS", "expenses:food", "-120"},
+					{"2026-01-22", "UNKNOWN MERCHANT", "expenses:unknown", "-12.34"},
+					{"2026-01-23", "REFUND FROM SOMEWHERE", "income:unknown", "8.00"},
+				}
+				var got []row
+				for _, tx := range txns {
+					if len(tx.Postings) != 2 || tx.Postings[0].Account != "assets:checking" {
+						t.Errorf("%s: unexpected postings %+v", tx.Description, tx.Postings)
+						continue
+					}
+					got = append(got, row{tx.Date, tx.Description, tx.Postings[1].Account, tx.Postings[0].Amounts[0].Quantity.Format()})
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("got  %v\nwant %v", got, want)
+				}
+			},
+		},
+		{
 			name:      "nonexistent rules file",
 			csvFile:   "testdata/import.csv",
 			rulesFile: "testdata/nonexistent.rules",
@@ -814,6 +873,11 @@ func TestTags(t *testing.T) {
 			output: "",
 			want:   nil,
 		},
+		{
+			name:   "filters hledger internal tags",
+			output: "_generated-posting\n_ptype\nlots\n",
+			want:   []string{"lots"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -843,17 +907,32 @@ func TestTags(t *testing.T) {
 		})
 	}
 
-	// Integration smoke test: Tags() against the real journal runs without error.
-	t.Run("integration", func(t *testing.T) {
-		c, err := hledger.New("hledger", "testdata/simple.journal")
-		if err != nil {
-			t.Skip("hledger binary not available:", err)
-		}
-		_, err = c.Tags(t.Context())
-		if err != nil {
-			t.Fatalf("Tags: %v", err)
-		}
-	})
+	integration := []struct {
+		journal string
+		want    []string
+	}{
+		{journal: "simple.journal", want: nil},
+		// float-* hidden meta is filtered by the server layer, not here.
+		{journal: "hiddenmeta.journal", want: []string{"category", "float-import-id", "float-updated-at"}},
+		// hledger adds _ptype/_generated-posting to lot postings and inherits
+		// the commodity's lots: tag; only the latter is user-visible.
+		{journal: "lots.journal", want: []string{"lots"}},
+	}
+	for _, tt := range integration {
+		t.Run("integration "+tt.journal, func(t *testing.T) {
+			c, err := hledger.New("hledger", filepath.Join("testdata", tt.journal))
+			if err != nil {
+				t.Skip("hledger binary not available:", err)
+			}
+			got, err := c.Tags(t.Context())
+			if err != nil {
+				t.Fatalf("Tags: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Tags = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestTransactionFloatMeta(t *testing.T) {
@@ -1375,6 +1454,46 @@ func TestWaitUncontendedBlocksWhileSlotsBusy(t *testing.T) {
 	}
 }
 
+func TestUnusedAndUndeclaredAccounts(t *testing.T) {
+	tests := []struct {
+		name           string
+		journal        string
+		wantUnused     []string
+		wantUndeclared []string
+	}{
+		{name: "all declared and used", journal: "simple.journal"},
+		{name: "declared but unused", journal: "empty.journal", wantUnused: []string{"assets:checking"}},
+		{name: "undeclared balancing account", journal: "assertions.journal", wantUndeclared: []string{"equity:opening"}},
+		// A declared parent whose only postings are on an undeclared child
+		// counts as unused.
+		{name: "used only via child", journal: "closed.journal", wantUnused: []string{"assets:old"}, wantUndeclared: []string{"assets:old:savings"}},
+		// floatd auto-declares UndeclaredAccounts at startup, so lot
+		// subaccounts like assets:brokerage:{2026-01-15, $50} must not appear.
+		{name: "lot subaccounts are not undeclared", journal: "lots.journal", wantUndeclared: []string{
+			"assets:brokerage", "assets:cash", "assets:crypto", "assets:ira", "revenues:gain",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := mustClient(t, tt.journal)
+			unused, err := c.UnusedAccounts(t.Context())
+			if err != nil {
+				t.Fatalf("UnusedAccounts: %v", err)
+			}
+			if !reflect.DeepEqual(unused, tt.wantUnused) {
+				t.Errorf("UnusedAccounts = %q, want %q", unused, tt.wantUnused)
+			}
+			undeclared, err := c.UndeclaredAccounts(t.Context())
+			if err != nil {
+				t.Fatalf("UndeclaredAccounts: %v", err)
+			}
+			if !reflect.DeepEqual(undeclared, tt.wantUndeclared) {
+				t.Errorf("UndeclaredAccounts = %q, want %q", undeclared, tt.wantUndeclared)
+			}
+		})
+	}
+}
+
 func TestClosedAccounts(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -1396,6 +1515,322 @@ func TestClosedAccounts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTransactionsLots(t *testing.T) {
+	c := mustClient(t, "lots.journal")
+	txns, err := c.Transactions(t.Context())
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+
+	byFID := map[string]hledger.Transaction{}
+	for _, tx := range txns {
+		byFID[tx.FID] = tx
+	}
+
+	findPosting := func(t *testing.T, fid, account string) hledger.Posting {
+		t.Helper()
+		tx, ok := byFID[fid]
+		if !ok {
+			t.Fatalf("transaction %q not found", fid)
+		}
+		for _, p := range tx.Postings {
+			if p.Account == account {
+				return p
+			}
+		}
+		t.Fatalf("posting %q not found in %q", account, fid)
+		return hledger.Posting{}
+	}
+
+	tests := []struct {
+		name          string
+		fid           string
+		account       string
+		wantRole      string
+		wantGenerated bool
+		wantBasis     bool
+		wantDate      string
+		wantLabel     string
+		wantCostQty   string // "" with wantBasis means an empty {} basis
+		wantAmount    string // posting quantity; checked when non-empty
+	}{
+		{name: "explicit acquire", fid: "aa000001", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantCostQty: "50", wantAmount: "10"},
+		{name: "labelled acquire", fid: "aa000002", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantDate: "2026-01-16", wantLabel: "mine", wantCostQty: "40"},
+		{name: "fractional cost", fid: "aa000004", account: "assets:brokerage", wantRole: "acquire", wantBasis: true, wantCostQty: "1234.567"},
+		{name: "specid disposal", fid: "aa000005", account: "assets:brokerage", wantRole: "dispose", wantBasis: true, wantDate: "2026-01-15", wantCostQty: "50", wantAmount: "-5"},
+		{name: "cash leg", fid: "aa000005", account: "assets:cash", wantAmount: "350"},
+		{name: "inferred gain", fid: "aa000005", account: "revenues:gain", wantRole: "gain", wantGenerated: true, wantAmount: "-100"},
+		{name: "label-only selector inferred", fid: "cc000002", account: "assets:brokerage", wantRole: "dispose", wantBasis: true, wantDate: "2026-01-17", wantLabel: "short", wantCostQty: "65"},
+		{name: "inferred loss", fid: "cc000002", account: "revenues:gain", wantRole: "gain", wantGenerated: true, wantAmount: "20"},
+		{name: "fifo acquire", fid: "bb000001", account: "assets:ira", wantRole: "acquire", wantBasis: true, wantCostQty: "100"},
+		{name: "fifo disposal across lots has empty basis", fid: "bb000003", account: "assets:ira", wantRole: "dispose", wantBasis: true, wantAmount: "-3"},
+		{name: "fifo gain spans lots", fid: "bb000003", account: "revenues:gain", wantRole: "gain", wantGenerated: true, wantAmount: "-50"},
+		{name: "transfer to", fid: "dd000001", account: "assets:ira", wantRole: "transfer-to", wantBasis: true, wantDate: "2026-01-15", wantCostQty: "50", wantAmount: "2"},
+		{name: "transfer from", fid: "dd000001", account: "assets:brokerage", wantRole: "transfer-from", wantBasis: true, wantDate: "2026-01-15", wantCostQty: "50", wantAmount: "-2"},
+		{name: "fractional units acquire", fid: "ee000001", account: "assets:crypto", wantRole: "acquire", wantBasis: true, wantCostQty: "40000", wantAmount: "0.5"},
+		{name: "selectorless disposal of sole lot inferred", fid: "ee000002", account: "assets:crypto", wantRole: "dispose", wantBasis: true, wantDate: "2026-02-15", wantCostQty: "40000", wantAmount: "-0.125"},
+		{name: "fractional gain", fid: "ee000002", account: "revenues:gain", wantRole: "gain", wantGenerated: true, wantAmount: "-1000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := findPosting(t, tt.fid, tt.account)
+			if got := p.LotRole(); got != tt.wantRole {
+				t.Errorf("LotRole = %q, want %q", got, tt.wantRole)
+			}
+			if got := p.Generated(); got != tt.wantGenerated {
+				t.Errorf("Generated = %v, want %v", got, tt.wantGenerated)
+			}
+			if len(p.Amounts) != 1 {
+				t.Fatalf("got %d amounts, want 1: %+v", len(p.Amounts), p.Amounts)
+			}
+			if tt.wantAmount != "" && p.Amounts[0].Quantity.Format() != tt.wantAmount {
+				t.Errorf("amount = %s, want %s", p.Amounts[0].Quantity.Format(), tt.wantAmount)
+			}
+			cb := p.Amounts[0].CostBasis
+			if !tt.wantBasis {
+				if cb != nil {
+					t.Errorf("CostBasis = %+v, want nil", cb)
+				}
+				return
+			}
+			if cb == nil {
+				t.Fatal("CostBasis = nil, want non-nil")
+			}
+			if tt.wantCostQty == "" {
+				if cb.Cost != nil || cb.Date != nil || cb.Label != nil {
+					t.Errorf("CostBasis = %+v, want empty", cb)
+				}
+				return
+			}
+			if cb.Cost == nil {
+				t.Fatalf("CostBasis = %+v, want non-nil cost", cb)
+			}
+			if tt.wantDate == "" && cb.Date != nil {
+				t.Errorf("CostBasis.Date = %q, want nil", *cb.Date)
+			}
+			if tt.wantDate != "" && (cb.Date == nil || *cb.Date != tt.wantDate) {
+				t.Errorf("CostBasis.Date = %v, want %q", cb.Date, tt.wantDate)
+			}
+			if tt.wantLabel == "" && cb.Label != nil {
+				t.Errorf("CostBasis.Label = %q, want nil", *cb.Label)
+			}
+			if tt.wantLabel != "" && (cb.Label == nil || *cb.Label != tt.wantLabel) {
+				t.Errorf("CostBasis.Label = %v, want %q", cb.Label, tt.wantLabel)
+			}
+			if cb.Cost.Commodity != "$" || cb.Cost.Quantity.Format() != tt.wantCostQty {
+				t.Errorf("CostBasis.Cost = %s %s, want $ %s", cb.Cost.Commodity, cb.Cost.Quantity.Format(), tt.wantCostQty)
+			}
+		})
+	}
+}
+
+func TestLots(t *testing.T) {
+	c := mustClient(t, "lots.journal")
+
+	tests := []struct {
+		name    string
+		query   []string
+		want    map[string]struct{ date, label, units, unitCost, totalCost string }
+		wantErr error
+	}{
+		{
+			name: "all lots",
+			want: map[string]struct{ date, label, units, unitCost, totalCost string }{
+				// 10 bought, 5 sold, 2 transferred to the IRA.
+				"assets:brokerage:{2026-01-15, $50}":         {"2026-01-15", "", "3", "50", "150"},
+				`assets:brokerage:{2026-01-16, "mine", $40}`: {"2026-01-16", "mine", "4", "40", "160"},
+				"assets:brokerage:{2026-01-20, $60}":         {"2026-01-20", "", "3", "60", "180"},
+				"assets:brokerage:{2026-01-25, $1,234.567}":  {"2026-01-25", "", "1", "1234.567", "1234.567"},
+				// The fully disposed "short" lot is omitted.
+				// The same lot under a second base account after a transfer.
+				"assets:ira:{2026-01-15, $50}": {"2026-01-15", "", "2", "50", "100"},
+				// FIFO: the 2026-01-10 lot is fully consumed and omitted.
+				"assets:ira:{2026-01-11, $110}":       {"2026-01-11", "", "2", "110", "220"},
+				"assets:crypto:{2026-02-15, $40,000}": {"2026-02-15", "", "0.375", "40000", "15000"},
+			},
+		},
+		{
+			name:  "query filters lots",
+			query: []string{"assets:brokerage:.2026-01-20"},
+			want: map[string]struct{ date, label, units, unitCost, totalCost string }{
+				"assets:brokerage:{2026-01-20, $60}": {"2026-01-20", "", "3", "60", "180"},
+			},
+		},
+		{
+			// Known limitation: hledger applies cur: after -B converts to cost,
+			// so the cost report is empty and TotalCost is missing. Pinned here
+			// so an hledger upgrade that changes this is noticed.
+			name:  "commodity query drops total cost",
+			query: []string{"cur:VTI"},
+			want: map[string]struct{ date, label, units, unitCost, totalCost string }{
+				"assets:ira:{2026-01-11, $110}": {"2026-01-11", "", "2", "110", ""},
+			},
+		},
+		{
+			name:  "date query before disposals",
+			query: []string{"date:-2026-02-01"},
+			want: map[string]struct{ date, label, units, unitCost, totalCost string }{
+				"assets:brokerage:{2026-01-15, $50}":          {"2026-01-15", "", "10", "50", "500"},
+				`assets:brokerage:{2026-01-16, "mine", $40}`:  {"2026-01-16", "mine", "4", "40", "160"},
+				`assets:brokerage:{2026-01-17, "short", $65}`: {"2026-01-17", "short", "2", "65", "130"},
+				"assets:brokerage:{2026-01-20, $60}":          {"2026-01-20", "", "3", "60", "180"},
+				"assets:brokerage:{2026-01-25, $1,234.567}":   {"2026-01-25", "", "1", "1234.567", "1234.567"},
+				"assets:ira:{2026-01-10, $100}":               {"2026-01-10", "", "2", "100", "200"},
+				"assets:ira:{2026-01-11, $110}":               {"2026-01-11", "", "3", "110", "330"},
+			},
+		},
+		{
+			name:  "non-lot account yields no lots",
+			query: []string{"assets:cash"},
+			want:  map[string]struct{ date, label, units, unitCost, totalCost string }{},
+		},
+		{name: "unsafe query rejected", query: []string{"--output-file=/tmp/x"}, wantErr: hledger.ErrUnsafeQuery},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lots, err := c.Lots(t.Context(), tt.query...)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Lots: %v", err)
+			}
+			if len(lots) != len(tt.want) {
+				t.Fatalf("got %d lots, want %d: %+v", len(lots), len(tt.want), lots)
+			}
+			for _, l := range lots {
+				full := l.Account + ":" + l.LotName
+				w, ok := tt.want[full]
+				if !ok {
+					t.Errorf("unexpected lot %q", full)
+					continue
+				}
+				wantCommodity := "AAPL"
+				switch {
+				case strings.HasPrefix(l.LotName, "{2026-01-10") || strings.HasPrefix(l.LotName, "{2026-01-11"):
+					wantCommodity = "VTI"
+				case l.Account == "assets:crypto":
+					wantCommodity = "BTC"
+				}
+				if l.Date != w.date || l.Label != w.label {
+					t.Errorf("%s: date/label = %q/%q, want %q/%q", l.LotName, l.Date, l.Label, w.date, w.label)
+				}
+				if l.Units.Commodity != wantCommodity || l.Units.Quantity.Format() != w.units {
+					t.Errorf("%s: Units = %s %s, want %s %s", full, l.Units.Commodity, l.Units.Quantity.Format(), wantCommodity, w.units)
+				}
+				if l.UnitCost == nil || l.UnitCost.Commodity != "$" || l.UnitCost.Quantity.Format() != w.unitCost {
+					t.Errorf("%s: UnitCost = %+v, want $ %s", l.LotName, l.UnitCost, w.unitCost)
+				}
+				if w.totalCost == "" {
+					if len(l.TotalCost) != 0 {
+						t.Errorf("%s: TotalCost = %+v, want empty", full, l.TotalCost)
+					}
+					continue
+				}
+				if len(l.TotalCost) != 1 || l.TotalCost[0].Commodity != "$" || l.TotalCost[0].Quantity.Format() != w.totalCost {
+					t.Errorf("%s: TotalCost = %+v, want $ %s", l.LotName, l.TotalCost, w.totalCost)
+				}
+			}
+		})
+	}
+}
+
+// TestIncludedJournal runs against a multi-file fixture shaped like a float
+// data directory, where main.journal only holds include directives.
+func TestIncludedJournal(t *testing.T) {
+	c := mustClient(t, filepath.Join("includes", "main.journal"))
+
+	t.Run("source positions point at included files", func(t *testing.T) {
+		txns, err := c.Transactions(t.Context())
+		if err != nil {
+			t.Fatalf("Transactions: %v", err)
+		}
+		want := map[string]struct {
+			file        string
+			start, next int
+		}{
+			"aa000001": {"2026/01.journal", 1, 4},
+			"bb000002": {"2026/01.journal", 5, 8},
+			"cc000003": {"2026/02.journal", 1, 4},
+			"dd000004": {"2026/02.journal", 5, 8},
+		}
+		if len(txns) != len(want) {
+			t.Fatalf("got %d transactions, want %d", len(txns), len(want))
+		}
+		for _, tx := range txns {
+			w, ok := want[tx.FID]
+			if !ok {
+				t.Errorf("unexpected transaction %q", tx.FID)
+				continue
+			}
+			for i, pos := range tx.SourcePos {
+				if !strings.HasSuffix(filepath.ToSlash(pos.File), "includes/"+w.file) {
+					t.Errorf("%s: SourcePos[%d].File = %q, want .../includes/%s", tx.FID, i, pos.File, w.file)
+				}
+			}
+			if tx.SourcePos[0].Line != w.start || tx.SourcePos[1].Line != w.next {
+				t.Errorf("%s: lines = %d..%d, want %d..%d", tx.FID, tx.SourcePos[0].Line, tx.SourcePos[1].Line, w.start, w.next)
+			}
+		}
+	})
+
+	t.Run("account types from included declarations", func(t *testing.T) {
+		nodes, err := c.Accounts(t.Context(), false)
+		if err != nil {
+			t.Fatalf("Accounts: %v", err)
+		}
+		got := map[string]hledger.AccountType{}
+		for _, n := range nodes {
+			got[n.FullName] = n.Type
+		}
+		want := map[string]hledger.AccountType{
+			"assets:checking":  hledger.AccountTypeCash,
+			"assets:brokerage": hledger.AccountTypeAsset,
+			"equity:opening":   hledger.AccountTypeEquity,
+			"expenses:food":    hledger.AccountTypeExpense,
+			"income:salary":    hledger.AccountTypeRevenue,
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("account types = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("lots directive and prices from included files", func(t *testing.T) {
+		lots, err := c.Lots(t.Context())
+		if err != nil {
+			t.Fatalf("Lots: %v", err)
+		}
+		if len(lots) != 1 || lots[0].LotName != "{2026-01-15, $60}" || lots[0].Units.Quantity.Format() != "5" {
+			t.Errorf("Lots = %+v, want one 5 AAPL {2026-01-15, $60} lot", lots)
+		}
+		valued, err := c.BalancesValued(t.Context(), "now,$", 0, "assets:brokerage")
+		if err != nil {
+			t.Fatalf("BalancesValued: %v", err)
+		}
+		if got, want := amountsByAccount(valued), map[string][]string{"assets:brokerage": {"400 $"}}; !reflect.DeepEqual(got, want) {
+			t.Errorf("valued = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("PrintJournal inlines included transactions", func(t *testing.T) {
+		out, err := c.PrintJournal(t.Context())
+		if err != nil {
+			t.Fatalf("PrintJournal: %v", err)
+		}
+		for _, code := range []string{"(aa000001)", "(bb000002)", "(cc000003)", "(dd000004)"} {
+			if !strings.Contains(out, code) {
+				t.Errorf("PrintJournal output missing %s:\n%s", code, out)
+			}
+		}
+		if strings.Contains(out, "include ") {
+			t.Errorf("PrintJournal output still has include directives:\n%s", out)
+		}
+	})
 }
 
 func TestChart(t *testing.T) {

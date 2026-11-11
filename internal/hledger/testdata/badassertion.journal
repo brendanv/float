@@ -1,0 +1,12 @@
+; Balances but fails a balance assertion: Check() must reject it.
+account assets:checking
+account income:salary
+account equity:opening
+
+2026/01/01 (aa000001) opening balance
+    assets:checking   $100.00 = $100.00
+    equity:opening
+
+2026/01/02 (bb000002) PAYROLL
+    assets:checking   $50.00 = $175.00
+    income:salary

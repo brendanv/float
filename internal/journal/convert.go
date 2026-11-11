@@ -2,7 +2,6 @@ package journal
 
 import (
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"time"
@@ -36,29 +35,6 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 		return TransactionInput{}, fmt.Errorf("parse date %q: %w", t.Date, err)
 	}
 
-	var postings []PostingInput
-	for _, p := range t.Postings {
-		pi := PostingInput{
-			Account: p.Account,
-			Comment: strings.TrimSpace(p.Comment),
-		}
-		if len(p.Amounts) > 0 {
-			a := p.Amounts[0]
-			pi.Commodity = a.Commodity
-			pi.Quantity = fmt.Sprintf("%.*f", a.Quantity.DecimalPlaces, a.Quantity.FloatingPoint)
-			cost, _ := a.ParseCost()
-			if cost != nil {
-				pi.Cost = &CostInput{
-					Commodity: cost.Contents.Commodity,
-					Quantity:  fmt.Sprintf("%.*f", cost.Contents.Quantity.DecimalPlaces, math.Abs(cost.Contents.Quantity.FloatingPoint)),
-					IsTotal:   cost.Tag == "TotalCost",
-				}
-			}
-		}
-		pi.BalanceAssertion = balanceAssertionInputFromHledger(p.BalanceAssertion)
-		postings = append(postings, pi)
-	}
-
 	// Normalize hledger's "Unmarked" to "" to match TransactionInput convention.
 	status := t.Status
 	if status == "Unmarked" {
@@ -70,6 +46,6 @@ func HledgerTxnToInput(t hledger.Transaction) (TransactionInput, error) {
 		Description: t.Description,
 		Comment:     strings.TrimSpace(t.Comment),
 		Status:      status,
-		Postings:    postings,
+		Postings:    postingsFromTransaction(t),
 	}, nil
 }

@@ -29,6 +29,7 @@ function defaultPostings(initialPostings) {
       commodity: p.commodity || "",
       quantity: p.quantity || "",
       ...(p.cost ? { cost: p.cost } : {}),
+      ...(p.lot ? { lot: p.lot } : {}),
     }));
   }
   return [
@@ -126,6 +127,7 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
       queryClient.invalidateQueries({ queryKey: ["balances"] });
+      queryClient.invalidateQueries({ queryKey: ["lots"] });
       queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
       onSuccess?.();
     } catch (err) {

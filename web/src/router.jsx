@@ -35,6 +35,7 @@ const RulesPage = lazyPage(() => import("./pages/rules.jsx"), "RulesPage");
 const ImportsHistoryPage = lazyPage(() => import("./pages/imports-history.jsx"), "ImportsHistoryPage");
 const PayeesPage = lazyPage(() => import("./pages/payees.jsx"), "PayeesPage");
 const PortfolioPage = lazyPage(() => import("./pages/portfolio.jsx"), "PortfolioPage");
+const LotsPage = lazyPage(() => import("./pages/lots.jsx"), "LotsPage");
 const SettingsPage = lazyPage(() => import("./pages/settings.jsx"), "SettingsPage");
 const HledgerQueryPage = lazyPage(() => import("./pages/hledger-query.jsx"), "HledgerQueryPage");
 const ConnectionsPage = lazyPage(() => import("./pages/connections.jsx"), "ConnectionsPage");
@@ -160,6 +161,12 @@ const portfolioRoute = createRoute({
   component: PortfolioPage,
 });
 
+const lotsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/lots",
+  component: LotsPage,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings",
@@ -211,6 +218,7 @@ const routeTree = rootRoute.addChildren([
   importsHistoryRoute,
   payeesRoute,
   portfolioRoute,
+  lotsRoute,
   settingsRoute,
   hledgerQueryRoute,
   connectionsRoute,
