@@ -148,6 +148,9 @@ const (
 	// LedgerServiceImportTransactionsProcedure is the fully-qualified name of the LedgerService's
 	// ImportTransactions RPC.
 	LedgerServiceImportTransactionsProcedure = "/float.v1.LedgerService/ImportTransactions"
+	// LedgerServiceImportStructuredTransactionsProcedure is the fully-qualified name of the
+	// LedgerService's ImportStructuredTransactions RPC.
+	LedgerServiceImportStructuredTransactionsProcedure = "/float.v1.LedgerService/ImportStructuredTransactions"
 	// LedgerServiceGetImportedTransactionsProcedure is the fully-qualified name of the LedgerService's
 	// GetImportedTransactions RPC.
 	LedgerServiceGetImportedTransactionsProcedure = "/float.v1.LedgerService/GetImportedTransactions"
@@ -318,6 +321,7 @@ type LedgerServiceClient interface {
 	DeleteBankProfile(context.Context, *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
+	ImportStructuredTransactions(context.Context, *connect.Request[v1.ImportStructuredTransactionsRequest]) (*connect.Response[v1.ImportStructuredTransactionsResponse], error)
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	ListImports(context.Context, *connect.Request[v1.ListImportsRequest]) (*connect.Response[v1.ListImportsResponse], error)
 	GetImportFile(context.Context, *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error)
@@ -612,6 +616,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceImportTransactionsProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("ImportTransactions")),
+			connect.WithClientOptions(opts...),
+		),
+		importStructuredTransactions: connect.NewClient[v1.ImportStructuredTransactionsRequest, v1.ImportStructuredTransactionsResponse](
+			httpClient,
+			baseURL+LedgerServiceImportStructuredTransactionsProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("ImportStructuredTransactions")),
 			connect.WithClientOptions(opts...),
 		),
 		getImportedTransactions: connect.NewClient[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse](
@@ -916,6 +926,7 @@ type ledgerServiceClient struct {
 	deleteBankProfile            *connect.Client[v1.DeleteBankProfileRequest, v1.DeleteBankProfileResponse]
 	previewImport                *connect.Client[v1.PreviewImportRequest, v1.PreviewImportResponse]
 	importTransactions           *connect.Client[v1.ImportTransactionsRequest, v1.ImportTransactionsResponse]
+	importStructuredTransactions *connect.Client[v1.ImportStructuredTransactionsRequest, v1.ImportStructuredTransactionsResponse]
 	getImportedTransactions      *connect.Client[v1.GetImportedTransactionsRequest, v1.ListTransactionsResponse]
 	listImports                  *connect.Client[v1.ListImportsRequest, v1.ListImportsResponse]
 	getImportFile                *connect.Client[v1.GetImportFileRequest, v1.GetImportFileResponse]
@@ -1154,6 +1165,11 @@ func (c *ledgerServiceClient) PreviewImport(ctx context.Context, req *connect.Re
 // ImportTransactions calls float.v1.LedgerService.ImportTransactions.
 func (c *ledgerServiceClient) ImportTransactions(ctx context.Context, req *connect.Request[v1.ImportTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error) {
 	return c.importTransactions.CallServerStream(ctx, req)
+}
+
+// ImportStructuredTransactions calls float.v1.LedgerService.ImportStructuredTransactions.
+func (c *ledgerServiceClient) ImportStructuredTransactions(ctx context.Context, req *connect.Request[v1.ImportStructuredTransactionsRequest]) (*connect.Response[v1.ImportStructuredTransactionsResponse], error) {
+	return c.importStructuredTransactions.CallUnary(ctx, req)
 }
 
 // GetImportedTransactions calls float.v1.LedgerService.GetImportedTransactions.
@@ -1413,6 +1429,7 @@ type LedgerServiceHandler interface {
 	DeleteBankProfile(context.Context, *connect.Request[v1.DeleteBankProfileRequest]) (*connect.Response[v1.DeleteBankProfileResponse], error)
 	PreviewImport(context.Context, *connect.Request[v1.PreviewImportRequest]) (*connect.Response[v1.PreviewImportResponse], error)
 	ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
+	ImportStructuredTransactions(context.Context, *connect.Request[v1.ImportStructuredTransactionsRequest]) (*connect.Response[v1.ImportStructuredTransactionsResponse], error)
 	GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error)
 	ListImports(context.Context, *connect.Request[v1.ListImportsRequest]) (*connect.Response[v1.ListImportsResponse], error)
 	GetImportFile(context.Context, *connect.Request[v1.GetImportFileRequest]) (*connect.Response[v1.GetImportFileResponse], error)
@@ -1703,6 +1720,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceImportTransactionsProcedure,
 		svc.ImportTransactions,
 		connect.WithSchema(ledgerServiceMethods.ByName("ImportTransactions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceImportStructuredTransactionsHandler := connect.NewUnaryHandler(
+		LedgerServiceImportStructuredTransactionsProcedure,
+		svc.ImportStructuredTransactions,
+		connect.WithSchema(ledgerServiceMethods.ByName("ImportStructuredTransactions")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceGetImportedTransactionsHandler := connect.NewUnaryHandler(
@@ -2043,6 +2066,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServicePreviewImportHandler.ServeHTTP(w, r)
 		case LedgerServiceImportTransactionsProcedure:
 			ledgerServiceImportTransactionsHandler.ServeHTTP(w, r)
+		case LedgerServiceImportStructuredTransactionsProcedure:
+			ledgerServiceImportStructuredTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceGetImportedTransactionsProcedure:
 			ledgerServiceGetImportedTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceListImportsProcedure:
@@ -2292,6 +2317,10 @@ func (UnimplementedLedgerServiceHandler) PreviewImport(context.Context, *connect
 
 func (UnimplementedLedgerServiceHandler) ImportTransactions(context.Context, *connect.Request[v1.ImportTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportTransactions is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) ImportStructuredTransactions(context.Context, *connect.Request[v1.ImportStructuredTransactionsRequest]) (*connect.Response[v1.ImportStructuredTransactionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.ImportStructuredTransactions is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetImportedTransactions(context.Context, *connect.Request[v1.GetImportedTransactionsRequest]) (*connect.Response[v1.ListTransactionsResponse], error) {
