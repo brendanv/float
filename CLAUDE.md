@@ -43,6 +43,14 @@ buf curl --schema . --protocol grpc --http2-prior-knowledge \
   http://localhost:8080/float.v1.LedgerService/GetBalances --data '{}'
 ```
 
+The server also exposes gRPC server reflection (v1 and v1alpha), so `--schema .` can be dropped and tools like `grpcurl` work without local protos. With auth enabled, `buf curl` sends `--header` only to the RPC, so pass the bearer to reflection too via `--reflect-header`:
+
+```bash
+buf curl --protocol grpc --http2-prior-knowledge \
+  --reflect-header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE" \
+  --list-methods http://localhost:8080
+```
+
 Mise shortcuts include `mise run grpc-balances`, `mise run grpc-transactions`, `mise run grpc-accounts`, `mise run grpc-delete`, and `mise run grpc-modify-tags`. They support `FLOAT_DEPTH`, `FLOAT_QUERY`, and `FLOAT_ADDR` where relevant.
 
 ## Architecture

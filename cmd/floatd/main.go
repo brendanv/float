@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"connectrpc.com/grpcreflect"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
@@ -206,14 +207,18 @@ func main() {
 	lock.OnCommit(newStatsLogger(c, hl))
 
 	mux := http.NewServeMux()
-	path, svcHandler := floatv1connect.NewLedgerServiceHandler(
-		handler,
-		connect.WithInterceptors(
-			middleware.NewLoggingInterceptor(logger),
-			auth.NewServerInterceptor(authn),
-		),
+	interceptors := connect.WithInterceptors(
+		middleware.NewLoggingInterceptor(logger),
+		auth.NewServerInterceptor(authn),
 	)
+	path, svcHandler := floatv1connect.NewLedgerServiceHandler(handler, interceptors)
 	mux.Handle(path, svcHandler)
+	// gRPC server reflection (v1 and v1alpha for older clients) so tools like
+	// grpcurl and `buf curl` can discover services without local protos.
+	// Gated by the same auth interceptor as the service itself.
+	reflector := grpcreflect.NewStaticReflector(floatv1connect.LedgerServiceName)
+	mux.Handle(grpcreflect.NewHandlerV1(reflector, interceptors))
+	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector, interceptors))
 	mux.Handle("/api/auth", authn.StatusHandler())
 	mux.Handle("/api/login", authn.LoginHandler())
 	mux.Handle("/api/logout", authn.LogoutHandler())

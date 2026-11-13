@@ -17,7 +17,7 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
    - `journal.EnsureCommodityDirective(..., "USD")`.
    - account declaration bootstrap: ensure `accounts.journal`, ensure its include, and append currently undeclared accounts.
 9. Read `FLOAT_AUTH_PASSPHRASE` into `internal/auth` (auth disabled when unset) and log the auth state.
-10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
+10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, gRPC reflection handlers, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
 11. Create an `internal/warm.Warmer` over `handler.WarmEntries` and register it as a `lock.OnCommit` hook, so every successful write schedules a debounced (500ms) cache-warming pass. Also register a second `lock.OnCommit` hook (`newStatsLogger`) that diffs `cache.Cache.Stats()` and `hledger.Client.Invocations()` against the previous generation and logs the delta at Info level (reaches `StreamLogs` via the broadcast handler) — the target steady state is zero hledger invocations between writes.
 12. Start `handler.StartDailyStripeImport(ctx)`.
 13. Bind the listener (`net.Listen`), then kick the startup warm pass (`warmer.Start(ctx)`) — only once the listener is bound, so warming never delays accepting connections — before serving HTTP.
@@ -35,7 +35,7 @@ Environment variable shortcuts such as `FLOAT_DATA_DIR` and `FLOAT_ADDR` are def
 
 ## HTTP / API
 
-`floatd` registers the generated `LedgerService` handler at `/float.v1.LedgerService/*` with `middleware.NewLoggingInterceptor` and `auth.NewServerInterceptor`. The mux also serves the auth endpoints (`/api/auth`, `/api/login`, `/api/logout`) and falls through to `webui.Handler()` for static web assets, allowing the embedded app and API to share one origin.
+`floatd` registers the generated `LedgerService` handler at `/float.v1.LedgerService/*` with `middleware.NewLoggingInterceptor` and `auth.NewServerInterceptor`. It also registers gRPC server reflection handlers (`grpcreflect` v1 and v1alpha) for `LedgerService` with the same interceptors, so reflection requires auth when it is enabled. The mux also serves the auth endpoints (`/api/auth`, `/api/login`, `/api/logout`) and falls through to `webui.Handler()` for static web assets, allowing the embedded app and API to share one origin.
 
 The server uses `h2c.NewHandler(..., &http2.Server{})`, so local clients can use HTTP/2 without TLS.
 
