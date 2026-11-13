@@ -238,6 +238,10 @@ message AddTransactionRequest {
   repeated PostingInput postings = 4;
   string payee = 5; // optional; if set, description becomes "payee | description"
   map<string, string> tags = 6; // optional; user-visible tags (must not have "float-" prefix)
+  // optional: "", "Pending", or "Cleared". When unset the transaction is
+  // written as "Cleared" (reviewed). Automated clients should usually send ""
+  // (Unmarked) so the transaction shows up for review.
+  optional string status = 7;
 }
 
 message AddTransactionResponse {
@@ -573,7 +577,54 @@ message ImportSummary {
   string import_batch_id = 1; // e.g. "2026-04-17-a1b2c3d4"
   string date = 2;            // "YYYY-MM-DD" extracted from batch ID
   int32 transaction_count = 3;
-  string source = 4;          // "csv" or "stripe"
+  string source = 4;          // "csv", "stripe", or the source label of an ImportStructuredTransactions batch (e.g. "api", "agent")
+}
+
+// StructuredTransaction is one transaction supplied directly (not parsed from
+// CSV) to ImportStructuredTransactions.
+message StructuredTransaction {
+  string date = 1;                     // required, "YYYY-MM-DD"
+  string description = 2;              // required
+  string payee = 3;                    // optional; if set, description becomes "payee | description"
+  string comment = 4;
+  repeated PostingInput postings = 5;  // at least 2; at most one may omit its amount (auto-balance)
+  map<string, string> tags = 6;        // optional user-visible tags (must not have "float-" prefix)
+  // "", "Pending", or "Cleared". Default "" (Unmarked) so imported transactions
+  // show up for review. A matching auto-reviewed rule (apply_rules) upgrades
+  // an Unmarked transaction to "Cleared".
+  string status = 7;
+}
+
+// ImportStructuredTransactionsRequest imports already-structured transactions
+// as one import batch, with the same duplicate detection, optional rule
+// categorization, and batch tracking as CSV imports. Intended for scripts and
+// agents that have parsed an export themselves. Re-sending the same request
+// is safe: transactions already on disk are skipped as duplicates.
+message ImportStructuredTransactionsRequest {
+  repeated StructuredTransaction transactions = 1;
+  // Validate and preview only; nothing is written. The response's candidates
+  // show each transaction as it would be written and whether it is a duplicate.
+  bool dry_run = 2;
+  // Apply float categorization rules (rules.json) the same way CSV import does:
+  // a matching rule may set the payee, replace the category account of a
+  // two-posting transaction, add tags, and mark it reviewed.
+  bool apply_rules = 3;
+  // Label for the import batch, shown as ImportSummary.source and used as the
+  // batch ID prefix. Lowercase letters, digits and hyphens; default "api".
+  // "csv" and "stripe" are reserved.
+  string source = 4;
+  // Also write transactions flagged as duplicates instead of skipping them.
+  bool include_duplicates = 5;
+}
+
+message ImportStructuredTransactionsResponse {
+  // One per request transaction, in request order, as written (or as it would
+  // be written on a dry run), after rules. Duplicates have is_duplicate set.
+  repeated ImportCandidate candidates = 1;
+  string import_batch_id = 2;           // empty on a dry run or when nothing was written
+  int32 imported_count = 3;
+  int32 skipped_duplicate_count = 4;
+  repeated Transaction transactions = 5; // the written transactions, with FIDs
 }
 
 message ListImportsRequest {}
@@ -1136,6 +1187,7 @@ service LedgerService {
   rpc DeleteBankProfile(DeleteBankProfileRequest) returns (DeleteBankProfileResponse);
   rpc PreviewImport(PreviewImportRequest) returns (PreviewImportResponse);
   rpc ImportTransactions(ImportTransactionsRequest) returns (stream ImportTransactionsResponse);
+  rpc ImportStructuredTransactions(ImportStructuredTransactionsRequest) returns (ImportStructuredTransactionsResponse);
   rpc GetImportedTransactions(GetImportedTransactionsRequest) returns (ListTransactionsResponse);
   rpc ListImports(ListImportsRequest) returns (ListImportsResponse);
   rpc GetImportFile(GetImportFileRequest) returns (GetImportFileResponse);

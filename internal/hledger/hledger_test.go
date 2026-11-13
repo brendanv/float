@@ -1832,3 +1832,55 @@ func TestIncludedJournal(t *testing.T) {
 		}
 	})
 }
+
+func TestParseJournalFile(t *testing.T) {
+	c := mustClient(t, "simple.journal")
+	tests := []struct {
+		name    string
+		file    string
+		wantErr bool
+		check   func(t *testing.T, txns []hledger.Transaction)
+	}{
+		{
+			name: "infers auto-balanced amounts",
+			file: "testdata/simple.journal",
+			check: func(t *testing.T, txns []hledger.Transaction) {
+				if len(txns) != 5 {
+					t.Fatalf("expected 5 transactions, got %d", len(txns))
+				}
+				got := txns[1]
+				if got.Description != "AMAZON MARKETPLACE" || got.FID != "bb002200" {
+					t.Fatalf("unexpected transaction %q (%s)", got.Description, got.FID)
+				}
+				for _, p := range got.Postings {
+					if len(p.Amounts) != 1 {
+						t.Fatalf("posting %s: expected 1 amount, got %d", p.Account, len(p.Amounts))
+					}
+				}
+				if q := got.Postings[1].Amounts[0].Quantity.FloatingPoint; q != -45 {
+					t.Errorf("inferred amount = %v, want -45", q)
+				}
+			},
+		},
+		{
+			name: "ignores balance assertions",
+			file: "testdata/badassertion.journal",
+		},
+		{
+			name:    "unbalanced transaction",
+			file:    "testdata/invalid.journal",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			txns, err := c.ParseJournalFile(t.Context(), tt.file)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.check != nil {
+				tt.check(t, txns)
+			}
+		})
+	}
+}

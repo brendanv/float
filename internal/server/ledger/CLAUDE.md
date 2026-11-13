@@ -44,9 +44,9 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 **Cached queries:** `ListTransactions`, `GetBalances`, `GetAccountRegister`, `ListLots`, `ListAccounts`, `ListTags`, `ListPayees`, `GetNetWorthTimeseries`, `GetIncomeStatementTimeseries`, portfolio timeseries helpers.
 
-**Read/query helpers with limited or no cache:** `GetPortfolioHoldings` (uses balances plus `prices.journal`), `GetBalanceAssertionStatus`, `ListPrices`, `ListAccountDeclarations`, `ListSnapshots`, `GetSnapshotDiff`, `ListBankProfiles`, `GetBankProfileContent`, `PreviewImport`, `GetImportedTransactions`, `ListImports`, `GetImportFile`, `ListRules`, `PreviewApplyRules`, settings reads, `RunHledgerQuery`, `ExportJournal`, and `StreamLogs`.
+**Read/query helpers with limited or no cache:** `GetPortfolioHoldings` (uses balances plus `prices.journal`), `GetBalanceAssertionStatus`, `ListPrices`, `ListAccountDeclarations`, `ListSnapshots`, `GetSnapshotDiff`, `ListBankProfiles`, `GetBankProfileContent`, `PreviewImport`, `ImportStructuredTransactions` with `dry_run`, `GetImportedTransactions`, `ListImports`, `GetImportFile`, `ListRules`, `PreviewApplyRules`, settings reads, `RunHledgerQuery`, `ExportJournal`, and `StreamLogs`.
 
-**Mutations through txlock:** transaction add/update/delete/status/date/tag changes, bulk edit/delete, price add/delete/backfill, account declaration CRUD/rename, snapshot restore, bank profile CRUD, CSV import, rule CRUD/apply, template CRUD, Alpha Vantage/AI/Stripe/timezone settings, and Stripe link/unlink/import metadata writes.
+**Mutations through txlock:** transaction add/update/delete/status/date/tag changes, bulk edit/delete, price add/delete/backfill, account declaration CRUD/rename, snapshot restore, bank profile CRUD, CSV import, structured import, rule CRUD/apply, template CRUD, Alpha Vantage/AI/Stripe/timezone settings, and Stripe link/unlink/import metadata writes.
 
 **Streaming RPCs:** `ImportTransactions`, `BulkDeleteTransactions`, `ApplyRules`, `ImportStripeTransactions`, `ImportAllStripeTransactions`, `RefreshStripeAccount`, `RefreshAllStripeAccounts`, and `StreamLogs`.
 
@@ -54,7 +54,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 ### Transactions / Bulk Editing
 
-Transaction writes convert proto input into `journal.TransactionInput`, call journal text helpers under txlock, then re-read via hledger before returning. Bulk edit supports mark reviewed/unreviewed, add/remove tag, set/clear payee, and delete. Bulk delete streams progress.
+Transaction writes convert proto input into `journal.TransactionInput`, call journal text helpers under txlock, then re-read via hledger before returning. `AddTransaction` writes `Cleared` unless the optional `status` is set. Bulk edit supports mark reviewed/unreviewed, add/remove tag, set/clear payee, and delete. Bulk delete streams progress.
 
 ### Prices / Portfolio / Alpha Vantage
 
@@ -69,6 +69,8 @@ Closed accounts: `SetAccountClosed` toggles the `float-closed` tag on the accoun
 ### Imports and Bank Profiles
 
 Bank profiles live in config and point to hledger CSV rules files under the data directory. CSV preview runs `hledger print --rules-file`, applies float categorization rules, marks duplicates by fingerprint, and returns import candidates. Imports write selected candidates, assign an import batch ID, archive the source CSV, and stream progress.
+
+`ImportStructuredTransactions` (`handler_structured_import.go`) is the unary, CSV-free equivalent for scripts and agents. It validates each `StructuredTransaction` in Go, optionally applies float rules (matched on the bare description; an explicit payee/tag/status on the input wins over the rule's), then parses the whole batch through hledger with `journal.ParseInputs` — validation plus the canonical form used for fingerprints and the returned candidates. `dry_run` stops there (duplicates flagged from the cache). Otherwise, inside one `lock.Do`, it re-fingerprints against the on-disk journal, skips duplicates unless `include_duplicates`, and appends the rest with hidden `float-import` (batch ID `<source>/<date>-<fid>`) and `float-import-source` metadata. Default status is Unmarked. `ListImports` reports `float-import-source` as `ImportSummary.source` when present, else `stripe`/`csv` by batch ID. No source file is archived, so `GetImportFile` returns NotFound for these batches.
 
 ### Categorization Rules
 

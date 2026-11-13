@@ -665,6 +665,21 @@ func (c *Client) PrintCSV(ctx context.Context, csvFile, rulesFile string) ([]Tra
 	return parseTransactions(stdout)
 }
 
+// ParseJournalFile runs `hledger print --infer-costs -I -O json -f <journalFile>`
+// on a standalone journal file (e.g. a temp file of draft transactions) and
+// returns the parsed transactions with amounts hledger inferred filled in.
+// Balance assertions are ignored (-I) because the file is not the full journal.
+func (c *Client) ParseJournalFile(ctx context.Context, journalFile string) ([]Transaction, error) {
+	args := []string{"print", "--infer-costs", "-I", "-O", "json", "-f", journalFile}
+
+	stdout, stderr, err := c.run(ctx, args...)
+	if err != nil {
+		return nil, cmdError(c.bin, args, stderr, fmt.Errorf("hledger print: %w", err))
+	}
+
+	return parseTransactions(stdout)
+}
+
 func (c *Client) Lots(ctx context.Context, query ...string) ([]LotRow, error) {
 	if err := validateQueryTerms(query); err != nil {
 		return nil, err

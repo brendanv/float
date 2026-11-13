@@ -89,7 +89,7 @@ ConnectRPC powers all clients. Protobufs live in `proto/float/v1/` and generated
 
 - Core queries: transactions (with pagination), balances (raw or valued), account register, lots, accounts, tags, payees, net worth, income statement, portfolio holdings/timeseries.
 - Mutations: add/update/delete transactions, status/date changes, bulk edit/delete, account declarations, account rename, close/reopen accounts (`float-closed` account tag), prices, Alpha Vantage price backfill, snapshots.
-- Imports/rules: bank profile CRUD, CSV preview/import with import batches and original file storage, categorization rule CRUD, preview/apply rules.
+- Imports/rules: bank profile CRUD, CSV preview/import with import batches and original file storage, structured (JSON) transaction import for scripts/agents (`ImportStructuredTransactions`), categorization rule CRUD, preview/apply rules.
 - Templates: saved transaction shapes (CRUD) stored in `templates.json` for quick recurring-transaction entry.
 - Integrations/settings/debug: Stripe Financial Connections, daily Stripe auto-import toggles, AI helper RPCs via OpenRouter, Alpha Vantage API key, timezone, raw hledger query, server log stream.
 
@@ -101,6 +101,10 @@ A single shared passphrase (no per-user accounts) supplied via the `FLOAT_AUTH_P
 - Plain HTTP endpoints `GET /api/auth`, `POST /api/login`, and `POST /api/logout` drive the web UI login flow; login sets a long-lived session cookie. The session token is a static HMAC derived from the passphrase, so changing the passphrase invalidates all sessions.
 - The web UI redirects to `#/login` on unauthenticated errors. Static web assets are served without auth (the SPA shell is needed to render the login page).
 - The `mise run grpc-*` shortcuts add the bearer header automatically when `FLOAT_AUTH_PASSPHRASE` is set. For manual `buf curl`, add `--header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"`.
+
+### Scripted / Agent Writes
+
+Automated clients that turn an export into transactions should use `ImportStructuredTransactions`, not repeated `AddTransaction` calls: it validates the whole batch through hledger (errors name the offending index), supports `dry_run`, skips transactions already on disk by fingerprint (so re-sending is safe), optionally applies categorization rules, writes everything under one `txlock` call as a single import batch (undo with `GetImportedTransactions` + `BulkDeleteTransactions`), and leaves transactions Unmarked so they show up for review. `source` labels the batch (default `"api"`). `AddTransaction` defaults to `Cleared` for the web UI's manual entry; automated callers should send `status: ""`.
 
 ### Web UI
 

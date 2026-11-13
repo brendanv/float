@@ -1345,6 +1345,15 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("posting %d: account is required", i))
 		}
 	}
+	// Unset status keeps the historical default of "Cleared" (the web UI's
+	// manual entry); automated clients send "" to leave it for review.
+	status := "Cleared"
+	if req.Msg.Status != nil {
+		if err := validateTxStatus(*req.Msg.Status); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		status = *req.Msg.Status
+	}
 
 	var date time.Time
 	if req.Msg.Date == "" {
@@ -1379,7 +1388,7 @@ func (h *Handler) AddTransaction(ctx context.Context, req *connect.Request[float
 		Comment:     req.Msg.Comment,
 		Tags:        req.Msg.Tags,
 		Postings:    postings,
-		Status:      "Cleared",
+		Status:      status,
 	}
 
 	var fid string
@@ -2934,6 +2943,7 @@ func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.Li
 	type batchEntry struct {
 		batchID string
 		date    string
+		source  string // structured-import source label; "" for CSV/Stripe batches
 		count   int32
 	}
 	seen := make(map[string]int) // batchID -> index in batches
@@ -2958,7 +2968,7 @@ func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.Li
 				date = datePart[:10]
 			}
 			seen[batchID] = len(batches)
-			batches = append(batches, batchEntry{batchID: batchID, date: date, count: 1})
+			batches = append(batches, batchEntry{batchID: batchID, date: date, source: t.FloatMeta[importSourceMetaKey], count: 1})
 		}
 	}
 
@@ -2972,9 +2982,13 @@ func (h *Handler) ListImports(ctx context.Context, _ *connect.Request[floatv1.Li
 
 	out := make([]*floatv1.ImportSummary, len(batches))
 	for i, b := range batches {
-		source := "csv"
-		if strings.HasPrefix(b.batchID, "stripe-") {
+		source := b.source
+		switch {
+		case source != "":
+		case strings.HasPrefix(b.batchID, "stripe-"):
 			source = "stripe"
+		default:
+			source = "csv"
 		}
 		out[i] = &floatv1.ImportSummary{
 			ImportBatchId:    b.batchID,
