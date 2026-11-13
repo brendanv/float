@@ -19,9 +19,9 @@ FROM golang:1.26.1-bookworm AS go-build
 COPY --from=bufbuild/buf:1.66.1 /usr/local/bin/buf /usr/local/bin/buf
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download \
-    && go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
-    && go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+# Proto plugins are pinned as `tool` deps in go.mod and run via `go tool`
+# (see buf.gen.yaml), so go mod download is all buf generate needs.
+RUN go mod download
 COPY . .
 RUN buf generate
 COPY --from=web-build /app/internal/webui/dist/ ./internal/webui/dist/

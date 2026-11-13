@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	connectrpc.com/connect v1.19.1
+	connectrpc.com/grpcreflect v1.3.1
 	github.com/BurntSushi/toml v1.6.0
 	github.com/go-git/go-git/v5 v5.17.2
 	github.com/google/uuid v1.6.0
