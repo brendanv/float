@@ -2459,6 +2459,60 @@ func TestImportTransactionsHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("reimport_skipped_in_lock_when_rule_modifies_payee_and_account", func(t *testing.T) {
+		// Regression test: the in-lock dedup in ImportTransactions must
+		// fingerprint the post-rule candidate (the form written to disk), not
+		// the raw CSV row, or re-importing a rule-matched row writes a duplicate.
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 303, NumTxns: 0, WithFIDs: true})
+
+		hledgerRules := "skip 1\nfields date, description, amount\naccount1 assets:checking\naccount2 expenses:misc\n"
+		if err := os.WriteFile(filepath.Join(dir, "bank.rules"), []byte(hledgerRules), 0o644); err != nil {
+			t.Fatalf("write bank.rules: %v", err)
+		}
+
+		floatRulesJSON := `[{"id":"rule1","pattern":"AMAZON","payee":"Amazon","account":"expenses:shopping","tags":{},"priority":0,"auto_reviewed":false}]`
+		if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(floatRulesJSON), 0o644); err != nil {
+			t.Fatalf("write rules.json: %v", err)
+		}
+
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		lock := txlock.New(dir, c)
+		cfg := &config.Config{
+			BankProfiles: []config.BankProfile{
+				{Name: "test-bank", RulesFile: "bank.rules"},
+			},
+		}
+		h := serverledger.NewHandler(c, lock, dir, "", nil, nil, cfg, nil)
+
+		req := &floatv1.ImportTransactionsRequest{
+			CsvData:          []byte("date,description,amount\n2026-01-15,AMAZON MARKETPLACE,-45.00\n"),
+			ProfileName:      "test-bank",
+			CandidateIndices: []int32{0},
+		}
+
+		first, err := importTransactions(t, h, req)
+		if err != nil {
+			t.Fatalf("first ImportTransactions: %v", err)
+		}
+		if first.ImportedCount != 1 || first.SkippedDuplicateCount != 0 {
+			t.Fatalf("first import: imported=%d skipped=%d, want 1/0", first.ImportedCount, first.SkippedDuplicateCount)
+		}
+
+		second, err := importTransactions(t, h, req)
+		if err != nil {
+			t.Fatalf("second ImportTransactions: %v", err)
+		}
+		if second.ImportedCount != 0 {
+			t.Errorf("second import ImportedCount = %d, want 0", second.ImportedCount)
+		}
+		if second.SkippedDuplicateCount != 1 {
+			t.Errorf("second import SkippedDuplicateCount = %d, want 1", second.SkippedDuplicateCount)
+		}
+	})
+
 	t.Run("import_batch_id_populated_on_imported_transactions", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 301, NumTxns: 1, WithFIDs: true})
 
