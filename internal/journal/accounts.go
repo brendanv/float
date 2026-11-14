@@ -18,7 +18,11 @@ type AccountDeclaration struct {
 	Closed bool   // directive itself carries the float-closed tag (not inherited from a parent)
 }
 
-var accountDeclRe = regexp.MustCompile(`^account\s+(\S+)`)
+// accountDeclRe matches an `account` directive and captures its name. Like
+// hledger, the name is non-blank runs separated by single spaces/tabs, ending
+// at two or more consecutive blanks or end of line, so
+// "account assets:bank checking  ; type:A" declares "assets:bank checking".
+var accountDeclRe = regexp.MustCompile(`^account[ \t]+(\S+(?:[ \t]\S+)*)`)
 
 // closedTagRe matches the float-closed tag in a same-line directive comment.
 // Tags are comma-separated, so the tag name starts the comment or follows
@@ -145,13 +149,9 @@ func RenameAccountDeclaration(dataDir, oldName, newName string) error {
 		if m == nil {
 			continue
 		}
-		name := line[m[2]:m[3]]
 		// Replace only the name so trailing comments/tags (type:, float-closed:) survive.
-		if name == oldName {
-			lines[i] = line[:m[2]] + newName + line[m[3]:]
-			found = true
-		} else if strings.HasPrefix(name, oldName+":") {
-			lines[i] = line[:m[2]] + newName + name[len(oldName):] + line[m[3]:]
+		if renamed, ok := RenameAccountName(line[m[2]:m[3]], oldName, newName); ok {
+			lines[i] = line[:m[2]] + renamed + line[m[3]:]
 			found = true
 		}
 	}

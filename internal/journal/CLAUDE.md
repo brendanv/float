@@ -50,7 +50,8 @@ Balance assertions that are more complex than the simple `=` form are preserved 
 - `ListAccountDeclarations`, `AppendAccountDeclaration`, `DeleteAccountDeclaration`, `RenameAccountDeclaration` — manage `accounts.journal` declaration lines. Rename replaces only the name, preserving same-line comments/tags.
 - `SetAccountClosed(dataDir, name, closed)` — add/remove the `float-closed:` tag in a declaration's same-line comment (preserving other tags such as `type:`). Closing an undeclared account appends a declaration; reopening an undeclared one is a no-op. `AccountDeclaration.Closed` reports the directly-set tag only (not inheritance).
 - `EnsureAccountsFile`, `EnsureAccountsInclude` — startup bootstrap for account declarations.
-- `RenameAccountInJournalFiles(dataDir, oldName, newName)` — line-oriented posting account rename across journal files.
+- `RenameAccountInJournalFiles(dataDir, oldName, newName)` — line-oriented posting account rename across journal files. Parses the posting's account field like hledger: optional `*`/`!` status, optional `()`/`[]` virtual brackets, and a name that may contain single spaces and ends at two or more blanks (spaces/tabs) or end of line; everything else on the line is preserved byte-for-byte. Declaration parsing (`accountDeclRe`) uses the same name rule.
+- `RenameAccountName(name, oldName, newName)` — the shared exact-or-`old:`-sub-account rename rule, also used by the handler for rules/templates/config references.
 - `EnsureCommodityDirective(dataDir, code)` — ensure a `commodity` directive exists.
 - `ListPrices`, `AppendPrice`, `DeletePrice` — manage `prices.journal` `P` directives with generated PIDs and an include in `main.journal`.
 

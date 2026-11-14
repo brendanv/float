@@ -54,40 +54,80 @@ func renameAccountInFile(path, oldName, newName string) (int, error) {
 	return count, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
 }
 
-// renameAccountInPosting renames the account in a single posting line.
-// A posting line is identified by having 2+ leading spaces followed by a
-// non-space, non-semicolon character. Returns the (possibly modified) line
-// and whether a rename occurred.
+// RenameAccountName applies a rename of oldName to newName to a single account
+// name: name is renamed when it equals oldName exactly or is a sub-account of
+// it (starts with oldName+":"). "assets:bankx" and "assets:bank checking" are
+// different accounts from "assets:bank" and are left alone. Returns the
+// (possibly renamed) name and whether it changed.
+func RenameAccountName(name, oldName, newName string) (string, bool) {
+	if name != oldName && !strings.HasPrefix(name, oldName+":") {
+		return name, false
+	}
+	return newName + name[len(oldName):], true
+}
+
+// isBlank reports whether c is a space or tab (hledger's "spacenonewline").
+func isBlank(c byte) bool { return c == ' ' || c == '\t' }
+
+// accountFieldEnd returns the index in s, at or after start, where an hledger
+// account name ends. Account names may contain single spaces; like hledger,
+// the name ends at the first run of two or more blanks (spaces and tabs in any
+// mix) or at end of line, and a single trailing blank is not part of the name.
+// A lone tab between two words counts as a single space, exactly as hledger
+// parses it, so it does NOT end the name.
+func accountFieldEnd(s string, start int) int {
+	for j := start; j < len(s); j++ {
+		if isBlank(s[j]) && (j+1 == len(s) || isBlank(s[j+1])) {
+			return j
+		}
+	}
+	return len(s)
+}
+
+// renameAccountInPosting renames the account in a single posting line,
+// preserving every other byte (indentation, status mark, virtual-posting
+// brackets, spacing, amount, and comments). Returns the (possibly modified)
+// line and whether a rename occurred.
+//
+// A posting line has the shape
+//
+//	INDENT [STATUS [BLANKS]] ACCOUNT-FIELD [2+ BLANKS AMOUNT/ASSERTION/COMMENT...]
+//
+// where INDENT is one or more spaces/tabs, STATUS is "*" or "!", and
+// ACCOUNT-FIELD is the account name, optionally wrapped in "(...)" or "[...]"
+// for virtual postings. Indented lines starting with ";" or "#" are comments
+// and are never changed.
 func renameAccountInPosting(line, oldName, newName string) (string, bool) {
-	// Count leading whitespace — must be at least 2 spaces (or a tab) to be a posting.
+	// INDENT: postings are indented by at least one space or tab.
 	i := 0
-	for i < len(line) && (line[i] == ' ' || line[i] == '\t') {
+	for i < len(line) && isBlank(line[i]) {
 		i++
 	}
-	if i < 2 || i == len(line) {
-		return line, false
-	}
-	// Skip comment lines that happen to be indented.
-	if line[i] == ';' {
+	if i == 0 || i == len(line) || line[i] == ';' || line[i] == '#' {
 		return line, false
 	}
 
-	// Extract the account name: everything up to the first whitespace or end of line.
-	rest := line[i:]
-	j := strings.IndexAny(rest, " \t")
-	var account, suffix string
-	if j == -1 {
-		account = rest
-		suffix = ""
-	} else {
-		account = rest[:j]
-		suffix = rest[j:]
+	// STATUS: optional "*" or "!", optionally followed by blanks.
+	if line[i] == '*' || line[i] == '!' {
+		i++
+		for i < len(line) && isBlank(line[i]) {
+			i++
+		}
 	}
 
-	if account != oldName && !strings.HasPrefix(account, oldName+":") {
+	// ACCOUNT-FIELD, minus the brackets of a virtual posting.
+	start, end := i, accountFieldEnd(line, i)
+	if end-start >= 2 {
+		first, last := line[start], line[end-1]
+		if (first == '(' && last == ')') || (first == '[' && last == ']') {
+			start++
+			end--
+		}
+	}
+
+	renamed, ok := RenameAccountName(line[start:end], oldName, newName)
+	if !ok {
 		return line, false
 	}
-
-	newAccount := newName + account[len(oldName):]
-	return line[:i] + newAccount + suffix, true
+	return line[:start] + renamed + line[end:], true
 }
