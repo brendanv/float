@@ -137,23 +137,9 @@ func (h *Handler) ImportStructuredTransactions(ctx context.Context, req *connect
 		ImportedCount:         int32(len(importedFIDs)),
 		SkippedDuplicateCount: skipped,
 	}
-	if len(importedFIDs) == 0 {
-		return connect.NewResponse(resp), nil
-	}
-	resp.ImportBatchId = batchID
-
-	txns, err := h.fetchByFIDs(ctx, importedFIDs)
-	if err != nil {
-		return nil, rpcErr(ctx, err, "fetch imported transactions failed", "batch", batchID)
-	}
-	byFID := make(map[string]hledger.Transaction, len(txns))
-	for _, t := range txns {
-		byFID[t.FID] = t
-	}
-	for _, fid := range importedFIDs {
-		if t, ok := byFID[fid]; ok {
-			resp.Transactions = append(resp.Transactions, toProtoTransaction(t))
-		}
+	if len(importedFIDs) > 0 {
+		resp.ImportBatchId = batchID
+		resp.Transactions = h.importedTransactionProtos(ctx, importedFIDs)
 	}
 	return connect.NewResponse(resp), nil
 }
