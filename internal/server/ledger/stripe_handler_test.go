@@ -1,12 +1,15 @@
 package ledger_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1510,4 +1513,124 @@ func TestRefreshStripeAccount(t *testing.T) {
 			t.Errorf("result.RefreshId = %q, want txnr_existing", result.RefreshId)
 		}
 	})
+}
+
+// mustCountingHandler is mustHandlerWithConfig with an hledger client that runs
+// real hledger but counts full-journal `print -O json` reads (the queries
+// behind hledger.Client.Transactions), so tests can assert how many times an
+// RPC re-parses the journal.
+func mustCountingHandler(t *testing.T, dir string, cfg *config.Config) (*serverledger.Handler, *atomic.Int64) {
+	t.Helper()
+	mainJournal := filepath.Join(dir, "main.journal")
+	var journalReads atomic.Int64
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if len(args) > 0 && args[0] == "print" && slices.Contains(args, "json") && slices.Contains(args, mainJournal) {
+			journalReads.Add(1)
+		}
+		return hledger.ExecRunner(ctx, name, args...)
+	}
+	c, err := hledger.NewWithRunner("hledger", mainJournal, runner)
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	configPath := filepath.Join(dir, "config.toml")
+	if err := config.Save(configPath, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	lock := txlock.New(dir, c)
+	return serverledger.NewHandler(c, lock, dir, configPath, nil, nil, cfg, nil), &journalReads
+}
+
+// TestStripeImport_ReReadIsBatched checks that both Stripe import RPCs return
+// the imported transactions in selection order, and that re-reading them after
+// the write is one shared journal fetch rather than one hledger process per
+// imported transaction.
+func TestStripeImport_ReReadIsBatched(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+
+	stripeTxn := func(id, desc string, transactedAt int64) map[string]any {
+		return map[string]any{
+			"id": id, "object": "financial_connections.transaction",
+			"account": "fca_abc", "amount": int64(-1000), "currency": "usd",
+			"description": desc, "transacted_at": transactedAt,
+			"status": "posted", "livemode": false,
+		}
+	}
+	stripeTxns := []map[string]any{
+		stripeTxn("fca_txn_a", "ALPHA", 1746662400),   // 2025-05-08
+		stripeTxn("fca_txn_b", "BRAVO", 1746835200),   // 2025-05-10
+		stripeTxn("fca_txn_c", "CHARLIE", 1747008000), // 2025-05-12
+	}
+	descByID := map[string]string{"fca_txn_a": "ALPHA", "fca_txn_b": "BRAVO", "fca_txn_c": "CHARLIE"}
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T, h *serverledger.Handler, ids []string) (*floatv1.ImportTransactionsResult, error)
+	}{
+		{
+			name: "ImportStripeTransactions",
+			run: func(t *testing.T, h *serverledger.Handler, ids []string) (*floatv1.ImportTransactionsResult, error) {
+				return importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
+					StripeAccountId: "fca_abc", StripeTransactionIds: ids,
+				})
+			},
+		},
+		{
+			name: "ImportAllStripeTransactions",
+			run: func(t *testing.T, h *serverledger.Handler, ids []string) (*floatv1.ImportTransactionsResult, error) {
+				return importAllStripeTransactions(t, h, &floatv1.ImportAllStripeTransactionsRequest{
+					Selections: []*floatv1.AccountTransactionSelection{
+						{StripeAccountId: "fca_abc", StripeTransactionIds: ids},
+					},
+				})
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stripeImportAllMockAPI(t, stripeTxns)
+
+			readsBySize := make(map[int]int64)
+			// The larger selection is deliberately not in date order, so the
+			// result order must come from the selection, not hledger's sort.
+			for _, ids := range [][]string{{"fca_txn_b"}, {"fca_txn_b", "fca_txn_c", "fca_txn_a"}} {
+				dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 840, NumTxns: 1})
+				if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
+					t.Fatalf("write rules.json: %v", err)
+				}
+				h, reads := mustCountingHandler(t, dir, &config.Config{
+					Stripe: config.StripeConfig{
+						LinkedAccounts: []config.StripeLinkedAccount{
+							{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+						},
+					},
+				})
+
+				result, err := tc.run(t, h, ids)
+				if err != nil {
+					t.Fatalf("import %v: %v", ids, err)
+				}
+				if int(result.ImportedCount) != len(ids) {
+					t.Errorf("import %v: ImportedCount = %d, want %d", ids, result.ImportedCount, len(ids))
+				}
+				var gotDescs, wantDescs []string
+				for _, txn := range result.Transactions {
+					gotDescs = append(gotDescs, txn.Description)
+				}
+				for _, id := range ids {
+					wantDescs = append(wantDescs, descByID[id])
+				}
+				if !slices.Equal(gotDescs, wantDescs) {
+					t.Errorf("import %v: transaction descriptions = %v, want %v", ids, gotDescs, wantDescs)
+				}
+				readsBySize[len(ids)] = reads.Load()
+			}
+
+			if readsBySize[3] != readsBySize[1] {
+				t.Errorf("journal reads: %d importing 1 transaction, %d importing 3; want the same (re-read must not scale with imported count)",
+					readsBySize[1], readsBySize[3])
+			}
+		})
+	}
 }

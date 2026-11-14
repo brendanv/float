@@ -33,7 +33,9 @@ const lowPriorityRetryInterval = 25 * time.Millisecond
 // Inject a stub via NewWithRunner for testing.
 type CommandRunner func(ctx context.Context, name string, args ...string) (stdout, stderr []byte, err error)
 
-func execCommandRunner(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+// ExecRunner is the default exec-based CommandRunner used by New. Tests can
+// wrap it with NewWithRunner to observe real hledger invocations.
+func ExecRunner(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdout = &stdoutBuf
@@ -59,7 +61,7 @@ func New(bin, journal string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("hledger binary not found at %q: %w", bin, err)
 	}
-	return newClient(resolvedBin, journal, execCommandRunner)
+	return newClient(resolvedBin, journal, ExecRunner)
 }
 
 // NewWithRunner creates a Client using a custom CommandRunner instead of exec.
