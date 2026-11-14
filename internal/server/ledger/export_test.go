@@ -27,3 +27,10 @@ func ExportedSetAfterImportPreFetch(h *Handler, fn func()) {
 func ExportedSetAfterDailyImportPreFetch(h *Handler, fn func()) {
 	h.afterDailyImportPreFetch = fn
 }
+
+// ExportedSetBeforeApplyRulesLock installs a hook that is called in ApplyRules just
+// before lock acquisition. Use this in tests to simulate a concurrent write landing
+// before the rule matches are computed and applied.
+func ExportedSetBeforeApplyRulesLock(h *Handler, fn func()) {
+	h.beforeApplyRulesLock = fn
+}

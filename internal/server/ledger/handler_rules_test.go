@@ -1,13 +1,18 @@
 package ledger_test
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
+	floatv1connect "github.com/brendanv/float/gen/float/v1/floatv1connect"
 	"github.com/brendanv/float/internal/gitsnap"
 	"github.com/brendanv/float/internal/hledger"
+	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/rules"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
 	"github.com/brendanv/float/internal/testgen"
@@ -249,4 +254,118 @@ func TestAddRuleHandler(t *testing.T) {
 			t.Errorf("got %d rules on disk, want 3", len(loaded))
 		}
 	})
+}
+
+// applyRules calls the streaming ApplyRules RPC via a test HTTP server and
+// returns the final ApplyRulesResult plus the last progress message seen.
+func applyRules(t *testing.T, h *serverledger.Handler, req *floatv1.ApplyRulesRequest) (*floatv1.ApplyRulesResult, *floatv1.ApplyRulesProgress, error) {
+	t.Helper()
+	mux := http.NewServeMux()
+	path, handler := floatv1connect.NewLedgerServiceHandler(h)
+	mux.Handle(path, handler)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	client := floatv1connect.NewLedgerServiceClient(srv.Client(), srv.URL)
+	stream, err := client.ApplyRules(t.Context(), connect.NewRequest(req))
+	if err != nil {
+		return nil, nil, err
+	}
+	t.Cleanup(func() { _ = stream.Close() })
+
+	var result *floatv1.ApplyRulesResult
+	var progress *floatv1.ApplyRulesProgress
+	for stream.Receive() {
+		switch p := stream.Msg().Payload.(type) {
+		case *floatv1.ApplyRulesResponse_Result:
+			result = p.Result
+		case *floatv1.ApplyRulesResponse_Progress:
+			progress = p.Progress
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return nil, nil, err
+	}
+	return result, progress, nil
+}
+
+// TestApplyRules_ConcurrentEditNotOverwritten is a regression test: ApplyRules
+// used to fetch and match transactions before acquiring the txlock, then
+// rewrite them from that stale snapshot, silently discarding any write that
+// landed in between. The hook below performs such a write right before the
+// lock is acquired; both it and the rule's change must survive.
+func TestApplyRules_ConcurrentEditNotOverwritten(t *testing.T) {
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 640, NumTxns: 1, WithFIDs: true})
+	h := mustRealHandler(t, dir)
+	c, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+
+	fid, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
+		Date:        time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+		Description: "COFFEE SHOP 123",
+		Postings: []journal.PostingInput{
+			{Account: "expenses:food", Commodity: "USD", Quantity: "4.50"},
+			{Account: "assets:checking"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AppendTransaction: %v", err)
+	}
+
+	if _, err := h.AddRule(t.Context(), connect.NewRequest(&floatv1.AddRuleRequest{
+		Rules: []*floatv1.RuleInput{{Pattern: "COFFEE", Payee: "Cafe", Tags: map[string]string{"rule": "coffee"}}},
+	})); err != nil {
+		t.Fatalf("AddRule: %v", err)
+	}
+
+	hookCalls := 0
+	serverledger.ExportedSetBeforeApplyRulesLock(h, func() {
+		hookCalls++
+		if _, err := h.UpdateTransactionStatus(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionStatusRequest{
+			Fid:    fid,
+			Status: "Cleared",
+		})); err != nil {
+			t.Errorf("concurrent UpdateTransactionStatus: %v", err)
+		}
+	})
+
+	result, progress, err := applyRules(t, h, &floatv1.ApplyRulesRequest{Fids: []string{fid}})
+	if err != nil {
+		t.Fatalf("ApplyRules: %v", err)
+	}
+	if hookCalls != 1 {
+		t.Fatalf("hook called %d times, want 1", hookCalls)
+	}
+	if result == nil || result.AppliedCount != 1 {
+		t.Fatalf("result = %v, want AppliedCount 1", result)
+	}
+	if progress == nil || progress.Total != 1 || progress.Applied != 1 {
+		t.Errorf("last progress = %v, want applied=1 total=1", progress)
+	}
+
+	txns, err := c.Transactions(t.Context(), "code:"+fid)
+	if err != nil {
+		t.Fatalf("Transactions: %v", err)
+	}
+	if len(txns) != 1 {
+		t.Fatalf("got %d transactions for fid %s, want 1", len(txns), fid)
+	}
+	got := txns[0]
+	if got.Status != "Cleared" {
+		t.Errorf("Status = %q, want %q (concurrent edit was overwritten)", got.Status, "Cleared")
+	}
+	if got.Payee == nil || *got.Payee != "Cafe" {
+		t.Errorf("Payee = %v, want %q (rule change missing)", got.Payee, "Cafe")
+	}
+	hasRuleTag := false
+	for _, tag := range got.Tags {
+		if tag[0] == "rule" && tag[1] == "coffee" {
+			hasRuleTag = true
+		}
+	}
+	if !hasRuleTag {
+		t.Errorf("Tags = %v, want rule:coffee (rule change missing)", got.Tags)
+	}
 }
