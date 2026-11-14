@@ -433,6 +433,94 @@ func TestTxLock_DoWith_ErrNoChanges(t *testing.T) {
 	}
 }
 
+func TestTxLock_DoWithPublish(t *testing.T) {
+	validTx := "2026-01-15 AMAZON\n    expenses:food  $10.00\n    assets:checking  $-10.00\n\n"
+	invalidTx := "2026-01-15 BROKEN\n    expenses:food  $10.00\n    assets:checking  $5.00\n\n"
+
+	tests := []struct {
+		name          string
+		fnErr         error
+		tx            string
+		wantErr       bool
+		wantPublished bool
+	}{
+		{name: "published after check passes", tx: validTx, wantPublished: true},
+		{name: "not published when check fails", tx: invalidTx, wantErr: true},
+		{name: "not published when fn fails", tx: validTx, fnErr: errors.New("fn failed"), wantErr: true},
+		{name: "not published on ErrNoChanges", fnErr: txlock.ErrNoChanges},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := setupDataDir(t)
+			l := mustTxLock(t, dir)
+
+			// Record the generation seen by the commit hook and by publish:
+			// publish must run before the generation bump and commit hooks.
+			var publishedAtGen, hookGen uint64
+			published := false
+			l.OnCommit(func(gen uint64) { hookGen = gen })
+
+			err := l.DoWithPublish(t.Context(), "test", nil, func() (func(), error) {
+				if tt.tx != "" {
+					if err := addMonthFile(dir, "2026/01.journal", tt.tx)(); err != nil {
+						return nil, err
+					}
+				}
+				if tt.fnErr != nil {
+					return func() { published = true }, tt.fnErr
+				}
+				return func() {
+					published = true
+					publishedAtGen = l.Generation()
+				}, nil
+			})
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("DoWithPublish() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if published != tt.wantPublished {
+				t.Errorf("published = %v, want %v", published, tt.wantPublished)
+			}
+			if tt.wantPublished && publishedAtGen >= hookGen {
+				t.Errorf("publish saw generation %d, commit hook %d; publish must run before the bump", publishedAtGen, hookGen)
+			}
+		})
+	}
+}
+
+func TestTxLock_DoConfigPublish(t *testing.T) {
+	tests := []struct {
+		name          string
+		fnErr         error
+		wantErr       bool
+		wantPublished bool
+	}{
+		{name: "published after fn succeeds", wantPublished: true},
+		{name: "not published when fn fails", fnErr: errors.New("fn failed"), wantErr: true},
+		{name: "not published on ErrNoChanges", fnErr: txlock.ErrNoChanges},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := setupDataDir(t)
+			l := txlock.New(dir, nil)
+			configPath := filepath.Join(dir, "config.toml")
+
+			published := false
+			err := l.DoConfigPublish(t.Context(), "test", []string{configPath}, func() (func(), error) {
+				if err := os.WriteFile(configPath, []byte("timezone = \"UTC\"\n"), 0644); err != nil {
+					return nil, err
+				}
+				return func() { published = true }, tt.fnErr
+			})
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("DoConfigPublish() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if published != tt.wantPublished {
+				t.Errorf("published = %v, want %v", published, tt.wantPublished)
+			}
+		})
+	}
+}
+
 func TestTxLock_DoConfig_RefusesJournalPath(t *testing.T) {
 	dir := setupDataDir(t)
 	l := txlock.New(dir, nil)

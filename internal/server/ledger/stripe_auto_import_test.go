@@ -372,3 +372,19 @@ func TestRunDailyStripeImport_UsesTransactedAtNotPostedAt(t *testing.T) {
 			txns[0].Date, "2025-05-10", "2025-05-12")
 	}
 }
+
+// TestRunDailyStripeImport_CheckFailureDoesNotPublishConfig verifies that when an
+// auto-imported transaction makes hledger check fail, LastDailyImportAt and
+// LastFetchedAt keep their old values both on disk and in memory, so the next
+// tick retries instead of treating the run as done for 24h.
+func TestRunDailyStripeImport_CheckFailureDoesNotPublishConfig(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+	stripeAutoImportMockAPI(t, "fca_guard", []map[string]any{stripeGuardTxn("fca_txn_guard3", "fca_guard")})
+	h, dir, before := checkFailureHandler(t, 842, "fca_guard")
+
+	imported, _ := serverledger.ExportedRunDailyStripeImport(h, t.Context())
+	if imported != 0 {
+		t.Errorf("imported = %d, want 0 (write rejected by hledger check)", imported)
+	}
+	assertConfigNotPublished(t, h, dir, before)
+}

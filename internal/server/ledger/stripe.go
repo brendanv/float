@@ -394,13 +394,13 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
 
 	var importedFIDs []string
-	err = h.lock.DoWith(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(selectedIDs), importBatchID), []string{h.configPath}, func() error {
+	err = h.lock.DoWithPublish(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(selectedIDs), importBatchID), []string{h.configPath}, func() (func(), error) {
 		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
 		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
 		// acquisition are not written a second time.
 		freshExisting, freshErr := h.hl.Transactions(ctx)
 		if freshErr != nil {
-			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+			return nil, fmt.Errorf("refresh existing transactions: %w", freshErr)
 		}
 		for id := range importedStripeTxnIDs(freshExisting) {
 			importedStripeTxnSet[id] = true
@@ -415,7 +415,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			}
 			st, ok := txnByID[txnID]
 			if !ok {
-				return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
+				return nil, fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 			}
 			if !stripeTxnSettled(st) {
 				continue
@@ -426,7 +426,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 			if writeErr != nil {
-				return fmt.Errorf("write transaction %s: %w", txnID, writeErr)
+				return nil, fmt.Errorf("write transaction %s: %w", txnID, writeErr)
 			}
 			importedFIDs = append(importedFIDs, fid)
 			importedStripeTxnSet[txnID] = true
@@ -439,7 +439,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 					},
 				},
 			}); sendErr != nil {
-				return sendErr
+				return nil, sendErr
 			}
 		}
 
@@ -453,11 +453,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		}
 		newCfg := *cur
 		newCfg.Stripe.LinkedAccounts = accounts
-		if err := config.Save(h.configPath, &newCfg); err != nil {
-			return err
-		}
-		h.cfg.Store(&newCfg)
-		return nil
+		return h.saveCfg(&newCfg)
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "import stripe transactions failed", "error", err)
@@ -653,13 +649,13 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		h.afterImportAllPreFetch()
 	}
 
-	err = h.lock.DoWith(ctx, fmt.Sprintf("import all stripe transactions (%d selections)", len(req.Msg.Selections)), []string{h.configPath}, func() error {
+	err = h.lock.DoWithPublish(ctx, fmt.Sprintf("import all stripe transactions (%d selections)", len(req.Msg.Selections)), []string{h.configPath}, func() (func(), error) {
 		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
 		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
 		// acquisition are not written a second time.
 		freshExisting, freshErr := h.hl.Transactions(ctx)
 		if freshErr != nil {
-			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+			return nil, fmt.Errorf("refresh existing transactions: %w", freshErr)
 		}
 		for id := range importedStripeTxnIDs(freshExisting) {
 			importedStripeTxnSet[id] = true
@@ -675,7 +671,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 
 			linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
 			if findErr != nil {
-				return fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
+				return nil, fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
 			}
 
 			af := acctFetches[linked.StripeAccountID]
@@ -686,7 +682,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				} else {
 					errMsg = fmt.Errorf("no pre-fetched data for account %s", linked.StripeAccountID)
 				}
-				return errMsg
+				return nil, errMsg
 			}
 
 			for _, txnID := range sel.StripeTransactionIds {
@@ -695,7 +691,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				}
 				st, ok := af.txnByID[txnID]
 				if !ok {
-					return fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
+					return nil, fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 				}
 				if !stripeTxnSettled(st) {
 					continue
@@ -706,7 +702,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 
 				fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 				if writeErr != nil {
-					return fmt.Errorf("write transaction %s: %w", txnID, writeErr)
+					return nil, fmt.Errorf("write transaction %s: %w", txnID, writeErr)
 				}
 				importedFIDs = append(importedFIDs, fid)
 				importedStripeTxnSet[txnID] = true
@@ -720,7 +716,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 						},
 					},
 				}); sendErr != nil {
-					return sendErr
+					return nil, sendErr
 				}
 			}
 		}
@@ -734,11 +730,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		}
 		newCfg := *cur
 		newCfg.Stripe.LinkedAccounts = accounts
-		if err := config.Save(h.configPath, &newCfg); err != nil {
-			return err
-		}
-		h.cfg.Store(&newCfg)
-		return nil
+		return h.saveCfg(&newCfg)
 	})
 	if err != nil {
 		logger.ErrorContext(ctx, "import all stripe transactions failed", "error", err)

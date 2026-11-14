@@ -1262,6 +1262,137 @@ func TestImportAllStripeTransactions(t *testing.T) {
 	})
 }
 
+// Check-failure fixture: stripeGuardTxn (2025-05-10, -50 USD) imported into
+// stripeGuardAccount breaks a later "= 0 USD" assertion, so txlock's hledger
+// check rejects the write and reverts journal files and config.toml.
+const (
+	stripeGuardAccount   = "assets:stripe-guard"
+	oldLastFetchedAt     = "2025-01-01T00:00:00Z"
+	oldLastDailyImportAt = "2025-01-02T00:00:00Z"
+)
+
+func stripeGuardTxn(id, accountID string) map[string]any {
+	return map[string]any{
+		"id": id, "object": "financial_connections.transaction",
+		"account": accountID, "amount": int64(-5000), "currency": "usd",
+		"description": "GROCERY STORE", "transacted_at": int64(1746835200),
+		"status": "posted", "livemode": false,
+	}
+}
+
+func checkFailureConfig(accountID string) *config.Config {
+	return &config.Config{
+		Stripe: config.StripeConfig{
+			LastDailyImportAt: oldLastDailyImportAt,
+			LinkedAccounts: []config.StripeLinkedAccount{
+				{StripeAccountID: accountID, HledgerAccount: stripeGuardAccount, LastFetchedAt: oldLastFetchedAt},
+			},
+		},
+	}
+}
+
+// checkFailureHandler returns a handler over a valid data dir with a balance
+// assertion "stripeGuardAccount = 0 USD" dated 2025-06-01 (after stripeGuardTxn),
+// plus the config.toml bytes before any import.
+func checkFailureHandler(t *testing.T, seed int64, accountID string) (*serverledger.Handler, string, []byte) {
+	t.Helper()
+	dir := testgen.GenerateDataDir(t, testgen.Options{Seed: seed, NumTxns: 1})
+	if err := os.WriteFile(filepath.Join(dir, "rules.json"), []byte(`[]`), 0644); err != nil {
+		t.Fatalf("write rules.json: %v", err)
+	}
+	c, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	if _, err := journal.AppendTransaction(t.Context(), c, dir, journal.TransactionInput{
+		Date:        time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+		Description: "balance guard",
+		Postings: []journal.PostingInput{
+			{Account: stripeGuardAccount, Commodity: "USD", Quantity: "0", BalanceAssertion: &journal.BalanceAssertionInput{Commodity: "USD", Quantity: "0"}},
+			{Account: "equity:opening", Commodity: "USD", Quantity: "0"},
+		},
+	}); err != nil {
+		t.Fatalf("append balance guard: %v", err)
+	}
+	if err := c.Check(t.Context()); err != nil {
+		t.Fatalf("fixture must pass hledger check before import: %v", err)
+	}
+	h := mustHandlerWithConfig(t, dir, checkFailureConfig(accountID))
+	before, err := os.ReadFile(filepath.Join(dir, "config.toml"))
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+	return h, dir, before
+}
+
+// assertConfigNotPublished verifies that a write rejected by hledger check left
+// config.toml byte-for-byte unchanged, published no new in-memory config, and
+// left no Stripe transaction in the journal.
+func assertConfigNotPublished(t *testing.T, h *serverledger.Handler, dir string, before []byte) {
+	t.Helper()
+	after, err := os.ReadFile(filepath.Join(dir, "config.toml"))
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Errorf("config.toml changed after failed write:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	cur := serverledger.ExportedLoadCfg(h)
+	if got := cur.Stripe.LinkedAccounts[0].LastFetchedAt; got != oldLastFetchedAt {
+		t.Errorf("in-memory LastFetchedAt = %q, want %q (reverted write must not be published)", got, oldLastFetchedAt)
+	}
+	if got := cur.Stripe.LastDailyImportAt; got != oldLastDailyImportAt {
+		t.Errorf("in-memory LastDailyImportAt = %q, want %q (reverted write must not be published)", got, oldLastDailyImportAt)
+	}
+	c, err := hledger.New("hledger", dir+"/main.journal")
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	txns, err := c.Transactions(t.Context(), "tag:float-stripe-txn")
+	if err != nil {
+		t.Fatalf("query stripe transactions: %v", err)
+	}
+	if len(txns) != 0 {
+		t.Errorf("journal has %d Stripe transactions after failed write, want 0", len(txns))
+	}
+}
+
+// TestImportStripeTransactions_CheckFailureDoesNotPublishConfig verifies that when
+// the imported transaction makes hledger check fail, the new LastFetchedAt is
+// neither left in config.toml nor published as the in-memory config.
+func TestImportStripeTransactions_CheckFailureDoesNotPublishConfig(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+	stripeImportAllMockAPI(t, []map[string]any{stripeGuardTxn("fca_txn_guard1", "fca_abc")})
+	h, dir, before := checkFailureHandler(t, 840, "fca_abc")
+
+	_, err := importStripeTransactions(t, h, &floatv1.ImportStripeTransactionsRequest{
+		StripeAccountId:      "fca_abc",
+		StripeTransactionIds: []string{"fca_txn_guard1"},
+	})
+	if err == nil {
+		t.Fatal("ImportStripeTransactions succeeded, want error from failed hledger check")
+	}
+	assertConfigNotPublished(t, h, dir, before)
+}
+
+// TestImportAllStripeTransactions_CheckFailureDoesNotPublishConfig is the
+// ImportAllStripeTransactions counterpart of the test above.
+func TestImportAllStripeTransactions_CheckFailureDoesNotPublishConfig(t *testing.T) {
+	t.Setenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+	stripeImportAllMockAPI(t, []map[string]any{stripeGuardTxn("fca_txn_guard2", "fca_abc")})
+	h, dir, before := checkFailureHandler(t, 841, "fca_abc")
+
+	_, err := importAllStripeTransactions(t, h, &floatv1.ImportAllStripeTransactionsRequest{
+		Selections: []*floatv1.AccountTransactionSelection{
+			{StripeAccountId: "fca_abc", StripeTransactionIds: []string{"fca_txn_guard2"}},
+		},
+	})
+	if err == nil {
+		t.Fatal("ImportAllStripeTransactions succeeded, want error from failed hledger check")
+	}
+	assertConfigNotPublished(t, h, dir, before)
+}
+
 func refreshStripeAccount(t *testing.T, h *serverledger.Handler, req *floatv1.RefreshStripeAccountRequest) ([]*floatv1.RefreshStripeAccountResponse, error) {
 	t.Helper()
 	mux := http.NewServeMux()

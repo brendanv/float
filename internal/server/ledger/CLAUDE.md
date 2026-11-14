@@ -8,6 +8,8 @@ ConnectRPC handler implementing `LedgerService`. This is the main application se
 
 All accounting queries delegate to `internal/hledger`. All journal/config/rules/import mutations must run in `lock.Do(ctx, "message", fn)` unless they are purely read-only.
 
+**Publish in-memory state only after the write commits.** `h.cfg` (and any other in-memory mirror of data-dir files) must change only once the txlock call has succeeded. `Do`/`DoWith` run `hledger check` *after* `fn` returns and revert the files (config.toml included) on failure, but cannot revert memory, so never call `h.cfg.Store` inside a `Do`/`DoWith` callback. Use `lock.DoWithPublish` / `lock.DoConfigPublish` and end `fn` with `return h.saveCfg(&newCfg)`: `saveCfg` writes config.toml and returns a publish func that txlock runs after validation succeeds, still under the mutex (storing after the lock call returns would let a concurrent writer read the stale config as its base and clobber the update). Read the base config with `h.loadCfg()` inside `fn`. Existing `DoConfig` callbacks that `Store` as their last step are safe only because `DoConfig` has no post-`fn` failure path.
+
 ## Cache Keys
 
 Cached query helpers produce deterministic namespaced keys. Query tokens are sorted before joining, so `[]string{"b", "a"}` and `[]string{"a", "b"}` share entries.
