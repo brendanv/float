@@ -202,6 +202,33 @@ func (h *Handler) fetchByFIDs(ctx context.Context, fids []string) ([]hledger.Tra
 	return out, nil
 }
 
+// importedTransactionProtos re-reads the transactions an import just wrote
+// (via fetchByFIDs, so a single shared full fetch rather than one hledger
+// process per FID) and returns them in fids order. It is best-effort: FIDs
+// that are not found are skipped, and a fetch error is logged and yields no
+// transactions, since the write itself has already committed.
+func (h *Handler) importedTransactionProtos(ctx context.Context, fids []string) []*floatv1.Transaction {
+	if len(fids) == 0 {
+		return nil
+	}
+	txns, err := h.fetchByFIDs(ctx, fids)
+	if err != nil {
+		slogctx.FromContext(ctx).WarnContext(ctx, "re-read imported transactions failed", "count", len(fids), "error", err)
+		return nil
+	}
+	byFID := make(map[string]hledger.Transaction, len(txns))
+	for _, t := range txns {
+		byFID[t.FID] = t
+	}
+	out := make([]*floatv1.Transaction, 0, len(fids))
+	for _, fid := range fids {
+		if t, ok := byFID[fid]; ok {
+			out = append(out, toProtoTransaction(t))
+		}
+	}
+	return out
+}
+
 // cachedBalances fetches balances from cache or hledger.
 func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
 	return cachedGet(ctx, c, balancesKey(depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
@@ -2878,22 +2905,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 		return rpcErr(ctx, err, "import transactions failed")
 	}
 
-	// Fetch the imported transactions to return.
-	var txnProtos []*floatv1.Transaction
-	if len(importedFIDs) > 0 {
-		txns, fetchErr := h.fetchByFIDs(ctx, importedFIDs)
-		if fetchErr == nil {
-			byFID := make(map[string]hledger.Transaction, len(txns))
-			for _, t := range txns {
-				byFID[t.FID] = t
-			}
-			for _, fid := range importedFIDs {
-				if t, ok := byFID[fid]; ok {
-					txnProtos = append(txnProtos, toProtoTransaction(t))
-				}
-			}
-		}
-	}
+	txnProtos := h.importedTransactionProtos(ctx, importedFIDs)
 
 	return stream.Send(&floatv1.ImportTransactionsResponse{
 		Payload: &floatv1.ImportTransactionsResponse_Result{

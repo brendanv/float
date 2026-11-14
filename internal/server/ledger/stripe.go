@@ -464,14 +464,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		return connect.NewError(connect.CodeInternal, errors.New("failed to import Stripe transactions"))
 	}
 
-	var txnProtos []*floatv1.Transaction
-	for _, fid := range importedFIDs {
-		txns, fetchErr := h.hl.Transactions(ctx, "code:"+fid)
-		if fetchErr != nil || len(txns) == 0 {
-			continue
-		}
-		txnProtos = append(txnProtos, toProtoTransaction(txns[0]))
-	}
+	txnProtos := h.importedTransactionProtos(ctx, importedFIDs)
 
 	return stream.Send(&floatv1.ImportTransactionsResponse{
 		Payload: &floatv1.ImportTransactionsResponse_Result{
@@ -752,14 +745,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 		return connect.NewError(connect.CodeInternal, errors.New("failed to import Stripe transactions"))
 	}
 
-	var txnProtos []*floatv1.Transaction
-	for _, fid := range importedFIDs {
-		txns, fetchErr := h.hl.Transactions(ctx, "code:"+fid)
-		if fetchErr != nil || len(txns) == 0 {
-			continue
-		}
-		txnProtos = append(txnProtos, toProtoTransaction(txns[0]))
-	}
+	txnProtos := h.importedTransactionProtos(ctx, importedFIDs)
 
 	return stream.Send(&floatv1.ImportTransactionsResponse{
 		Payload: &floatv1.ImportTransactionsResponse_Result{
