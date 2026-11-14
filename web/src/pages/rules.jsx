@@ -12,7 +12,7 @@ import {
 } from "@tanstack/react-table";
 import { CircleCheck, ListFilter, Sparkles } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
@@ -312,6 +312,7 @@ export function RulesPage() {
           });
         } else if (res.payload.case === "result") {
           setApplyResult(res.payload.value.appliedCount);
+          invalidateLedgerQueries(queryClient);
           setApplyPreviews(null);
           setDrawerOpen(false);
         }

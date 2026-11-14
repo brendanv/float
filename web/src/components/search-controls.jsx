@@ -48,8 +48,15 @@ function shiftMonth(dateFrom, delta) {
 }
 
 // Format a date range for display in the date picker button.
+function shortDate(d) {
+  return `${SHORT_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
 function formatDateRange(dateFrom, dateTo) {
-  if (!dateFrom) return "All time";
+  if (!dateFrom) {
+    if (!dateTo) return "All time";
+    return `Until ${shortDate(new Date(isoExclusiveToInclusive(dateTo) + "T00:00:00"))}`;
+  }
   const from = new Date(dateFrom + "T00:00:00");
   if (dateTo) {
     const to = new Date(dateTo + "T00:00:00"); // exclusive end
@@ -77,7 +84,7 @@ function formatDateRange(dateFrom, dateTo) {
     }
     return `${fs}, ${from.getFullYear()} – ${ts}, ${toInc.getFullYear()}`;
   }
-  return dateFrom;
+  return `Since ${shortDate(from)}`;
 }
 
 // Convert exclusive-end "YYYY-MM-DD" to the inclusive end date shown in the "To" input.

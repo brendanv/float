@@ -21,7 +21,7 @@ import {
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { XIcon, FunnelIcon } from "@phosphor-icons/react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -994,8 +994,7 @@ export function PortfolioPage() {
   const generateMutation = useMutation({
     mutationFn: () => ledgerClient.generatePricesFromCost({ accountPrefix }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.portfolioHoldings(accountPrefix) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.portfolioTimeseries(accountPrefix, timeseriesBegin) });
+      invalidateLedgerQueries(queryClient);
     },
   });
 

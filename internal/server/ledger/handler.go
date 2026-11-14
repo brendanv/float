@@ -1526,10 +1526,24 @@ func (h *Handler) UpdateTransaction(ctx context.Context, req *connect.Request[fl
 		desc = req.Msg.Payee + " | " + desc
 	}
 
+	// Proto3 can't tell an unset comment/map from an empty one, so empty
+	// values keep the existing comment/tags unless replace_* asks to clear.
+	var comment *string
+	if req.Msg.Comment != "" || req.Msg.ReplaceComment {
+		comment = &req.Msg.Comment
+	}
+	tags := req.Msg.Tags
+	if len(tags) == 0 {
+		tags = nil
+		if req.Msg.ReplaceTags {
+			tags = map[string]string{}
+		}
+	}
+
 	var updated hledger.Transaction
 	err := h.lock.Do(ctx, fmt.Sprintf("update transaction %s", fid), func() error {
 		var e error
-		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, req.Msg.Comment, req.Msg.Tags, postings, req.Msg.Status)
+		updated, e = journal.UpdateTransaction(ctx, h.hl, h.dataDir, fid, desc, req.Msg.Date, comment, tags, postings, req.Msg.Status)
 		return e
 	})
 	if err != nil {

@@ -54,6 +54,9 @@ export function fieldsFromPosting(p) {
   }
   return {
     account: p.account,
+    // Not editable in the UI, but carried through so an update doesn't drop
+    // the posting's comment (and any posting tags such as date:).
+    comment: p.comment ?? "",
     commodity: a ? a.commodity : "",
     quantity: a ? a.quantity : "",
     cost,
@@ -409,13 +412,16 @@ export function PostingFields({ postings, onChange, accounts }) {
 
 // toPostingInput normalizes a UI posting row to a PostingInput proto payload:
 // trims whitespace and drops the cost field if it has no quantity, so the
-// backend doesn't try to write an `@` annotation with an empty price.
+// backend doesn't try to write an `@` annotation with an empty price. The
+// posting comment is passed through untouched: UpdateTransaction replaces all
+// postings, so omitting it would delete it.
 export function toPostingInput(p) {
   const out = {
     account: (p.account || "").trim(),
     commodity: (p.commodity || "").trim(),
     quantity: (p.quantity || "").trim(),
   };
+  if (p.comment) out.comment = p.comment;
   if (p.cost && p.cost.quantity && String(p.cost.quantity).trim()) {
     out.cost = {
       commodity: (p.cost.commodity || "").trim(),

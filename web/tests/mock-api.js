@@ -1719,10 +1719,9 @@ export async function mockLedgerApi(
           if (token === "not:desc:.*[|].*") {
             txs = txs.filter((tx) => !tx.payee);
           } else if (token.startsWith("payee:")) {
-            const payeeFilter = token.slice("payee:".length).toLowerCase();
-            txs = txs.filter(
-              (tx) => tx.payee && tx.payee.toLowerCase().includes(payeeFilter),
-            );
+            // hledger treats the value as a case-insensitive regex.
+            const payeeRe = new RegExp(token.slice("payee:".length), "i");
+            txs = txs.filter((tx) => tx.payee && payeeRe.test(tx.payee));
           } else if (token.startsWith("code:")) {
             const fidFilter = token.slice("code:".length).toLowerCase();
             txs = txs.filter(

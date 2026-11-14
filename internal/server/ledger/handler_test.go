@@ -1102,6 +1102,59 @@ func TestModifyTagsHandler(t *testing.T) {
 }
 
 func TestUpdateTransactionHandler(t *testing.T) {
+	t.Run("comment_and_tags_kept_unless_replaced", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 66, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		postings := []*floatv1.PostingInput{
+			{Account: "expenses:food", Commodity: "USD", Quantity: "10.00", Comment: "split with Bob"},
+			{Account: "assets:checking"},
+		}
+		added, err := h.AddTransaction(t.Context(), connect.NewRequest(&floatv1.AddTransactionRequest{
+			Date:        "2026-01-10",
+			Description: "Comment Keep",
+			Comment:     "receipt in drawer",
+			Tags:        map[string]string{"trip": "paris"},
+			Postings:    postings,
+		}))
+		if err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+		fid := added.Msg.Transaction.Fid
+
+		// What the web UI's inline edits send: no comment, no tags.
+		resp, err := h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid: fid, Description: "Comment Keep 2", Postings: postings,
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransaction (keep): %v", err)
+		}
+		got := resp.Msg.Transaction
+		if !strings.Contains(got.Comment, "receipt in drawer") {
+			t.Errorf("comment = %q, want it kept", got.Comment)
+		}
+		if got.Tags["trip"] != "paris" {
+			t.Errorf("tags = %v, want trip:paris kept", got.Tags)
+		}
+		if c := got.Postings[0].Comment; !strings.Contains(c, "split with Bob") {
+			t.Errorf("posting comment = %q, want it kept", c)
+		}
+
+		resp, err = h.UpdateTransaction(t.Context(), connect.NewRequest(&floatv1.UpdateTransactionRequest{
+			Fid: fid, Description: "Comment Keep 3", Postings: postings,
+			ReplaceComment: true, ReplaceTags: true,
+		}))
+		if err != nil {
+			t.Fatalf("UpdateTransaction (clear): %v", err)
+		}
+		got = resp.Msg.Transaction
+		if strings.Contains(got.Comment, "receipt in drawer") {
+			t.Errorf("comment = %q, want it cleared", got.Comment)
+		}
+		if len(got.Tags) != 0 {
+			t.Errorf("tags = %v, want none", got.Tags)
+		}
+	})
+
 	t.Run("empty_fid", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 60, NumTxns: 1, WithFIDs: true})
 		h := mustRealHandler(t, dir)

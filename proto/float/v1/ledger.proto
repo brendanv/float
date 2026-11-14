@@ -252,11 +252,13 @@ message UpdateTransactionRequest {
   string fid = 1; // required
   string description = 2; // required; replaces existing
   string date = 3; // "YYYY-MM-DD"; empty = keep existing date
-  string comment = 4; // optional; replaces existing non-fid comment
-  repeated PostingInput postings = 5; // required; replaces all existing postings
+  string comment = 4; // free-text (non-tag) transaction comment; if non-empty (or replace_comment is set), replaces the existing one; otherwise it is kept
+  repeated PostingInput postings = 5; // required; replaces all existing postings (send each posting's comment back to keep it)
   string payee = 6; // optional; if set, description becomes "payee | description"
-  map<string, string> tags = 7; // optional; if set, replaces all user-visible tags
+  map<string, string> tags = 7; // if non-empty (or replace_tags is set), replaces all user-visible tags; otherwise tags are kept
   string status = 8; // optional; if non-empty, overrides the transaction status ("", "Pending", "Cleared")
+  bool replace_tags = 9; // when true, tags replaces all user-visible tags even if empty, so an empty map clears them
+  bool replace_comment = 10; // when true, comment replaces the existing comment even if empty, so "" clears it
 }
 
 message UpdateTransactionResponse {

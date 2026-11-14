@@ -15,7 +15,7 @@ import {
   Tag,
 } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { filterAndSortAccountNames } from "../lib/accounts.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -933,9 +933,7 @@ export function ConnectionsPage() {
       {configuredAccounts.length > 0 && (
         <FetchAllPanel
           configuredAccounts={configuredAccounts}
-          onImported={() =>
-            queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() })
-          }
+          onImported={() => invalidateLedgerQueries(queryClient)}
         />
       )}
 
@@ -975,11 +973,7 @@ export function ConnectionsPage() {
           <CardContent>
             <AccountFetchPanel
               account={account}
-              onImported={() =>
-                queryClient.invalidateQueries({
-                  queryKey: queryKeys.stripeLinkedAccounts(),
-                })
-              }
+              onImported={() => invalidateLedgerQueries(queryClient)}
             />
           </CardContent>
         </Card>

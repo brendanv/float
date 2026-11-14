@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { useSearch, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useSearch, useRouter, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X, ArrowLeft, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
+import { dateRangeQuery, escapeRegex, exactRegex } from "../lib/hledger-query.js";
 import { SearchControls } from "../components/search-controls.jsx";
 import { DATE_PRESETS, PAYEE_NONE } from "../components/search-presets.js";
 import { TransactionTable } from "../components/transaction-table.jsx";
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 
-function BulkActionBar({ selectedFids, transactions, accounts, onActionComplete, onClearSelection }) {
+function BulkActionBar({ selectedFids, transactions, accounts, focusedAccount, onActionComplete, onClearSelection }) {
   const [mode, setMode] = useState("idle"); // 'idle' | 'add-tag' | 'remove-tag' | 'set-payee' | 'set-unknown-account'
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [working, setWorking] = useState(false);
@@ -40,8 +41,12 @@ function BulkActionBar({ selectedFids, transactions, accounts, onActionComplete,
   const count = selectedTxs.length;
   const fids = selectedTxs.map((tx) => tx.fid);
 
+  // Register rows carry otherAccounts (plus the focused account) instead of postings.
+  const txAccounts = (tx) => tx.postings
+    ? tx.postings.map((p) => p.account)
+    : [...(tx.otherAccounts || []), ...(focusedAccount ? [focusedAccount] : [])];
   const allHaveUnknown = selectedTxs.length > 0 && selectedTxs.every((tx) =>
-    (tx.postings || []).some((p) => p.account.toLowerCase().includes("unknown"))
+    txAccounts(tx).some((a) => a.toLowerCase().includes("unknown"))
   );
 
   // Collect union of all tag keys across selected transactions
@@ -298,26 +303,38 @@ function BulkActionBar({ selectedFids, transactions, accounts, onActionComplete,
 export function TransactionsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const navigate = useNavigate({ from: "/transactions" });
   const routeSearch = useSearch({ from: "/transactions" });
 
+  // account/payee/search live in the URL (links such as the payee name in a
+  // row navigate here with them), so they're read from the route on every
+  // render rather than copied into state once on mount.
   const importBatchId = routeSearch.importBatchId || "";
+  const account = routeSearch.account || "";
+  const payee = routeSearch.payee || "";
+  const search = routeSearch.search || "";
+
   const initialRange = importBatchId ? { from: "", to: "" } : DATE_PRESETS[0].fn(); // skip date filter when viewing import
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
-  const [account, setAccount] = useState(routeSearch.account || "");
   const [tag, setTag] = useState("");
   const [status, setStatus] = useState("");
-  const [payee, setPayee] = useState(routeSearch.payee || "");
-  const [search, setSearch] = useState(routeSearch.search || "");
   const [selectedFids, setSelectedFids] = useState(new Set());
+
+  // A filter change from either the controls or a link clears the selection.
+  useEffect(() => {
+    setSelectedFids(new Set());
+  }, [account, payee, search]);
+
+  function setRouteFilter(key) {
+    return (value) => navigate({ search: (prev) => ({ ...prev, [key]: value }), replace: true });
+  }
 
   const isAccountMode = !!account;
 
-  const txQuery = buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId, search);
-  const txParams = { query: txQuery, limit: 0, offset: 0 };
-
-  const aregQuery = buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId, search);
-  const aregParams = { account, query: aregQuery, limit: 0, offset: 0 };
+  const query = buildQuery({ dateFrom, dateTo, tag, status, payee, importBatchId, search });
+  const txParams = { query, limit: 0, offset: 0 };
+  const aregParams = { account, query, limit: 0, offset: 0 };
 
   const { data: txData, isLoading: txLoading, error: txError } = useQuery({
     queryKey: queryKeys.transactions(txParams),
@@ -359,19 +376,12 @@ export function TransactionsPage() {
   }
 
   function onStatusChange() {
-    queryClient.invalidateQueries({ queryKey: ["lots"] });
-    if (isAccountMode) {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accountRegister(aregParams) });
-    } else {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions(txParams) });
-    }
+    invalidateLedgerQueries(queryClient);
   }
 
   function onBulkActionComplete() {
     setSelectedFids(new Set());
-    queryClient.invalidateQueries({ queryKey: ["transactions"] });
-    queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
-    queryClient.invalidateQueries({ queryKey: ["lots"] });
+    invalidateLedgerQueries(queryClient);
   }
 
   const transactions = !isAccountMode ? (data?.transactions || []) : [];
@@ -402,10 +412,10 @@ export function TransactionsPage() {
         payee={payee}
         search={search}
         onDateRangeChange={onDateRangeChange}
-        onAccountChange={onFilterChange(setAccount)}
+        onAccountChange={setRouteFilter("account")}
         onTagChange={onFilterChange(setTag)}
-        onPayeeChange={onFilterChange(setPayee)}
-        onSearchChange={onFilterChange(setSearch)}
+        onPayeeChange={setRouteFilter("payee")}
+        onSearchChange={setRouteFilter("search")}
         onStatusChange={onFilterChange(setStatus)}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
@@ -419,11 +429,13 @@ export function TransactionsPage() {
               selectedFids={selectedFids}
               transactions={bulkActionTransactions}
               accounts={accountsData?.accounts || []}
+              focusedAccount={isAccountMode ? account : ""}
               onActionComplete={onBulkActionComplete}
               onClearSelection={() => setSelectedFids(new Set())}
             />
           )}
           <TransactionTable
+            key={`${account}\u0000${query.join("\u0000")}`}
             transactions={transactions}
             registerRows={registerRows}
             focusedAccount={!isAccountMode ? account : undefined}
@@ -441,36 +453,25 @@ export function TransactionsPage() {
 
 const HLEDGER_KEYWORD_RE = /^(not:)?(acct|code|cur|desc|date|date2|tag|payee|note|status|real|depth|amt|type|sym|commodity|inacct|inaccteq):/;
 
+// Free text searches descriptions literally; text that already contains an
+// hledger query keyword is passed through as raw query tokens.
 function searchTokens(search) {
   if (!search) return [];
   const parts = search.trim().split(/\s+/);
   if (parts.some((p) => HLEDGER_KEYWORD_RE.test(p))) {
     return parts;
   }
-  return [`desc:${search}`];
+  return [`desc:${escapeRegex(search.trim())}`];
 }
 
-function buildQuery(dateFrom, dateTo, account, tag, status, payee, importBatchId, search) {
-  const tokens = [];
-  if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
-  if (account) tokens.push(`acct:${account}`);
-  if (importBatchId) tokens.push(`tag:float-import=${importBatchId}`);
-  else if (tag) tokens.push(`tag:${tag}`);
+// buildQuery serves both the transaction list and the account register; the
+// register's focused account is passed separately as GetAccountRegister.account.
+function buildQuery({ dateFrom, dateTo, tag, status, payee, importBatchId, search }) {
+  const tokens = [...dateRangeQuery(dateFrom, dateTo)];
+  if (importBatchId) tokens.push(`tag:float-import=${exactRegex(importBatchId)}`);
+  else if (tag) tokens.push(`tag:${exactRegex(tag)}`);
   if (payee === PAYEE_NONE) tokens.push("not:desc:.*[|].*");
-  else if (payee) tokens.push(`payee:${payee}`);
-  if (status === "reviewed") tokens.push("status:*");
-  if (status === "unreviewed") tokens.push("not:status:*");
-  tokens.push(...searchTokens(search));
-  return tokens;
-}
-
-function buildAregisterQuery(dateFrom, dateTo, tag, status, payee, importBatchId, search) {
-  const tokens = [];
-  if (dateFrom && dateTo) tokens.push(`date:${dateFrom}..${dateTo}`);
-  if (importBatchId) tokens.push(`tag:float-import=${importBatchId}`);
-  else if (tag) tokens.push(`tag:${tag}`);
-  if (payee === PAYEE_NONE) tokens.push("not:desc:.*[|].*");
-  else if (payee) tokens.push(`payee:${payee}`);
+  else if (payee) tokens.push(`payee:${exactRegex(payee)}`);
   if (status === "reviewed") tokens.push("status:*");
   if (status === "unreviewed") tokens.push("not:status:*");
   tokens.push(...searchTokens(search));

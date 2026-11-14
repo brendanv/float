@@ -12,13 +12,14 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { DashboardGrid, Page, PageCard } from "../components/page.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { OPEN_ACCOUNTS_QUERY } from "@/lib/accounts";
+import { dateRangeQuery } from "@/lib/hledger-query";
 
 export function HomePage() {
   const initial = DATE_PRESETS[0].fn();
   const [dateFrom, setDateFrom] = useState(initial.from);
   const [dateTo, setDateTo] = useState(initial.to);
 
-  const periodQuery = dateFrom && dateTo ? [`date:${dateFrom}..${dateTo}`] : [];
+  const periodQuery = dateRangeQuery(dateFrom, dateTo);
 
   const { data: accountsData, isLoading: accountsLoading, error: accountsError } = useQuery({
     queryKey: queryKeys.accounts(),

@@ -206,20 +206,25 @@ func userTagsFromTransaction(t hledger.Transaction) map[string]string {
 }
 
 // freeTextComment extracts the free-text portion from a parsed hledger Transaction.Comment.
-// hledger includes tag:value lines verbatim in the comment string; this strips them so the
-// result contains only human-written text.
+// hledger includes tags verbatim in the comment string; this strips them so the result
+// contains only human-written text and the tags (written separately from Tags/FloatMeta)
+// aren't duplicated. hledger's tag syntax: a name (no spaces, colons or commas) followed
+// by a colon, anywhere in the comment, whose value runs to the next comma or end of line.
+// So in "receipt in drawer, trip:paris" only "receipt in drawer" is free text.
 func freeTextComment(comment string) string {
 	var lines []string
 	for _, line := range strings.Split(strings.TrimSpace(comment), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		var kept []string
+		for _, seg := range strings.Split(line, ",") {
+			if loc := tagStartRe.FindStringIndex(seg); loc != nil {
+				seg = seg[:loc[0]]
+			}
+			if seg = strings.TrimSpace(seg); seg != "" {
+				kept = append(kept, seg)
+			}
 		}
-		// Skip lines whose entire content is one or more tag:value patterns.
-		stripped := anyTagRe.ReplaceAllString(line, "")
-		stripped = strings.TrimSpace(strings.ReplaceAll(stripped, ",", " "))
-		if stripped != "" {
-			lines = append(lines, line)
+		if len(kept) > 0 {
+			lines = append(lines, strings.Join(kept, ", "))
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -317,8 +322,8 @@ func removeTransactionAtLine(path string, headerLine int, fid string) error {
 	return nil
 }
 
-// anyTagRe matches a tag:value pattern in a comment string.
-var anyTagRe = regexp.MustCompile(`[A-Za-z][A-Za-z0-9_-]*:[^\s,;]*`)
+// tagStartRe matches the start of an hledger tag within a comma-separated comment segment.
+var tagStartRe = regexp.MustCompile(`(^|\s)[^\s:,]+:`)
 
 // BatchReplacement is a single in-place transaction replacement within a journal file.
 type BatchReplacement struct {
