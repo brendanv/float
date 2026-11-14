@@ -205,14 +205,14 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	now := time.Now().UTC().Format(time.RFC3339)
 	totalImported := 0
 	perAccountImported := make(map[string]int)
-	fn := func() error {
+	fn := func() (func(), error) {
 		// Refresh the imported-ID set inside the lock so that transactions written by a
 		// concurrent operation (e.g. a manual ImportStripeTransactions) between our
 		// pre-lock dedup and lock acquisition are not written a second time. This mirrors
 		// the in-lock re-check performed by the manual import RPCs.
 		freshExisting, freshErr := h.hl.Transactions(ctx)
 		if freshErr != nil {
-			return fmt.Errorf("refresh existing transactions: %w", freshErr)
+			return nil, fmt.Errorf("refresh existing transactions: %w", freshErr)
 		}
 		for id := range importedStripeTxnIDs(freshExisting) {
 			stripeTxnSet[id] = true
@@ -231,7 +231,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batchID, loc)
 				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
 				if _, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput); writeErr != nil {
-					return fmt.Errorf("write %s: %w", st.ID, writeErr)
+					return nil, fmt.Errorf("write %s: %w", st.ID, writeErr)
 				}
 				stripeTxnSet[st.ID] = true
 				totalImported++
@@ -248,18 +248,18 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		newCfg := *cur
 		newCfg.Stripe.LinkedAccounts = accounts
 		newCfg.Stripe.LastDailyImportAt = now
-		if err := config.Save(h.configPath, &newCfg); err != nil {
-			return err
-		}
-		h.cfg.Store(&newCfg)
-		return nil
+		// Publish only once the lock call commits: under DoWithPublish a failed
+		// hledger check (e.g. an imported transaction breaking a balance
+		// assertion) reverts config.toml, and a published LastDailyImportAt
+		// would suppress the retry for 24h and leak into the next config save.
+		return h.saveCfg(&newCfg)
 	}
 
 	var lockErr error
 	if hasCandidates {
-		lockErr = h.lock.DoWith(ctx, "stripe daily auto-import", []string{h.configPath}, fn)
+		lockErr = h.lock.DoWithPublish(ctx, "stripe daily auto-import", []string{h.configPath}, fn)
 	} else {
-		lockErr = h.lock.DoConfig(ctx, "stripe daily auto-import (no new transactions)", []string{h.configPath}, fn)
+		lockErr = h.lock.DoConfigPublish(ctx, "stripe daily auto-import (no new transactions)", []string{h.configPath}, fn)
 	}
 	if lockErr != nil {
 		logger.ErrorContext(ctx, "daily stripe import: write failed", "error", lockErr)

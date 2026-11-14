@@ -1,6 +1,15 @@
 package ledger
 
-import "context"
+import (
+	"context"
+
+	"github.com/brendanv/float/internal/config"
+)
+
+// ExportedLoadCfg exposes the in-memory config snapshot to tests in the _test package.
+func ExportedLoadCfg(h *Handler) *config.Config {
+	return h.loadCfg()
+}
 
 // ExportedRunDailyStripeImport exposes runDailyStripeImport to tests in the _test package.
 func ExportedRunDailyStripeImport(h *Handler, ctx context.Context) (int, map[string]error) {
