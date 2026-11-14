@@ -755,7 +755,13 @@ func runJournalRestore(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := snap.Restore(context.Background(), hash); err != nil {
+	ctx := context.Background()
+	if err := snap.Restore(ctx, hash); err != nil {
+		return err
+	}
+	// Restore leaves HEAD in place; record the restored tree as a new
+	// snapshot so history stays intact and the restore can be undone.
+	if err := snap.Commit(ctx, "restore snapshot "+hash); err != nil {
 		return err
 	}
 	fmt.Printf("restored to %s\n", hash)

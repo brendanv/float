@@ -63,7 +63,11 @@ func New(dir string) (*Repo, error) {
 	if err := ensureGitignore(dir); err != nil {
 		return nil, fmt.Errorf("gitsnap: ensure gitignore: %w", err)
 	}
-	return &Repo{dir: dir, repo: r}, nil
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: abs %s: %w", dir, err)
+	}
+	return &Repo{dir: abs, repo: r}, nil
 }
 
 func initRepo(dir string) (*git.Repository, error) {
@@ -184,44 +188,6 @@ func (r *Repo) List(_ context.Context, limit int) ([]Snapshot, error) {
 		})
 	}
 	return snaps, nil
-}
-
-var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts"}
-
-func (r *Repo) Restore(_ context.Context, hash string) error {
-	h := plumbing.NewHash(hash)
-	if h.IsZero() {
-		return fmt.Errorf("gitsnap: restore: invalid hash %q", hash)
-	}
-	if _, err := r.repo.CommitObject(h); err != nil {
-		return fmt.Errorf("gitsnap: restore: commit %q not found: %w", hash, err)
-	}
-	wt, err := r.repo.Worktree()
-	if err != nil {
-		return fmt.Errorf("gitsnap: restore: worktree: %w", err)
-	}
-
-	saved := map[string][]byte{}
-	for _, name := range preservedFiles {
-		data, err := os.ReadFile(filepath.Join(r.dir, name))
-		if err == nil {
-			saved[name] = data
-		}
-	}
-
-	if err := wt.Reset(&git.ResetOptions{
-		Commit: h,
-		Mode:   git.HardReset,
-	}); err != nil {
-		return fmt.Errorf("gitsnap: restore: reset: %w", err)
-	}
-
-	for name, data := range saved {
-		if err := os.WriteFile(filepath.Join(r.dir, name), data, 0600); err != nil {
-			return fmt.Errorf("gitsnap: restore: restore %s: %w", name, err)
-		}
-	}
-	return nil
 }
 
 func (r *Repo) Diff(ctx context.Context, hash string) ([]FileDiff, error) {
