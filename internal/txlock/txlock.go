@@ -67,7 +67,23 @@ func (l *TxLock) Do(ctx context.Context, msg string, fn func() error) error {
 // extraPaths contains absolute paths to non-journal files that fn may create,
 // modify, or delete. On failure they are reverted along with the journal files.
 // Paths that do not exist before fn are removed on revert if fn created them.
+//
+// fn must not publish in-memory state derived from its writes (e.g. a new
+// config snapshot): hledger check runs only after fn returns, and a failed
+// check reverts the files but not memory. Use DoWithPublish for that.
 func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn func() error) error {
+	return l.DoWithPublish(ctx, msg, extraPaths, func() (func(), error) { return nil, fn() })
+}
+
+// DoWithPublish is DoWith for mutations that also update in-memory state
+// mirroring the files fn writes. fn performs the writes and returns a publish
+// func (may be nil). publish runs only once fn and hledger check have both
+// succeeded, while the mutex is still held — so the in-memory state never
+// reflects a reverted write, and a concurrent writer cannot read the old state
+// as its base between this commit and the publish. publish runs before the
+// generation bump and commit hooks, and is not run when fn returns
+// ErrNoChanges. It must not fail or block.
+func (l *TxLock) DoWithPublish(ctx context.Context, msg string, extraPaths []string, fn func() (publish func(), err error)) error {
 	logger := slogctx.FromContext(ctx)
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -78,7 +94,8 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 	}
 	logger.Debug("txlock: snapshotted files", "file_count", len(snap.present)+len(snap.absentExtras))
 
-	if err := fn(); err != nil {
+	publish, err := fn()
+	if err != nil {
 		if errors.Is(err, ErrNoChanges) {
 			logger.Debug("txlock: fn reported no changes; skipping check/bump/commit")
 			return nil
@@ -108,6 +125,9 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 		return err
 	}
 
+	if publish != nil {
+		publish()
+	}
 	gen := l.gen.Add(1)
 	logger.Info("txlock: write committed", "generation", gen)
 	if l.snap != nil {
@@ -130,6 +150,13 @@ func (l *TxLock) DoWith(ctx context.Context, msg string, extraPaths []string, fn
 // validation and cache invalidation for a journal-affecting write — use
 // DoWith for those.
 func (l *TxLock) DoConfig(ctx context.Context, msg string, paths []string, fn func() error) error {
+	return l.DoConfigPublish(ctx, msg, paths, func() (func(), error) { return nil, fn() })
+}
+
+// DoConfigPublish is DoConfig with the publish semantics of DoWithPublish:
+// publish (may be nil) runs only after fn succeeds, while the mutex is held,
+// and not when fn returns ErrNoChanges.
+func (l *TxLock) DoConfigPublish(ctx context.Context, msg string, paths []string, fn func() (publish func(), err error)) error {
 	logger := slogctx.FromContext(ctx)
 	for _, p := range paths {
 		if strings.HasSuffix(p, ".journal") {
@@ -146,7 +173,8 @@ func (l *TxLock) DoConfig(ctx context.Context, msg string, paths []string, fn fu
 	}
 	logger.Debug("txlock: snapshotted config files", "file_count", len(snap.present)+len(snap.absentExtras))
 
-	if err := fn(); err != nil {
+	publish, err := fn()
+	if err != nil {
 		if errors.Is(err, ErrNoChanges) {
 			logger.Debug("txlock: fn reported no changes; skipping commit")
 			return nil
@@ -158,6 +186,9 @@ func (l *TxLock) DoConfig(ctx context.Context, msg string, paths []string, fn fu
 		return err
 	}
 
+	if publish != nil {
+		publish()
+	}
 	logger.Info("txlock: config write committed")
 	if l.snap != nil {
 		if snapErr := l.snap.Commit(ctx, msg); snapErr != nil {

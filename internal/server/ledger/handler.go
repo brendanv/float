@@ -69,10 +69,23 @@ func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configP
 }
 
 // loadCfg returns the current config snapshot. Readers call this once per
-// request and work from the returned pointer; writers use h.cfg.Store inside
-// lock.Do to publish a new immutable snapshot.
+// request and work from the returned pointer. Writers read it as their base
+// inside a txlock callback and publish a new immutable snapshot only once the
+// transaction has committed (see saveCfg).
 func (h *Handler) loadCfg() *config.Config {
 	return h.cfg.Load()
+}
+
+// saveCfg writes newCfg to config.toml and returns a func that publishes it as
+// the in-memory config. Call it from a lock.DoWithPublish/DoConfigPublish
+// callback (with h.configPath declared) and return the publish func, so h.cfg
+// only changes once the whole transaction — including the post-callback
+// hledger check of DoWithPublish — has succeeded and the file write is final.
+func (h *Handler) saveCfg(newCfg *config.Config) (publish func(), err error) {
+	if err := config.Save(h.configPath, newCfg); err != nil {
+		return nil, err
+	}
+	return func() { h.cfg.Store(newCfg) }, nil
 }
 
 func (h *Handler) RunHledgerQuery(ctx context.Context, req *connect.Request[floatv1.RunHledgerQueryRequest]) (*connect.Response[floatv1.RunHledgerQueryResponse], error) {
