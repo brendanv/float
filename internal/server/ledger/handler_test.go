@@ -2148,6 +2148,38 @@ func TestBulkEditTransactionsHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("clear_payee_without_payee_preserves_description", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 215, NumTxns: 1, WithFIDs: true})
+		h := mustRealHandler(t, dir)
+		c, err := hledger.New("hledger", dir+"/main.journal")
+		if err != nil {
+			t.Skipf("hledger unavailable: %v", err)
+		}
+		// Description has no "|", so there is no payee to clear.
+		tx := baseTx("COFFEE SHOP 123")
+		fid := appendTx(t, c, dir, tx)
+
+		resp, err := h.BulkEditTransactions(t.Context(), connect.NewRequest(&floatv1.BulkEditTransactionsRequest{
+			Fids: []string{fid},
+			Operations: []*floatv1.BulkEditOperation{
+				{Operation: &floatv1.BulkEditOperation_ClearPayee{ClearPayee: &floatv1.ClearPayeeOperation{}}},
+			},
+		}))
+		if err != nil {
+			t.Fatalf("BulkEditTransactions: %v", err)
+		}
+		if len(resp.Msg.Transactions) != 1 {
+			t.Fatalf("expected 1 transaction, got %d", len(resp.Msg.Transactions))
+		}
+		got := resp.Msg.Transactions[0]
+		if got.Description != "COFFEE SHOP 123" {
+			t.Errorf("Description = %q, want %q", got.Description, "COFFEE SHOP 123")
+		}
+		if got.Payee != nil {
+			t.Errorf("Payee = %v, want nil", got.Payee)
+		}
+	})
+
 	t.Run("multiple_operations_applied_atomically", func(t *testing.T) {
 		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 214, NumTxns: 1, WithFIDs: true})
 		h := mustRealHandler(t, dir)

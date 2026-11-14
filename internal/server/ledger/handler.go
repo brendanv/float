@@ -2209,11 +2209,10 @@ func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request
 					}
 					input.Description = v.SetPayee.Payee + " | " + note
 				case *floatv1.BulkEditOperation_ClearPayee:
-					note := ""
+					// No "|" means no payee: leave the description untouched.
 					if t.Note != nil {
-						note = *t.Note
+						input.Description = *t.Note
 					}
-					input.Description = note
 				case *floatv1.BulkEditOperation_UpdateUnknownAccount:
 					newAcct := v.UpdateUnknownAccount.Account
 					for i, p := range input.Postings {
