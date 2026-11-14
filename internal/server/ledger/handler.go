@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -2119,8 +2120,23 @@ func (h *Handler) RenameAccount(ctx context.Context, req *connect.Request[floatv
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("old_name and new_name must differ"))
 	}
 
-	var renamed int
-	err := h.lock.Do(ctx, fmt.Sprintf("rename account: %s → %s", oldName, newName), func() error {
+	// Besides the journal, float's own config references accounts: rule
+	// targets/filters (rules.json), template postings (templates.json), and
+	// Stripe linked accounts / portfolio exclusions (config.toml). Leaving those
+	// stale would keep creating postings to the old account, so they are
+	// renamed in the same locked write and reverted with it on failure.
+	extraPaths := []string{rules.FilePath(h.dataDir), templates.FilePath(h.dataDir)}
+	if h.configPath != "" {
+		extraPaths = append(extraPaths, h.configPath)
+	}
+
+	var (
+		renamed int
+		baseCfg *config.Config // in-memory config the rename was applied to
+		newCfg  *config.Config // renamed config saved to disk; nil if unchanged
+	)
+	msg := fmt.Sprintf("rename account: %s → %s", oldName, newName)
+	err := h.lock.DoWith(ctx, msg, extraPaths, func() error {
 		// Rename in accounts.journal if the declaration exists there.
 		if declErr := journal.RenameAccountDeclaration(h.dataDir, oldName, newName); declErr != nil {
 			if !errors.Is(declErr, journal.ErrNotFound) {
@@ -2133,12 +2149,143 @@ func (h *Handler) RenameAccount(ctx context.Context, req *connect.Request[floatv
 			return err
 		}
 		renamed = n
+
+		if err := renameAccountInRules(h.dataDir, oldName, newName); err != nil {
+			return err
+		}
+		if err := renameAccountInTemplates(h.dataDir, oldName, newName); err != nil {
+			return err
+		}
+		baseCfg = h.loadCfg()
+		if baseCfg != nil && h.configPath != "" {
+			if c, changed := renameAccountInConfig(baseCfg, oldName, newName); changed {
+				if err := config.Save(h.configPath, c); err != nil {
+					return err
+				}
+				newCfg = c
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, rpcErr(ctx, err, "rename account failed", "old", oldName, "new", newName)
 	}
+
+	// Publish the renamed config only now: DoWith runs `hledger check` after fn
+	// and reverts config.toml on failure, so storing it inside fn could leave
+	// memory out of sync with disk.
+	if newCfg != nil && !h.cfg.CompareAndSwap(baseCfg, newCfg) {
+		// Another config writer locked and published between our unlock and the
+		// swap. It started from the pre-rename config and saved that to disk, so
+		// re-apply the rename on top of its result.
+		h.reapplyConfigRename(ctx, msg, oldName, newName)
+	}
 	return connect.NewResponse(&floatv1.RenameAccountResponse{PostingsRenamed: int32(renamed)}), nil
+}
+
+// reapplyConfigRename re-applies an account rename to the current config under
+// the lock. Only config.toml is touched, so DoConfig is sufficient. Failures
+// are logged rather than returned: the journal rename already committed.
+func (h *Handler) reapplyConfigRename(ctx context.Context, msg, oldName, newName string) {
+	err := h.lock.DoConfig(ctx, msg+" (config)", []string{h.configPath}, func() error {
+		c, changed := renameAccountInConfig(h.loadCfg(), oldName, newName)
+		if !changed {
+			return txlock.ErrNoChanges
+		}
+		if err := config.Save(h.configPath, c); err != nil {
+			return err
+		}
+		h.cfg.Store(c)
+		return nil
+	})
+	if err != nil {
+		slogctx.FromContext(ctx).ErrorContext(ctx, "rename account: re-applying config rename failed", "old", oldName, "new", newName, "error", err)
+	}
+}
+
+// renameAccountInRules renames rule target accounts and source-account filters
+// that are oldName or one of its sub-accounts. Does nothing (and does not
+// create rules.json) when no rule references the account. Must run inside the
+// txlock with rules.FilePath declared.
+func renameAccountInRules(dataDir, oldName, newName string) error {
+	list, err := rules.Load(dataDir)
+	if err != nil {
+		return err
+	}
+	changed := false
+	for i := range list {
+		if a, ok := journal.RenameAccountName(list[i].Account, oldName, newName); ok {
+			list[i].Account = a
+			changed = true
+		}
+		if a, ok := journal.RenameAccountName(list[i].MatchAccount, oldName, newName); ok {
+			list[i].MatchAccount = a
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return rules.Save(dataDir, list)
+}
+
+// renameAccountInTemplates renames template posting accounts that are oldName
+// or one of its sub-accounts. Does nothing (and does not create
+// templates.json) when no template references the account. Must run inside
+// the txlock with templates.FilePath declared.
+func renameAccountInTemplates(dataDir, oldName, newName string) error {
+	list, err := templates.Load(dataDir)
+	if err != nil {
+		return err
+	}
+	changed := false
+	for i := range list {
+		for j := range list[i].Postings {
+			if a, ok := journal.RenameAccountName(list[i].Postings[j].Account, oldName, newName); ok {
+				list[i].Postings[j].Account = a
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return nil
+	}
+	return templates.Save(dataDir, list)
+}
+
+// renameAccountInConfig returns a copy of cfg with Stripe linked accounts'
+// HledgerAccount and portfolio excluded account prefixes renamed where they
+// are oldName or one of its sub-accounts. cfg itself is never modified (it is
+// shared, copy-on-write state). Returns (cfg, false) when nothing matches.
+func renameAccountInConfig(cfg *config.Config, oldName, newName string) (*config.Config, bool) {
+	if cfg == nil {
+		return nil, false
+	}
+	changed := false
+
+	linked := slices.Clone(cfg.Stripe.LinkedAccounts)
+	for i := range linked {
+		if a, ok := journal.RenameAccountName(linked[i].HledgerAccount, oldName, newName); ok {
+			linked[i].HledgerAccount = a
+			changed = true
+		}
+	}
+
+	excluded := slices.Clone(cfg.Portfolio.ExcludedAccountPrefixes)
+	for i := range excluded {
+		if a, ok := journal.RenameAccountName(excluded[i], oldName, newName); ok {
+			excluded[i] = a
+			changed = true
+		}
+	}
+
+	if !changed {
+		return cfg, false
+	}
+	out := *cfg
+	out.Stripe.LinkedAccounts = linked
+	out.Portfolio.ExcludedAccountPrefixes = excluded
+	return &out, true
 }
 
 func (h *Handler) BulkEditTransactions(ctx context.Context, req *connect.Request[floatv1.BulkEditTransactionsRequest]) (*connect.Response[floatv1.BulkEditTransactionsResponse], error) {

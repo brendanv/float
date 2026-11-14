@@ -1,6 +1,10 @@
 package ledger
 
-import "context"
+import (
+	"context"
+
+	"github.com/brendanv/float/internal/config"
+)
 
 // ExportedRunDailyStripeImport exposes runDailyStripeImport to tests in the _test package.
 func ExportedRunDailyStripeImport(h *Handler, ctx context.Context) (int, map[string]error) {
@@ -33,4 +37,9 @@ func ExportedSetAfterDailyImportPreFetch(h *Handler, fn func()) {
 // before the rule matches are computed and applied.
 func ExportedSetBeforeApplyRulesLock(h *Handler, fn func()) {
 	h.beforeApplyRulesLock = fn
+}
+
+// ExportedLoadCfg returns the handler's current in-memory config.
+func ExportedLoadCfg(h *Handler) *config.Config {
+	return h.loadCfg()
 }
