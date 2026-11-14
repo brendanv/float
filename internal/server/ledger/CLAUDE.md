@@ -60,7 +60,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 ### Transactions / Bulk Editing
 
-Transaction writes convert proto input into `journal.TransactionInput`, call journal text helpers under txlock, then re-read via hledger before returning. `AddTransaction` writes `Cleared` unless the optional `status` is set. Bulk edit supports mark reviewed/unreviewed, add/remove tag, set/clear payee, and delete. Bulk delete streams progress.
+Transaction writes convert proto input into `journal.TransactionInput`, call journal text helpers under txlock, then re-read via hledger before returning. `UpdateTransaction` keeps the existing comment/tags when `comment`/`tags` are empty (proto3 can't distinguish unset from empty) unless `replace_comment`/`replace_tags` is set; postings are replaced wholesale, including their comments. `AddTransaction` writes `Cleared` unless the optional `status` is set. Bulk edit supports mark reviewed/unreviewed, add/remove tag, set/clear payee, and delete. Bulk delete streams progress.
 
 ### Prices / Portfolio / Alpha Vantage
 

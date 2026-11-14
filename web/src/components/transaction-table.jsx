@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 import {
   useReactTable,
@@ -140,22 +140,28 @@ function resolveRegisterCells(row) {
 
 function StatusButton({ fid, status, onStatusChange }) {
   const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState(null);
 
   async function handleClick(e) {
     e.stopPropagation();
     if (!fid || updating) return;
     const newStatus = status === "Cleared" ? "Pending" : "Cleared";
     setUpdating(true);
+    setError(null);
     try {
       await ledgerClient.updateTransactionStatus({ fid, status: newStatus });
       if (onStatusChange) onStatusChange();
+    } catch (err) {
+      setError(err.message || String(err));
     } finally {
       setUpdating(false);
     }
   }
 
   const isReviewed = status === "Cleared";
-  const title = isReviewed ? "Reviewed — click to mark pending" : "Unreviewed — click to mark reviewed";
+  const title = error
+    ? `Couldn't update status: ${error}`
+    : isReviewed ? "Reviewed — click to mark pending" : "Unreviewed — click to mark reviewed";
 
   return (
     <Tooltip>
@@ -168,7 +174,7 @@ function StatusButton({ fid, status, onStatusChange }) {
             isLoading={updating}
             className="rounded-full"
           >
-            <Check className={isReviewed ? "text-success" : "text-muted-foreground/40"} />
+            <Check className={error ? "text-destructive" : isReviewed ? "text-success" : "text-muted-foreground/40"} />
           </Button>
         }
       />
@@ -184,11 +190,19 @@ function EditableDescriptionCell({ fid, description, date, postings, payee, note
   async function save() {
     if (state.draft.trim() === description) { state.cancel(); return; }
     await state.run(async () => {
+      // Account-register rows don't carry postings; UpdateTransaction
+      // replaces them all, so fetch the full transaction first.
+      let fullPostings = postings;
+      if (!fullPostings) {
+        const resp = await ledgerClient.listTransactions({ query: [`code:${fid}`], limit: 1 });
+        fullPostings = resp.transactions?.[0]?.postings;
+        if (!fullPostings) throw new Error("Transaction not found");
+      }
       await ledgerClient.updateTransaction({
         fid,
         description: state.draft.trim(),
         date,
-        postings: editablePostings(postings).map((p) => toPostingInput(fieldsFromPosting(p))),
+        postings: editablePostings(fullPostings).map((p) => toPostingInput(fieldsFromPosting(p))),
       });
       if (onSaved) onSaved();
     });
@@ -383,7 +397,8 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const trimmed = postings.map(toPostingInput);
+    // Rows added with "Add posting" but left blank are dropped, as in the add form.
+    const trimmed = postings.map(toPostingInput).filter((p) => p.account);
     const autoReview = trimmed.every((p) => !p.account.toLowerCase().includes("unknown"));
     try {
       await ledgerClient.updateTransaction({
@@ -392,6 +407,9 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
         date,
         postings: trimmed,
         tags,
+        // The editor shows the full tag set, so an empty map means "remove
+        // them all" rather than "leave tags alone".
+        replaceTags: true,
         status: autoReview ? "Cleared" : (tx.status ?? ""),
       });
       if (onSaved) onSaved();
@@ -859,6 +877,9 @@ export function TransactionTable({
     getPaginationRowModel: getPaginationRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: (row) => !isRegisterMode && !!row.original.fid,
+    // Keep the current page when data refetches after an edit; callers that
+    // change the filter remount the table (key) to start over at page 1.
+    autoResetPageIndex: false,
     getRowId: (row, idx) => row.fid ? row.fid : `${row.date}-${idx}`,
     // Pass mutable state through meta so column cell renderers always read current values
     meta: {
@@ -874,6 +895,15 @@ export function TransactionTable({
       toggleSelectAll,
     },
   });
+
+  // If rows were removed (e.g. a delete) and the current page no longer
+  // exists, step back to the last page that does.
+  const pageCount = table.getPageCount();
+  useEffect(() => {
+    if (pagination.pageIndex > 0 && pagination.pageIndex >= pageCount) {
+      setPagination((p) => ({ ...p, pageIndex: Math.max(0, pageCount - 1) }));
+    }
+  }, [pagination.pageIndex, pageCount]);
 
   if (rows.length === 0) {
     return <p className="py-4 text-muted-foreground">No transactions for this period.</p>;

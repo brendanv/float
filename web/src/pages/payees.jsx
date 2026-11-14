@@ -12,7 +12,7 @@ import {
 import { ExternalLink, Sparkles, ChevronDown, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
@@ -187,10 +187,7 @@ export function PayeesPage() {
       });
       setActiveDesc(null);
       setNewPayee("");
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.noPayeeTransactions() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.payees() });
+      invalidateLedgerQueries(queryClient);
     } catch (err) {
       setSetPayeeError(err.message || String(err));
     } finally {

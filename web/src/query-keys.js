@@ -28,3 +28,11 @@ export const queryKeys = {
   stripeLinkedAccounts: () => ["stripeLinkedAccounts"],
   templates:            () => ["templates"],
 };
+
+// Every successful floatd write bumps its cache generation, so any ledger-derived
+// query (balances, registers, payees, timeseries, portfolio, ...) may now be
+// stale. Mirror that after a mutation: invalidate everything, so active queries
+// refetch now and inactive ones refetch on their next mount.
+export function invalidateLedgerQueries(queryClient) {
+  return queryClient.invalidateQueries();
+}

@@ -2417,17 +2417,19 @@ func (x *AddTransactionResponse) GetTransaction() *Transaction {
 }
 
 type UpdateTransactionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fid           string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`                                                                             // required
-	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`                                                             // required; replaces existing
-	Date          string                 `protobuf:"bytes,3,opt,name=date,proto3" json:"date,omitempty"`                                                                           // "YYYY-MM-DD"; empty = keep existing date
-	Comment       string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`                                                                     // optional; replaces existing non-fid comment
-	Postings      []*PostingInput        `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`                                                                   // required; replaces all existing postings
-	Payee         string                 `protobuf:"bytes,6,opt,name=payee,proto3" json:"payee,omitempty"`                                                                         // optional; if set, description becomes "payee | description"
-	Tags          map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // optional; if set, replaces all user-visible tags
-	Status        string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`                                                                       // optional; if non-empty, overrides the transaction status ("", "Pending", "Cleared")
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Fid            string                 `protobuf:"bytes,1,opt,name=fid,proto3" json:"fid,omitempty"`                                                                             // required
+	Description    string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`                                                             // required; replaces existing
+	Date           string                 `protobuf:"bytes,3,opt,name=date,proto3" json:"date,omitempty"`                                                                           // "YYYY-MM-DD"; empty = keep existing date
+	Comment        string                 `protobuf:"bytes,4,opt,name=comment,proto3" json:"comment,omitempty"`                                                                     // free-text (non-tag) transaction comment; if non-empty (or replace_comment is set), replaces the existing one; otherwise it is kept
+	Postings       []*PostingInput        `protobuf:"bytes,5,rep,name=postings,proto3" json:"postings,omitempty"`                                                                   // required; replaces all existing postings (send each posting's comment back to keep it)
+	Payee          string                 `protobuf:"bytes,6,opt,name=payee,proto3" json:"payee,omitempty"`                                                                         // optional; if set, description becomes "payee | description"
+	Tags           map[string]string      `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // if non-empty (or replace_tags is set), replaces all user-visible tags; otherwise tags are kept
+	Status         string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`                                                                       // optional; if non-empty, overrides the transaction status ("", "Pending", "Cleared")
+	ReplaceTags    bool                   `protobuf:"varint,9,opt,name=replace_tags,json=replaceTags,proto3" json:"replace_tags,omitempty"`                                         // when true, tags replaces all user-visible tags even if empty, so an empty map clears them
+	ReplaceComment bool                   `protobuf:"varint,10,opt,name=replace_comment,json=replaceComment,proto3" json:"replace_comment,omitempty"`                               // when true, comment replaces the existing comment even if empty, so "" clears it
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UpdateTransactionRequest) Reset() {
@@ -2514,6 +2516,20 @@ func (x *UpdateTransactionRequest) GetStatus() string {
 		return x.Status
 	}
 	return ""
+}
+
+func (x *UpdateTransactionRequest) GetReplaceTags() bool {
+	if x != nil {
+		return x.ReplaceTags
+	}
+	return false
+}
+
+func (x *UpdateTransactionRequest) GetReplaceComment() bool {
+	if x != nil {
+		return x.ReplaceComment
+	}
+	return false
 }
 
 type UpdateTransactionResponse struct {
@@ -11826,7 +11842,7 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\t\n" +
 	"\a_status\"Q\n" +
 	"\x16AddTransactionResponse\x127\n" +
-	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"\xd9\x02\n" +
+	"\vtransaction\x18\x01 \x01(\v2\x15.float.v1.TransactionR\vtransaction\"\xa5\x03\n" +
 	"\x18UpdateTransactionRequest\x12\x10\n" +
 	"\x03fid\x18\x01 \x01(\tR\x03fid\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x12\n" +
@@ -11835,7 +11851,10 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\bpostings\x18\x05 \x03(\v2\x16.float.v1.PostingInputR\bpostings\x12\x14\n" +
 	"\x05payee\x18\x06 \x01(\tR\x05payee\x12@\n" +
 	"\x04tags\x18\a \x03(\v2,.float.v1.UpdateTransactionRequest.TagsEntryR\x04tags\x12\x16\n" +
-	"\x06status\x18\b \x01(\tR\x06status\x1a7\n" +
+	"\x06status\x18\b \x01(\tR\x06status\x12!\n" +
+	"\freplace_tags\x18\t \x01(\bR\vreplaceTags\x12'\n" +
+	"\x0freplace_comment\x18\n" +
+	" \x01(\bR\x0ereplaceComment\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"T\n" +

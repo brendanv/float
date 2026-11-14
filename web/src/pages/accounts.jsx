@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { BookOpen } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -237,7 +237,7 @@ export function AccountsPage() {
     onSuccess: () => {
       setName("");
       setFormError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
+      invalidateLedgerQueries(queryClient);
     },
     onError: (err) => setFormError(err),
   });
@@ -246,7 +246,7 @@ export function AccountsPage() {
     mutationFn: ({ name }) => ledgerClient.deleteAccountDeclaration({ name }),
     onSuccess: () => {
       setPendingName(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
+      invalidateLedgerQueries(queryClient);
     },
     onError: (err) => {
       setPendingName(null);
@@ -258,10 +258,7 @@ export function AccountsPage() {
     mutationFn: ({ name, closed }) => ledgerClient.setAccountClosed({ name, closed }),
     onSuccess: () => {
       setPendingName(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
-      queryClient.invalidateQueries({ queryKey: ["balances"] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.balanceAssertionStatus() });
+      invalidateLedgerQueries(queryClient);
     },
     onError: (err) => {
       setPendingName(null);
@@ -398,12 +395,7 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
   const renameMutation = useMutation({
     mutationFn: (vars) => ledgerClient.renameAccount(vars),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accountDeclarations() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts() });
-      queryClient.invalidateQueries({ queryKey: ["balances"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
-      queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
+      invalidateLedgerQueries(queryClient);
       onOpenChange(false);
     },
     onError: (err) => setError(err),

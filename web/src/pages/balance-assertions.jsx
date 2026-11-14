@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Scale, ChevronRight, ChevronDown, AlertTriangle } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -192,10 +192,7 @@ export function BalanceAssertionsPage() {
   const statuses = data?.accounts || [];
 
   function handleSaved() {
-    queryClient.invalidateQueries({ queryKey: queryKeys.balanceAssertionStatus() });
-    queryClient.invalidateQueries({ queryKey: queryKeys.transactions() });
-    queryClient.invalidateQueries({ queryKey: queryKeys.balances() });
-    queryClient.invalidateQueries({ queryKey: queryKeys.accountRegister() });
+    invalidateLedgerQueries(queryClient);
   }
 
   return (

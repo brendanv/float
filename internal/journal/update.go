@@ -15,7 +15,11 @@ import (
 // If tags is non-nil, it replaces all user-visible tags; if nil, existing tags are preserved.
 // If newStatus is non-empty, it overrides the current status in the same write.
 // Callers must wrap in txlock.Do().
-func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid, description, newDate, comment string, tags map[string]string, postings []PostingInput, newStatus string) (hledger.Transaction, error) {
+// UpdateTransaction rewrites the transaction with code fid. A nil comment keeps
+// the existing free-text comment and a nil tags map keeps the existing
+// user-visible tags; non-nil values (including "" and an empty map) replace
+// them.
+func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid, description, newDate string, comment *string, tags map[string]string, postings []PostingInput, newStatus string) (hledger.Transaction, error) {
 	txns, err := client.Transactions(ctx, "code:"+fid)
 	if err != nil {
 		return hledger.Transaction{}, fmt.Errorf("journal: update: lookup fid %q: %w", fid, err)
@@ -42,7 +46,9 @@ func UpdateTransaction(ctx context.Context, client *hledger.Client, dataDir, fid
 
 	// Apply requested changes.
 	input.Description = description
-	input.Comment = comment
+	if comment != nil {
+		input.Comment = *comment
+	}
 	if tags != nil {
 		input.Tags = tags
 	}

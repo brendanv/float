@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { History } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
@@ -123,7 +123,7 @@ export function SnapshotsPage() {
     mutationFn: ({ hash }) => ledgerClient.restoreSnapshot({ hash }),
     onSuccess: () => {
       setRestoring(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.snapshots() });
+      invalidateLedgerQueries(queryClient);
     },
     onError: (err) => {
       setError(err);

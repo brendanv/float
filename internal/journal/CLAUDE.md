@@ -16,7 +16,7 @@ Text-level journal file manipulation: month files, transaction append/update/del
 - `AppendTransaction(ctx, client, dataDir, tx)` — append-only path: ensure month file, update include, format via hledger, append.
 - `DeleteTransaction(ctx, client, dataDir, fid)` — find by `code:<fid>` using hledger source positions and remove the text block.
 - `BatchDeleteTransactions(ctx, client, fids, onProgress)` — grouped deletion for bulk delete; emits progress.
-- `UpdateTransaction(ctx, client, dataDir, fid, description, newDate, comment, tags, postings, newStatus)` — replace editable transaction fields while preserving FID and hidden meta.
+- `UpdateTransaction(ctx, client, dataDir, fid, description, newDate, comment, tags, postings, newStatus)` — replace editable transaction fields while preserving FID and hidden meta. A nil `comment` (`*string`) or nil `tags` keeps the existing value; non-nil (including `""`/empty map) replaces it. `freeTextComment` strips tags from the kept comment using hledger's tag syntax (value runs to the next comma), so a mixed line like `note, trip:paris` keeps `note` without writing the tag twice.
 - `UpdateTransactionDate(ctx, client, dataDir, fid, newDate)` — date-only update, including cross-month moves.
 - `UpdateTransactionStatus(ctx, client, dataDir, fid, newStatus)` — status marker update (`""`, `"Pending"`, `"Cleared"`).
 - `ModifyTags(ctx, client, dataDir, fid, tags)` — replace user-visible tags while preserving hidden metadata and comments.

@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { Plus, CircleCheck, Pencil, Trash2, Tag, Upload, ClipboardPaste } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
@@ -649,6 +649,7 @@ export function ImportPage() {
           setImportProgress({ imported: res.payload.value.imported, total: res.payload.value.total });
         } else if (res.payload.case === "result") {
           setImportResult(res.payload.value);
+          invalidateLedgerQueries(queryClient);
           setCandidates(null);
           setCsvData(null);
           setCsvFile(null);

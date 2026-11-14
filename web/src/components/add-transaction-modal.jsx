@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { todayStr } from "../format.js";
 import { PostingFields, toPostingInput } from "./posting-fields.jsx";
 import { TagEditor } from "./tag-editor.jsx";
@@ -124,11 +124,7 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
         postings: postingInputs,
         tags,
       });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
-      queryClient.invalidateQueries({ queryKey: ["balances"] });
-      queryClient.invalidateQueries({ queryKey: ["lots"] });
-      queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
+      invalidateLedgerQueries(queryClient);
       onSuccess?.();
     } catch (err) {
       setError(err);
@@ -191,15 +187,20 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
 
 export function AddTransactionModal({ open, onOpenChange, initialValues }) {
   const [success, setSuccess] = useState(false);
+  const closeTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
 
   function handleOpenChange(next) {
+    // A pending auto-close must not close a dialog the user has since reopened.
+    clearTimeout(closeTimer.current);
     if (!next) setSuccess(false);
     onOpenChange(next);
   }
 
   function handleSuccess() {
     setSuccess(true);
-    setTimeout(() => handleOpenChange(false), 1000);
+    closeTimer.current = setTimeout(() => handleOpenChange(false), 1000);
   }
 
   return (

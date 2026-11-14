@@ -171,8 +171,19 @@ func draftFormat(tx TransactionInput, fid string) string {
 			head += "  " + amtStr
 		}
 		head += assertStr
-		if p.Comment != "" {
-			fmt.Fprintf(&b, "%s  ; %s\n", head, p.Comment)
+		// A multi-line posting comment continues on following lines indented
+		// deeper than the posting, as hledger reports it (pcomment "a\nb\n").
+		var commentLines []string
+		for _, line := range strings.Split(p.Comment, "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				commentLines = append(commentLines, line)
+			}
+		}
+		if len(commentLines) > 0 {
+			fmt.Fprintf(&b, "%s  ; %s\n", head, commentLines[0])
+			for _, line := range commentLines[1:] {
+				fmt.Fprintf(&b, "      ; %s\n", line)
+			}
 		} else {
 			fmt.Fprintf(&b, "%s\n", head)
 		}

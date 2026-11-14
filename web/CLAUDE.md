@@ -87,7 +87,11 @@ const { data } = useQuery({
 });
 ```
 
-Invalidate the relevant query keys after mutations. Keep query-key construction centralized in `query-keys.js`.
+After any ledger mutation call `invalidateLedgerQueries(queryClient)` from `query-keys.js`: floatd bumps its cache generation on every write, so any ledger-derived query may be stale, and a hand-picked key list misses pages (with `staleTime: 30s` they would show old data). Keep query-key construction centralized in `query-keys.js`.
+
+Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `payee:`/`desc:`/`tag:` values are regexes, so literal names must go through `escapeRegex`/`exactRegex` (e.g. `SQ *COFFEE`), and `dateRangeQuery` handles open-ended ranges.
+
+`UpdateTransaction` replaces all postings: send every posting's `comment` back (`fieldsFromPosting` → `toPostingInput` carry it) or it is deleted. An empty `comment`/`tags` keeps the existing value; set `replaceComment`/`replaceTags` to clear.
 
 ## Adding a New Page
 

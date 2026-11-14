@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { PostingFields, toPostingInput } from "../components/posting-fields.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
@@ -59,11 +59,7 @@ export function AddTransactionPage() {
         postings: postingInputs,
       });
 
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["accountRegister"] });
-      queryClient.invalidateQueries({ queryKey: ["balances"] });
-      queryClient.invalidateQueries({ queryKey: ["lots"] });
-      queryClient.invalidateQueries({ queryKey: ["netWorthTimeseries"] });
+      invalidateLedgerQueries(queryClient);
       setSuccess(true);
       setTimeout(() => navigate({ to: "/transactions" }), 1000);
     } catch (err) {

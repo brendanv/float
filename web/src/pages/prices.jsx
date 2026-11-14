@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-table";
 import { Tag } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { queryKeys } from "../query-keys.js";
+import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
@@ -203,14 +203,14 @@ export function PricesPage() {
       setCommodity("");
       setQuantity("");
       setFormError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
+      invalidateLedgerQueries(queryClient);
     },
     onError: (err) => setFormError(err),
   });
 
   const deleteMutation = useMutation({
     mutationFn: ({ pid }) => ledgerClient.deletePrice({ pid }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.prices() }),
+    onSuccess: () => invalidateLedgerQueries(queryClient),
     onError: (err) => setFormError(err),
   });
 
@@ -259,7 +259,7 @@ export function PricesPage() {
     setBackfillProgress(null);
     setBackfillResults(results);
     setBackfillError(firstError);
-    queryClient.invalidateQueries({ queryKey: queryKeys.prices() });
+    invalidateLedgerQueries(queryClient);
   }
 
   function handlePrefill() {
