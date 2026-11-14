@@ -97,6 +97,52 @@ func TestRenameAccountDeclaration(t *testing.T) {
 		}
 	})
 
+	t.Run("spaced_names", func(t *testing.T) {
+		dir := t.TempDir()
+		content := "; float: account declarations\n" +
+			"account assets:bank checking  ; type: A\n" +
+			"account assets:bank checking:joint\n" +
+			"account assets:bank\n" +
+			"account assets:bank savings\n"
+		if err := os.WriteFile(filepath.Join(dir, "accounts.journal"), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := RenameAccountDeclaration(dir, "assets:bank checking", "assets:chase"); err != nil {
+			t.Fatalf("RenameAccountDeclaration: %v", err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, "accounts.journal"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "; float: account declarations\n" +
+			"account assets:chase  ; type: A\n" +
+			"account assets:chase:joint\n" +
+			"account assets:bank\n" +
+			"account assets:bank savings\n"
+		if string(data) != want {
+			t.Errorf("accounts.journal =\n%s\nwant\n%s", data, want)
+		}
+
+		// Renaming the first word's account must not touch "assets:bank savings".
+		if err := RenameAccountDeclaration(dir, "assets:bank", "assets:old bank"); err != nil {
+			t.Fatalf("RenameAccountDeclaration: %v", err)
+		}
+		decls, err := ListAccountDeclarations(dir)
+		if err != nil {
+			t.Fatalf("ListAccountDeclarations: %v", err)
+		}
+		var names []string
+		for _, d := range decls {
+			names = append(names, d.Name)
+		}
+		wantNames := []string{"assets:chase", "assets:chase:joint", "assets:old bank", "assets:bank savings"}
+		if strings.Join(names, "|") != strings.Join(wantNames, "|") {
+			t.Errorf("declarations = %q, want %q", names, wantNames)
+		}
+	})
+
 	t.Run("not_found", func(t *testing.T) {
 		dir := t.TempDir()
 		content := "; float: account declarations\naccount assets:savings\n"
@@ -189,11 +235,234 @@ func TestRenameAccountInPosting(t *testing.T) {
 			changed: false,
 		},
 		{
-			name:    "single_space_not_a_posting",
+			// hledger accepts any indentation of one or more blanks for postings.
+			name:    "single_space_indent_is_a_posting",
 			line:    " assets:checking  100.00 USD",
 			oldName: "assets:checking",
 			newName: "assets:bank",
-			want:    " assets:checking  100.00 USD",
+			want:    " assets:bank  100.00 USD",
+			changed: true,
+		},
+		{
+			name:    "single_tab_indent_is_a_posting",
+			line:    "\tassets:checking  100.00 USD",
+			oldName: "assets:checking",
+			newName: "assets:bank",
+			want:    "\tassets:bank  100.00 USD",
+			changed: true,
+		},
+		{
+			name:    "unindented_line_not_touched",
+			line:    "assets:checking  100.00 USD",
+			oldName: "assets:checking",
+			newName: "assets:bank",
+			want:    "assets:checking  100.00 USD",
+			changed: false,
+		},
+		{
+			name:    "blank_line_not_touched",
+			line:    "    ",
+			oldName: "assets:checking",
+			newName: "assets:bank",
+			want:    "    ",
+			changed: false,
+		},
+
+		// Account names containing single spaces.
+		{
+			name:    "spaced_name_renamed",
+			line:    "    assets:bank checking   $5",
+			oldName: "assets:bank checking",
+			newName: "assets:chase",
+			want:    "    assets:chase   $5",
+			changed: true,
+		},
+		{
+			name:    "rename_to_spaced_name",
+			line:    "    assets:bank  $5",
+			oldName: "assets:bank",
+			newName: "assets:bank checking",
+			want:    "    assets:bank checking  $5",
+			changed: true,
+		},
+		{
+			name:    "spaced_name_sub_account_renamed",
+			line:    "    assets:bank checking:joint  $5",
+			oldName: "assets:bank checking",
+			newName: "assets:chase",
+			want:    "    assets:chase:joint  $5",
+			changed: true,
+		},
+		{
+			// "assets:bank checking" is a different account, not a sub-account.
+			name:    "spaced_name_not_matched_by_first_word",
+			line:    "    assets:bank checking   $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    assets:bank checking   $5",
+			changed: false,
+		},
+		{
+			name:    "spaced_name_at_end_of_line",
+			line:    "    assets:bank checking",
+			oldName: "assets:bank checking",
+			newName: "assets:chase",
+			want:    "    assets:chase",
+			changed: true,
+		},
+		{
+			// A single trailing blank before end of line is not part of the name.
+			name:    "trailing_single_space",
+			line:    "    assets:bank ",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    assets:chase ",
+			changed: true,
+		},
+
+		// Status marks.
+		{
+			name:    "cleared_status_mark",
+			line:    "    * assets:bank   $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    * assets:chase   $5",
+			changed: true,
+		},
+		{
+			name:    "pending_status_mark_no_amount",
+			line:    "    ! assets:bank",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    ! assets:chase",
+			changed: true,
+		},
+		{
+			name:    "status_mark_without_space",
+			line:    "    *assets:bank  $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    *assets:chase  $5",
+			changed: true,
+		},
+		{
+			name:    "status_mark_spaced_name",
+			line:    "    * assets:bank checking  $5",
+			oldName: "assets:bank checking",
+			newName: "assets:chase",
+			want:    "    * assets:chase  $5",
+			changed: true,
+		},
+
+		// Virtual postings.
+		{
+			name:    "virtual_parens",
+			line:    "    (assets:bank)  $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    (assets:chase)  $5",
+			changed: true,
+		},
+		{
+			name:    "balanced_virtual_brackets",
+			line:    "    [assets:bank:savings]  $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    [assets:chase:savings]  $5",
+			changed: true,
+		},
+		{
+			name:    "virtual_with_status_and_spaced_name",
+			line:    "    ! [assets:bank checking]",
+			oldName: "assets:bank checking",
+			newName: "assets:chase",
+			want:    "    ! [assets:chase]",
+			changed: true,
+		},
+		{
+			name:    "virtual_non_matching",
+			line:    "    (assets:bankx)  $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    (assets:bankx)  $5",
+			changed: false,
+		},
+
+		// Separators between account and amount.
+		{
+			name:    "tab_separator",
+			line:    "    assets:bank\t\t$5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    assets:chase\t\t$5",
+			changed: true,
+		},
+		{
+			name:    "space_then_tab_separator",
+			line:    "    assets:bank checking \t$5",
+			oldName: "assets:bank checking",
+			newName: "assets:chase",
+			want:    "    assets:chase \t$5",
+			changed: true,
+		},
+		{
+			// Like hledger, a lone tab is a single space inside the name: this
+			// line's account is "assets:bank $5", not "assets:bank".
+			name:    "single_tab_is_part_of_name",
+			line:    "    assets:bank\t$5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    assets:bank\t$5",
+			changed: false,
+		},
+
+		// Comments and other trailing text are preserved verbatim.
+		{
+			name:    "trailing_comment",
+			line:    "    assets:bank  $5  ; foo",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    assets:chase  $5  ; foo",
+			changed: true,
+		},
+		{
+			name:    "comment_without_amount",
+			line:    "    assets:bank checking  ; foo: bar",
+			oldName: "assets:bank checking",
+			newName: "assets:chase",
+			want:    "    assets:chase  ; foo: bar",
+			changed: true,
+		},
+		{
+			name:    "cost_and_assertion_preserved",
+			line:    "    assets:bank    10 AAPL @ $5 = 20 AAPL",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    assets:chase    10 AAPL @ $5 = 20 AAPL",
+			changed: true,
+		},
+		{
+			name:    "indented_comment_mentioning_account",
+			line:    "    ; assets:bank  $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    ; assets:bank  $5",
+			changed: false,
+		},
+		{
+			name:    "indented_hash_comment",
+			line:    "\t# assets:bank",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "\t# assets:bank",
+			changed: false,
+		},
+		{
+			name:    "non_matching_prefix",
+			line:    "    assets:bankx  $5",
+			oldName: "assets:bank",
+			newName: "assets:chase",
+			want:    "    assets:bankx  $5",
 			changed: false,
 		},
 	}
