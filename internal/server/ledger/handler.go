@@ -2709,16 +2709,7 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 			if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
 				candidate.MatchedRuleId = r.ID
 				// Apply rule transformations so the preview reflects what will actually be imported.
-				if r.Payee != "" {
-					c.Description = r.Payee + " | " + c.Description
-				}
-				if r.Account != "" && len(c.Postings) == 2 {
-					for j, p := range c.Postings {
-						if !isAssetOrLiabilityAccount(p.Account) {
-							c.Postings[j].Account = r.Account
-						}
-					}
-				}
+				c = applyImportRule(c, r)
 			}
 		}
 		// Fingerprint after rules so it matches the form written to disk by ImportTransactions.
@@ -2803,6 +2794,15 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			if !selectedSet[int32(i)] {
 				continue
 			}
+			// Match rules on the raw CSV description, then fingerprint and write
+			// the post-rule form so dedup matches what earlier imports wrote.
+			var rule *rules.Rule
+			if !profile.SkipRules {
+				rule = rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings))
+			}
+			if rule != nil {
+				c = applyImportRule(c, rule)
+			}
 			if fpSet[journal.TxnFingerprint(c)] {
 				skippedDuplicates++
 				continue
@@ -2818,31 +2818,18 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			}
 			txInput.FloatMeta["float-import"] = importBatchID
 
-			// Apply float rules during import.
-			if !profile.SkipRules {
-				if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
-					if r.Payee != "" {
-						note := txInput.Description
-						txInput.Description = r.Payee + " | " + note
+			// Apply the remaining (non-fingerprinted) rule effects.
+			if rule != nil {
+				if len(rule.Tags) > 0 {
+					if txInput.Tags == nil {
+						txInput.Tags = make(map[string]string)
 					}
-					if r.Account != "" && len(c.Postings) == 2 {
-						for j, p := range txInput.Postings {
-							if !isAssetOrLiabilityAccount(p.Account) {
-								txInput.Postings[j].Account = r.Account
-							}
-						}
+					for k, v := range rule.Tags {
+						txInput.Tags[k] = v
 					}
-					if len(r.Tags) > 0 {
-						if txInput.Tags == nil {
-							txInput.Tags = make(map[string]string)
-						}
-						for k, v := range r.Tags {
-							txInput.Tags[k] = v
-						}
-					}
-					if r.AutoReviewed {
-						txInput.Status = "Cleared"
-					}
+				}
+				if rule.AutoReviewed {
+					txInput.Status = "Cleared"
 				}
 			}
 
@@ -3353,6 +3340,28 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 			Result: &floatv1.ApplyRulesResult{AppliedCount: applied},
 		},
 	})
+}
+
+// applyImportRule returns a copy of an import candidate with the rule's payee
+// prefix and category-account replacement applied — the parts of a rule that
+// affect journal.TxnFingerprint. PreviewImport and ImportTransactions both use
+// it so duplicate detection sees the same form that gets written to disk. The
+// postings slice is copied, so the caller's transaction is not mutated.
+func applyImportRule(t hledger.Transaction, r *rules.Rule) hledger.Transaction {
+	if r.Payee != "" {
+		t.Description = r.Payee + " | " + t.Description
+	}
+	if r.Account != "" && len(t.Postings) == 2 {
+		postings := make([]hledger.Posting, len(t.Postings))
+		copy(postings, t.Postings)
+		for j, p := range postings {
+			if !isAssetOrLiabilityAccount(p.Account) {
+				postings[j].Account = r.Account
+			}
+		}
+		t.Postings = postings
+	}
+	return t
 }
 
 // sourceAccountFromPostings returns the first asset/liability account from a
