@@ -56,6 +56,10 @@ type Handler struct {
 	// acquisition in runDailyStripeImport. Used in tests to simulate a concurrent
 	// import landing in the race window. Nil in production.
 	afterDailyImportPreFetch func()
+	// beforeApplyRulesLock is called in ApplyRules just before lock acquisition.
+	// Used in tests to simulate a concurrent write landing before the rules are
+	// matched and applied under the lock. Nil in production.
+	beforeApplyRulesLock func()
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
@@ -3285,40 +3289,48 @@ func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[fl
 }
 
 func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.ApplyRulesRequest], stream *connect.ServerStream[floatv1.ApplyRulesResponse]) error {
-
-	rulesList, err := rules.Load(h.dataDir)
-	if err != nil {
-		return connect.NewError(connect.CodeInternal, err)
-	}
-	if len(req.Msg.RuleIds) > 0 {
-		rulesList = filterRules(rulesList, req.Msg.RuleIds)
+	if h.beforeApplyRulesLock != nil {
+		h.beforeApplyRulesLock()
 	}
 
-	txns, err := cachedTransactions(ctx, h.cache, h.hl, req.Msg.Query)
-	if err != nil {
-		return rpcErr(ctx, err, "fetch transactions failed")
-	}
-
-	matches := rules.Preview(rulesList, txns)
-
-	// Filter to requested FIDs if specified.
-	if len(req.Msg.Fids) > 0 {
-		fidSet := make(map[string]bool, len(req.Msg.Fids))
-		for _, fid := range req.Msg.Fids {
-			fidSet[fid] = true
+	// Load rules, fetch transactions, and compute matches inside the lock:
+	// ApplyBatch rewrites each matched transaction from these parsed values at
+	// their source line, so any write landing between a pre-lock fetch and
+	// lock acquisition would be silently overwritten with stale content.
+	// h.hl.Transactions bypasses the cache, which must not serve in-lock reads.
+	var total, applied int32
+	err := h.lock.Do(ctx, "apply rules", func() error {
+		rulesList, err := rules.Load(h.dataDir)
+		if err != nil {
+			return fmt.Errorf("load rules: %w", err)
 		}
-		filtered := matches[:0]
-		for _, m := range matches {
-			if fidSet[m.Transaction.FID] {
-				filtered = append(filtered, m)
+		if len(req.Msg.RuleIds) > 0 {
+			rulesList = filterRules(rulesList, req.Msg.RuleIds)
+		}
+
+		txns, err := h.hl.Transactions(ctx, req.Msg.Query...)
+		if err != nil {
+			return fmt.Errorf("fetch transactions: %w", err)
+		}
+
+		matches := rules.Preview(rulesList, txns)
+
+		// Filter to requested FIDs if specified.
+		if len(req.Msg.Fids) > 0 {
+			fidSet := make(map[string]bool, len(req.Msg.Fids))
+			for _, fid := range req.Msg.Fids {
+				fidSet[fid] = true
 			}
+			filtered := matches[:0]
+			for _, m := range matches {
+				if fidSet[m.Transaction.FID] {
+					filtered = append(filtered, m)
+				}
+			}
+			matches = filtered
 		}
-		matches = filtered
-	}
 
-	total := int32(len(matches))
-	var applied int32
-	err = h.lock.Do(ctx, fmt.Sprintf("apply rules to %d transactions", len(matches)), func() error {
+		total = int32(len(matches))
 		return rules.ApplyBatch(ctx, h.hl, h.dataDir, matches, func(a, _ int32) {
 			applied = a
 			_ = stream.Send(&floatv1.ApplyRulesResponse{
