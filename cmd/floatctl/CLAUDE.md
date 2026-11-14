@@ -82,7 +82,7 @@ cmd/floatctl/
 | `migrate-fids <data-dir>` | Add/migrate transaction code fields for legacy entries |
 | `list-files <data-dir>` | List all `.journal` files under the data directory |
 | `snapshots <data-dir> [--limit N]` | List git snapshots maintained by `internal/gitsnap` |
-| `restore <data-dir> <hash>` | Restore the data directory to a snapshot |
+| `restore <data-dir> <hash>` | Restore the data directory to a snapshot, recorded as a new snapshot on top of history |
 
 ### `rules` group
 

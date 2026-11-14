@@ -56,6 +56,10 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 Transaction writes convert proto input into `journal.TransactionInput`, call journal text helpers under txlock, then re-read via hledger before returning. Bulk edit supports mark reviewed/unreviewed, add/remove tag, set/clear payee, and delete. Bulk delete streams progress.
 
+### Snapshots
+
+`ListSnapshots`/`GetSnapshotDiff` read `internal/gitsnap` history. `RestoreSnapshot` is non-destructive: it plans the restore (`gitsnap.PlanRestore`), declares every non-journal path the restore may touch as `DoWith` extra paths, and applies it inside the lock without moving HEAD, so txlock's post-write commit adds a `restore snapshot <hash>` snapshot on top of history (undo by restoring a newer snapshot). A restored tree that fails `hledger check` is fully reverted. If a write commits between planning and acquiring the lock it returns `CodeAborted`.
+
 ### Prices / Portfolio / Alpha Vantage
 
 `ListPrices` reads `prices.journal`. `BackfillPrices` uses `internal/alphavantage`, skips already-present commodity/date prices, and writes new price directives inside txlock. Portfolio holdings aggregate raw commodity balances by account/symbol, use latest price directives for value/allocation, and derive cost basis from hledger cost annotations.
