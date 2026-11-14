@@ -234,6 +234,68 @@ func BatchFormatViaHledger(ctx context.Context, client *hledger.Client, inputs [
 	return result, nil
 }
 
+// InputError reports which TransactionInput in a batch hledger rejected.
+type InputError struct {
+	Index int // position in the inputs slice
+	Err   error
+}
+
+func (e *InputError) Error() string { return fmt.Sprintf("transaction %d: %v", e.Index, e.Err) }
+func (e *InputError) Unwrap() error { return e.Err }
+
+// ParseInputs renders inputs as draft journal text and parses them with hledger
+// in a single subprocess, returning one hledger.Transaction per input in order,
+// with amounts hledger inferred (auto-balanced postings) filled in. Nothing is
+// written to the data directory. The FIDs of the returned transactions are
+// throwaway placeholders.
+//
+// If hledger rejects the batch, each input is parsed on its own to find the
+// first invalid one, and an *InputError naming its index is returned.
+func ParseInputs(ctx context.Context, client *hledger.Client, inputs []TransactionInput) ([]hledger.Transaction, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+	txns, err := parseDrafts(ctx, client, inputs)
+	if err == nil {
+		if len(txns) != len(inputs) {
+			return nil, fmt.Errorf("journal: parse inputs: expected %d transactions, got %d", len(inputs), len(txns))
+		}
+		return txns, nil
+	}
+	if len(inputs) > 1 {
+		for i := range inputs {
+			if _, oneErr := parseDrafts(ctx, client, inputs[i:i+1]); oneErr != nil {
+				return nil, &InputError{Index: i, Err: oneErr}
+			}
+		}
+	}
+	return nil, &InputError{Index: 0, Err: err}
+}
+
+func parseDrafts(ctx context.Context, client *hledger.Client, inputs []TransactionInput) ([]hledger.Transaction, error) {
+	var all strings.Builder
+	for _, tx := range inputs {
+		all.WriteString(draftFormat(tx, MintFID()))
+		all.WriteString("\n")
+	}
+
+	f, err := os.CreateTemp("", "float-parse-*.journal")
+	if err != nil {
+		return nil, fmt.Errorf("journal: create temp file: %w", err)
+	}
+	tmpPath := f.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if _, err := f.WriteString(all.String()); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("journal: write temp file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("journal: close temp file: %w", err)
+	}
+	return client.ParseJournalFile(ctx, tmpPath)
+}
+
 // FormatViaHledger writes tx to a temp file, runs `hledger print -f <tmpfile>`,
 // and returns the canonical hledger-formatted output.
 func FormatViaHledger(ctx context.Context, client *hledger.Client, tx TransactionInput, fid string) (string, error) {

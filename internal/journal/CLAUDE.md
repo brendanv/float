@@ -23,6 +23,7 @@ Text-level journal file manipulation: month files, transaction append/update/del
 - `ModifyFloatMeta(ctx, client, dataDir, fid, meta)` — replace hidden metadata while preserving user tags and comments.
 - `InputFromTransaction` / `HledgerTxnToInput` — convert parsed hledger transactions back into writable `TransactionInput`.
 - `TxnFingerprint` — duplicate-detection fingerprint for imports.
+- `ParseInputs(ctx, client, inputs)` — parse draft `TransactionInput`s through hledger in one call without writing anything; returns canonical `hledger.Transaction`s (inferred amounts filled in, placeholder FIDs). On failure, re-parses individually and returns `*InputError` with the offending index.
 
 ## Formatting Types
 
