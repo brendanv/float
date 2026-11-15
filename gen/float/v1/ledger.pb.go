@@ -1263,10 +1263,14 @@ func (x *ListTransactionsResponse) GetHasNext() bool {
 }
 
 type GetBalancesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Depth         int32                  `protobuf:"varint,1,opt,name=depth,proto3" json:"depth,omitempty"` // 0 = no --depth flag
-	Query         []string               `protobuf:"bytes,2,rep,name=query,proto3" json:"query,omitempty"`
-	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"` // Optional --value spec, e.g. "now,USD"; empty = raw balances
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Depth int32                  `protobuf:"varint,1,opt,name=depth,proto3" json:"depth,omitempty"` // 0 = no --depth flag
+	Query []string               `protobuf:"bytes,2,rep,name=query,proto3" json:"query,omitempty"`
+	Value string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"` // Optional --value spec, e.g. "now,USD"; empty = raw balances
+	// --tree: include parent accounts with inclusive totals. Rows come in tree
+	// order, display_name is the leaf segment (hledger may elide a parent with a
+	// single child into "parent:child") and indent is the tree depth.
+	Tree          bool `protobuf:"varint,4,opt,name=tree,proto3" json:"tree,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1320,6 +1324,13 @@ func (x *GetBalancesRequest) GetValue() string {
 		return x.Value
 	}
 	return ""
+}
+
+func (x *GetBalancesRequest) GetTree() bool {
+	if x != nil {
+		return x.Tree
+	}
+	return false
 }
 
 type GetBalancesResponse struct {
@@ -11757,11 +11768,12 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x18ListTransactionsResponse\x129\n" +
 	"\ftransactions\x18\x01 \x03(\v2\x15.float.v1.TransactionR\ftransactions\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x19\n" +
-	"\bhas_next\x18\x03 \x01(\bR\ahasNext\"V\n" +
+	"\bhas_next\x18\x03 \x01(\bR\ahasNext\"j\n" +
 	"\x12GetBalancesRequest\x12\x14\n" +
 	"\x05depth\x18\x01 \x01(\x05R\x05depth\x12\x14\n" +
 	"\x05query\x18\x02 \x03(\tR\x05query\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\tR\x05value\"F\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12\x12\n" +
+	"\x04tree\x18\x04 \x01(\bR\x04tree\"F\n" +
 	"\x13GetBalancesResponse\x12/\n" +
 	"\x06report\x18\x01 \x01(\v2\x17.float.v1.BalanceReportR\x06report\"\x8b\x04\n" +
 	"\x12AccountRegisterRow\x12\x10\n" +

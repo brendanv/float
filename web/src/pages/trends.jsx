@@ -10,7 +10,7 @@ import { PageHeader } from "../components/page-header.jsx";
 import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { SERIES_COLORS, foldToOther } from "@/lib/chart-colors";
 import {
   ChartContainer,
   ChartLegend,
@@ -30,17 +30,6 @@ const RANGES = [
   { label: "2Y", months: 24 },
   { label: "5Y", months: 60 },
   { label: "All", months: null },
-];
-
-const DONUT_COLORS = [
-  "#6366f1",
-  "#f59e0b",
-  "#22c55e",
-  "#3b82f6",
-  "#a855f7",
-  "#14b8a6",
-  "#ef4444",
-  "#f97316",
 ];
 
 function toBeginDate(months) {
@@ -138,14 +127,10 @@ function ExpenseDonutChart({ expenseRows }) {
   const categories = useMemo(() => {
     const all = (expenseRows || [])
       .filter((r) => r.fullName && r.fullName.includes(":"))
-      .map((r) => ({ name: r.displayName, amount: parseFloat(r.amounts?.[0]?.quantity || 0) }))
+      .map((r) => ({ name: r.fullName.split(":").slice(1).join(":"), amount: parseFloat(r.amounts?.[0]?.quantity || 0) }))
       .filter((c) => c.amount > 0)
       .sort((a, b) => b.amount - a.amount);
-    const MAX = DONUT_COLORS.length - 1;
-    if (all.length <= DONUT_COLORS.length) return all;
-    const top = all.slice(0, MAX);
-    const otherAmount = all.slice(MAX).reduce((s, c) => s + c.amount, 0);
-    return [...top, { name: "other", amount: otherAmount }];
+    return foldToOther(all).map((c, i) => ({ ...c, color: SERIES_COLORS[i] }));
   }, [expenseRows]);
 
   const total = useMemo(() => categories.reduce((sum, c) => sum + c.amount, 0), [categories]);
@@ -155,12 +140,12 @@ function ExpenseDonutChart({ expenseRows }) {
   }
 
   const donutConfig = Object.fromEntries(
-    categories.map((c, i) => [c.name, { label: c.name, color: DONUT_COLORS[i % DONUT_COLORS.length] }])
+    categories.map((c) => [c.name, { label: c.name, color: c.color }])
   );
 
   return (
-    <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-      <ChartContainer config={donutConfig} className="mx-auto h-52 w-52 flex-shrink-0">
+    <div className="flex flex-col gap-4">
+      <ChartContainer config={donutConfig} className="mx-auto aspect-square h-48 flex-shrink-0">
         <PieChart>
           <ChartTooltip
             content={
@@ -172,7 +157,7 @@ function ExpenseDonutChart({ expenseRows }) {
                     <>
                       <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: donutConfig[name]?.color }} />
                       <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                        <span className="text-muted-foreground capitalize">{name}</span>
+                        <span className="text-muted-foreground">{name}</span>
                         <span className="font-mono font-medium tabular-nums">{formatCurrency(value, "USD")} ({pct}%)</span>
                       </div>
                     </>
@@ -188,22 +173,23 @@ function ExpenseDonutChart({ expenseRows }) {
             innerRadius="60%"
             outerRadius="80%"
             strokeWidth={2}
-            stroke="transparent"
+            stroke="var(--card)"
+            paddingAngle={0}
           >
-            {categories.map((_, i) => (
-              <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+            {categories.map((c) => (
+              <Cell key={c.name} fill={c.color} />
             ))}
           </Pie>
         </PieChart>
       </ChartContainer>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        {categories.map((c, i) => (
+      <div className="flex min-w-0 flex-col gap-1.5">
+        {categories.map((c) => (
           <div key={c.name} className="flex items-center gap-2 text-sm">
             <div
               className="h-2.5 w-2.5 flex-shrink-0 rounded-sm"
-              style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
+              style={{ backgroundColor: c.color }}
             />
-            <span className="min-w-0 flex-1 truncate capitalize">{c.name}</span>
+            <span className="min-w-0 flex-1 truncate" title={c.name}>{c.name}</span>
             <span className="font-mono tabular-nums">{formatCurrency(c.amount, "USD")}</span>
             <span className="w-10 text-right text-xs text-muted-foreground">
               {total > 0 ? `${((c.amount / total) * 100).toFixed(0)}%` : ""}
@@ -289,6 +275,7 @@ export function TrendsPage() {
               title="Current Net Worth"
               value={currentNetWorth !== null ? formatCurrency(currentNetWorth, "USD") : "—"}
               valueClassName={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-destructive"}
+              description="Assets minus liabilities"
             />
           </div>
           <div className="col-span-12 md:col-span-4">

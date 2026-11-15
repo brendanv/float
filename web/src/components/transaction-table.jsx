@@ -301,8 +301,8 @@ function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
       onSave={save}
       saving={state.saving}
       error={state.error}
-      title={`Click to change ${side} account`}
-      displayClassName="text-sm text-muted-foreground"
+      title={`${account} — click to change`}
+      displayClassName="block truncate text-sm text-muted-foreground"
       editor={
         <AccountInput
           value={state.draft}
@@ -376,8 +376,8 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
       onSave={save}
       saving={state.saving}
       error={state.error}
-      title="Click to change account"
-      displayClassName="text-sm text-muted-foreground"
+      title={`${displayText} — click to change`}
+      displayClassName="block truncate text-sm text-muted-foreground"
       editor={
         <AccountInput
           value={state.draft}
@@ -603,7 +603,7 @@ const selectColumn = col.display({
       </span>
     );
   },
-  meta: { headerClass: "w-6 pr-0", cellClass: "w-6 pr-0" },
+  meta: { headerClass: "w-8 pr-0", cellClass: "pr-0" },
 });
 
 const dateColumn = col.accessor("date", {
@@ -623,7 +623,7 @@ const dateColumn = col.accessor("date", {
       {formatDate(getValue())}
     </span>
   ),
-  meta: { headerClass: "w-28", cellClass: "w-28" },
+  meta: { headerClass: "w-24" },
 });
 
 const statusColumn = col.display({
@@ -633,53 +633,34 @@ const statusColumn = col.display({
     const { onStatusChange } = table.options.meta;
     return <StatusButton fid={row.original.fid} status={row.original.status} onStatusChange={onStatusChange} />;
   },
-  meta: { headerClass: "w-8", cellClass: "w-8 pr-0" },
+  meta: { headerClass: "w-9", cellClass: "pr-0" },
 });
 
+// Revealed on row hover (or keyboard focus) on devices that can hover, so
+// untagged rows don't each carry a "+ Tag" button. Touch devices always
+// show it.
+const HOVER_REVEAL =
+  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 focus-visible:opacity-100";
+
+// Description cell: the (inline-editable) description, then the tags. Tags
+// use the inline editor when the row has a fid and fall back to a static
+// badge list otherwise.
 const descriptionColumn = col.accessor((tx) => tx.description, {
   id: "description",
   header: ({ column }) => <TableSortHeader column={column}>Description</TableSortHeader>,
   cell: ({ row, table }) => {
     const { onStatusChange } = table.options.meta;
     const tx = row.original;
-    return (
-      <span className="flex min-w-0 items-center gap-1.5">
-        <span className="min-w-0 flex-1">
-          <EditableDescriptionCell
-            fid={tx.fid}
-            description={tx.description}
-            date={tx.date}
-            postings={tx.postings}
-            payee={tx.payee}
-            note={tx.note}
-            onSaved={onStatusChange}
-          />
-        </span>
-        {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+    const tags = tx.tags || {};
+    const hasTags = Object.keys(tags).length > 0;
+    // Untagged rows keep the (hover-revealed) "+ Tag" button at the end of the
+    // description line; tagged rows show the tags on a second line so they
+    // never squeeze the description.
+    const tagEditor = tx.fid ? (
+      <span className="min-w-0 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <TagEditor fid={tx.fid} tags={tags} onChanged={onStatusChange} addButtonClassName={HOVER_REVEAL} />
       </span>
-    );
-  },
-  meta: { cellClass: "max-w-[28rem]" },
-});
-
-// Tags cell uses the same inline editor in both modes \u2014 falls back to a
-// static badge list when the row has no fid to edit.
-const tagsColumn = col.display({
-  id: "tags",
-  header: "Tags",
-  cell: ({ row, table }) => {
-    const tx = row.original;
-    const { onStatusChange } = table.options.meta;
-    if (tx.fid) {
-      return (
-        <span onClick={(e) => e.stopPropagation()}>
-          <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} />
-        </span>
-      );
-    }
-    const tags = tx.tags;
-    if (!tags || Object.keys(tags).length === 0) return null;
-    return (
+    ) : hasTags && (
       <span className="inline-flex flex-wrap gap-1">
         {Object.entries(tags).map(([k, v]) => (
           <Badge key={k} variant="secondary" className="text-xs">
@@ -688,7 +669,28 @@ const tagsColumn = col.display({
         ))}
       </span>
     );
+    return (
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1">
+            <EditableDescriptionCell
+              fid={tx.fid}
+              description={tx.description}
+              date={tx.date}
+              postings={tx.postings}
+              payee={tx.payee}
+              note={tx.note}
+              onSaved={onStatusChange}
+            />
+          </span>
+          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+          {!hasTags && tagEditor}
+        </span>
+        {hasTags && tagEditor}
+      </span>
+    );
   },
+  meta: { cellClass: "overflow-hidden" },
 });
 
 // "From" and "To" columns for the general transactions table. Each cell is
@@ -711,6 +713,7 @@ const fromColumn = col.accessor((tx) => accountSplit(tx).from || "", {
       />
     );
   },
+  meta: { headerClass: "w-[18%]", cellClass: "overflow-hidden" },
 });
 
 const toColumn = col.accessor((tx) => accountSplit(tx).to || "", {
@@ -727,6 +730,7 @@ const toColumn = col.accessor((tx) => accountSplit(tx).to || "", {
       />
     );
   },
+  meta: { headerClass: "w-[18%]", cellClass: "overflow-hidden" },
 });
 
 const amountColumn = col.accessor(
@@ -752,10 +756,10 @@ const amountColumn = col.accessor(
       }
       const hasAssertion = (tx.postings || []).some((p) => p.balanceAssertion);
       return (
-        <span className="flex items-center justify-end gap-1 whitespace-nowrap font-mono text-sm">
+        <span className="block truncate text-right font-mono text-sm tabular-nums" title={amount}>
           {hasAssertion && (
             <Tooltip>
-              <TooltipTrigger render={<Scale className="size-3 shrink-0 text-muted-foreground" />} />
+              <TooltipTrigger render={<Scale className="mr-1 inline size-3 align-[-1px] text-muted-foreground" />} />
               <TooltipContent>Has balance assertion</TooltipContent>
             </Tooltip>
           )}
@@ -763,7 +767,7 @@ const amountColumn = col.accessor(
         </span>
       );
     },
-    meta: { headerClass: "text-right", cellClass: "text-right" },
+    meta: { headerClass: "w-40 text-right", cellClass: "text-right" },
   },
 );
 
@@ -784,6 +788,7 @@ const otherAccountsColumn = col.display({
       />
     );
   },
+  meta: { headerClass: "w-[24%]", cellClass: "overflow-hidden" },
 });
 
 const changeColumn = col.accessor(
@@ -795,15 +800,15 @@ const changeColumn = col.accessor(
       const cells = resolveRegisterCells(row.original);
       return (
         <span className={cn(
-          "block whitespace-nowrap text-right font-mono text-sm",
+          "block truncate text-right font-mono text-sm tabular-nums",
           cells.changePositive && "text-success",
           cells.changeNegative && "text-destructive",
-        )}>
+        )} title={cells.change}>
           {cells.change}
         </span>
       );
     },
-    meta: { cellClass: "text-right" },
+    meta: { headerClass: "w-32 text-right", cellClass: "text-right" },
   },
 );
 
@@ -815,12 +820,12 @@ const balanceColumn = col.accessor(
     cell: ({ row }) => {
       const cells = resolveRegisterCells(row.original);
       return (
-        <span className="block whitespace-nowrap text-right font-mono text-sm text-muted-foreground">
+        <span className="block truncate text-right font-mono text-sm tabular-nums text-muted-foreground" title={cells.balance}>
           {cells.balance}
         </span>
       );
     },
-    meta: { cellClass: "text-right" },
+    meta: { headerClass: "w-32 text-right", cellClass: "text-right" },
   },
 );
 
@@ -829,7 +834,6 @@ const transactionColumns = [
   dateColumn,
   statusColumn,
   descriptionColumn,
-  tagsColumn,
   fromColumn,
   toColumn,
   amountColumn,
@@ -840,7 +844,6 @@ const registerColumns = [
   dateColumn,
   statusColumn,
   descriptionColumn,
-  tagsColumn,
   otherAccountsColumn,
   changeColumn,
   balanceColumn,
@@ -945,7 +948,10 @@ export function TransactionTable({
     <div>
       {/* Desktop table */}
       <div className="hidden overflow-x-auto [container-type:inline-size] sm:block">
-        <Table>
+        {/* Fixed layout: Description takes the remaining width and long
+            cells truncate, so the table fits instead of scrolling sideways.
+            Below the min width it scrolls rather than crushing columns. */}
+        <Table className="w-full min-w-[44rem] table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -1013,6 +1019,7 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
       <TableRow
         onClick={() => { if (!isRegisterMode && tx.fid) row.toggleExpanded(); }}
         className={cn(
+          "group/row",
           !isRegisterMode && "cursor-pointer",
           isSelected && "bg-primary/10 hover:bg-primary/15",
         )}
@@ -1023,7 +1030,7 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
               <TableCell
                 key={cell.id}
                 colSpan={2}
-                className="text-sm italic text-muted-foreground"
+                className="truncate text-sm italic text-muted-foreground"
               >
                 multiple accounts
               </TableCell>

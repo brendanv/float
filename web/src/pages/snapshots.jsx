@@ -7,6 +7,7 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
+import { Timestamp } from "../components/timestamp.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -166,7 +167,7 @@ export function SnapshotsPage() {
                 <TableBody>
                   {snapshotsData.snapshots.map((s) => (
                     <TableRow key={s.hash}>
-                      <TableCell className="font-mono">{s.timestamp}</TableCell>
+                      <TableCell className="whitespace-nowrap"><Timestamp value={s.timestamp} absolute /></TableCell>
                       <TableCell>
                         <div className="max-w-[10rem] truncate sm:max-w-xs" title={s.message}>{s.message}</div>
                       </TableCell>

@@ -172,7 +172,7 @@ func TestBalances(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := mustClient(t, tt.journal)
-			report, err := c.Balances(t.Context(), tt.depth, tt.query...)
+			report, err := c.Balances(t.Context(), hledger.BalanceOpts{Depth: tt.depth}, tt.query...)
 			if err != nil {
 				t.Fatalf("Balances: %v", err)
 			}
@@ -192,10 +192,36 @@ func amountsByAccount(report *hledger.BalanceReport) map[string][]string {
 	return out
 }
 
+func TestBalancesTree(t *testing.T) {
+	c := mustClient(t, "investments.journal")
+	report, err := c.Balances(t.Context(), hledger.BalanceOpts{Tree: true}, "assets")
+	if err != nil {
+		t.Fatalf("Balances: %v", err)
+	}
+	type row struct {
+		full, display string
+		indent        int
+	}
+	var got []row
+	for _, r := range report.Rows {
+		got = append(got, row{r.FullName, r.DisplayName, r.Indent})
+	}
+	want := []row{
+		{"assets", "assets", 0},
+		{"assets:checking", "checking", 1},
+		{"assets:investments", "investments", 1},
+		{"assets:investments:aapl", "aapl", 2},
+		{"assets:investments:msft", "msft", 2},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("tree rows = %+v, want %+v", got, want)
+	}
+}
+
 func TestBalancesValued(t *testing.T) {
 	c := mustClient(t, "investments.journal")
 
-	raw, err := c.Balances(t.Context(), 0, "assets:investments")
+	raw, err := c.Balances(t.Context(), hledger.BalanceOpts{}, "assets:investments")
 	if err != nil {
 		t.Fatalf("Balances: %v", err)
 	}
@@ -209,7 +235,7 @@ func TestBalancesValued(t *testing.T) {
 
 	// The 2026-04-26 P directives are the latest prices, so now,USD is
 	// deterministic for any run date after them: 10 × 178.50 and 5 × 398.75.
-	valued, err := c.BalancesValued(t.Context(), "now,USD", 0, "assets:investments")
+	valued, err := c.BalancesValued(t.Context(), "now,USD", hledger.BalanceOpts{}, "assets:investments")
 	if err != nil {
 		t.Fatalf("BalancesValued: %v", err)
 	}
@@ -1808,7 +1834,7 @@ func TestIncludedJournal(t *testing.T) {
 		if len(lots) != 1 || lots[0].LotName != "{2026-01-15, $60}" || lots[0].Units.Quantity.Format() != "5" {
 			t.Errorf("Lots = %+v, want one 5 AAPL {2026-01-15, $60} lot", lots)
 		}
-		valued, err := c.BalancesValued(t.Context(), "now,$", 0, "assets:brokerage")
+		valued, err := c.BalancesValued(t.Context(), "now,$", hledger.BalanceOpts{}, "assets:brokerage")
 		if err != nil {
 			t.Fatalf("BalancesValued: %v", err)
 		}

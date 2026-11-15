@@ -117,8 +117,16 @@ func transactionsKey(query []string) string {
 	return "transactions:" + normalizedQueryKeyPart(query)
 }
 
-func balancesKey(depth int, query []string) string {
-	return fmt.Sprintf("balances:%d:%s", depth, normalizedQueryKeyPart(query))
+func balancesKey(opts hledger.BalanceOpts, query []string) string {
+	return fmt.Sprintf("%s:%d:%s", balancesFamily("balances", opts), opts.Depth, normalizedQueryKeyPart(query))
+}
+
+// balancesFamily namespaces --tree reports separately from flat ones.
+func balancesFamily(base string, opts hledger.BalanceOpts) string {
+	if opts.Tree {
+		return base + "tree"
+	}
+	return base
 }
 
 func lotsKey(query []string) string {
@@ -141,8 +149,8 @@ func incomeStatementKey(begin, end string) string {
 	return fmt.Sprintf("incomestmt:%s:%s", begin, end)
 }
 
-func balancesValuedKey(valueSpec string, depth int, query []string) string {
-	return fmt.Sprintf("balancesvalued:%s:%d:%s", valueSpec, depth, normalizedQueryKeyPart(query))
+func balancesValuedKey(valueSpec string, opts hledger.BalanceOpts, query []string) string {
+	return fmt.Sprintf("%s:%s:%d:%s", balancesFamily("balancesvalued", opts), valueSpec, opts.Depth, normalizedQueryKeyPart(query))
 }
 
 func normalizedQueryKeyPart(query []string) string {
@@ -248,9 +256,9 @@ func (h *Handler) importedTransactionProtos(ctx context.Context, fids []string) 
 }
 
 // cachedBalances fetches balances from cache or hledger.
-func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, depth int, query []string) (*hledger.BalanceReport, error) {
-	return cachedGet(ctx, c, balancesKey(depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
-		return hl.Balances(ctx, depth, query...)
+func cachedBalances(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, opts hledger.BalanceOpts, query []string) (*hledger.BalanceReport, error) {
+	return cachedGet(ctx, c, balancesKey(opts, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
+		return hl.Balances(ctx, opts, query...)
 	})
 }
 
@@ -261,9 +269,9 @@ func cachedLots(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, qu
 }
 
 // cachedBalancesValued fetches market-valued balances from cache or hledger.
-func cachedBalancesValued(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, valueSpec string, depth int, query []string) (*hledger.BalanceReport, error) {
-	return cachedGet(ctx, c, balancesValuedKey(valueSpec, depth, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
-		return hl.BalancesValued(ctx, valueSpec, depth, query...)
+func cachedBalancesValued(ctx context.Context, c *cache.Cache[any], hl *hledger.Client, valueSpec string, opts hledger.BalanceOpts, query []string) (*hledger.BalanceReport, error) {
+	return cachedGet(ctx, c, balancesValuedKey(valueSpec, opts, query), func(ctx context.Context) (*hledger.BalanceReport, error) {
+		return hl.BalancesValued(ctx, valueSpec, opts, query...)
 	})
 }
 
@@ -464,10 +472,11 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 func (h *Handler) GetBalances(ctx context.Context, req *connect.Request[floatv1.GetBalancesRequest]) (*connect.Response[floatv1.GetBalancesResponse], error) {
 	var report *hledger.BalanceReport
 	var err error
+	opts := hledger.BalanceOpts{Depth: int(req.Msg.Depth), Tree: req.Msg.Tree}
 	if req.Msg.Value != "" {
-		report, err = cachedBalancesValued(ctx, h.cache, h.hl, req.Msg.Value, int(req.Msg.Depth), req.Msg.Query)
+		report, err = cachedBalancesValued(ctx, h.cache, h.hl, req.Msg.Value, opts, req.Msg.Query)
 	} else {
-		report, err = cachedBalances(ctx, h.cache, h.hl, int(req.Msg.Depth), req.Msg.Query)
+		report, err = cachedBalances(ctx, h.cache, h.hl, opts, req.Msg.Query)
 	}
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed")
@@ -529,7 +538,7 @@ func (h *Handler) GetPortfolioHoldings(ctx context.Context, req *connect.Request
 	// Raw balances provide the original commodity quantities. Fetched
 	// unfiltered and shared across every prefix/generation; the prefix is an
 	// account-name filter applied in Go below, not accounting logic.
-	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
+	raw, err := cachedBalances(ctx, h.cache, h.hl, hledger.BalanceOpts{}, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio")
 	}
@@ -775,7 +784,7 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 	// commodities (equities, funds, etc.). This mirrors the GetPortfolioHoldings
 	// filter so that cash accounts like checking/savings are excluded from the
 	// chart total, matching what the Total Value card shows.
-	raw, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
+	raw, err := cachedBalances(ctx, h.cache, h.hl, hledger.BalanceOpts{}, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed for portfolio timeseries")
 	}
@@ -1247,7 +1256,7 @@ func (h *Handler) GetBalanceAssertionStatus(ctx context.Context, req *connect.Re
 		return nil, rpcErr(ctx, err, "hledger transactions failed")
 	}
 
-	balReport, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
+	balReport, err := cachedBalances(ctx, h.cache, h.hl, hledger.BalanceOpts{}, nil)
 	if err != nil {
 		return nil, rpcErr(ctx, err, "hledger balances failed")
 	}

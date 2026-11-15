@@ -21,6 +21,7 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
+import { Timestamp } from "../components/timestamp.jsx";
 import {
   Card,
   CardContent,
@@ -953,7 +954,7 @@ export function ConnectionsPage() {
                   {account.lastFetchedAt && (
                     <>
                       <span>·</span>
-                      <span>Last imported {account.lastFetchedAt}</span>
+                      <span>Last imported <Timestamp value={account.lastFetchedAt} /></span>
                     </>
                   )}
                 </div>

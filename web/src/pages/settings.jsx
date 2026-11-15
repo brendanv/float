@@ -5,6 +5,7 @@ import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
+import { Timestamp } from "../components/timestamp.jsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -602,7 +603,7 @@ export function SettingsPage() {
 
                     <div className="text-xs text-muted-foreground">
                       {stripeData.lastDailyImportAt ? (
-                        <>Last automatic import: {stripeData.lastDailyImportAt}</>
+                        <>Last automatic import: <Timestamp value={stripeData.lastDailyImportAt} /></>
                       ) : (
                         <>Last automatic import: never</>
                       )}

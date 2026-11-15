@@ -66,3 +66,37 @@ const MONTH_NAMES = [
 export function monthName(month) {
   return MONTH_NAMES[month - 1] || "";
 }
+
+// formatTimestamp renders an RFC 3339 timestamp in the viewer's locale and
+// timezone, e.g. "May 15, 2026, 4:30 AM". Unparseable input is returned as-is.
+export function formatTimestamp(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (isNaN(d)) return String(ts);
+  return d.toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
+const RELATIVE_UNITS = [
+  ["year", 365 * 24 * 3600],
+  ["month", 30 * 24 * 3600],
+  ["week", 7 * 24 * 3600],
+  ["day", 24 * 3600],
+  ["hour", 3600],
+  ["minute", 60],
+];
+
+// formatRelativeTime renders an RFC 3339 timestamp relative to `now`, e.g.
+// "3 hours ago" or "in 2 days". Under a minute reads "just now".
+export function formatRelativeTime(ts, now = new Date()) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (isNaN(d)) return String(ts);
+  const seconds = (d - now) / 1000;
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  for (const [unit, size] of RELATIVE_UNITS) {
+    if (Math.abs(seconds) >= size) return rtf.format(Math.round(seconds / size), unit);
+  }
+  return "just now";
+}

@@ -336,16 +336,33 @@ func (c *Client) Check(ctx context.Context) error {
 	return nil
 }
 
-// Balances runs `hledger bal -O json -f <journal> [--depth N] [query...]`.
-// depth 0 = no --depth flag.
-func (c *Client) Balances(ctx context.Context, depth int, query ...string) (*BalanceReport, error) {
+// BalanceOpts shapes a `hledger bal` report.
+type BalanceOpts struct {
+	// Depth adds --depth N; 0 omits the flag.
+	Depth int
+	// Tree adds --tree: parent accounts are included with inclusive totals,
+	// DisplayName is the leaf segment and Indent the tree depth.
+	Tree bool
+}
+
+func (o BalanceOpts) args() []string {
+	var args []string
+	if o.Depth > 0 {
+		args = append(args, "--depth", fmt.Sprintf("%d", o.Depth))
+	}
+	if o.Tree {
+		args = append(args, "--tree")
+	}
+	return args
+}
+
+// Balances runs `hledger bal -O json -f <journal> [--depth N] [--tree] [query...]`.
+func (c *Client) Balances(ctx context.Context, opts BalanceOpts, query ...string) (*BalanceReport, error) {
 	if err := validateQueryTerms(query); err != nil {
 		return nil, err
 	}
 	args := []string{"bal", "-O", "json", "-f", c.journal}
-	if depth > 0 {
-		args = append(args, "--depth", fmt.Sprintf("%d", depth))
-	}
+	args = append(args, opts.args()...)
 	args = append(args, query...)
 
 	stdout, stderr, err := c.run(ctx, args...)
@@ -357,18 +374,15 @@ func (c *Client) Balances(ctx context.Context, depth int, query ...string) (*Bal
 }
 
 // BalancesValued runs `hledger bal -O json --infer-market-prices --value=<valueSpec>
-// -f <journal> [query...]`. valueSpec is the argument to --value, e.g. "now,USD"
-// or "end,USD". hledger converts each commodity to the target currency using P
-// directives from the journal; amounts without a matching price are left unconverted.
-// depth 0 = no --depth flag.
-func (c *Client) BalancesValued(ctx context.Context, valueSpec string, depth int, query ...string) (*BalanceReport, error) {
+// -f <journal> [--depth N] [--tree] [query...]`. valueSpec is the argument to --value,
+// e.g. "now,USD" or "end,USD". hledger converts each commodity to the target currency
+// using P directives from the journal; amounts without a matching price are left unconverted.
+func (c *Client) BalancesValued(ctx context.Context, valueSpec string, opts BalanceOpts, query ...string) (*BalanceReport, error) {
 	if err := validateQueryTerms(query); err != nil {
 		return nil, err
 	}
 	args := []string{"bal", "-O", "json", "-f", c.journal, "--infer-market-prices", "--value=" + valueSpec}
-	if depth > 0 {
-		args = append(args, "--depth", fmt.Sprintf("%d", depth))
-	}
+	args = append(args, opts.args()...)
 	args = append(args, query...)
 
 	stdout, stderr, err := c.run(ctx, args...)
