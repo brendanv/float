@@ -412,6 +412,8 @@ export function RulesPage() {
                       accounts={accountsData?.accounts ?? []}
                       includeAccountPrefixes={["assets", "liabilities"]}
                       placeholder="all accounts"
+                      clearable
+                      clearLabel="All accounts"
                     />
                   </FormField>
                 )}

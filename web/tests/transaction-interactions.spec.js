@@ -196,3 +196,68 @@ test("editing a row keeps the current page", async ({ page }) => {
   await expect(page.locator("tbody tr").first().locator("button.rounded-full svg")).toHaveClass(/text-success/);
   await expect(page.getByText("26–30 of 30")).toBeVisible();
 });
+
+test.describe("mobile", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  function card(page, text) {
+    return page.locator("[data-slot=card]").filter({ hasText: text }).locator("visible=true").first();
+  }
+
+  test("tapping a card opens the editor with readable accounts and saves the description", async ({ page }) => {
+    await mockLedgerApi(page, { transactions });
+    const updates = captureRpc(page, "UpdateTransaction");
+    await page.goto("/#/transactions");
+
+    // Tapping the payee no longer navigates or inline-edits: it opens the editor.
+    await card(page, "Coffee Shop").getByText("Coffee Shop").click();
+    const drawer = page.getByRole("dialog");
+    await expect(drawer.getByText("Edit Transaction")).toBeVisible();
+
+    // Each posting's account picker is wide enough to show its account.
+    const accounts = drawer.getByRole("combobox");
+    await expect(accounts.nth(0)).toHaveText("expenses:dining");
+    expect((await accounts.nth(0).boundingBox()).width).toBeGreaterThan(250);
+
+    await drawer.getByLabel("Description").fill("Coffee Shop | oat latte");
+    await drawer.getByRole("button", { name: "Save" }).click();
+
+    await expect.poll(() => updates.length).toBe(1);
+    expect(updates[0].description).toBe("Coffee Shop | oat latte");
+    expect(updates[0].postings[0].comment).toBe("date:2026-03-22, split with Bob");
+    await expect(drawer).toBeHidden();
+  });
+
+  test("re-picking the selected account keeps it", async ({ page }) => {
+    await mockLedgerApi(page, { transactions });
+    await page.goto("/#/transactions");
+
+    await card(page, "Coffee Shop").click();
+    const account = page.getByRole("dialog").getByRole("combobox").first();
+    await account.click();
+    await page.getByRole("option", { name: "expenses:dining", exact: true }).click();
+    await expect(account).toHaveText("expenses:dining");
+  });
+
+  test("the status toggle on a card does not open the editor", async ({ page }) => {
+    await mockLedgerApi(page, { transactions });
+    const statusCalls = captureRpc(page, "UpdateTransactionStatus");
+    await page.goto("/#/transactions");
+
+    const toggle = card(page, "Grocer").locator("button.rounded-full");
+    expect((await toggle.boundingBox()).width).toBeGreaterThanOrEqual(40);
+    await toggle.click();
+    await expect.poll(() => statusCalls.length).toBe(1);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("sidebar Add Transaction closes the sidebar", async ({ page }) => {
+    await mockLedgerApi(page, { transactions });
+    await page.goto("/#/transactions");
+
+    await page.locator("[data-sidebar=trigger]").click();
+    await page.locator('[data-slot="sidebar-menu-button"]:has-text("Add Transaction")').click();
+    await expect(page.getByRole("dialog").getByText("Add Transaction").first()).toBeVisible();
+    await expect(page.locator('[data-mobile="true"][data-sidebar="sidebar"]')).toHaveCount(0);
+  });
+});

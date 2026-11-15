@@ -114,6 +114,7 @@ function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, 
                   placeholder="Select account…"
                   searchPlaceholder="Search accounts…"
                   emptyMessage="No matching account."
+                  clearable
                 />
               </FormField>
             </div>

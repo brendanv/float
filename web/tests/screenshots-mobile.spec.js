@@ -87,7 +87,7 @@ test("import create profile modal mobile (drawer)", async ({ page }) => {
   await page.goto("/#/import");
   await page.waitForSelector("select, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  await page.locator(".lucide-plus").click();
+  await page.getByRole("button", { name: "Create new bank profile" }).click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/mobile-import-create-profile.png", fullPage: true });

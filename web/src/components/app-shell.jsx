@@ -165,7 +165,10 @@ function AppSidebar({ currentPath, onAddTransaction }) {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Add Transaction" onClick={onAddTransaction}>
+                <SidebarMenuButton
+                  tooltip="Add Transaction"
+                  onClick={() => { closeMobile(); onAddTransaction(); }}
+                >
                   <PlusCircle />
                   <span>Add Transaction</span>
                 </SidebarMenuButton>

@@ -23,6 +23,10 @@ import { cn } from "@/lib/utils";
 //   emptyMessage    — text shown when no options match
 //   allowCustomValue — when true, lets users pick the search term verbatim
 //                     (shows "Use \"foo\"" item). Defaults to false.
+//   clearable       — when true and a value is set, shows a "Clear" item that
+//                     resets the value to "". Use for optional fields; picking
+//                     the selected option again keeps it (it never clears).
+//   clearLabel      — label for the clear item. Defaults to "Clear".
 //   className       — extra classes on the trigger
 //   id              — id attached to the trigger (for label htmlFor)
 export function Combobox({
@@ -33,6 +37,8 @@ export function Combobox({
   searchPlaceholder,
   emptyMessage = "No matches.",
   allowCustomValue = false,
+  clearable = false,
+  clearLabel = "Clear",
   disabled = false,
   className,
   id,
@@ -48,7 +54,7 @@ export function Combobox({
   );
 
   function select(next) {
-    onChange(next === value ? "" : next);
+    if (next !== value) onChange(next);
     setSearch("");
     setOpen(false);
   }
@@ -107,6 +113,15 @@ export function Combobox({
               )}
             </CommandEmpty>
             <CommandGroup>
+              {clearable && value && !search && (
+                <CommandItem
+                  value="__clear__"
+                  onSelect={() => select("")}
+                  className="text-muted-foreground"
+                >
+                  {clearLabel}
+                </CommandItem>
+              )}
               {allowCustomValue && !exactMatch && search && (
                 <CommandItem
                   value={`__use__${search}`}
