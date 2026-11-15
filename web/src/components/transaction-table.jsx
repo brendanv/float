@@ -46,6 +46,12 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { TablePagination } from "./table-pagination.jsx";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { cn } from "@/lib/utils";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -80,6 +86,14 @@ function generalDisplay(tx) {
 // accountSplit returns the singular from/to accounts for a transaction, or
 // flags isMultiple when either side has more than one posting and the cells
 // should be merged into a single "multiple accounts" view.
+// sideAccount returns the account of the single negative ("from") or
+// positive ("to") posting, or "" when that side has zero or several postings.
+function sideAccount(tx, side) {
+  const matching = editablePostings(tx.postings)
+    .filter((p) => side === "from" ? firstQuantity(p) < 0 : firstQuantity(p) > 0);
+  return matching.length === 1 ? matching[0].account : "";
+}
+
 function accountSplit(tx) {
   const postings = tx.postings || [];
   if (postings.length === 0) return { from: "", to: "", isMultiple: false };
@@ -138,7 +152,7 @@ function resolveRegisterCells(row) {
 
 // ── sub-components ─────────────────────────────────────────────────────────
 
-function StatusButton({ fid, status, onStatusChange }) {
+function StatusButton({ fid, status, onStatusChange, className }) {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -172,7 +186,7 @@ function StatusButton({ fid, status, onStatusChange }) {
             size="icon-xs"
             onClick={handleClick}
             isLoading={updating}
-            className="rounded-full"
+            className={cn("rounded-full", className)}
           >
             <Check className={error ? "text-destructive" : isReviewed ? "text-success" : "text-muted-foreground/40"} />
           </Button>
@@ -375,12 +389,14 @@ function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
   );
 }
 
-function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
+function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel, inDialog = false }) {
   const initialPostings = editablePostings(tx.postings).map(fieldsFromPosting);
   const generatedPostings = (tx.postings || []).filter((p) => p.generated);
   const initialTags = tx.tags || {};
   const initialDate = tx.date;
+  const initialDescription = tx.description ?? "";
   const [date, setDate] = useState(initialDate);
+  const [description, setDescription] = useState(initialDescription);
   const [postings, setPostings] = useState(initialPostings);
   const [tags, setTags] = useState(initialTags);
   const [saving, setSaving] = useState(false);
@@ -390,6 +406,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
   const [duplicateOpen, setDuplicateOpen] = useState(false);
 
   const isDirty = date !== initialDate
+    || description.trim() !== initialDescription
     || JSON.stringify(postings) !== JSON.stringify(initialPostings)
     || JSON.stringify(tags) !== JSON.stringify(initialTags);
 
@@ -403,7 +420,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
     try {
       await ledgerClient.updateTransaction({
         fid: tx.fid,
-        description: tx.description,
+        description: description.trim(),
         date,
         postings: trimmed,
         tags,
@@ -422,6 +439,7 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
 
   function cancel() {
     setDate(initialDate);
+    setDescription(initialDescription);
     setPostings(initialPostings);
     setTags(initialTags);
     setError(null);
@@ -442,7 +460,10 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
   }
 
   return (
-    <div className="sticky left-0 max-w-[100cqw] p-3" onClick={(e) => e.stopPropagation()}>
+    <div
+      className={inDialog ? "pb-4" : "sticky left-0 max-w-[100cqw] p-3"}
+      onClick={(e) => e.stopPropagation()}
+    >
       <Form onSubmit={handleSubmit}>
         <FormField label="Date" htmlFor={`txn-date-${tx.fid}`}>
           <Input
@@ -451,6 +472,14 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
             value={date}
             onChange={(e) => setDate(e.target.value)}
             required
+          />
+        </FormField>
+        <FormField label="Description" htmlFor={`txn-desc-${tx.fid}`}>
+          <Input
+            id={`txn-desc-${tx.fid}`}
+            value={description}
+            onInput={(e) => setDescription(e.target.value)}
+            placeholder="Payee | note"
           />
         </FormField>
         <FormField label="Postings" error={error}>
@@ -466,12 +495,12 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
         </FormField>
         <FormActions align="between">
           <div className="flex gap-2">
-            <Button variant="outline" size="xs" disabled={saving || deleting} onClick={() => setDuplicateOpen(true)}>
+            <Button variant="outline" size={inDialog ? "sm" : "xs"} disabled={saving || deleting} onClick={() => setDuplicateOpen(true)}>
               <Copy data-icon="inline-start" /> Duplicate
             </Button>
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
               <DialogTrigger
-                render={<Button variant="destructive-ghost" size="xs" disabled={saving || deleting} />}
+                render={<Button variant="destructive-ghost" size={inDialog ? "sm" : "xs"} disabled={saving || deleting} />}
               >
                 <Trash2 data-icon="inline-start" /> Delete
               </DialogTrigger>
@@ -492,10 +521,10 @@ function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel }) {
             </Dialog>
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-            <Button type="button" variant="outline" size="xs" onClick={cancel} disabled={saving || deleting}>
+            <Button type="button" variant="outline" size={inDialog ? "default" : "xs"} onClick={cancel} disabled={saving || deleting}>
               Cancel
             </Button>
-            <Button type="submit" size="xs" disabled={!isDirty || deleting} isLoading={saving}>
+            <Button type="submit" size={inDialog ? "default" : "xs"} disabled={!isDirty || deleting} isLoading={saving}>
               Save
             </Button>
           </div>
@@ -1055,116 +1084,147 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
   }
 
   const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
+  // Outside register mode the whole card is one tap target that opens the
+  // editor; there is no inline editing on cards (small targets that each did
+  // something different were too easy to mis-tap on a phone).
+  const canOpen = !isRegisterMode && !!tx.fid;
+  const [editing, setEditing] = useState(false);
+
+  function toggleSelected() {
+    if (!tx.fid) return;
+    const next = new Set(selectedFids);
+    if (next.has(tx.fid)) next.delete(tx.fid);
+    else next.add(tx.fid);
+    onSelectionChange(next);
+  }
 
   return (
-    <Card
-      size="sm"
-      className={cn(
-        "ring-0",
-        !isRegisterMode && "cursor-pointer",
-        isSelected && "bg-primary/5 ring-1 ring-primary",
-      )}
-      onClick={() => { if (!isRegisterMode && tx.fid) row.toggleExpanded(); }}
-    >
-      <CardContent className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">
-            {formatDate(tx.date)}
-          </span>
-          {selectable && (
-            <span onClick={(e) => e.stopPropagation()}>
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={() => {
-                  if (!tx.fid) return;
-                  const next = new Set(selectedFids);
-                  if (next.has(tx.fid)) next.delete(tx.fid);
-                  else next.add(tx.fid);
-                  onSelectionChange(next);
-                }}
-              />
+    <>
+      <Card
+        size="sm"
+        className={cn(
+          "ring-0",
+          canOpen && "cursor-pointer active:bg-muted/50",
+          isSelected && "bg-primary/5 ring-1 ring-primary",
+        )}
+        onClick={() => { if (canOpen) setEditing(true); }}
+      >
+        <CardContent className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+              {formatDate(tx.date)}
             </span>
-          )}
-          <span className="flex-1 truncate font-medium" onClick={(e) => e.stopPropagation()}>
-            <EditableDescriptionCell
-              fid={tx.fid}
-              description={tx.description}
-              date={tx.date}
-              postings={tx.postings}
-              payee={tx.payee}
-              note={tx.note}
-              onSaved={onStatusChange}
-            />
-          </span>
-          <div className="flex shrink-0 items-center gap-1">
-            {(tx.postings || []).some((p) => p.balanceAssertion) && (
-              <Scale className="size-3 shrink-0 text-muted-foreground" />
-            )}
-            {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
-            <span className={cn(
-              "whitespace-nowrap font-mono text-sm",
-              isRegisterMode && changePositive && "text-success",
-              isRegisterMode && changeNegative && "text-destructive",
-            )}>{amountCell}</span>
-            <StatusButton fid={tx.fid} status={tx.status} onStatusChange={onStatusChange} />
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1 text-xs">
-            {isRegisterMode ? (
-              <EditableOtherAccountCell
-                fid={tx.fid}
-                otherAccounts={tx.otherAccounts}
-                accounts={accounts}
-                onSaved={onStatusChange}
-              />
-            ) : split?.isMultiple ? (
-              <span className="italic text-muted-foreground">multiple accounts</span>
-            ) : (
-              <span className="flex flex-wrap items-center gap-1 text-muted-foreground">
-                <EditableAccountSideCell
-                  tx={tx}
-                  side="from"
-                  accounts={accounts}
-                  onSaved={onStatusChange}
+            {selectable && (
+              // Padded label enlarges the tap target around the 16px box.
+              <label
+                className="-m-2.5 flex shrink-0 p-2.5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={toggleSelected}
+                  aria-label="Select transaction"
                 />
-                <span className="text-muted-foreground/60">→</span>
-                <EditableAccountSideCell
-                  tx={tx}
-                  side="to"
-                  accounts={accounts}
+              </label>
+            )}
+            {isRegisterMode ? (
+              <span className="flex-1 truncate font-medium" onClick={(e) => e.stopPropagation()}>
+                <EditableDescriptionCell
+                  fid={tx.fid}
+                  description={tx.description}
+                  date={tx.date}
+                  postings={tx.postings}
+                  payee={tx.payee}
+                  note={tx.note}
                   onSaved={onStatusChange}
                 />
               </span>
+            ) : (
+              <span className="flex-1 truncate font-medium">
+                {tx.payee ? (
+                  <>
+                    <strong>{tx.payee}</strong>
+                    {tx.note && <span className="text-muted-foreground"> · {tx.note}</span>}
+                  </>
+                ) : tx.description}
+              </span>
+            )}
+            <div className="flex shrink-0 items-center gap-1">
+              {(tx.postings || []).some((p) => p.balanceAssertion) && (
+                <Scale className="size-3 shrink-0 text-muted-foreground" />
+              )}
+              {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+              <span className={cn(
+                "whitespace-nowrap font-mono text-sm",
+                isRegisterMode && changePositive && "text-success",
+                isRegisterMode && changeNegative && "text-destructive",
+              )}>{amountCell}</span>
+              <StatusButton
+                fid={tx.fid}
+                status={tx.status}
+                onStatusChange={onStatusChange}
+                className="-my-2 -mr-2 size-10"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1 text-xs">
+              {isRegisterMode ? (
+                <EditableOtherAccountCell
+                  fid={tx.fid}
+                  otherAccounts={tx.otherAccounts}
+                  accounts={accounts}
+                  onSaved={onStatusChange}
+                />
+              ) : split?.isMultiple ? (
+                <span className="italic text-muted-foreground">multiple accounts</span>
+              ) : (
+                <span className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+                  <span>{sideAccount(tx, "from")}</span>
+                  <span className="text-muted-foreground/60">→</span>
+                  <span>{sideAccount(tx, "to")}</span>
+                </span>
+              )}
+            </div>
+            {isRegisterMode && balanceCell && (
+              <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
             )}
           </div>
-          {isRegisterMode && balanceCell && (
-            <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
-          )}
-        </div>
-        {isRegisterMode && tx.fid ? (
-          <div onClick={(e) => e.stopPropagation()}>
-            <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} className="mt-1" />
-          </div>
-        ) : (tx.tags && Object.keys(tx.tags).length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {Object.entries(tx.tags).map(([k, v]) => (
-              <Badge key={k} variant="secondary" className="text-xs">
-                {v ? `${k}:${v}` : k}
-              </Badge>
-            ))}
-          </div>
-        ))}
-        {row.getIsExpanded() && (
-          <EditableDetailRow
-            tx={tx}
-            accounts={accounts}
-            onSaved={onStatusChange}
-            onDeleted={() => { row.toggleExpanded(); if (onDeleted) onDeleted(); }}
-            onCancel={() => row.toggleExpanded()}
-          />
-        )}
-      </CardContent>
-    </Card>
+          {isRegisterMode && tx.fid ? (
+            <div onClick={(e) => e.stopPropagation()}>
+              <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} className="mt-1" />
+            </div>
+          ) : (tx.tags && Object.keys(tx.tags).length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {Object.entries(tx.tags).map(([k, v]) => (
+                <Badge key={k} variant="secondary" className="text-xs">
+                  {v ? `${k}:${v}` : k}
+                </Badge>
+              ))}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+      {/* A sibling of the Card, not a child: React events bubble through
+          portals, so taps inside the drawer would otherwise reach the Card's
+          onClick and reopen it. */}
+      {canOpen && (
+        <ResponsiveDialog open={editing} onOpenChange={setEditing}>
+          <ResponsiveDialogContent size="lg">
+            <ResponsiveDialogHeader>
+              <ResponsiveDialogTitle>Edit Transaction</ResponsiveDialogTitle>
+            </ResponsiveDialogHeader>
+            <EditableDetailRow
+              inDialog
+              tx={tx}
+              accounts={accounts}
+              onSaved={() => { setEditing(false); if (onStatusChange) onStatusChange(); }}
+              onDeleted={() => { setEditing(false); if (onDeleted) onDeleted(); }}
+              onCancel={() => setEditing(false)}
+            />
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
+      )}
+    </>
   );
 }

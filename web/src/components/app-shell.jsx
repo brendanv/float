@@ -8,6 +8,7 @@ import {
   Briefcase,
   Layers,
   Tag,
+  Plus,
   PlusCircle,
   History,
   Upload,
@@ -165,7 +166,10 @@ function AppSidebar({ currentPath, onAddTransaction }) {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Add Transaction" onClick={onAddTransaction}>
+                <SidebarMenuButton
+                  tooltip="Add Transaction"
+                  onClick={() => { closeMobile(); onAddTransaction(); }}
+                >
                   <PlusCircle />
                   <span>Add Transaction</span>
                 </SidebarMenuButton>
@@ -197,6 +201,15 @@ export function AppShell({ children, currentPath }) {
           <span className="text-sm font-medium text-muted-foreground">
             {ALL_NAV.find((i) => i.href === currentPath)?.label ?? "float"}
           </span>
+          <Button
+            size="sm"
+            className="ml-auto"
+            onClick={() => setAddTxnOpen(true)}
+          >
+            <Plus data-icon="inline-start" />
+            <span className="max-sm:hidden">Add Transaction</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
         </header>
         <div className="flex flex-1 flex-col p-4 pt-0">
           <div className="container mx-auto max-w-7xl flex-1">

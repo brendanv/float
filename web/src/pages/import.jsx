@@ -789,6 +789,7 @@ export function ImportPage() {
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => setShowCreateModal(true)}
+                          aria-label="Create new bank profile"
                         >
                           <Plus />
                         </Button>

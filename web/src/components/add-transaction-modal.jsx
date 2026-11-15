@@ -54,6 +54,8 @@ function TemplatePicker({ templates, selectedId, onSelect }) {
         onChange={onSelect}
         options={templates.map((t) => ({ value: t.id, label: t.name }))}
         placeholder="Choose a template…"
+        clearable
+        clearLabel="No template"
         searchPlaceholder="Search templates..."
         emptyMessage="No template found."
       />

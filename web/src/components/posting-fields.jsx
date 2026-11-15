@@ -17,6 +17,8 @@ export function AccountInput({
   includeAccountPrefixes = includePrefixes,
   excludeAccountPrefixes = excludePrefixes,
   includeClosed = false,
+  clearable = false,
+  clearLabel,
 }) {
   const options = filterAndSortAccountNames(accounts, {
     includePrefixes: includeAccountPrefixes,
@@ -33,6 +35,8 @@ export function AccountInput({
       searchPlaceholder={`Search ${placeholder.toLowerCase()}...`}
       emptyMessage="No account found."
       allowCustomValue
+      clearable={clearable}
+      clearLabel={clearLabel}
       className={className}
     />
   );
@@ -290,18 +294,22 @@ export function PostingFields({ postings, onChange, accounts }) {
         const hasLot = !!p.lot;
         return (
           <div key={i} className="flex flex-col gap-1">
-            <div className="flex items-start gap-2">
+            {/* Below sm the account gets its own line (with the remove button)
+                and the amount fields wrap underneath; on wider screens it is
+                one row. `order` keeps a single DOM tree for both layouts. */}
+            <div className="flex flex-wrap items-start gap-2 sm:flex-nowrap">
               <AccountInput
                 value={p.account}
                 onChange={(v) => update(i, { account: v })}
                 accounts={accounts}
+                className="basis-[calc(100%-2.5rem)] sm:flex-1"
               />
               <Input
                 type="text"
                 placeholder="USD"
                 value={p.commodity}
                 onInput={(e) => update(i, { commodity: e.target.value })}
-                className="w-16 shrink-0"
+                className="order-3 w-16 shrink-0 sm:order-none"
               />
               <Input
                 type="number"
@@ -309,7 +317,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                 placeholder={isLast(i) ? "Auto" : "0.00"}
                 value={p.quantity}
                 onInput={(e) => update(i, { quantity: e.target.value })}
-                className="w-20 shrink-0 sm:w-24"
+                className="order-3 w-auto min-w-0 flex-1 sm:order-none sm:w-24 sm:flex-none sm:shrink-0"
               />
               {!hasCost && (
                 <Tooltip>
@@ -321,7 +329,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                         onClick={() => updateCost(i, { commodity: "", quantity: "", isTotal: false })}
                         type="button"
                         aria-label="Add price"
-                        className="shrink-0"
+                        className="order-3 shrink-0 sm:order-none"
                       >
                         <Tag />
                       </Button>
@@ -340,7 +348,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                         onClick={() => updateLot(i, { date: "", label: "", costQuantity: "", costCommodity: "" })}
                         type="button"
                         aria-label="Add lot / cost basis"
-                        className="shrink-0"
+                        className="order-3 shrink-0 sm:order-none"
                       >
                         <Layers />
                       </Button>
@@ -359,7 +367,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                         onClick={() => updateAssertion(i, { commodity: "", quantity: "" })}
                         type="button"
                         aria-label="Add balance assertion"
-                        className="shrink-0"
+                        className="order-3 shrink-0 sm:order-none"
                       >
                         <Scale />
                       </Button>
@@ -374,7 +382,8 @@ export function PostingFields({ postings, onChange, accounts }) {
                 onClick={() => removeRow(i)}
                 disabled={postings.length <= 2}
                 type="button"
-                className="shrink-0"
+                aria-label="Remove posting"
+                className="order-2 size-8 shrink-0 sm:order-none sm:size-7"
               >
                 <X />
               </Button>

@@ -366,7 +366,7 @@ test("import page - create profile modal", async ({ page }) => {
   await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Click the "+" (Plus) button to open the create profile modal
-  await page.locator(".lucide-plus").click();
+  await page.getByRole("button", { name: "Create new bank profile" }).click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/import-create-profile-modal.png", fullPage: true });
@@ -376,7 +376,7 @@ test("import page - create profile modal with CSV wizard", async ({ page }) => {
   await page.goto("/#/import");
   await page.waitForSelector("select", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  await page.locator(".lucide-plus").click();
+  await page.getByRole("button", { name: "Create new bank profile" }).click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(400);
   // Fill in profile name (Bank Account is now a Combobox — skip filling it
