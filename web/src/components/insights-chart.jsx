@@ -9,8 +9,17 @@ function parseAmount(amounts) {
   return Math.abs(parseFloat(amounts[0].quantity) || 0);
 }
 
-function BarChart({ rows, colorClass }) {
+// leafLabel drops the top-level segment ("expenses:groceries" → "groceries").
+function leafLabel(fullName) {
+  const i = fullName.indexOf(":");
+  return i === -1 ? fullName : fullName.slice(i + 1);
+}
+
+// BarChart draws one bar per account. `flip` negates the displayed amounts
+// for revenue, which hledger reports as negative balances.
+function BarChart({ rows, colorClass, flip }) {
   if (!rows || rows.length === 0) return null;
+  rows = [...rows].sort((a, b) => parseAmount(b.amounts) - parseAmount(a.amounts));
 
   const maxVal = Math.max(...rows.map((r) => parseAmount(r.amounts)), 1);
 
@@ -25,16 +34,16 @@ function BarChart({ rows, colorClass }) {
               className="w-2/5 flex-none truncate pr-1 text-right text-xs text-muted-foreground"
               title={row.fullName}
             >
-              {row.displayName || row.fullName}
+              {leafLabel(row.fullName)}
             </span>
-            <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
+            <div className="h-4 flex-1 overflow-hidden rounded-sm bg-muted">
               <div
-                className={cn("h-full rounded transition-all duration-300", colorClass)}
+                className={cn("h-full rounded-sm transition-all duration-300", colorClass)}
                 style={{ width: pct + "%" }}
               />
             </div>
-            <span className="w-20 flex-none text-right font-mono text-xs sm:w-24">
-              {formatAmounts(row.amounts)}
+            <span className="w-20 flex-none text-right font-mono text-xs tabular-nums sm:w-24">
+              {formatAmounts(flip ? row.amounts.map((a) => ({ ...a, quantity: String(-parseFloat(a.quantity)) })) : row.amounts)}
             </span>
           </div>
         );
@@ -67,7 +76,7 @@ export function InsightsChart({ periodQuery }) {
           <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Expenses
           </h5>
-          <BarChart rows={expenseRows} colorClass="bg-destructive" />
+          <BarChart rows={expenseRows} colorClass="bg-chart-1" />
         </div>
       )}
       {revenueRows.length > 0 && (
@@ -75,7 +84,7 @@ export function InsightsChart({ periodQuery }) {
           <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Revenue
           </h5>
-          <BarChart rows={revenueRows} colorClass="bg-success" />
+          <BarChart rows={revenueRows} colorClass="bg-chart-3" flip />
         </div>
       )}
       {expenseRows.length === 0 && revenueRows.length === 0 && !expensesLoading && !revenueLoading && (

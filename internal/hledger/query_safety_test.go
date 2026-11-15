@@ -20,8 +20,11 @@ func TestQueryTermValidation(t *testing.T) {
 		call func(query ...string) error
 	}{
 		{"Transactions", func(q ...string) error { _, err := c.Transactions(ctx, q...); return err }},
-		{"Balances", func(q ...string) error { _, err := c.Balances(ctx, 0, q...); return err }},
-		{"BalancesValued", func(q ...string) error { _, err := c.BalancesValued(ctx, "now,USD", 0, q...); return err }},
+		{"Balances", func(q ...string) error { _, err := c.Balances(ctx, hledger.BalanceOpts{}, q...); return err }},
+		{"BalancesValued", func(q ...string) error {
+			_, err := c.BalancesValued(ctx, "now,USD", hledger.BalanceOpts{}, q...)
+			return err
+		}},
 		{"BalancesCost", func(q ...string) error { _, err := c.BalancesCost(ctx, 0, q...); return err }},
 		{"Register", func(q ...string) error { _, err := c.Register(ctx, q...); return err }},
 		{"Aregister", func(q ...string) error { _, err := c.Aregister(ctx, "assets:checking", q...); return err }},

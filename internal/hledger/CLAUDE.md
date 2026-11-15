@@ -18,7 +18,7 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 - `CostBasis` — lot cost basis (`cbDate`, `cbLabel`, `cbCost`), exposed as `Amount.CostBasis` (JSON `acostbasis`, nil when the amount has no lot annotation). On acquires `cbDate` is nil because the date comes from the transaction; on disposals it holds the selector as written, or the full inferred basis for a lotful commodity.
 - `LotRow` — one lot subaccount from `Lots()`: base `Account`, `LotName`, `Date`, `Label`, net `Units` (with `CostBasis`), `UnitCost`, and `TotalCost` amounts.
 - `Posting.LotRole()` / `Posting.Generated()` — read the hidden `TagLotRole` (`_ptype`) and `TagGenerated` (`_generated-posting`) posting tags.
-- `BalanceReport`, `BalanceRow` — `hledger bal -O json` output.
+- `BalanceReport`, `BalanceRow` — `hledger bal -O json` output. hledger emits each row as `[fullName, displayName, indent, amounts]`; the names only differ in `--tree` mode, where hledger may also elide a parent with a single child into one `parent:child` row.
 - `RegisterRow` — `hledger reg -O json`, one row per posting.
 - `AregisterRow` — `hledger areg -O json`, one row per transaction touching the focused account, with change and running balance computed by hledger.
 - `AccountNode` — account tree/flat node from `hledger accounts --types`.
@@ -30,8 +30,8 @@ Typed Go wrapper around the `hledger` CLI. All accounting is delegated here — 
 
 | Method | hledger command | Notes |
 |--------|----------------|-------|
-| `Balances(ctx, depth, query...)` | `bal -O json` | depth=0 omits `--depth` |
-| `BalancesValued(ctx, valueSpec, depth, query...)` | `bal --infer-market-prices --value=<spec> -O json` | market-valued balances, e.g. `now,USD` |
+| `Balances(ctx, opts, query...)` | `bal -O json` | `BalanceOpts{Depth, Tree}`: Depth=0 omits `--depth`; Tree adds `--tree` (parent rows with inclusive totals, leaf `DisplayName`, tree `Indent`) |
+| `BalancesValued(ctx, valueSpec, opts, query...)` | `bal --infer-market-prices --value=<spec> -O json` | market-valued balances, e.g. `now,USD`; same `BalanceOpts` |
 | `BalancesCost(ctx, depth, query...)` | `bal -B -O json` | cost-basis balances |
 | `BalanceSheetTimeseries(ctx, begin, end)` | `bs --monthly --historical --layout=bare --infer-market-prices --value=end,USD -O json` | net worth timeseries |
 | `IncomeStatementTimeseries(ctx, begin, end)` | `is --monthly --tree -O json` | revenue/expense monthly dashboard |

@@ -13,12 +13,12 @@ export const mockAccounts = [
     type: "L",
     depth: 2,
   },
-  { name: "expenses", fullName: "expenses", type: "C", depth: 1 },
-  { name: "groceries", fullName: "expenses:groceries", type: "C", depth: 2 },
-  { name: "dining", fullName: "expenses:dining", type: "C", depth: 2 },
-  { name: "utilities", fullName: "expenses:utilities", type: "C", depth: 2 },
-  { name: "income", fullName: "income", type: "C", depth: 1 },
-  { name: "salary", fullName: "income:salary", type: "C", depth: 2 },
+  { name: "expenses", fullName: "expenses", type: "X", depth: 1 },
+  { name: "groceries", fullName: "expenses:groceries", type: "X", depth: 2 },
+  { name: "dining", fullName: "expenses:dining", type: "X", depth: 2 },
+  { name: "utilities", fullName: "expenses:utilities", type: "X", depth: 2 },
+  { name: "income", fullName: "income", type: "R", depth: 1 },
+  { name: "salary", fullName: "income:salary", type: "R", depth: 2 },
   { name: "investments", fullName: "assets:investments", type: "A", depth: 2 },
   { name: "aapl", fullName: "assets:investments:aapl", type: "A", depth: 3 },
   // Closed account (and a sub-account inheriting the closed tag).
@@ -108,9 +108,21 @@ export const mockExpenseBalanceRows = [
 export const mockRevenueBalanceRows = [
   {
     fullName: "income:salary",
-    displayName: "salary",
-    amounts: [{ commodity: "USD", quantity: "5200.00" }],
+    displayName: "income:salary",
+    // Raw `hledger bal` reports revenue as a negative balance.
+    amounts: [{ commodity: "USD", quantity: "-5200.00" }],
   },
+];
+
+// `hledger bal --tree type:AL` shape: tree order, leaf display names,
+// indents, and a single-child parent elided into "liabilities:creditcard".
+export const mockAccountTreeRows = [
+  { fullName: "assets", displayName: "assets", indent: 0, amounts: [{ commodity: "USD", quantity: "12450.00" }] },
+  { fullName: "assets:checking", displayName: "checking", indent: 1, amounts: [{ commodity: "USD", quantity: "6700.00" }] },
+  { fullName: "assets:investments", displayName: "investments", indent: 1, amounts: [{ commodity: "USD", quantity: "1750.00" }] },
+  { fullName: "assets:investments:aapl", displayName: "aapl", indent: 2, amounts: [{ commodity: "USD", quantity: "1750.00" }] },
+  { fullName: "assets:savings", displayName: "savings", indent: 1, amounts: [{ commodity: "USD", quantity: "4000.00" }] },
+  { fullName: "liabilities:creditcard", displayName: "liabilities:creditcard", indent: 0, amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
 ];
 
 export const mockTransactions = [
@@ -1485,8 +1497,8 @@ export const mockIncomeStatementTimeseries = {
       indent: 1,
       section: "Revenues",
       isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("-5200.00")),
-      totalAmounts: [{ commodity: "USD", quantity: "-62400.00" }],
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("5200.00")),
+      totalAmounts: [{ commodity: "USD", quantity: "62400.00" }],
     },
     {
       displayName: "Total Revenues",
@@ -1494,7 +1506,7 @@ export const mockIncomeStatementTimeseries = {
       indent: 0,
       section: "Revenues",
       isTotal: true,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("-5200.00")),
+      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("5200.00")),
       totalAmounts: [],
     },
     // Expenses section
@@ -1696,7 +1708,8 @@ export async function mockLedgerApi(
         const isExpense = query.includes("type:X");
         const isRevenue = query.includes("type:R");
         let rows;
-        if (isExpense) rows = mockExpenseBalanceRows;
+        if (reqBody.tree) rows = mockAccountTreeRows;
+        else if (isExpense) rows = mockExpenseBalanceRows;
         else if (isRevenue) rows = mockRevenueBalanceRows;
         else
           rows = reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows;

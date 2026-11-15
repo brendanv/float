@@ -62,12 +62,12 @@ test("transactions page - from cell inline edit", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Activate the inline "From" cell on the first row (a normal 2-posting
-  // transaction). The From column is the 6th cell: select, date, status,
-  // description, tags, from.
-  await page.click("tbody tr:first-child td:nth-child(6) > span");
+  // transaction). The From column is the 5th cell: select, date, status,
+  // description (with tags), from.
+  await page.click("tbody tr:first-child td:nth-child(5) > span");
   await page.waitForTimeout(200);
   // Open the typeahead popover
-  await page.click("tbody tr:first-child td:nth-child(6) button[role='combobox']");
+  await page.click("tbody tr:first-child td:nth-child(5) button[role='combobox']");
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-from-edit.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 600 } });
 });
@@ -226,7 +226,7 @@ test("transactions page - account register edit account", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Click the first editable other-account cell
-  await page.locator('[title="Click to change account"]').first().click();
+  await page.locator('[title$="— click to change"]').first().click();
   await page.waitForSelector("button[role='combobox']", { timeout: 5000 });
   await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/transactions-account-register-edit-account.png", fullPage: true });
@@ -237,7 +237,7 @@ test("transactions page - account register edit account dropdown open", async ({
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Click the first editable other-account cell to open the editor
-  await page.locator('[title="Click to change account"]').first().click();
+  await page.locator('[title$="— click to change"]').first().click();
   await page.waitForSelector("button[role='combobox']", { timeout: 5000 });
   await page.waitForTimeout(200);
   // Open the AccountInput dropdown (it's inside the table, unlike the pagination select)
@@ -260,7 +260,7 @@ test("transactions page - account register mobile edit account", async ({ page }
   await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Target visible elements only — the desktop table is display:none on mobile viewports
-  await page.locator('[title="Click to change account"]:visible').first().click();
+  await page.locator('[title$="— click to change"]:visible').first().click();
   await page.locator("button[role='combobox']:visible").first().waitFor({ timeout: 5000 });
   await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/transactions-account-register-mobile-edit.png", fullPage: true });
@@ -793,8 +793,9 @@ test("accounts page - closed accounts", async ({ page }) => {
 
 test("closed accounts are hidden from home list and typeaheads", async ({ page }) => {
   await page.goto("/#/");
-  await page.getByRole("link", { name: "assets:checking" }).waitFor();
-  await expect(page.getByRole("link", { name: "assets:oldbank" })).toHaveCount(0);
+  // The home account list is an hledger tree: links show the leaf name.
+  await page.getByRole("link", { name: "checking", exact: true }).waitFor();
+  await expect(page.getByRole("link", { name: /oldbank/ })).toHaveCount(0);
 
   await page.goto("/#/accounts");
   await page.getByRole("button", { name: "Rename assets:checking" }).click();

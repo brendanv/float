@@ -5,6 +5,7 @@ import { inlineEditKeyHandler } from "./inline-edit.jsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 // TagForm is the key/value input row shared by "add a new tag" and "edit an
 // existing tag" — an add is just an edit with no original key.
@@ -42,7 +43,8 @@ function TagForm({ draft, setDraft, onSave, onCancel, working, saveTitle }) {
 // mode (`value`/`onChange` set) edits only update local state so they can
 // be saved together with other field changes (or submitted as part of a
 // new transaction).
-export function TagEditor({ fid, tags, onChanged, className, value, onChange }) {
+// addButtonClassName styles the "+ Tag" button (e.g. to reveal it on hover).
+export function TagEditor({ fid, tags, onChanged, className, value, onChange, addButtonClassName }) {
   const controlled = onChange != null;
   const currentTags = controlled ? (value || {}) : (tags || {});
   // null: form closed. "": adding a new tag. "<key>": editing that tag.
@@ -160,7 +162,7 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange }) 
             type="button"
             variant="ghost"
             size="xs"
-            className="text-muted-foreground"
+            className={cn("text-muted-foreground", addButtonClassName)}
             onClick={(e) => { e.stopPropagation(); open(""); }}
             disabled={isBusy || editing !== null}
           >

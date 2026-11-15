@@ -24,11 +24,14 @@ func parseBalanceReport(data []byte) (*BalanceReport, error) {
 			return nil, fmt.Errorf("parseBalanceReport: row %d unmarshal fields: %w", i, err)
 		}
 		var row BalanceRow
-		if err := json.Unmarshal(fields[0], &row.DisplayName); err != nil {
-			return nil, fmt.Errorf("parseBalanceReport: row %d DisplayName: %w", i, err)
-		}
-		if err := json.Unmarshal(fields[1], &row.FullName); err != nil {
+		// hledger emits [fullName, displayName, indent, amounts]. The two
+		// names only differ in --tree mode, where displayName is the leaf
+		// segment (or an elided "parent:child" run).
+		if err := json.Unmarshal(fields[0], &row.FullName); err != nil {
 			return nil, fmt.Errorf("parseBalanceReport: row %d FullName: %w", i, err)
+		}
+		if err := json.Unmarshal(fields[1], &row.DisplayName); err != nil {
+			return nil, fmt.Errorf("parseBalanceReport: row %d DisplayName: %w", i, err)
 		}
 		if err := json.Unmarshal(fields[2], &row.Indent); err != nil {
 			return nil, fmt.Errorf("parseBalanceReport: row %d Indent: %w", i, err)

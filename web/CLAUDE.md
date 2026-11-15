@@ -33,7 +33,7 @@ src/
 ├── client.js          # ConnectRPC transport + ledgerClient export
 ├── router.jsx         # TanStack Router route tree with hash history
 ├── query-keys.js      # Centralized React Query key factory
-├── format.js          # Amount/date/number formatting utilities
+├── format.js          # Amount/date/timestamp formatting utilities (use components/timestamp.jsx for RFC 3339 times)
 ├── main.jsx           # React entry point
 ├── style.css          # Global styles + Tailwind base/theme
 ├── components/
@@ -50,7 +50,7 @@ src/
 
 | Route | Component | Description |
 |-------|-----------|-------------|
-| `/` | `HomePage` | Dashboard summary |
+| `/` | `HomePage` | Balance summary, open asset/liability account tree (`GetBalances` with `tree`), and period insights |
 | `/trends` | `TrendsPage` | Net worth chart |
 | `/monthly` | `MonthlyDashboardPage` | Income statement / revenue and expense dashboard |
 | `/transactions` | `TransactionsPage` | Searchable, pageable transaction list |

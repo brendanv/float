@@ -37,13 +37,21 @@ function sumPeriods(perPeriodAmounts, negate) {
   return negate ? -total : total;
 }
 
-function AmountCell({ value, className, invertColor }) {
+// AmountCell renders revenue and expense amounts in neutral ink: their sign
+// is already implied by the section. Only `signed` cells (net income) are
+// colored, green for a surplus and red for a deficit.
+function AmountCell({ value, className, signed }) {
   if (value === null || value === undefined) {
-    return <td className={cn("px-3 py-1.5 text-right font-mono text-sm text-muted-foreground", className)}>—</td>;
+    return <td className={cn("px-3 py-1.5 text-right font-mono text-sm text-muted-foreground/60", className)}>—</td>;
   }
-  const isRed = invertColor ? value > 0 : value < 0;
   return (
-    <td className={cn("px-3 py-1.5 text-right font-mono text-sm", isRed ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400", className)}>
+    <td
+      className={cn(
+        "whitespace-nowrap px-3 py-1.5 text-right font-mono text-sm tabular-nums",
+        signed && (value < 0 ? "text-destructive" : "text-success"),
+        className,
+      )}
+    >
       {formatCurrency(value, "USD")}
     </td>
   );
@@ -62,14 +70,13 @@ function SectionHeaderRow({ label, colCount }) {
   );
 }
 
-function AccountRow({ row, periods, isRevenue }) {
-  const invertColor = !isRevenue;
+function AccountRow({ row, periods }) {
   const indent = (row.indent ?? 0) * 1.25;
 
   return (
     <tr className={cn("border-b border-border/40 hover:bg-muted/30", row.isTotal && "font-semibold bg-muted/20")}>
       <td
-        className="sticky left-0 z-10 bg-background px-3 py-1.5 text-sm"
+        className="sticky left-0 z-10 bg-card px-3 py-1.5 text-sm"
         style={{ paddingLeft: row.isTotal ? "0.75rem" : `${indent + 0.75}rem`, minWidth: "200px" }}
       >
         <span className={cn(row.isTotal && "text-foreground", !row.isTotal && "text-foreground/90")}>
@@ -79,15 +86,14 @@ function AccountRow({ row, periods, isRevenue }) {
       {periods.map((_, i) => {
         const al = row.perPeriodAmounts?.[i];
         const v = parseFirstAmount(al);
-        return <AmountCell key={i} value={v} invertColor={invertColor} />;
+        return <AmountCell key={i} value={v} />;
       })}
       <AmountCell
         value={row.isTotal
           ? sumPeriods(row.perPeriodAmounts, false)
           : (() => { const v = parseFirstAmount({ amounts: row.totalAmounts }); return v ?? null; })()
         }
-        className="border-l border-border/40"
-        invertColor={invertColor}
+        className="border-l border-border/40 font-semibold"
       />
     </tr>
   );
@@ -107,9 +113,9 @@ function NetIncomeRow({ periods, netAmounts }) {
         Net Income
       </td>
       {periods.map((_, i) => (
-        <AmountCell key={i} value={periodValues[i]} />
+        <AmountCell key={i} value={periodValues[i]} signed />
       ))}
-      <AmountCell value={hasAny ? total : null} className="border-l border-border/40" />
+      <AmountCell value={hasAny ? total : null} className="border-l border-border/40" signed />
     </tr>
   );
 }
@@ -154,11 +160,11 @@ export function MonthlyDashboardPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="border-collapse text-sm">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-border">
                     <th
-                      className="sticky left-0 z-20 bg-background px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                      className="sticky left-0 z-20 bg-card px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
                       style={{ minWidth: "200px" }}
                     >
                       Account
@@ -178,7 +184,7 @@ export function MonthlyDashboardPage() {
                     <>
                       <SectionHeaderRow label="Revenues" colCount={periods.length} />
                       {revenueRows.map((row, i) => (
-                        <AccountRow key={i} row={row} periods={periods} isRevenue={true} />
+                        <AccountRow key={i} row={row} periods={periods} />
                       ))}
                     </>
                   )}
@@ -186,7 +192,7 @@ export function MonthlyDashboardPage() {
                     <>
                       <SectionHeaderRow label="Expenses" colCount={periods.length} />
                       {expenseRows.map((row, i) => (
-                        <AccountRow key={i} row={row} periods={periods} isRevenue={false} />
+                        <AccountRow key={i} row={row} periods={periods} />
                       ))}
                     </>
                   )}

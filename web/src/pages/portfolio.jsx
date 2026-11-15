@@ -64,6 +64,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { SERIES_COLORS, foldToOther } from "@/lib/chart-colors";
 
 const PORTFOLIO_RANGES = [
   { label: "1Y", value: "1y", months: 12 },
@@ -81,19 +82,6 @@ function daysSinceDate(dateStr) {
   const now = new Date();
   return Math.floor((now - then) / (1000 * 60 * 60 * 24));
 }
-
-const CHART_COLORS = [
-  "#6366f1",
-  "#22d3ee",
-  "#f59e0b",
-  "#34d399",
-  "#f43f5e",
-  "#a78bfa",
-  "#38bdf8",
-  "#fb923c",
-  "#4ade80",
-  "#e879f9",
-];
 
 function formatLabel(dateStr) {
   if (!dateStr) return "";
@@ -318,18 +306,23 @@ function AllocationChart({ holdings, currencyTotals }) {
     );
   }
 
+  // The pie (single currency only) folds holdings past the palette size into
+  // "Other"; the list below always shows every holding.
   const chartData = valued.map((h) => ({
     symbol: h.symbol,
     value: parseFloat(h.currentValue.quantity),
     commodity: h.currentValue.commodity,
     portfolioPct: h.portfolioPct,
   }));
+  const pieData = foldToOther(
+    [...chartData].sort((a, b) => b.value - a.value),
+    { nameKey: "symbol", valueKey: "value" },
+  ).map((d, i) => ({ ...d, color: SERIES_COLORS[i] }));
+  const colorBySymbol = Object.fromEntries(pieData.map((d) => [d.symbol, d.color]));
+  const otherColor = colorBySymbol.Other;
 
   const chartConfig = Object.fromEntries(
-    valued.map((h, i) => [
-      h.symbol,
-      { label: h.symbol, color: CHART_COLORS[i % CHART_COLORS.length] },
-    ]),
+    pieData.map((d) => [d.symbol, { label: d.symbol, color: d.color }]),
   );
 
   return (
@@ -344,11 +337,11 @@ function AllocationChart({ holdings, currencyTotals }) {
             currency's total.
           </p>
         )}
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-4">
           {!mixedCurrencies && (
             <ChartContainer
               config={chartConfig}
-              className="mx-auto h-52 w-52 flex-shrink-0"
+              className="mx-auto aspect-square h-48 flex-shrink-0"
             >
               <PieChart>
                 <ChartTooltip
@@ -356,8 +349,9 @@ function AllocationChart({ holdings, currencyTotals }) {
                     <ChartTooltipContent
                       hideLabel
                       formatter={(value, name) => {
-                        const h = valued.find((h) => h.symbol === name);
-                        const pct = h?.portfolioPct?.toFixed(1) ?? "0.0";
+                        const d = pieData.find((d) => d.symbol === name);
+                        const total = pieData.reduce((s, x) => s + x.value, 0);
+                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
                         return (
                           <>
                             <div
@@ -371,10 +365,7 @@ function AllocationChart({ holdings, currencyTotals }) {
                                 {name}
                               </span>
                               <span className="font-mono font-medium tabular-nums">
-                                {formatCurrency(
-                                  h.currentValue.quantity,
-                                  h.currentValue.commodity,
-                                )}{" "}
+                                {formatCurrency(String(value), d?.commodity)}{" "}
                                 ({pct}%)
                               </span>
                             </div>
@@ -385,33 +376,35 @@ function AllocationChart({ holdings, currencyTotals }) {
                   }
                 />
                 <Pie
-                  data={chartData}
+                  data={pieData}
                   dataKey="value"
                   nameKey="symbol"
                   innerRadius="60%"
                   outerRadius="80%"
                   strokeWidth={2}
-                  stroke="transparent"
+                  stroke="var(--card)"
                 >
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  {pieData.map((d) => (
+                    <Cell key={d.symbol} fill={d.color} />
                   ))}
                 </Pie>
               </PieChart>
             </ChartContainer>
           )}
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            {chartData.map((item, i) => (
+          <div className="flex min-w-0 flex-col gap-1.5">
+            {chartData.map((item) => (
               <div
                 key={item.symbol}
                 className="flex items-center gap-2 text-sm"
               >
-                <div
-                  className="h-2.5 w-2.5 flex-shrink-0 rounded-sm"
-                  style={{
-                    backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
-                  }}
-                />
+                {!mixedCurrencies && (
+                  <div
+                    className="h-2.5 w-2.5 flex-shrink-0 rounded-sm"
+                    style={{
+                      backgroundColor: colorBySymbol[item.symbol] ?? otherColor,
+                    }}
+                  />
+                )}
                 <span className="min-w-0 flex-1 font-mono font-semibold">
                   {item.symbol}
                 </span>

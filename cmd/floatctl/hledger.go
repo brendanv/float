@@ -87,7 +87,7 @@ func runHledgerBalance(args []string) error {
 	if err != nil {
 		return err
 	}
-	report, err := c.Balances(context.Background(), *depth, query...)
+	report, err := c.Balances(context.Background(), hledger.BalanceOpts{Depth: *depth}, query...)
 	if err != nil {
 		return err
 	}

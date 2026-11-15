@@ -14,6 +14,11 @@ import (
 // it is warmed alongside the unfiltered depth-1 fetch.
 var openAccountsQuery = []string{"not:tag:" + hledger.ClosedAccountTag}
 
+// homeAccountTreeQuery is the web UI home page's account list: a valued
+// --tree report of open asset and liability accounts. Keep in sync with
+// ACCOUNT_TREE_PARAMS in web/src/pages/home.jsx.
+var homeAccountTreeQuery = append(append([]string(nil), openAccountsQuery...), "type:AL")
+
 // recentAccountsCap bounds the in-memory LRU of account names touched this
 // process lifetime, warmed alongside the fixed dataset set.
 const recentAccountsCap = 20
@@ -93,19 +98,23 @@ func (h *Handler) WarmEntries() []warm.Entry {
 			return err
 		}},
 		{Name: "balances", Load: func(ctx context.Context) error {
-			_, err := cachedBalances(ctx, h.cache, h.hl, 0, nil)
+			_, err := cachedBalances(ctx, h.cache, h.hl, hledger.BalanceOpts{}, nil)
 			return err
 		}},
 		{Name: "balancesvalued depth 0", Load: func(ctx context.Context) error {
-			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", 0, nil)
+			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{}, nil)
 			return err
 		}},
 		{Name: "balancesvalued depth 1", Load: func(ctx context.Context) error {
-			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", 1, nil)
+			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Depth: 1}, nil)
 			return err
 		}},
 		{Name: "balancesvalued depth 1 open", Load: func(ctx context.Context) error {
-			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", 1, openAccountsQuery)
+			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Depth: 1}, openAccountsQuery)
+			return err
+		}},
+		{Name: "balancesvalued tree open asset/liability", Load: func(ctx context.Context) error {
+			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Tree: true}, homeAccountTreeQuery)
 			return err
 		}},
 		{Name: "networth", Load: func(ctx context.Context) error {

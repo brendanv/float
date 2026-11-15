@@ -139,6 +139,10 @@ message GetBalancesRequest {
   int32 depth = 1; // 0 = no --depth flag
   repeated string query = 2;
   string value = 3; // Optional --value spec, e.g. "now,USD"; empty = raw balances
+  // --tree: include parent accounts with inclusive totals. Rows come in tree
+  // order, display_name is the leaf segment (hledger may elide a parent with a
+  // single child into "parent:child") and indent is the tree depth.
+  bool tree = 4;
 }
 
 message GetBalancesResponse {

@@ -14,6 +14,11 @@ import { PageHeader } from "../components/page-header.jsx";
 import { OPEN_ACCOUNTS_QUERY } from "@/lib/accounts";
 import { dateRangeQuery } from "@/lib/hledger-query";
 
+const SUMMARY_PARAMS = { depth: 1, value: "now,USD", query: OPEN_ACCOUNTS_QUERY };
+// Asset and liability balances of open accounts as an hledger tree, so
+// parent rows carry hledger's inclusive totals.
+const ACCOUNT_TREE_PARAMS = { value: "now,USD", tree: true, query: [...OPEN_ACCOUNTS_QUERY, "type:AL"] };
+
 export function HomePage() {
   const initial = DATE_PRESETS[0].fn();
   const [dateFrom, setDateFrom] = useState(initial.from);
@@ -21,53 +26,48 @@ export function HomePage() {
 
   const periodQuery = dateRangeQuery(dateFrom, dateTo);
 
-  const { data: accountsData, isLoading: accountsLoading, error: accountsError } = useQuery({
+  const { data: accountsData } = useQuery({
     queryKey: queryKeys.accounts(),
     queryFn: () => ledgerClient.listAccounts({}),
   });
 
   const { data: balancesData } = useQuery({
-    queryKey: queryKeys.balances({ depth: 1, value: "now,USD", query: OPEN_ACCOUNTS_QUERY }),
-    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD", query: OPEN_ACCOUNTS_QUERY }),
+    queryKey: queryKeys.balances(SUMMARY_PARAMS),
+    queryFn: () => ledgerClient.getBalances(SUMMARY_PARAMS),
   });
 
-  const { data: accountBalancesData } = useQuery({
-    queryKey: queryKeys.balances({ value: "now,USD" }),
-    queryFn: () => ledgerClient.getBalances({ value: "now,USD" }),
+  const { data: treeData, isLoading: treeLoading, error: treeError } = useQuery({
+    queryKey: queryKeys.balances(ACCOUNT_TREE_PARAMS),
+    queryFn: () => ledgerClient.getBalances(ACCOUNT_TREE_PARAMS),
   });
-
-  const balanceRows = balancesData?.report?.rows || [];
-  const allAccounts = accountsData?.accounts || [];
-  const sidebarAccounts = allAccounts.filter(
-    (a) => !a.closed && (a.type === "A" || a.type === "C" || a.type === "L"),
-  );
-  const accountBalanceRows = accountBalancesData?.report?.rows || [];
 
   return (
     <Page>
-      <PageHeader title="Home" description="Balances, account coverage, and activity for the selected period.">
-        <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
-      </PageHeader>
+      <PageHeader title="Home" description="Where your money is today, and where it went." />
 
       <DashboardGrid>
         <div className="col-span-12">
-          <BalanceSummary balanceRows={balanceRows} />
+          <BalanceSummary balanceRows={balancesData?.report?.rows || []} />
         </div>
 
-        <PageCard title="Accounts" className="col-span-12 h-full xl:col-span-4">
-          {accountsLoading && <Loading />}
-          {accountsError && <ErrorBanner error={accountsError} />}
-          {accountsData && (
-            <AccountList
-              accounts={sidebarAccounts}
-              balanceRows={accountBalanceRows}
-            />
+        <PageCard
+          title="Accounts"
+          description="Current balances"
+          className="col-span-12 h-full lg:col-span-5 xl:col-span-4"
+        >
+          {treeLoading && <Loading />}
+          {treeError && <ErrorBanner error={treeError} />}
+          {treeData && (
+            <AccountList rows={treeData.report?.rows || []} accounts={accountsData?.accounts || []} />
           )}
         </PageCard>
         <PageCard
           title="Insights"
-          description="Income and expense concentration for this period."
-          className="col-span-12 h-full xl:col-span-8"
+          description="Spending and income for the selected period."
+          action={
+            <PeriodBar dateFrom={dateFrom} dateTo={dateTo} onChange={(from, to) => { setDateFrom(from); setDateTo(to); }} />
+          }
+          className="col-span-12 h-full lg:col-span-7 xl:col-span-8"
           contentClassName="min-h-[320px]"
         >
           <InsightsChart periodQuery={periodQuery} />

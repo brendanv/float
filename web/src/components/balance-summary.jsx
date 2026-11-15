@@ -2,17 +2,9 @@ import { MetricCard } from "./page.jsx";
 import { cn } from "@/lib/utils";
 import { formatAmounts } from "../format.js";
 
-function StatItem({ title, value, valueClass }) {
-  return (
-    <MetricCard
-      title={title}
-      value={value}
-      valueClassName={valueClass}
-      className="min-w-0"
-    />
-  );
-}
-
+// BalanceSummary shows assets, liabilities and net worth. Liabilities are
+// negative in hledger; they are shown as a positive "owed" amount. Only net
+// worth is colored, since its sign is the one that carries meaning.
 export function BalanceSummary({ balanceRows, className }) {
   if (!balanceRows || balanceRows.length === 0) return null;
 
@@ -22,31 +14,33 @@ export function BalanceSummary({ balanceRows, className }) {
   const assetVal = parseFloat(assets?.amounts?.[0]?.quantity || 0);
   const liabVal = parseFloat(liabilities?.amounts?.[0]?.quantity || 0);
   const netWorth = assetVal + liabVal;
-  const netPositive = netWorth >= 0;
+  const commodity = assets?.amounts?.[0]?.commodity ?? liabilities?.amounts?.[0]?.commodity ?? "USD";
 
   return (
     <div className={cn("grid gap-6 md:grid-cols-3", className)}>
       {assets && (
-        <StatItem
+        <MetricCard
           title="Assets"
           value={formatAmounts(assets.amounts)}
-          valueClass="text-success"
+          description="Current value"
+          className="min-w-0"
         />
       )}
       {liabilities && (
-        <StatItem
+        <MetricCard
           title="Liabilities"
-          value={formatAmounts(liabilities.amounts)}
-          valueClass="text-destructive"
+          value={formatAmounts(liabilities.amounts.map((a) => ({ ...a, quantity: String(-parseFloat(a.quantity)) })))}
+          description="Owed"
+          className="min-w-0"
         />
       )}
-      {assets && liabilities && (
-        <StatItem
+      {(assets || liabilities) && (
+        <MetricCard
           title="Net Worth"
-          value={formatAmounts([
-            { commodity: assets.amounts[0].commodity, quantity: String(netWorth) },
-          ])}
-          valueClass={netPositive ? "text-success" : "text-destructive"}
+          value={formatAmounts([{ commodity, quantity: String(netWorth) }])}
+          valueClassName={netWorth >= 0 ? "text-success" : "text-destructive"}
+          description="Assets minus liabilities"
+          className="min-w-0"
         />
       )}
     </div>
