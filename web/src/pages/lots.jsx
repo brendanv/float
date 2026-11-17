@@ -11,7 +11,7 @@ import {
 import { Layers } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
-import { formatAmounts, formatCurrency, formatDate } from "../format.js";
+import { formatDate } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
@@ -19,6 +19,8 @@ import { EmptyState } from "../components/empty-state.jsx";
 import { FilterInput } from "../components/filter-input.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { Page, PageCard } from "../components/page.jsx";
+import { Amount } from "../components/amount.jsx";
+import { Account } from "../components/account.jsx";
 import {
   Table,
   TableBody,
@@ -27,20 +29,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
 
 const colHelper = createColumnHelper();
 
-function unitsText(lot) {
-  return lot.units ? formatCurrency(lot.units.quantity, lot.units.commodity) : "";
+// Lot amounts are shown without their own cost annotations: the row already
+// is the lot.
+function plain(amount) {
+  return amount ? { quantity: amount.quantity, commodity: amount.commodity } : null;
 }
 
-function unitCostText(lot) {
-  return lot.unitCost ? formatAmounts([{ ...lot.unitCost, costBasis: undefined }]) : "";
+function Units({ lot }) {
+  return lot.units ? <Amount value={plain(lot.units)} /> : null;
 }
 
-function totalCostText(lot) {
-  return formatAmounts((lot.totalCost || []).map((a) => ({ ...a, costBasis: undefined })));
+function UnitCost({ lot }) {
+  return lot.unitCost ? <Amount value={plain(lot.unitCost)} /> : null;
+}
+
+function TotalCost({ lot }) {
+  return <Amount value={(lot.totalCost || []).map(plain)} />;
 }
 
 const lotColumns = [
@@ -50,10 +57,10 @@ const lotColumns = [
     cell: ({ getValue, table }) => (
       <button
         type="button"
-        className="cursor-pointer text-left hover:underline"
+        className="cursor-pointer rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => table.options.meta.onSelectAccount(getValue())}
       >
-        {getValue()}
+        <Account name={getValue()} variant="path" />
       </button>
     ),
     sortingFn: "alphanumeric",
@@ -61,37 +68,37 @@ const lotColumns = [
   colHelper.accessor((lot) => lot.units?.commodity ?? "", {
     id: "commodity",
     header: ({ column }) => <TableSortHeader column={column}>Commodity</TableSortHeader>,
-    cell: ({ getValue }) => <span className="font-mono font-semibold">{getValue()}</span>,
+    cell: ({ getValue }) => <span className="font-mono text-code font-medium">{getValue()}</span>,
     sortingFn: "alphanumeric",
   }),
   colHelper.accessor("date", {
     id: "date",
     header: ({ column }) => <TableSortHeader column={column}>Acquired</TableSortHeader>,
-    cell: ({ getValue }) => <span className="font-mono">{formatDate(getValue())}</span>,
+    cell: ({ getValue }) => <span className="text-muted-foreground">{formatDate(getValue())}</span>,
     sortingFn: "alphanumeric",
   }),
   colHelper.accessor("label", {
     id: "label",
     header: "Label",
-    cell: ({ getValue }) => getValue() || <span className="text-muted-foreground">-</span>,
+    cell: ({ getValue }) => getValue() || <span className="text-faint">—</span>,
     enableSorting: false,
   }),
   colHelper.accessor((lot) => parseFloat(lot.units?.quantity ?? "0"), {
     id: "units",
     header: ({ column }) => <TableSortHeader column={column} align="right">Units</TableSortHeader>,
-    cell: ({ row }) => <span className="block text-right font-mono">{unitsText(row.original)}</span>,
+    cell: ({ row }) => <span className="block text-right"><Units lot={row.original} /></span>,
     meta: { headerClass: "text-right", cellClass: "text-right" },
   }),
   colHelper.accessor((lot) => parseFloat(lot.unitCost?.quantity ?? "0"), {
     id: "unitCost",
     header: ({ column }) => <TableSortHeader column={column} align="right">Unit cost</TableSortHeader>,
-    cell: ({ row }) => <span className="block text-right font-mono">{unitCostText(row.original)}</span>,
+    cell: ({ row }) => <span className="block text-right text-muted-foreground"><UnitCost lot={row.original} /></span>,
     meta: { headerClass: "text-right", cellClass: "text-right" },
   }),
   colHelper.accessor((lot) => parseFloat(lot.totalCost?.[0]?.quantity ?? "0"), {
     id: "totalCost",
     header: ({ column }) => <TableSortHeader column={column} align="right">Total cost</TableSortHeader>,
-    cell: ({ row }) => <span className="block text-right font-mono">{totalCostText(row.original)}</span>,
+    cell: ({ row }) => <span className="block text-right font-medium"><TotalCost lot={row.original} /></span>,
     meta: { headerClass: "text-right", cellClass: "text-right" },
   }),
 ];
@@ -123,7 +130,7 @@ function LotsTable({ lots }) {
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
@@ -149,32 +156,37 @@ function LotsTable({ lots }) {
         </Table>
       </div>
 
-      <div className="-mx-4 flex flex-col gap-2 sm:hidden">
+      <ul data-slot="lot-list" className="flex flex-col sm:hidden">
         {rows.map((row) => {
           const lot = row.original;
           return (
-            <Card
-              key={row.id}
-              size="sm"
-              className="cursor-pointer ring-0"
-              onClick={() => table.options.meta.onSelectAccount(lot.account)}
-            >
-              <CardContent className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">{formatDate(lot.date)}</span>
-                  <span className="font-mono text-sm font-semibold">{unitsText(lot)}</span>
-                </div>
-                <div className="truncate text-sm">{lot.account}</div>
-                {lot.label && <div className="text-xs text-muted-foreground">{lot.label}</div>}
-                <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
-                  <span>@ {unitCostText(lot)}</span>
-                  <span>{totalCostText(lot)}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <li key={row.id} className="border-b border-border last:border-b-0">
+              <button
+                type="button"
+                className="flex w-full min-w-0 flex-col gap-0.5 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => table.options.meta.onSelectAccount(lot.account)}
+              >
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="font-mono text-code font-medium">{lot.units?.commodity}</span>
+                    <Account name={lot.account} className="min-w-0 truncate text-muted-foreground" />
+                  </span>
+                  <span className="font-medium"><TotalCost lot={lot} /></span>
+                </span>
+                <span className="flex items-baseline justify-between gap-3 text-[12.5px] text-muted-foreground">
+                  <span className="min-w-0 truncate">
+                    {formatDate(lot.date)}
+                    {lot.label && <span className="text-faint"> · {lot.label}</span>}
+                  </span>
+                  <span className="whitespace-nowrap">
+                    <Units lot={lot} /> @ <UnitCost lot={lot} />
+                  </span>
+                </span>
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -192,9 +204,12 @@ export function LotsPage() {
 
   return (
     <Page>
-      <PageHeader title="Lots" description="Open lots and their cost basis." />
+      <PageHeader title="Lots" />
 
-      <PageCard>
+      <PageCard
+        title="Open lots"
+        description={data ? `${lots.length} ${lots.length === 1 ? "lot" : "lots"}` : undefined}
+      >
         <FilterInput value={filter} onChange={setFilter} />
         {isLoading && <Loading />}
         {error && <ErrorBanner error={error} />}
