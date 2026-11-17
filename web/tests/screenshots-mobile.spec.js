@@ -1,4 +1,4 @@
-import { test } from "./fixtures.js";
+import { test, expect } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -79,7 +79,9 @@ test("add transaction modal mobile with template selected", async ({ page }) => 
   await page.waitForTimeout(500);
   await page.locator('[role="dialog"] button:has-text("Mortgage Payment")').click();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "test-results/mobile-add-transaction-modal-template.png", fullPage: true });
+  // A four-posting template overflows the 80vh drawer; submit stays pinned.
+  await expect(page.locator('[role="dialog"] button[type="submit"]')).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: "test-results/mobile-add-transaction-modal-template.png", fullPage: false });
 });
 
 test("import create profile modal mobile (drawer)", async ({ page }) => {

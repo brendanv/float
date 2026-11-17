@@ -180,7 +180,9 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
       <FormField label="Tags">
         <TagEditor value={tags} onChange={setTags} />
       </FormField>
-      <FormActions>
+      {/* In the phone drawer (capped at 80vh) the submit button stays pinned
+          to the bottom of the scrolling form. */}
+      <FormActions className="max-md:sticky max-md:bottom-0 max-md:z-10 max-md:-mx-4 max-md:border-t max-md:border-border max-md:bg-popover max-md:px-4 max-md:py-3">
         <Button type="submit" isLoading={submitting} loadingText="Adding…">
           Add transaction
         </Button>
