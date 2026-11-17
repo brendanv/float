@@ -957,7 +957,7 @@ export function ImportPage() {
                       type="button"
                       onClick={() => setRuleFilter(value)}
                       className={cn(
-                        "px-3 py-1 first:rounded-l-md last:rounded-r-md transition-colors",
+                        "px-3 py-1 first:rounded-l-md last:rounded-r-md transition-colors pointer-coarse:min-h-10",
                         ruleFilter === value
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-muted",

@@ -132,7 +132,7 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange, ad
             <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
               <button
                 type="button"
-                className="rounded-sm hover:underline disabled:opacity-50"
+                className="touch-target rounded-sm hover:underline disabled:opacity-50"
                 onClick={(e) => { e.stopPropagation(); open(k, v); }}
                 disabled={isBusy}
                 title={`Edit tag "${k}"`}
@@ -144,7 +144,7 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange, ad
               ) : (
                 <button
                   type="button"
-                  className="rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
+                  className="touch-target rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
                   onClick={(e) => { e.stopPropagation(); removeTag(k); }}
                   disabled={isBusy}
                   title={`Remove tag "${k}"`}

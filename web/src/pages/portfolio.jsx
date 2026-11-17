@@ -117,7 +117,7 @@ function SortableHeader({ column, children, className }) {
   return (
     <button
       className={cn(
-        "flex items-center gap-0.5 hover:text-foreground transition-colors",
+        "touch-target flex items-center gap-0.5 hover:text-foreground transition-colors",
         className,
       )}
       onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -232,7 +232,7 @@ function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountPrefixCh
                     {sym}
                     <button
                       type="button"
-                      className="ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
+                      className="touch-target ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
                       onClick={() => removeSymbol(sym)}
                       disabled={isPending}
                     >
@@ -268,7 +268,7 @@ function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountPrefixCh
                     {prefix}
                     <button
                       type="button"
-                      className="ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
+                      className="touch-target ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
                       onClick={() => removePrefix(prefix)}
                       disabled={isPending}
                     >

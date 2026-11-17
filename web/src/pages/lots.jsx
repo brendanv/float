@@ -50,7 +50,7 @@ const lotColumns = [
     cell: ({ getValue, table }) => (
       <button
         type="button"
-        className="cursor-pointer text-left hover:underline"
+        className="touch-target cursor-pointer text-left hover:underline"
         onClick={() => table.options.meta.onSelectAccount(getValue())}
       >
         {getValue()}

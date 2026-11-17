@@ -76,7 +76,7 @@ export function Combobox({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              "flex h-8 w-full min-w-0 items-center justify-between rounded-none border border-input bg-background px-2.5 text-xs outline-offset-0 outline-none transition-colors hover:bg-background focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+              "flex h-8 pointer-coarse:min-h-10 w-full min-w-0 items-center justify-between rounded-none border border-input bg-background px-2.5 text-xs outline-offset-0 outline-none transition-colors hover:bg-background focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
               !value && "text-muted-foreground",
               className
             )}

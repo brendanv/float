@@ -309,7 +309,7 @@ export function PayeesPage() {
       <Collapsible open={payeesOpen} onOpenChange={setPayeesOpen}>
         <Card>
           <CardHeader>
-            <CollapsibleTrigger className="flex items-center gap-2 text-left">
+            <CollapsibleTrigger className="touch-target flex items-center gap-2 text-left">
               <CardTitle>Payees</CardTitle>
               <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", payeesOpen && "rotate-180")} />
             </CollapsibleTrigger>
@@ -368,7 +368,7 @@ export function PayeesPage() {
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <CollapsibleTrigger className="flex items-center gap-2 text-left">
+              <CollapsibleTrigger className="touch-target flex items-center gap-2 text-left">
                 <CardTitle>Common descriptions without a payee</CardTitle>
                 <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", descOpen && "rotate-180")} />
               </CollapsibleTrigger>

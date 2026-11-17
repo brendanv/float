@@ -9,7 +9,7 @@ export function TableSortHeader({ column, children, align = "left", className })
       type="button"
       onClick={() => column.toggleSorting(sorted === "asc")}
       className={cn(
-        "inline-flex cursor-pointer select-none items-center gap-1 rounded px-1 -mx-1 py-0.5 transition-colors hover:text-foreground",
+        "touch-target inline-flex cursor-pointer select-none items-center gap-1 rounded px-1 -mx-1 py-0.5 transition-colors hover:text-foreground",
         align === "right" && "ml-auto flex-row-reverse",
         sorted ? "text-foreground" : "text-muted-foreground",
         className,
