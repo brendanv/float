@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import {
   useReactTable,
   getCoreRowModel,
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { downloadBlob } from "@/lib/download";
 import {
   Dialog,
   DialogContent,
@@ -50,12 +51,7 @@ function ImportFileDialog({ importBatchId, open, onOpenChange }) {
   const filename = data?.filename || `${importBatchId}.csv`;
 
   function handleDownload() {
-    const url = URL.createObjectURL(new Blob([data.csvContent], { type: "text/csv" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(data.csvContent, filename, "text/csv");
   }
 
   return (
@@ -93,6 +89,11 @@ function sourceLabel(source) {
   return SOURCE_LABEL[source] ?? source;
 }
 
+// importSearch is the /transactions search that lists one import batch.
+function importSearch(importBatchId) {
+  return { importBatchId, account: "", payee: "" };
+}
+
 const colHelper = createColumnHelper();
 
 const importColumns = [
@@ -112,7 +113,18 @@ const importColumns = [
     header: ({ column }) => (
       <TableSortHeader column={column}>Source</TableSortHeader>
     ),
-    cell: ({ getValue }) => <span className="font-medium">{sourceLabel(getValue())}</span>,
+    // A real link so keyboard users can open the batch; the row click is a
+    // larger target for the same destination.
+    cell: ({ getValue, row }) => (
+      <Link
+        to="/transactions"
+        search={importSearch(row.original.importBatchId)}
+        onClick={(e) => e.stopPropagation()}
+        className="touch-target font-medium text-foreground hover:underline"
+      >
+        {sourceLabel(getValue())}
+      </Link>
+    ),
     sortingFn: "alphanumeric",
   }),
   colHelper.accessor("importBatchId", {
@@ -204,14 +216,7 @@ function ImportsTable({ imports, onViewFile }) {
                 className="cursor-pointer"
                 title="Show these transactions"
                 onClick={() =>
-                  router.navigate({
-                    to: "/transactions",
-                    search: {
-                      importBatchId: row.original.importBatchId,
-                      account: "",
-                      payee: "",
-                    },
-                  })
+                  router.navigate({ to: "/transactions", search: importSearch(row.original.importBatchId) })
                 }
               >
                 {row.getVisibleCells().map((cell) => (

@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from "@/components/ui/native-select";
 import { ChevronDown, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { downloadBlob } from "@/lib/download";
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -229,15 +230,7 @@ export function SettingsPage() {
     mutationFn: () => ledgerClient.exportJournal({}),
     onSuccess: (data) => {
       setExportError(null);
-      const blob = new Blob([data.content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = data.filename || "float-export.journal";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadBlob(data.content, data.filename || "float-export.journal", "text/plain");
     },
     onError: (err) => setExportError(err),
   });

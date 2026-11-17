@@ -188,6 +188,17 @@ test("turning on Needs review shows all dates", async ({ page }) => {
   await expect(page.getByRole("button", { name: /All time/ })).toBeVisible();
 });
 
+test("an import batch opens from the keyboard", async ({ page }) => {
+  await mockLedgerApi(page);
+  await page.goto("/#/imports");
+  const row = page.locator("tbody tr[data-slot=import-row]", { hasText: "2026-03-28-a1b2c3d4" });
+  const link = row.getByRole("link");
+  await expect(link).toHaveAttribute("href", /importBatchId=2026-03-28-a1b2c3d4/);
+  await link.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/importBatchId=2026-03-28-a1b2c3d4/);
+});
+
 test("rows group by day unless sorted by another column", async ({ page }) => {
   await mockLedgerApi(page, { transactions });
   await page.goto("/#/transactions");
