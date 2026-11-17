@@ -1,28 +1,45 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useId } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
+import { Area, CartesianGrid, ComposedChart, LabelList, Line, XAxis, YAxis, PieChart, Pie, Cell } from "recharts";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
-import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
-import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Amount } from "../components/amount.jsx";
+import { MetricHero, Page, Section } from "../components/page.jsx";
+import { Segmented } from "../components/segmented.jsx";
 import { SERIES_COLORS, foldToOther } from "@/lib/chart-colors";
 import {
+  deltaTone,
+  firstQuantity as parseAmount,
+  netWorthChanges,
+  netWorthSummary,
+  netWorthSummaryQuery,
+  netWorthTimeseriesQuery,
+  shortMonthLabel,
+  timeseriesBegin,
+} from "@/lib/net-worth.js";
+import {
+  CHART_STROKE,
+  CHART_X_AXIS,
+  CHART_Y_AXIS,
+  ChartAreaFill,
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipRow,
+  chartEndLabel,
+  compactCurrency,
 } from "@/components/ui/chart";
 
+// Net worth is ink (the primary series, with an area fill); assets and
+// liabilities take their account-type colors. Three series, so they are
+// labelled at their line ends instead of in a legend.
 const chartConfig = {
-  netWorth: { label: "Net Worth", color: "var(--chart-1)" },
-  assets: { label: "Assets", color: "var(--chart-2)" },
-  liabilities: { label: "Liabilities", color: "var(--chart-3)" },
+  netWorth: { label: "Net worth", color: "var(--foreground)" },
+  assets: { label: "Assets", color: "var(--acct-asset)" },
+  liabilities: { label: "Liabilities", color: "var(--acct-liability)" },
 };
 
 const RANGES = [
@@ -32,93 +49,71 @@ const RANGES = [
   { label: "All", months: null },
 ];
 
-function toBeginDate(months) {
-  if (!months) return "";
-  const d = new Date();
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0, 10);
-}
-
-function parseAmount(amounts) {
-  if (!amounts || amounts.length === 0) return 0;
-  return parseFloat(amounts[0].quantity) || 0;
-}
-
-function formatLabel(dateStr) {
-  if (!dateStr) return "";
-  const [year, month] = dateStr.split("-");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${months[parseInt(month, 10) - 1]} '${year.slice(2)}`;
-}
-
 function NetWorthChart({ snapshots }) {
+  const fillId = useId().replace(/:/g, "");
   const chartData = snapshots.map((s) => ({
-    date: formatLabel(s.date),
+    date: shortMonthLabel(s.date),
     netWorth: parseAmount(s.netWorth),
     assets: parseAmount(s.assets),
     liabilities: Math.abs(parseAmount(s.liabilities)),
   }));
+  const last = chartData.length - 1;
 
   return (
-    <ChartContainer config={chartConfig} className="h-80 w-full">
-      <LineChart
+    <ChartContainer config={chartConfig} className="trends-chart aspect-auto h-80 w-full">
+      <ComposedChart
         accessibilityLayer
         data={chartData}
-        margin={{ left: 12, right: 12 }}
+        margin={{ top: 8, left: 4, right: 76, bottom: 0 }}
       >
+        <ChartAreaFill id={fillId} color="var(--color-netWorth)" opacity={0.1} />
         <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          width={80}
-          tickFormatter={(v) => formatCurrency(v, "USD")}
-        />
+        <XAxis dataKey="date" {...CHART_X_AXIS} />
+        <YAxis {...CHART_Y_AXIS} tickFormatter={(v) => compactCurrency(v)} />
         <ChartTooltip
           cursor={false}
           content={
             <ChartTooltipContent
               formatter={(value, name, item) => (
-                <>
-                  <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: item.color }} />
-                  <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                    <span className="text-muted-foreground">{chartConfig[name]?.label ?? name}</span>
-                    <span className="font-mono font-medium tabular-nums">{formatCurrency(value, "USD")}</span>
-                  </div>
-                </>
+                <ChartTooltipRow color={item.color} label={chartConfig[name]?.label ?? name}>
+                  <Amount value={value} commodity="USD" />
+                </ChartTooltipRow>
               )}
             />
           }
-        />
-        <ChartLegend content={<ChartLegendContent />} />
-        <Line
-          dataKey="netWorth"
-          type="monotone"
-          stroke="var(--color-netWorth)"
-          strokeWidth={2}
-          dot={false}
-        />
-        <Line
-          dataKey="assets"
-          type="monotone"
-          stroke="var(--color-assets)"
-          strokeWidth={2}
-          dot={false}
         />
         <Line
           dataKey="liabilities"
           type="monotone"
           stroke="var(--color-liabilities)"
-          strokeWidth={2}
+          strokeWidth={CHART_STROKE}
           dot={false}
-        />
-      </LineChart>
+          isAnimationActive={false}
+        >
+          <LabelList dataKey="liabilities" content={chartEndLabel("Liabilities", "var(--color-liabilities)", last)} />
+        </Line>
+        <Line
+          dataKey="assets"
+          type="monotone"
+          stroke="var(--color-assets)"
+          strokeWidth={CHART_STROKE}
+          dot={false}
+          isAnimationActive={false}
+        >
+          <LabelList dataKey="assets" content={chartEndLabel("Assets", "var(--color-assets)", last)} />
+        </Line>
+        <Area
+          dataKey="netWorth"
+          type="monotone"
+          stroke="var(--color-netWorth)"
+          strokeWidth={CHART_STROKE}
+          fill={`url(#${fillId})`}
+          dot={false}
+          isAnimationActive={false}
+        >
+          <LabelList dataKey="netWorth" content={chartEndLabel("Net worth", "var(--color-netWorth)", last)} />
+        </Area>
+      </ComposedChart>
     </ChartContainer>
   );
 }
@@ -136,7 +131,7 @@ function ExpenseDonutChart({ expenseRows }) {
   const total = useMemo(() => categories.reduce((sum, c) => sum + c.amount, 0), [categories]);
 
   if (categories.length === 0) {
-    return <p className="text-sm text-muted-foreground">No expense data for this period.</p>;
+    return <p className="text-body text-muted-foreground">No expense data for this period.</p>;
   }
 
   const donutConfig = Object.fromEntries(
@@ -154,13 +149,10 @@ function ExpenseDonutChart({ expenseRows }) {
                 formatter={(value, name) => {
                   const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
                   return (
-                    <>
-                      <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: donutConfig[name]?.color }} />
-                      <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                        <span className="text-muted-foreground">{name}</span>
-                        <span className="font-mono font-medium tabular-nums">{formatCurrency(value, "USD")} ({pct}%)</span>
-                      </div>
-                    </>
+                    <ChartTooltipRow color={donutConfig[name]?.color} label={name}>
+                      <Amount value={value} commodity="USD" />
+                      <span className="ml-1.5 font-normal text-faint">{pct}%</span>
+                    </ChartTooltipRow>
                   );
                 }}
               />
@@ -173,8 +165,9 @@ function ExpenseDonutChart({ expenseRows }) {
             innerRadius="60%"
             outerRadius="80%"
             strokeWidth={2}
-            stroke="var(--card)"
+            stroke="var(--background)"
             paddingAngle={0}
+            isAnimationActive={false}
           >
             {categories.map((c) => (
               <Cell key={c.name} fill={c.color} />
@@ -184,14 +177,14 @@ function ExpenseDonutChart({ expenseRows }) {
       </ChartContainer>
       <div className="flex min-w-0 flex-col gap-1.5">
         {categories.map((c) => (
-          <div key={c.name} className="flex items-center gap-2 text-sm">
+          <div key={c.name} className="flex items-center gap-2">
             <div
               className="h-2.5 w-2.5 flex-shrink-0 rounded-sm"
               style={{ backgroundColor: c.color }}
             />
             <span className="min-w-0 flex-1 truncate" title={c.name}>{c.name}</span>
-            <span className="font-mono tabular-nums">{formatCurrency(c.amount, "USD")}</span>
-            <span className="w-10 text-right text-xs text-muted-foreground">
+            <Amount value={c.amount} commodity="USD" />
+            <span className="w-10 text-right text-[12px] text-faint">
               {total > 0 ? `${((c.amount / total) * 100).toFixed(0)}%` : ""}
             </span>
           </div>
@@ -204,18 +197,11 @@ function ExpenseDonutChart({ expenseRows }) {
 export function TrendsPage() {
   const [rangeIdx, setRangeIdx] = useState(0);
   const range = RANGES[rangeIdx];
-  const begin = toBeginDate(range.months);
-  const end = "";
+  const begin = timeseriesBegin(range.months);
 
-  const { data: timeseriesData, isLoading, error } = useQuery({
-    queryKey: queryKeys.netWorthTimeseries(begin),
-    queryFn: () => ledgerClient.getNetWorthTimeseries({ begin, end }),
-  });
+  const { data: timeseriesData, isLoading, error } = useQuery(netWorthTimeseriesQuery(begin));
 
-  const { data: balancesData } = useQuery({
-    queryKey: queryKeys.balances({ depth: 1, value: "now,USD" }),
-    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD" }),
-  });
+  const { data: balancesData } = useQuery(netWorthSummaryQuery());
 
   const expenseQueryParams = useMemo(() => ({
     query: begin ? ["type:X", `date:${begin}..`] : ["type:X"],
@@ -228,105 +214,66 @@ export function TrendsPage() {
   });
 
   const snapshots = timeseriesData?.snapshots || [];
-  const prev = snapshots[snapshots.length - 2];
 
-  const balanceRows = balancesData?.report?.rows || [];
-  const assetsRow = balanceRows.find((r) => r.fullName === "assets");
-  const liabilitiesRow = balanceRows.find((r) => r.fullName === "liabilities");
-  const currentNetWorth = assetsRow
-    ? parseFloat(assetsRow?.amounts?.[0]?.quantity || 0) + parseFloat(liabilitiesRow?.amounts?.[0]?.quantity || 0)
-    : null;
+  const { netWorth: currentNetWorth, commodity } = netWorthSummary(balancesData?.report);
 
-  const prevNetWorth = prev ? parseAmount(prev.netWorth) : null;
-  const monthChange = currentNetWorth !== null && prevNetWorth !== null ? currentNetWorth - prevNetWorth : null;
-
-  const currentYear = new Date().getFullYear().toString();
-  const firstThisYear = snapshots.find((s) => s.date && s.date.startsWith(currentYear));
-  const ytdChange = currentNetWorth !== null && firstThisYear
-    ? currentNetWorth - parseAmount(firstThisYear.netWorth)
-    : null;
+  const { monthChange, prevMonth, ytdChange } = netWorthChanges(snapshots, currentNetWorth);
 
   const expenseRows = expensesData?.report?.rows || [];
 
   return (
     <Page>
-      <PageHeader title="Trends" description="Net worth movement and spending mix over time.">
-        <div className="flex gap-1">
-          {RANGES.map((r, i) => (
-            <Button
-              key={r.label}
-              size="sm"
-              variant={rangeIdx === i ? "default" : "ghost"}
-              onClick={() => setRangeIdx(i)}
-            >
-              {r.label}
-            </Button>
-          ))}
-        </div>
+      <PageHeader>
+        <Segmented
+          label="Range"
+          options={RANGES.map((r, i) => ({ value: i, label: r.label }))}
+          value={rangeIdx}
+          onChange={setRangeIdx}
+        />
       </PageHeader>
 
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}
 
       {!isLoading && !error && (
-        <DashboardGrid>
-          <div className="col-span-12 md:col-span-4">
-            <MetricCard
-              title="Current Net Worth"
-              value={currentNetWorth !== null ? formatCurrency(currentNetWorth, "USD") : "—"}
-              valueClassName={currentNetWorth !== null && currentNetWorth >= 0 ? "text-success" : "text-destructive"}
-              description="Assets minus liabilities"
-            />
-          </div>
-          <div className="col-span-12 md:col-span-4">
-            <MetricCard
-              title="Change This Month"
-              value={monthChange !== null ? formatCurrency(monthChange, "USD") : "—"}
-              valueClassName={monthChange !== null && monthChange >= 0 ? "text-success" : "text-destructive"}
-              description={monthChange !== null && monthChange >= 0 ? "Up from last month" : "Down from last month"}
-            />
-          </div>
-          <div className="col-span-12 md:col-span-4">
-            <MetricCard
-              title="YTD Change"
-              value={ytdChange !== null ? formatCurrency(ytdChange, "USD") : "—"}
-              valueClassName={ytdChange !== null && ytdChange >= 0 ? "text-success" : "text-destructive"}
-              description={ytdChange !== null && ytdChange >= 0 ? "Up since Jan 1" : "Down since Jan 1"}
-            />
-          </div>
+        <>
+          <MetricHero
+            label="Net worth"
+            value={currentNetWorth === null ? <span className="text-faint">—</span> : undefined}
+            amount={currentNetWorth !== null ? { commodity, quantity: String(currentNetWorth) } : undefined}
+            tone={currentNetWorth !== null && currentNetWorth < 0 ? "below" : "ink"}
+            delta={monthChange !== null && (
+              <>
+                <Amount value={monthChange} commodity={commodity} signed />
+                {prevMonth && ` vs ${prevMonth}`}
+              </>
+            )}
+            deltaTone={deltaTone(monthChange)}
+            sub={ytdChange !== null && (
+              <><Amount value={ytdChange} commodity={commodity} signed /> this year</>
+            )}
+          />
 
-          <div className="col-span-12 xl:col-span-8">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle>Net Worth Over Time</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {snapshots.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No data available for this period.</p>
-                ) : (
-                  <NetWorthChart snapshots={snapshots} />
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          <div className="grid gap-x-12 gap-y-8 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <Section title="Over time" description={range.months ? `Last ${range.months / 12 === 1 ? "12 months" : `${range.months / 12} years`}` : "All history"} headerClassName="[&>span]:ml-auto">
+              {snapshots.length === 0 ? (
+                <p className="text-body text-muted-foreground">No data available for this period.</p>
+              ) : (
+                <NetWorthChart snapshots={snapshots} />
+              )}
+            </Section>
 
-          <div className="col-span-12 xl:col-span-4">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle>Expenses by Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {expensesLoading ? (
-                  <div className="flex h-52 items-center justify-center">
-                    <Loading />
-                  </div>
-                ) : (
-                  <ExpenseDonutChart expenseRows={expenseRows} />
-                )}
-              </CardContent>
-            </Card>
+            <Section title="Spending by category">
+              {expensesLoading ? (
+                <div className="flex h-52 items-center justify-center">
+                  <Loading />
+                </div>
+              ) : (
+                <ExpenseDonutChart expenseRows={expenseRows} />
+              )}
+            </Section>
           </div>
-        </DashboardGrid>
+        </>
       )}
     </Page>
   );

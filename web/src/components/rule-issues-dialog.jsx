@@ -4,7 +4,7 @@ import { ErrorBanner } from "./error-banner.jsx";
 import { Loading } from "./loading.jsx";
 import { EmptyState } from "./empty-state.jsx";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Notice } from "@/components/ui/alert";
 import {
   ResponsiveDialog,
   ResponsiveDialogClose,
@@ -22,10 +22,12 @@ const ISSUE_LABELS = {
   combinable: "Combinable",
 };
 
-const ISSUE_BADGE_VARIANTS = {
-  duplicate: "secondary",
-  contradiction: "destructive",
-  combinable: "outline",
+// Contradictions change outcomes (critical); duplicates are worth a look
+// (warning); combinable rules are a tidy-up suggestion (info).
+const ISSUE_NOTICE_VARIANTS = {
+  duplicate: "warning",
+  contradiction: "critical",
+  combinable: "info",
 };
 
 function ruleLabel(rule) {
@@ -70,7 +72,7 @@ export function RuleIssuesDialog({ open, onOpenChange, rules }) {
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
       <ResponsiveDialogContent className="sm:max-w-2xl">
         <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Rule Issues</ResponsiveDialogTitle>
+          <ResponsiveDialogTitle>Rule issues</ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
             Duplicate, contradictory, or combinable rules found by scanning your categorization rules.
           </ResponsiveDialogDescription>
@@ -88,39 +90,39 @@ export function RuleIssuesDialog({ open, onOpenChange, rules }) {
         )}
 
         {!loading && !error && issues && issues.length > 0 && (
-          <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
+          <div data-slot="rule-issues" className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
             {issues.map((issue, i) => (
-              <div key={i} className="flex flex-col gap-2 rounded border p-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant={ISSUE_BADGE_VARIANTS[issue.issueType] ?? "outline"}>
-                    {ISSUE_LABELS[issue.issueType] ?? issue.issueType}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {issue.ruleIds.length} rules
+              <Notice
+                key={i}
+                variant={ISSUE_NOTICE_VARIANTS[issue.issueType] ?? "info"}
+                className="items-start before:mt-1.5"
+              >
+                <span className="flex flex-col gap-1.5">
+                  <span className="flex items-baseline gap-2">
+                    <span className="font-medium">{ISSUE_LABELS[issue.issueType] ?? issue.issueType}</span>
+                    <span className="text-muted-foreground">{issue.ruleIds.length} rules</span>
                   </span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  {issue.ruleIds.map((id) => {
-                    const rule = rulesById.get(id);
-                    return (
-                      <div key={id} className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <code className="rounded bg-muted px-1.5 py-0.5 font-mono">
-                          {rule ? rule.pattern : id}
-                        </code>
-                        {rule && (
-                          <span className="text-muted-foreground">→ {ruleLabel(rule)}</span>
-                        )}
-                        {!rule && (
-                          <span className="text-muted-foreground/60">(rule no longer exists)</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                {issue.explanation && (
-                  <p className="text-xs text-muted-foreground">{issue.explanation}</p>
-                )}
-              </div>
+                  <span className="flex flex-col gap-1">
+                    {issue.ruleIds.map((id) => {
+                      const rule = rulesById.get(id);
+                      return (
+                        <span key={id} className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                          <code className="font-mono text-code">{rule ? rule.pattern : id}</code>
+                          {rule && (
+                            <span className="text-muted-foreground">→ {ruleLabel(rule)}</span>
+                          )}
+                          {!rule && (
+                            <span className="text-faint">(rule no longer exists)</span>
+                          )}
+                        </span>
+                      );
+                    })}
+                  </span>
+                  {issue.explanation && (
+                    <span className="text-muted-foreground">{issue.explanation}</span>
+                  )}
+                </span>
+              </Notice>
             ))}
           </div>
         )}
@@ -136,7 +138,7 @@ export function RuleIssuesDialog({ open, onOpenChange, rules }) {
             isLoading={loading}
             loadingText="Scanning…"
           >
-            <Sparkles data-icon="inline-start" className="size-3.5" />
+            <Sparkles data-icon="inline-start" />
             Rescan
           </Button>
         </ResponsiveDialogFooter>

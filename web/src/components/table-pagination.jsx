@@ -23,9 +23,9 @@ export function TablePagination({
   const from = pageIndex * pageSize + 1;
   const to = Math.min((pageIndex + 1) * pageSize, total);
   return (
-    <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2">
+    <div data-slot="table-pagination" className="mt-3 flex w-full flex-wrap items-center justify-between gap-2 text-control text-faint">
       <div className="flex items-center gap-2">
-        <Label className="whitespace-nowrap text-sm text-muted-foreground">
+        <Label className="whitespace-nowrap text-control font-normal text-faint">
           Rows per page:
         </Label>
         <NativeSelect
@@ -34,6 +34,7 @@ export function TablePagination({
             table.setPageSize(Number(e.target.value));
             table.setPageIndex(0);
           }}
+          size="sm"
           className="w-16"
         >
           {pageSizeOptions.map((opt) => (
@@ -44,7 +45,7 @@ export function TablePagination({
         </NativeSelect>
       </div>
       <div className="flex items-center gap-2">
-        <span className="whitespace-nowrap text-sm text-muted-foreground">
+        <span className="whitespace-nowrap tabular-nums">
           {from}–{to} of {total}
         </span>
         <Pagination>
@@ -52,7 +53,7 @@ export function TablePagination({
             <PaginationItem>
               <Button
                 aria-label="Go to previous page"
-                size="icon"
+                size="icon-sm"
                 variant="ghost"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
@@ -63,7 +64,7 @@ export function TablePagination({
             <PaginationItem>
               <Button
                 aria-label="Go to next page"
-                size="icon"
+                size="icon-sm"
                 variant="ghost"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}

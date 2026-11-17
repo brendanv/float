@@ -1,6 +1,7 @@
 // hledger query excluding postings to closed accounts (the float-closed
 // account tag, which hledger inherits to sub-accounts). Keep in sync with
-// openAccountsQuery in internal/server/ledger/warm.go (it is pre-warmed).
+// openAccountsQuery in internal/server/ledger/warm.go (pre-warmed reports
+// build on it).
 export const OPEN_ACCOUNTS_QUERY = ["not:tag:float-closed"];
 
 function normalizePrefix(prefix) {
@@ -40,4 +41,42 @@ export function filterAndSortAccountNames(accounts, { includePrefixes = [], excl
   }
 
   return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+const TYPE_BY_ROOT = {
+  assets: "asset", asset: "asset",
+  liabilities: "liability", liability: "liability",
+  income: "income", revenue: "income", revenues: "income",
+  expenses: "expense", expense: "expense",
+  equity: "equity",
+};
+
+// Credit-normal types, shown sign-flipped so balances read as owed/earned.
+export const NEGATE_TYPES = new Set(["liability", "income", "equity"]);
+
+// accountType maps an account's top-level segment to its type
+// ("assets:bank:checking" → "asset"). Unknown roots are "other".
+export function accountType(name) {
+  const root = accountName(name).split(":")[0].trim().toLowerCase();
+  return TYPE_BY_ROOT[root] ?? "other";
+}
+
+// hledger's account type codes (ListAccounts `type`): A asset, C cash,
+// L liability, R revenue, X expense, E equity, V conversion.
+const TYPE_BY_CODE = { A: "asset", C: "asset", L: "liability", R: "income", X: "expense", E: "equity", V: "equity" };
+
+// accountTypeFromCode maps a declared hledger type code to an account type,
+// or undefined when the code is missing or unknown.
+export function accountTypeFromCode(code) {
+  return TYPE_BY_CODE[String(code ?? "").toUpperCase()];
+}
+
+// splitAccount splits a full account path into its parents (with the
+// trailing colon) and its leaf: "expenses:dining:coffee" →
+// { parents: "expenses:dining:", leaf: "coffee" }.
+export function splitAccount(name) {
+  const full = accountName(name);
+  const i = full.lastIndexOf(":");
+  if (i === -1) return { parents: "", leaf: full };
+  return { parents: full.slice(0, i + 1), leaf: full.slice(i + 1) };
 }

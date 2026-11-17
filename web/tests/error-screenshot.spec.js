@@ -1,4 +1,4 @@
-import { test } from "./fixtures.js";
+import { test, expect } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 // This test deliberately makes AddTransaction fail.
@@ -46,4 +46,62 @@ test("error banner - multiline hledger error", async ({ page }) => {
   await page.waitForTimeout(800);
 
   await page.screenshot({ path: "test-results/error-banner.png", fullPage: true });
+});
+
+test("rules page - failed preview shows a critical notice", async ({ page }) => {
+  await mockLedgerApi(page);
+  await page.route("**/float.v1.LedgerService/PreviewApplyRules", (route) =>
+    route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "invalid_argument", message: "invalid rule pattern: missing closing )" }),
+    }),
+  );
+
+  await page.goto("/#/rules");
+  await page.getByRole("button", { name: "Preview Changes" }).click();
+
+  const notice = page.locator("[data-slot=preview-error]");
+  await expect(notice).toContainText("invalid rule pattern: missing closing )");
+  await expect(page.locator('[data-slot="drawer-content"]')).toHaveCount(0);
+});
+
+test("templates page - Edit on another template resets the form", async ({ page }) => {
+  await mockLedgerApi(page);
+  await page.goto("/#/templates");
+  const row = (name) => page.locator("tbody tr", { hasText: name });
+  const nameInput = page.locator("#tmpl-name");
+
+  await row("Mortgage Payment").getByRole("button", { name: /^Edit / }).click();
+  await expect(nameInput).toHaveValue("Mortgage Payment");
+  await row("Bi-weekly Paycheck").getByRole("button", { name: /^Edit / }).click();
+  await expect(nameInput).toHaveValue("Bi-weekly Paycheck");
+  await expect(page.locator("#tmpl-payee")).not.toHaveValue("Bank of America");
+});
+
+test("overview surfaces net worth and spending errors", async ({ page }) => {
+  await mockLedgerApi(page);
+  await page.route("**/float.v1.LedgerService/GetBalances", async (route) => {
+    const body = route.request().postDataJSON() || {};
+    const query = body.query || [];
+    const summary = !body.tree && body.depth === 1 && query.includes("type:AL");
+    const spending = query.includes("type:X") || query.includes("type:R");
+    if (!summary && !spending) return route.fallback();
+    await route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({
+        code: "invalid_argument",
+        message: summary ? "hledger: net worth report failed" : "hledger: spending report failed",
+      }),
+    });
+  });
+
+  await page.goto("/#/");
+  const notices = page.locator("[data-slot=alert]");
+  await expect(notices.filter({ hasText: "net worth report failed" })).toBeVisible();
+  await expect(notices.filter({ hasText: "spending report failed" })).toBeVisible();
+  await expect(page.getByText("No income or spending in this period.")).toHaveCount(0);
+  // The accounts tree still loads.
+  await expect(page.getByText("Balances today")).toBeVisible();
 });

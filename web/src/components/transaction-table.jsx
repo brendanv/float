@@ -1,874 +1,82 @@
-import { useState, useMemo, useEffect } from "react";
-import { AddTransactionModal } from "./add-transaction-modal.jsx";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
   getPaginationRowModel,
   getExpandedRowModel,
   getSortedRowModel,
-  createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { Check, Trash2, X, Scale, Copy } from "lucide-react";
-import { ledgerClient } from "../client.js";
-import { TagEditor } from "./tag-editor.jsx";
+import { Scale } from "lucide-react";
+import { splitAccount } from "@/lib/accounts.js";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { formatAmounts, formatCurrency, formatDate } from "../format.js";
-import { AccountInput, PostingFields, editablePostings, fieldsFromPosting, toPostingInput } from "./posting-fields.jsx";
-import { InlineEdit, inlineEditKeyHandler, useInlineEditState } from "./inline-edit.jsx";
-import { TableSortHeader } from "./table-sort-header.jsx";
-import { useNavigate } from "@tanstack/react-router";
-import { Badge } from "@/components/ui/badge";
+  accountSplit,
+  dayLabel,
+  displayAmounts,
+  isIncome,
+  registerDisplay,
+} from "@/lib/transactions.js";
+import { Amount } from "./amount.jsx";
+import { StatusMark } from "./status.jsx";
+import { TagChip, TagEditor, tagLabel } from "./tag-editor.jsx";
+import { TablePagination } from "./table-pagination.jsx";
+import { registerColumns, transactionColumns } from "./transaction-columns.jsx";
+import {
+  EditableDescriptionCell,
+  EditableDetailRow,
+  EditableOtherAccountCell,
+  StripeIndicator,
+} from "./transaction-editors.jsx";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import {
-  Form,
-  FormActions,
-  FormField,
-} from "@/components/ui/form";
-import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
-import { TablePagination } from "./table-pagination.jsx";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
-import { cn } from "@/lib/utils";
+import { cn, ON_ACCENT } from "@/lib/utils";
 
-// ── helpers ────────────────────────────────────────────────────────────────
+// ── day grouping ───────────────────────────────────────────────────────────
 
-function firstQuantity(posting) {
-  if (!posting.amounts || posting.amounts.length === 0) return 0;
-  return parseFloat(posting.amounts[0].quantity) || 0;
-}
-
-function generalDisplay(tx) {
-  const postings = tx.postings || [];
-  if (postings.length === 0) return null;
-  if (postings.length === 1) {
-    return { from: postings[0].account, to: postings[0].account, amount: formatAmounts(postings[0].amounts) };
-  }
-  if (postings.length > 2) {
-    const positives = postings.filter((p) => firstQuantity(p) > 0);
-    const negatives = postings.filter((p) => firstQuantity(p) < 0);
-    const amount = positives.length > 0 ? formatAmounts(positives[0].amounts) : formatAmounts(postings[0].amounts);
-    const from = negatives.length === 1 ? negatives[0].account : "various accounts";
-    const to = positives.length === 1 ? positives[0].account : "various accounts";
-    return { from, to, amount };
-  }
-  const neg = postings.find((p) => firstQuantity(p) < 0);
-  const pos = postings.find((p) => firstQuantity(p) > 0);
-  if (!neg || !pos) {
-    return { from: postings[0].account, to: postings[1].account, amount: formatAmounts(postings[0].amounts) };
-  }
-  return { from: neg.account, to: pos.account, amount: formatAmounts(pos.amounts) };
-}
-
-// accountSplit returns the singular from/to accounts for a transaction, or
-// flags isMultiple when either side has more than one posting and the cells
-// should be merged into a single "multiple accounts" view.
-// sideAccount returns the account of the single negative ("from") or
-// positive ("to") posting, or "" when that side has zero or several postings.
-function sideAccount(tx, side) {
-  const matching = editablePostings(tx.postings)
-    .filter((p) => side === "from" ? firstQuantity(p) < 0 : firstQuantity(p) > 0);
-  return matching.length === 1 ? matching[0].account : "";
-}
-
-function accountSplit(tx) {
-  const postings = tx.postings || [];
-  if (postings.length === 0) return { from: "", to: "", isMultiple: false };
-  if (postings.length === 1) {
-    return { from: postings[0].account, to: postings[0].account, isMultiple: false };
-  }
-  const positives = postings.filter((p) => firstQuantity(p) > 0);
-  const negatives = postings.filter((p) => firstQuantity(p) < 0);
-  if (postings.length === 2 && (negatives.length !== 1 || positives.length !== 1)) {
-    return { from: postings[0].account, to: postings[1].account, isMultiple: false };
-  }
-  if (negatives.length === 1 && positives.length === 1) {
-    return { from: negatives[0].account, to: positives[0].account, isMultiple: false };
-  }
-  return {
-    from: negatives.length === 1 ? negatives[0].account : "",
-    to: positives.length === 1 ? positives[0].account : "",
-    isMultiple: true,
-  };
-}
-
-function accountRegisterDisplay(tx, focusedAccount) {
-  const postings = tx.postings || [];
-  if (postings.length === 0) return null;
-  const focused = postings.filter((p) => p.account === focusedAccount || p.account.startsWith(focusedAccount + ":"));
-  if (focused.length === 0) {
-    return { otherAccounts: postings[0].account, amount: formatAmounts(postings[0].amounts) };
-  }
-  const others = postings.filter((p) => p.account !== focusedAccount && !p.account.startsWith(focusedAccount + ":"));
-  const otherAccounts = others.length === 0 ? focusedAccount : others.length === 1 ? others[0].account : "various accounts";
-  let amount;
-  if (focused.length === 1) {
-    amount = formatAmounts(focused[0].amounts);
-  } else {
-    const sumByCommodity = {};
-    for (const p of focused) {
-      for (const a of (p.amounts || [])) {
-        sumByCommodity[a.commodity] = (sumByCommodity[a.commodity] || 0) + (parseFloat(a.quantity) || 0);
-      }
-    }
-    amount = Object.entries(sumByCommodity).map(([c, q]) => formatCurrency(q, c)).join(", ");
-  }
-  return { otherAccounts, amount };
-}
-
-function resolveRegisterCells(row) {
-  const otherAccounts = row.otherAccounts.length === 0 ? ""
-    : row.otherAccounts.length === 1 ? row.otherAccounts[0]
-    : "various accounts";
-  const change = formatAmounts(row.change);
-  const balance = formatAmounts(row.runningTotal);
-  const changePositive = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) > 0;
-  const changeNegative = row.change.length > 0 && (parseFloat(row.change[0].quantity) || 0) < 0;
-  return { otherAccounts, change, balance, changePositive, changeNegative };
-}
-
-// ── sub-components ─────────────────────────────────────────────────────────
-
-function StatusButton({ fid, status, onStatusChange, className }) {
-  const [updating, setUpdating] = useState(false);
-  const [error, setError] = useState(null);
-
-  async function handleClick(e) {
-    e.stopPropagation();
-    if (!fid || updating) return;
-    const newStatus = status === "Cleared" ? "Pending" : "Cleared";
-    setUpdating(true);
-    setError(null);
-    try {
-      await ledgerClient.updateTransactionStatus({ fid, status: newStatus });
-      if (onStatusChange) onStatusChange();
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setUpdating(false);
-    }
-  }
-
-  const isReviewed = status === "Cleared";
-  const title = error
-    ? `Couldn't update status: ${error}`
-    : isReviewed ? "Reviewed — click to mark pending" : "Unreviewed — click to mark reviewed";
-
+function DayTitle({ date }) {
+  const { day, weekday } = dayLabel(date);
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={handleClick}
-            isLoading={updating}
-            className={cn("rounded-full", className)}
-          >
-            <Check className={error ? "text-destructive" : isReviewed ? "text-success" : "text-muted-foreground/40"} />
-          </Button>
-        }
-      />
-      <TooltipContent>{title}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function EditableDescriptionCell({ fid, description, date, postings, payee, note, onSaved }) {
-  const navigate = useNavigate();
-  const state = useInlineEditState(description);
-
-  async function save() {
-    if (state.draft.trim() === description) { state.cancel(); return; }
-    await state.run(async () => {
-      // Account-register rows don't carry postings; UpdateTransaction
-      // replaces them all, so fetch the full transaction first.
-      let fullPostings = postings;
-      if (!fullPostings) {
-        const resp = await ledgerClient.listTransactions({ query: [`code:${fid}`], limit: 1 });
-        fullPostings = resp.transactions?.[0]?.postings;
-        if (!fullPostings) throw new Error("Transaction not found");
-      }
-      await ledgerClient.updateTransaction({
-        fid,
-        description: state.draft.trim(),
-        date,
-        postings: editablePostings(fullPostings).map((p) => toPostingInput(fieldsFromPosting(p))),
-      });
-      if (onSaved) onSaved();
-    });
-  }
-
-  const display = payee ? (
     <>
-      <strong
-        className="cursor-pointer hover:underline"
-        onClick={(e) => { e.stopPropagation(); navigate({ to: "/transactions", search: { payee } }); }}
-        title={"Show all transactions for " + payee}
-      >{payee}</strong>
-      {note && <span className="text-muted-foreground"> · {note}</span>}
+      <span className="mr-1.5 text-[12.5px] font-semibold text-foreground">{day}</span>
+      {weekday}
     </>
-  ) : (
-    description
-  );
-
-  return (
-    <InlineEdit
-      display={display}
-      displayClassName="block truncate"
-      canEdit={!!fid}
-      editing={state.editing}
-      onActivate={() => state.start(description)}
-      onCancel={state.cancel}
-      onSave={save}
-      saving={state.saving}
-      error={state.error}
-      title="Click to edit description"
-      editor={
-        <Input
-          className="h-6 w-full"
-          value={state.draft}
-          onInput={(e) => state.setDraft(e.target.value)}
-          onKeyDown={inlineEditKeyHandler({ onSave: save, onCancel: state.cancel })}
-          autoFocus
-        />
-      }
-    />
   );
 }
-
-// EditableAccountSideCell handles the from/to columns in the general
-// transactions view. `side` is "from" or "to" and selects which posting on
-// the row to replace on save (the single negative or single positive
-// posting). When the row has zero or multiple postings on that side, the
-// cell is not editable and falls back to the full edit view.
-function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
-  const postings = editablePostings(tx.postings);
-  const matching = postings.filter((p) => side === "from" ? firstQuantity(p) < 0 : firstQuantity(p) > 0);
-  const account = matching.length === 1 ? matching[0].account : "";
-  const state = useInlineEditState(account);
-  const canEdit = !!tx.fid && matching.length === 1;
-
-  async function save() {
-    if (!state.draft || state.draft === account) { state.cancel(); return; }
-    const oldAccount = matching[0].account;
-    await state.run(async () => {
-      const newPostings = postings.map((p) => {
-        const f = fieldsFromPosting(p);
-        return toPostingInput(p.account === oldAccount ? { ...f, account: state.draft } : f);
-      });
-      await ledgerClient.updateTransaction({
-        fid: tx.fid,
-        description: tx.description,
-        date: tx.date,
-        postings: newPostings,
-        status: "Cleared",
-      });
-      if (onSaved) onSaved();
-    });
-  }
-
-  return (
-    <InlineEdit
-      display={account}
-      canEdit={canEdit}
-      editing={state.editing}
-      onActivate={() => state.start(account)}
-      onCancel={state.cancel}
-      onSave={save}
-      saving={state.saving}
-      error={state.error}
-      title={`${account} — click to change`}
-      displayClassName="block truncate text-sm text-muted-foreground"
-      editor={
-        <AccountInput
-          value={state.draft}
-          onChange={state.setDraft}
-          accounts={accounts}
-        />
-      }
-    />
-  );
-}
-
-function EditableOtherAccountCell({ fid, otherAccounts, accounts, onSaved }) {
-  const state = useInlineEditState("");
-  const [loading, setLoading] = useState(false);
-  const [txData, setTxData] = useState(null);
-
-  const canEdit = !!fid && otherAccounts.length === 1;
-  const displayText = otherAccounts.length === 0 ? ""
-    : otherAccounts.length === 1 ? otherAccounts[0]
-    : "various accounts";
-
-  async function activate() {
-    setLoading(true);
-    state.setError?.(null);
-    try {
-      const resp = await ledgerClient.listTransactions({ query: [`code:${fid}`], limit: 1 });
-      const tx = resp.transactions?.[0];
-      if (!tx) throw new Error("Transaction not found");
-      setTxData(tx);
-      state.start(otherAccounts[0]);
-    } catch (err) {
-      state.setError(err.message || String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function save() {
-    if (!txData || !state.draft) return;
-    await state.run(async () => {
-      const oldAccount = otherAccounts[0];
-      const newPostings = editablePostings(txData.postings).map((p) => {
-        const f = fieldsFromPosting(p);
-        return toPostingInput(p.account === oldAccount ? { ...f, account: state.draft } : f);
-      });
-      await ledgerClient.updateTransaction({
-        fid: txData.fid,
-        description: txData.description,
-        date: txData.date,
-        postings: newPostings,
-        status: "Cleared",
-      });
-      setTxData(null);
-      if (onSaved) onSaved();
-    });
-  }
-
-  function cancel() {
-    state.cancel();
-    setTxData(null);
-  }
-
-  return (
-    <InlineEdit
-      display={displayText}
-      canEdit={canEdit}
-      editing={state.editing}
-      loading={loading}
-      onActivate={activate}
-      onCancel={cancel}
-      onSave={save}
-      saving={state.saving}
-      error={state.error}
-      title={`${displayText} — click to change`}
-      displayClassName="block truncate text-sm text-muted-foreground"
-      editor={
-        <AccountInput
-          value={state.draft}
-          onChange={state.setDraft}
-          accounts={accounts}
-        />
-      }
-    />
-  );
-}
-
-function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel, inDialog = false }) {
-  const initialPostings = editablePostings(tx.postings).map(fieldsFromPosting);
-  const generatedPostings = (tx.postings || []).filter((p) => p.generated);
-  const initialTags = tx.tags || {};
-  const initialDate = tx.date;
-  const initialDescription = tx.description ?? "";
-  const [date, setDate] = useState(initialDate);
-  const [description, setDescription] = useState(initialDescription);
-  const [postings, setPostings] = useState(initialPostings);
-  const [tags, setTags] = useState(initialTags);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-
-  const isDirty = date !== initialDate
-    || description.trim() !== initialDescription
-    || JSON.stringify(postings) !== JSON.stringify(initialPostings)
-    || JSON.stringify(tags) !== JSON.stringify(initialTags);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    // Rows added with "Add posting" but left blank are dropped, as in the add form.
-    const trimmed = postings.map(toPostingInput).filter((p) => p.account);
-    const autoReview = trimmed.every((p) => !p.account.toLowerCase().includes("unknown"));
-    try {
-      await ledgerClient.updateTransaction({
-        fid: tx.fid,
-        description: description.trim(),
-        date,
-        postings: trimmed,
-        tags,
-        // The editor shows the full tag set, so an empty map means "remove
-        // them all" rather than "leave tags alone".
-        replaceTags: true,
-        status: autoReview ? "Cleared" : (tx.status ?? ""),
-      });
-      if (onSaved) onSaved();
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function cancel() {
-    setDate(initialDate);
-    setDescription(initialDescription);
-    setPostings(initialPostings);
-    setTags(initialTags);
-    setError(null);
-    if (onCancel) onCancel();
-  }
-
-  async function handleDelete() {
-    setDeleting(true);
-    try {
-      await ledgerClient.deleteTransaction({ fid: tx.fid });
-      setDeleteOpen(false);
-      if (onDeleted) onDeleted();
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  return (
-    <div
-      className={inDialog ? "pb-4" : "sticky left-0 max-w-[100cqw] p-3"}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <Form onSubmit={handleSubmit}>
-        <FormField label="Date" htmlFor={`txn-date-${tx.fid}`}>
-          <Input
-            id={`txn-date-${tx.fid}`}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </FormField>
-        <FormField label="Description" htmlFor={`txn-desc-${tx.fid}`}>
-          <Input
-            id={`txn-desc-${tx.fid}`}
-            value={description}
-            onInput={(e) => setDescription(e.target.value)}
-            placeholder="Payee | note"
-          />
-        </FormField>
-        <FormField label="Postings" error={error}>
-          <PostingFields postings={postings} onChange={setPostings} accounts={accounts} />
-          {generatedPostings.map((p, i) => (
-            <div key={i} className="mt-1 font-mono text-xs text-muted-foreground">
-              {p.account} {formatAmounts(p.amounts)} · inferred by hledger
-            </div>
-          ))}
-        </FormField>
-        <FormField label="Tags">
-          <TagEditor value={tags} onChange={setTags} />
-        </FormField>
-        <FormActions align="between">
-          <div className="flex gap-2">
-            <Button variant="outline" size={inDialog ? "sm" : "xs"} disabled={saving || deleting} onClick={() => setDuplicateOpen(true)}>
-              <Copy data-icon="inline-start" /> Duplicate
-            </Button>
-            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-              <DialogTrigger
-                render={<Button variant="destructive-ghost" size={inDialog ? "sm" : "xs"} disabled={saving || deleting} />}
-              >
-                <Trash2 data-icon="inline-start" /> Delete
-              </DialogTrigger>
-              <DialogContent showCloseButton={false}>
-                <DialogHeader>
-                  <DialogTitle>Delete transaction?</DialogTitle>
-                  <DialogDescription>
-                    This will permanently remove &ldquo;{tx.description}&rdquo; from the journal. This cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-                  <Button variant="destructive" onClick={handleDelete} isLoading={deleting}>
-                    Delete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-            <Button type="button" variant="outline" size={inDialog ? "default" : "xs"} onClick={cancel} disabled={saving || deleting}>
-              Cancel
-            </Button>
-            <Button type="submit" size={inDialog ? "default" : "xs"} disabled={!isDirty || deleting} isLoading={saving}>
-              Save
-            </Button>
-          </div>
-        </FormActions>
-      </Form>
-      {/* Rendered outside <Form>: React events bubble through portals, so a
-          nested modal's submit would also trigger this row's update. */}
-      <AddTransactionModal
-        open={duplicateOpen}
-        onOpenChange={setDuplicateOpen}
-        initialValues={{
-          description: tx.description,
-          postings: initialPostings,
-          tags: tx.tags,
-        }}
-      />
-    </div>
-  );
-}
-
-// ── stripe indicator ───────────────────────────────────────────────────────
-
-function StripeIndicator({ id }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className="inline-flex shrink-0 cursor-default items-center rounded-sm border px-1 py-0.5">
-            <svg role="img" viewBox="0 0 24 24" className="size-2.5 fill-muted-foreground" xmlns="http://www.w3.org/2000/svg">
-              <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z" />
-            </svg>
-          </span>
-        }
-      />
-      <TooltipContent>Stripe transaction: {id}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-// ── column definitions ─────────────────────────────────────────────────────
-// Cell renderers read mutable state from table.options.meta to avoid stale
-// closures when useMemo deps are unchanged between renders. The general
-// transactions table and the account-register table share one set of column
-// definitions; register-only columns are appended after the shared ones.
-
-const col = createColumnHelper();
-
-const selectColumn = col.display({
-  id: "select",
-  header: ({ table }) => {
-    const { allSelected, someSelected, toggleSelectAll } = table.options.meta;
-    return (
-      <Checkbox
-        checked={allSelected}
-        indeterminate={!allSelected && someSelected}
-        onCheckedChange={toggleSelectAll}
-        onClick={(e) => e.stopPropagation()}
-        title={allSelected ? "Deselect all" : "Select all"}
-      />
-    );
-  },
-  cell: ({ row, table }) => {
-    const { selectedFids, onSelectionChange } = table.options.meta;
-    return (
-      <span onClick={(e) => e.stopPropagation()}>
-        <Checkbox
-          checked={selectedFids?.has(row.original.fid) ?? false}
-          onCheckedChange={() => {
-            if (!row.original.fid) return;
-            const next = new Set(selectedFids);
-            if (next.has(row.original.fid)) next.delete(row.original.fid);
-            else next.add(row.original.fid);
-            onSelectionChange(next);
-          }}
-        />
-      </span>
-    );
-  },
-  meta: { headerClass: "w-8 pr-0", cellClass: "pr-0" },
-});
-
-const dateColumn = col.accessor("date", {
-  id: "date",
-  // Use original array index as a tiebreaker so that descending sort also
-  // reverses within-day order (later transactions in file = shown first).
-  sortingFn: (rowA, rowB) => {
-    const dateA = rowA.original.date;
-    const dateB = rowB.original.date;
-    if (dateA < dateB) return -1;
-    if (dateA > dateB) return 1;
-    return rowA.index - rowB.index;
-  },
-  header: ({ column }) => <TableSortHeader column={column}>Date</TableSortHeader>,
-  cell: ({ getValue }) => (
-    <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-      {formatDate(getValue())}
-    </span>
-  ),
-  meta: { headerClass: "w-24" },
-});
-
-const statusColumn = col.display({
-  id: "status",
-  header: "",
-  cell: ({ row, table }) => {
-    const { onStatusChange } = table.options.meta;
-    return <StatusButton fid={row.original.fid} status={row.original.status} onStatusChange={onStatusChange} />;
-  },
-  meta: { headerClass: "w-9", cellClass: "pr-0" },
-});
-
-// Revealed on row hover (or keyboard focus) on devices that can hover, so
-// untagged rows don't each carry a "+ Tag" button. Touch devices always
-// show it.
-const HOVER_REVEAL =
-  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 focus-visible:opacity-100";
-
-// Description cell: the (inline-editable) description, then the tags. Tags
-// use the inline editor when the row has a fid and fall back to a static
-// badge list otherwise.
-const descriptionColumn = col.accessor((tx) => tx.description, {
-  id: "description",
-  header: ({ column }) => <TableSortHeader column={column}>Description</TableSortHeader>,
-  cell: ({ row, table }) => {
-    const { onStatusChange } = table.options.meta;
-    const tx = row.original;
-    const tags = tx.tags || {};
-    const hasTags = Object.keys(tags).length > 0;
-    // Untagged rows keep the (hover-revealed) "+ Tag" button at the end of the
-    // description line; tagged rows show the tags on a second line so they
-    // never squeeze the description.
-    const tagEditor = tx.fid ? (
-      <span className="min-w-0 shrink-0" onClick={(e) => e.stopPropagation()}>
-        <TagEditor fid={tx.fid} tags={tags} onChanged={onStatusChange} addButtonClassName={HOVER_REVEAL} />
-      </span>
-    ) : hasTags && (
-      <span className="inline-flex flex-wrap gap-1">
-        {Object.entries(tags).map(([k, v]) => (
-          <Badge key={k} variant="secondary" className="text-xs">
-            {v ? `${k}:${v}` : k}
-          </Badge>
-        ))}
-      </span>
-    );
-    return (
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 flex-1">
-            <EditableDescriptionCell
-              fid={tx.fid}
-              description={tx.description}
-              date={tx.date}
-              postings={tx.postings}
-              payee={tx.payee}
-              note={tx.note}
-              onSaved={onStatusChange}
-            />
-          </span>
-          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
-          {!hasTags && tagEditor}
-        </span>
-        {hasTags && tagEditor}
-      </span>
-    );
-  },
-  meta: { cellClass: "overflow-hidden" },
-});
-
-// "From" and "To" columns for the general transactions table. Each cell is
-// inline-editable via the account typeahead when the row has exactly one
-// posting on that side. Rows with multiple postings on either side render
-// as a single merged "multiple accounts" cell (handled by TableRowGroup);
-// the sort accessor still returns a stable string so the column header
-// remains sortable.
-const fromColumn = col.accessor((tx) => accountSplit(tx).from || "", {
-  id: "from",
-  header: ({ column }) => <TableSortHeader column={column}>From</TableSortHeader>,
-  cell: ({ row, table }) => {
-    const { accounts, onStatusChange } = table.options.meta;
-    return (
-      <EditableAccountSideCell
-        tx={row.original}
-        side="from"
-        accounts={accounts}
-        onSaved={onStatusChange}
-      />
-    );
-  },
-  meta: { headerClass: "w-[18%]", cellClass: "overflow-hidden" },
-});
-
-const toColumn = col.accessor((tx) => accountSplit(tx).to || "", {
-  id: "to",
-  header: ({ column }) => <TableSortHeader column={column}>To</TableSortHeader>,
-  cell: ({ row, table }) => {
-    const { accounts, onStatusChange } = table.options.meta;
-    return (
-      <EditableAccountSideCell
-        tx={row.original}
-        side="to"
-        accounts={accounts}
-        onSaved={onStatusChange}
-      />
-    );
-  },
-  meta: { headerClass: "w-[18%]", cellClass: "overflow-hidden" },
-});
-
-const amountColumn = col.accessor(
-  (tx) => {
-    const postings = tx.postings || [];
-    if (postings.length === 0) return 0;
-    const pos = postings.find((p) => firstQuantity(p) > 0);
-    return pos ? firstQuantity(pos) : firstQuantity(postings[0]);
-  },
-  {
-    id: "amount",
-    header: ({ column }) => <TableSortHeader column={column} align="right">Amount</TableSortHeader>,
-    cell: ({ row, table }) => {
-      const { focusedAccount } = table.options.meta;
-      const tx = row.original;
-      let amount = "";
-      if (focusedAccount) {
-        const display = accountRegisterDisplay(tx, focusedAccount);
-        amount = display?.amount || "";
-      } else {
-        const display = generalDisplay(tx);
-        amount = display?.amount || "";
-      }
-      const hasAssertion = (tx.postings || []).some((p) => p.balanceAssertion);
-      return (
-        <span className="block truncate text-right font-mono text-sm tabular-nums" title={amount}>
-          {hasAssertion && (
-            <Tooltip>
-              <TooltipTrigger render={<Scale className="mr-1 inline size-3 align-[-1px] text-muted-foreground" />} />
-              <TooltipContent>Has balance assertion</TooltipContent>
-            </Tooltip>
-          )}
-          {amount}
-        </span>
-      );
-    },
-    meta: { headerClass: "w-40 text-right", cellClass: "text-right" },
-  },
-);
-
-// Register-only columns: editable Other accounts, signed Change, running
-// Balance.
-const otherAccountsColumn = col.display({
-  id: "otherAccounts",
-  header: "Other accounts",
-  cell: ({ row, table }) => {
-    const { accounts, onStatusChange } = table.options.meta;
-    const tx = row.original;
-    return (
-      <EditableOtherAccountCell
-        fid={tx.fid}
-        otherAccounts={tx.otherAccounts}
-        accounts={accounts}
-        onSaved={onStatusChange}
-      />
-    );
-  },
-  meta: { headerClass: "w-[24%]", cellClass: "overflow-hidden" },
-});
-
-const changeColumn = col.accessor(
-  (row) => (row.change?.length > 0 ? parseFloat(row.change[0].quantity) || 0 : 0),
-  {
-    id: "change",
-    header: ({ column }) => <TableSortHeader column={column} align="right">Change</TableSortHeader>,
-    cell: ({ row }) => {
-      const cells = resolveRegisterCells(row.original);
-      return (
-        <span className={cn(
-          "block truncate text-right font-mono text-sm tabular-nums",
-          cells.changePositive && "text-success",
-          cells.changeNegative && "text-destructive",
-        )} title={cells.change}>
-          {cells.change}
-        </span>
-      );
-    },
-    meta: { headerClass: "w-32 text-right", cellClass: "text-right" },
-  },
-);
-
-const balanceColumn = col.accessor(
-  (row) => (row.runningTotal?.length > 0 ? parseFloat(row.runningTotal[0].quantity) || 0 : 0),
-  {
-    id: "balance",
-    header: ({ column }) => <TableSortHeader column={column} align="right">Balance</TableSortHeader>,
-    cell: ({ row }) => {
-      const cells = resolveRegisterCells(row.original);
-      return (
-        <span className="block truncate text-right font-mono text-sm tabular-nums text-muted-foreground" title={cells.balance}>
-          {cells.balance}
-        </span>
-      );
-    },
-    meta: { headerClass: "w-32 text-right", cellClass: "text-right" },
-  },
-);
-
-const transactionColumns = [
-  selectColumn,
-  dateColumn,
-  statusColumn,
-  descriptionColumn,
-  fromColumn,
-  toColumn,
-  amountColumn,
-];
-
-const registerColumns = [
-  selectColumn,
-  dateColumn,
-  statusColumn,
-  descriptionColumn,
-  otherAccountsColumn,
-  changeColumn,
-  balanceColumn,
-];
 
 // ── main component ─────────────────────────────────────────────────────────
 
 export function TransactionTable({
   transactions,
   registerRows,
-  focusedAccount,
+  registerAccount,
   onStatusChange,
   onDeleted,
   accounts = [],
   selectedFids,
   onSelectionChange,
-  pageSize = 25,
-  hiddenColumns = [],
 }) {
   const [expanded, setExpanded] = useState({});
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 });
   const [sorting, setSorting] = useState([{ id: "date", desc: true }]);
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
   const isRegisterMode = !!registerRows;
+  // Sorted by date the list reads as days; any other sort is a flat list
+  // with a Date column.
+  const grouped = sorting[0]?.id === "date";
 
   const rows = isRegisterMode ? (registerRows || []) : (transactions || []);
 
@@ -878,22 +86,15 @@ export function TransactionTable({
 
   function toggleSelectAll() {
     if (!selectable) return;
-    if (allSelected) {
-      const next = new Set(selectedFids);
-      for (const fid of allFids) next.delete(fid);
-      onSelectionChange(next);
-    } else {
-      const next = new Set(selectedFids);
-      for (const fid of allFids) next.add(fid);
-      onSelectionChange(next);
+    const next = new Set(selectedFids);
+    for (const fid of allFids) {
+      if (allSelected) next.delete(fid);
+      else next.add(fid);
     }
+    onSelectionChange(next);
   }
 
-  const columnVisibility = useMemo(() => {
-    const vis = { select: selectable };
-    for (const col of hiddenColumns) vis[col] = false;
-    return vis;
-  }, [selectable, hiddenColumns]);
+  const columnVisibility = useMemo(() => ({ select: selectable, date: !grouped }), [selectable, grouped]);
 
   const columns = isRegisterMode ? registerColumns : transactionColumns;
 
@@ -921,7 +122,8 @@ export function TransactionTable({
       onStatusChange,
       onDeleted,
       accounts,
-      focusedAccount,
+      registerAccount,
+      isRegisterMode,
       allSelected,
       someSelected,
       toggleSelectAll,
@@ -943,18 +145,18 @@ export function TransactionTable({
 
   const pageRows = table.getRowModel().rows;
   const visibleColumnCount = table.getVisibleLeafColumns().length;
+  const startsDay = (i) => grouped && (i === 0 || pageRows[i - 1].original.date !== pageRows[i].original.date);
 
   return (
     <div>
-      {/* Desktop table */}
-      <div className="hidden overflow-x-auto [container-type:inline-size] sm:block">
-        {/* Fixed layout: Description takes the remaining width and long
-            cells truncate, so the table fits instead of scrolling sideways.
-            Below the min width it scrolls rather than crushing columns. */}
-        <Table className="w-full min-w-[44rem] table-fixed">
-          <TableHeader className="sticky top-0 z-10 bg-background">
+      {/* Desktop table. Fixed layout: Description takes the remaining width
+          and long cells truncate. Narrow widths scroll sideways; wide ones
+          don't clip, so day headers can stick to the top while scrolling. */}
+      <div className="hidden overflow-x-auto [container-type:inline-size] sm:block lg:overflow-x-visible">
+        <table data-slot="table" className="w-full min-w-[34rem] table-fixed text-body">
+          <TableHeader className="group/head [&_tr]:border-border">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
@@ -967,40 +169,44 @@ export function TransactionTable({
             ))}
           </TableHeader>
           <TableBody>
-            {pageRows.map((row) => (
-              <TableRowGroup
-                key={row.id}
-                row={row}
-                isRegisterMode={isRegisterMode}
-                selectable={selectable}
-                selectedFids={selectedFids}
-                accounts={accounts}
-                onStatusChange={onStatusChange}
-                onDeleted={onDeleted}
-                visibleColumnCount={visibleColumnCount}
-              />
+            {pageRows.map((row, i) => (
+              <Fragment key={row.id}>
+                {startsDay(i) && (
+                  <tr data-slot="day-header" className="sticky top-0 z-[1] bg-background text-[12px] text-faint shadow-[inset_0_-1px_0_var(--input)]">
+                    <td colSpan={visibleColumnCount} className="px-2 pt-5 pb-1.5">
+                      <DayTitle date={row.original.date} />
+                    </td>
+                  </tr>
+                )}
+                <TransactionRow
+                  row={row}
+                  isRegisterMode={isRegisterMode}
+                  selectable={selectable}
+                  selectedFids={selectedFids}
+                  accounts={accounts}
+                  onStatusChange={onStatusChange}
+                  onDeleted={onDeleted}
+                  visibleColumnCount={visibleColumnCount}
+                />
+              </Fragment>
             ))}
           </TableBody>
-        </Table>
+        </table>
       </div>
 
-      {/* Mobile cards */}
-      <div className="-mx-4 flex flex-col gap-2 sm:hidden">
-        {pageRows.map((row) => (
-          <MobileCard
-            key={row.id}
-            row={row}
-            isRegisterMode={isRegisterMode}
-            focusedAccount={focusedAccount}
-            selectable={selectable}
-            selectedFids={selectedFids}
-            onSelectionChange={onSelectionChange}
-            onStatusChange={onStatusChange}
-            accounts={accounts}
-            onDeleted={onDeleted}
-          />
-        ))}
-      </div>
+      <MobileList
+        pageRows={pageRows}
+        grouped={grouped}
+        isRegisterMode={isRegisterMode}
+        registerAccount={registerAccount}
+        selectable={selectable}
+        someSelected={someSelected}
+        selectedFids={selectedFids}
+        onSelectionChange={onSelectionChange}
+        onStatusChange={onStatusChange}
+        accounts={accounts}
+        onDeleted={onDeleted}
+      />
 
       <TablePagination table={table} />
     </div>
@@ -1009,49 +215,34 @@ export function TransactionTable({
 
 // ── desktop row (with optional expansion) ─────────────────────────────────
 
-function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onDeleted, visibleColumnCount }) {
+function TransactionRow({ row, isRegisterMode, selectable, selectedFids, accounts, onStatusChange, onDeleted, visibleColumnCount }) {
   const tx = row.original;
   const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
-  const split = isRegisterMode ? null : accountSplit(tx);
 
   return (
     <>
       <TableRow
-        onClick={() => { if (!isRegisterMode && tx.fid) row.toggleExpanded(); }}
+        data-slot="transaction-row"
+        data-fid={tx.fid || undefined}
+        onClick={() => { if (row.getCanExpand()) row.toggleExpanded(); }}
         className={cn(
-          "group/row",
+          "group/row border-border",
           !isRegisterMode && "cursor-pointer",
-          isSelected && "bg-primary/10 hover:bg-primary/15",
+          isSelected && cn("bg-accent hover:bg-accent", ON_ACCENT),
         )}
       >
-        {row.getVisibleCells().map((cell) => {
-          if (split?.isMultiple && cell.column.id === "from") {
-            return (
-              <TableCell
-                key={cell.id}
-                colSpan={2}
-                className="truncate text-sm italic text-muted-foreground"
-              >
-                multiple accounts
-              </TableCell>
-            );
-          }
-          if (split?.isMultiple && cell.column.id === "to") {
-            return null;
-          }
-          return (
-            <TableCell
-              key={cell.id}
-              className={cell.column.columnDef.meta?.cellClass}
-            >
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </TableCell>
-          );
-        })}
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className={cn("py-1", cell.column.columnDef.meta?.cellClass)}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
       </TableRow>
       {row.getIsExpanded() && (
-        <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={visibleColumnCount} className="p-0">
+        <TableRow className="bg-muted/40 hover:bg-muted/40">
+          <TableCell colSpan={visibleColumnCount} className="p-0 whitespace-normal">
             <EditableDetailRow
               tx={tx}
               accounts={accounts}
@@ -1066,36 +257,91 @@ function TableRowGroup({ row, isRegisterMode, selectable, selectedFids, accounts
   );
 }
 
-// ── mobile card ────────────────────────────────────────────────────────────
+// ── mobile: stacked rows grouped by day ───────────────────────────────────
 
-function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
-  const tx = row.original;
-  let amountCell = "";
-  let balanceCell = "";
-  let changePositive = false;
-  let changeNegative = false;
-  const split = isRegisterMode ? null : accountSplit(tx);
+function MobileList({ pageRows, grouped, isRegisterMode, registerAccount, selectable, someSelected, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
+  // Checkboxes would crowd 48px rows, so phones pick rows in a select mode
+  // (also on whenever something is selected, e.g. from a wider window).
+  const [selecting, setSelecting] = useState(false);
+  const showChecks = selectable && (selecting || someSelected);
 
-  if (isRegisterMode) {
-    const cells = resolveRegisterCells(tx);
-    amountCell = cells.change;
-    balanceCell = cells.balance;
-    changePositive = cells.changePositive;
-    changeNegative = cells.changeNegative;
-  } else if (focusedAccount) {
-    const display = accountRegisterDisplay(tx, focusedAccount);
-    amountCell = display?.amount || "";
-  } else {
-    const display = generalDisplay(tx);
-    amountCell = display?.amount || "";
+  function toggleSelecting() {
+    if (showChecks) {
+      setSelecting(false);
+      onSelectionChange(new Set());
+    } else {
+      setSelecting(true);
+    }
   }
 
-  const isSelected = selectable && tx.fid && selectedFids?.has(tx.fid);
-  // Outside register mode the whole card is one tap target that opens the
-  // editor; there is no inline editing on cards (small targets that each did
-  // something different were too easy to mis-tap on a phone).
+  return (
+    <div data-slot="transaction-list" className="flex flex-col sm:hidden">
+      {selectable && (
+        <div className="-mb-1 flex justify-end">
+          <Button variant="ghost" size="xs" className="text-muted-foreground" onClick={toggleSelecting}>
+            {showChecks ? "Done" : "Select"}
+          </Button>
+        </div>
+      )}
+      {pageRows.map((row, i) => {
+        const date = row.original.date;
+        const startsDay = grouped && (i === 0 || pageRows[i - 1].original.date !== date);
+        return (
+          <Fragment key={row.id}>
+            {startsDay && (
+              <div data-slot="day-header" className="pt-3 pb-1 text-[11.5px] text-faint">
+                <DayTitle date={date} />
+              </div>
+            )}
+            <MobileRow
+              row={row}
+              isRegisterMode={isRegisterMode}
+              registerAccount={registerAccount}
+              showDate={!grouped}
+              showCheck={showChecks}
+              selectedFids={selectedFids}
+              onSelectionChange={onSelectionChange}
+              onStatusChange={onStatusChange}
+              accounts={accounts}
+              onDeleted={onDeleted}
+            />
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function leaf(name) {
+  return /^\d+ accounts$/.test(name) ? name : splitAccount(name).leaf;
+}
+
+function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
+  const tx = row.original;
+  const isSelected = !!tx.fid && !!selectedFids?.has(tx.fid);
+  // Outside register mode the whole row is one tap target that opens the
+  // editor; there is no inline editing on rows (small targets that each did
+  // something different were too easy to mis-tap on a phone). In Select
+  // mode a tap toggles the row's selection instead (the checkbox is the
+  // keyboard path for that).
   const canOpen = !isRegisterMode && !!tx.fid;
+  const opensEditor = canOpen && !showCheck;
+  const togglesSelection = showCheck && !!tx.fid;
   const [editing, setEditing] = useState(false);
+
+  let amount, balance;
+  if (isRegisterMode) {
+    const { negate, changeTone, balanceTone } = registerDisplay(registerAccount);
+    const first = (amounts) => (amounts.length > 0 ? parseFloat(amounts[0].quantity) || 0 : 0);
+    const change = tx.change || [];
+    const total = tx.runningTotal || [];
+    const tone = balanceTone(first(total));
+    amount = <Amount value={change} tone={changeTone(first(change))} negate={negate} signed />;
+    balance = <Amount value={total} tone={tone} negate={negate} className={tone === "below" ? undefined : "text-muted-foreground"} />;
+  } else {
+    const income = isIncome(tx);
+    amount = <Amount value={displayAmounts(tx)} tone={income ? "inflow" : "auto"} signed={income} />;
+  }
 
   function toggleSelected() {
     if (!tx.fid) return;
@@ -1105,115 +351,117 @@ function MobileCard({ row, isRegisterMode, focusedAccount, selectable, selectedF
     onSelectionChange(next);
   }
 
+  const split = isRegisterMode ? null : accountSplit(tx);
+  const tags = Object.entries(tx.tags || {});
+  const stop = (e) => e.stopPropagation();
+
+  function handleRowClick() {
+    if (togglesSelection) toggleSelected();
+    else if (opensEditor) setEditing(true);
+  }
+
+  // Enter/Space on the row itself; keys inside nested controls (status
+  // mark, checkbox) are theirs.
+  function handleRowKeyDown(e) {
+    if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    setEditing(true);
+  }
+
   return (
     <>
-      <Card
-        size="sm"
+      <div
+        data-slot="transaction-card"
+        data-fid={tx.fid || undefined}
         className={cn(
-          "ring-0",
-          canOpen && "cursor-pointer active:bg-muted/50",
-          isSelected && "bg-primary/5 ring-1 ring-primary",
+          "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 border-t border-border py-2",
+          showCheck && "grid-cols-[auto_auto_minmax(0,1fr)_auto]",
+          (opensEditor || togglesSelection) && "cursor-pointer active:bg-muted/50",
+          opensEditor && "outline-none focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-ring",
+          isSelected && cn("-mx-2 rounded-md border-transparent bg-accent px-2", ON_ACCENT),
         )}
-        onClick={() => { if (canOpen) setEditing(true); }}
+        onClick={handleRowClick}
+        {...(opensEditor && {
+          role: "button",
+          tabIndex: 0,
+          "aria-label": `Edit ${tx.payee || tx.description}`,
+          onKeyDown: handleRowKeyDown,
+        })}
       >
-        <CardContent className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="shrink-0 font-mono text-xs text-muted-foreground">
-              {formatDate(tx.date)}
-            </span>
-            {selectable && (
-              // Padded label enlarges the tap target around the 16px box.
-              <label
-                className="-m-2.5 flex shrink-0 p-2.5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={toggleSelected}
-                  aria-label="Select transaction"
-                />
-              </label>
-            )}
-            {isRegisterMode ? (
-              <span className="flex-1 truncate font-medium" onClick={(e) => e.stopPropagation()}>
-                <EditableDescriptionCell
-                  fid={tx.fid}
-                  description={tx.description}
-                  date={tx.date}
-                  postings={tx.postings}
-                  payee={tx.payee}
-                  note={tx.note}
-                  onSaved={onStatusChange}
-                />
-              </span>
-            ) : (
-              <span className="flex-1 truncate font-medium">
-                {tx.payee ? (
-                  <>
-                    <strong>{tx.payee}</strong>
-                    {tx.note && <span className="text-muted-foreground"> · {tx.note}</span>}
-                  </>
-                ) : tx.description}
-              </span>
-            )}
-            <div className="flex shrink-0 items-center gap-1">
-              {(tx.postings || []).some((p) => p.balanceAssertion) && (
-                <Scale className="size-3 shrink-0 text-muted-foreground" />
-              )}
-              {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
-              <span className={cn(
-                "whitespace-nowrap font-mono text-sm",
-                isRegisterMode && changePositive && "text-success",
-                isRegisterMode && changeNegative && "text-destructive",
-              )}>{amountCell}</span>
-              <StatusButton
+        {showCheck && (
+          // Padded label enlarges the tap target around the 16px box.
+          <label className="row-span-2 -m-2.5 flex p-2.5" onClick={stop}>
+            <Checkbox checked={isSelected} onCheckedChange={toggleSelected} aria-label="Select transaction" />
+          </label>
+        )}
+        <span className="row-span-2 flex w-2 justify-center self-start pt-1.5">
+          <StatusMark
+            fid={tx.fid}
+            status={tx.status}
+            onStatusChange={onStatusChange}
+            className="-m-4 size-10 shrink-0"
+          />
+        </span>
+        <span className="min-w-0 truncate">
+          {isRegisterMode ? (
+            <span className="block truncate" onClick={stop}>
+              <EditableDescriptionCell
                 fid={tx.fid}
-                status={tx.status}
-                onStatusChange={onStatusChange}
-                className="-my-2 -mr-2 size-10"
+                description={tx.description}
+                date={tx.date}
+                postings={tx.postings}
+                payee={tx.payee}
+                note={tx.note}
+                onSaved={onStatusChange}
               />
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1 text-xs">
-              {isRegisterMode ? (
+            </span>
+          ) : (
+            <>
+              <span className="font-medium">{tx.payee || tx.description}</span>
+              {tx.payee && tx.note && <span className="ml-1.5 text-faint">{tx.note}</span>}
+            </>
+          )}
+        </span>
+        <span className="flex items-center justify-end gap-1 text-right">
+          {(tx.postings || []).some((p) => p.balanceAssertion) && (
+            <Scale aria-label="Has balance assertion" className="size-3 shrink-0 text-faint" />
+          )}
+          {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+          {amount}
+        </span>
+        <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-faint">
+          {showDate && <span className="shrink-0">{tx.date}</span>}
+          {isRegisterMode ? (
+            <>
+              <span className="min-w-0 shrink" onClick={stop}>
                 <EditableOtherAccountCell
                   fid={tx.fid}
                   otherAccounts={tx.otherAccounts}
                   accounts={accounts}
                   onSaved={onStatusChange}
                 />
-              ) : split?.isMultiple ? (
-                <span className="italic text-muted-foreground">multiple accounts</span>
-              ) : (
-                <span className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-                  <span>{sideAccount(tx, "from")}</span>
-                  <span className="text-muted-foreground/60">→</span>
-                  <span>{sideAccount(tx, "to")}</span>
+              </span>
+              {tx.fid && (
+                <span className="min-w-0 has-[input]:basis-full" onClick={stop}>
+                  <TagEditor quiet fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} />
                 </span>
               )}
-            </div>
-            {isRegisterMode && balanceCell && (
-              <div className="shrink-0 font-mono text-xs text-muted-foreground">{balanceCell}</div>
-            )}
-          </div>
-          {isRegisterMode && tx.fid ? (
-            <div onClick={(e) => e.stopPropagation()}>
-              <TagEditor fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} className="mt-1" />
-            </div>
-          ) : (tx.tags && Object.keys(tx.tags).length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {Object.entries(tx.tags).map(([k, v]) => (
-                <Badge key={k} variant="secondary" className="text-xs">
-                  {v ? `${k}:${v}` : k}
-                </Badge>
-              ))}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      {/* A sibling of the Card, not a child: React events bubble through
-          portals, so taps inside the drawer would otherwise reach the Card's
+            </>
+          ) : (
+            <>
+              <span className="min-w-0 truncate" title={`${split.from} → ${split.to}`}>
+                {leaf(split.from)} → {leaf(split.to)}
+              </span>
+              {tags.map(([k, v]) => <TagChip key={k} className="h-4 text-[11px]">{tagLabel(k, v)}</TagChip>)}
+            </>
+          )}
+        </span>
+        {isRegisterMode && (
+          <span className="text-right text-[11.5px]">{balance}</span>
+        )}
+      </div>
+      {/* A sibling of the row, not a child: React events bubble through
+          portals, so taps inside the drawer would otherwise reach the row's
           onClick and reopen it. */}
       {canOpen && (
         <ResponsiveDialog open={editing} onOpenChange={setEditing}>

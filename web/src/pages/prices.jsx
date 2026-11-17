@@ -14,11 +14,12 @@ import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
-import { Page, PageCard } from "../components/page.jsx";
+import { Page, Section } from "../components/page.jsx";
+import { Amount } from "../components/amount.jsx";
+import { Notice } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -31,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
+import { ROW_ACTION } from "@/lib/utils";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -48,14 +50,14 @@ const priceColumns = [
   colHelper.accessor("date", {
     id: "date",
     header: ({ column }) => <TableSortHeader column={column}>Date</TableSortHeader>,
-    cell: ({ getValue }) => <span className="font-mono">{getValue()}</span>,
+    cell: ({ getValue }) => <span className="text-muted-foreground">{getValue()}</span>,
     sortingFn: "alphanumeric",
     filterFn: "includesString",
   }),
   colHelper.accessor("commodity", {
     id: "commodity",
     header: "Commodity",
-    cell: ({ getValue }) => <span className="font-mono font-semibold">{getValue()}</span>,
+    cell: ({ getValue }) => <span className="font-mono text-code font-medium">{getValue()}</span>,
     filterFn: "includesString",
   }),
   colHelper.accessor(
@@ -63,17 +65,26 @@ const priceColumns = [
     {
       id: "price",
       header: ({ column }) => <TableSortHeader column={column} align="right">Price</TableSortHeader>,
-      cell: ({ row }) => (
-        <span className="block text-right font-mono">
-          {row.original.price?.quantity} {row.original.price?.commodity}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const p = row.original;
+        if (!p.price) return null;
+        // The raw P directive is in the title for copying into a journal.
+        return (
+          <span
+            className="block text-right"
+            title={`P ${p.date} ${p.commodity} ${p.price.quantity} ${p.price.commodity}`}
+          >
+            <Amount value={{ quantity: p.price.quantity, commodity: p.price.commodity }} />
+          </span>
+        );
+      },
       meta: { headerClass: "text-right", cellClass: "text-right" },
     },
   ),
   colHelper.display({
     id: "actions",
     header: "",
+    meta: { headerClass: "w-px", cellClass: "w-px text-right" },
     cell: ({ row, table }) => {
       const { onDelete } = table.options.meta;
       const p = row.original;
@@ -82,6 +93,8 @@ const priceColumns = [
         <Button
           variant="destructive-ghost"
           size="xs"
+          className={ROW_ACTION}
+          aria-label={`Delete ${p.commodity} price on ${p.date}`}
           onClick={() => onDelete(p.pid)}
         >
           Delete
@@ -117,8 +130,8 @@ function PriceHistoryTable({ prices, onDelete }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <Label htmlFor="filter-commodity" className="whitespace-nowrap text-sm">
-          Filter by commodity:
+        <Label htmlFor="filter-commodity" className="whitespace-nowrap text-control text-muted-foreground">
+          Commodity
         </Label>
         <Input
           id="filter-commodity"
@@ -129,14 +142,14 @@ function PriceHistoryTable({ prices, onDelete }) {
             setCommodityFilter(e.target.value);
             setPagination((p) => ({ ...p, pageIndex: 0 }));
           }}
-          className="h-8 w-40"
+          className="h-8 w-40 font-mono text-code"
         />
       </div>
 
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
+            <TableRow key={headerGroup.id} className="hover:bg-transparent">
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
@@ -157,7 +170,7 @@ function PriceHistoryTable({ prices, onDelete }) {
             </TableRow>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow key={row.id} className="group/row">
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id} className={cell.column.columnDef.meta?.cellClass}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -170,6 +183,39 @@ function PriceHistoryTable({ prices, onDelete }) {
       </Table>
 
       <TablePagination table={table} />
+    </div>
+  );
+}
+
+function priceSummary(prices) {
+  const commodities = new Set(prices.map((p) => p.commodity)).size;
+  return `${prices.length} ${prices.length === 1 ? "price" : "prices"} · ${commodities} ${commodities === 1 ? "commodity" : "commodities"}`;
+}
+
+// BackfillResults reports a backfill run: one critical Notice per failed
+// commodity and one info Notice listing what was added.
+function BackfillResults({ results }) {
+  const added = results.filter((r) => !r.error);
+  return (
+    <div data-slot="backfill-results" className="flex flex-col gap-2">
+      {results.filter((r) => r.error).map((r) => (
+        <Notice key={r.commodity} variant="critical">
+          <span className="font-mono text-code font-medium">{r.commodity}</span>:{" "}
+          {r.error.message ?? String(r.error)}
+        </Notice>
+      ))}
+      {added.length > 0 && (
+        <Notice variant="info">
+          {added.map((r, i) => (
+            <span key={r.commodity}>
+              {i > 0 && " · "}
+              <span className="font-mono text-code font-medium">{r.commodity}</span>: added {r.added}{" "}
+              {r.added === 1 ? "price" : "prices"}
+              {r.skipped > 0 && ` (${r.skipped} already existed)`}
+            </span>
+          ))}
+        </Notice>
+      )}
     </div>
   );
 }
@@ -278,9 +324,7 @@ export function PricesPage() {
 
   return (
     <Page>
-      <PageHeader title="Commodity Prices" />
-
-      <PageCard title="Add Price">
+      <Section title="Add price">
         <Form onSubmit={handleSubmit}>
           {formError && <ErrorBanner error={formError} />}
           <FormRow cols={4} className="sm:grid-cols-2 lg:grid-cols-4">
@@ -334,29 +378,14 @@ export function PricesPage() {
             </Button>
           </FormActions>
         </Form>
-      </PageCard>
+      </Section>
 
-      <PageCard title="Backfill Price History">
+      <Section title="Backfill price history" description="Daily closes from Alpha Vantage">
         <Form onSubmit={handleBackfill}>
           {backfillError && <ErrorBanner error={backfillError} />}
-          {backfillResults && (
-            <div className="flex flex-col gap-1">
-              {backfillResults.map((r) =>
-                r.error ? (
-                  <p key={r.commodity} className="text-xs text-destructive">
-                    {r.commodity}: {r.error.message ?? String(r.error)}
-                  </p>
-                ) : (
-                  <p key={r.commodity} className="text-xs text-success">
-                    {r.commodity}: added {r.added} {r.added === 1 ? "price" : "prices"}
-                    {r.skipped > 0 && ` (${r.skipped} already existed)`}.
-                  </p>
-                ),
-              )}
-            </div>
-          )}
+          {backfillResults && <BackfillResults results={backfillResults} />}
           <FormRow cols={4} className="sm:grid-cols-2 lg:grid-cols-4">
-            <FormField label="Commodity / Commodities" htmlFor="backfill-commodities">
+            <FormField label="Commodities" htmlFor="backfill-commodities">
               <Input
                 id="backfill-commodities"
                 type="text"
@@ -366,7 +395,7 @@ export function PricesPage() {
                 required
               />
             </FormField>
-            <FormField label="Start Date" htmlFor="backfill-start">
+            <FormField label="Start date" htmlFor="backfill-start">
               <Input
                 id="backfill-start"
                 type="date"
@@ -375,7 +404,7 @@ export function PricesPage() {
                 required
               />
             </FormField>
-            <FormField label="End Date" htmlFor="backfill-end">
+            <FormField label="End date" htmlFor="backfill-end">
               <Input
                 id="backfill-end"
                 type="date"
@@ -416,9 +445,12 @@ export function PricesPage() {
             </Button>
           </FormActions>
         </Form>
-      </PageCard>
+      </Section>
 
-      <PageCard title="Price History">
+      <Section
+        title="Price history"
+        description={pricesData?.prices?.length ? priceSummary(pricesData.prices) : undefined}
+      >
         {isLoading && <Loading />}
         {fetchError && <ErrorBanner error={fetchError} />}
         {pricesData && (
@@ -432,7 +464,7 @@ export function PricesPage() {
             />
           )
         )}
-      </PageCard>
+      </Section>
     </Page>
   );
 }

@@ -27,6 +27,7 @@ export const queryKeys = {
   stripeConfig:         () => ["stripeConfig"],
   stripeLinkedAccounts: () => ["stripeLinkedAccounts"],
   templates:            () => ["templates"],
+  unreviewedCount:      () => ["unreviewedCount"],
 };
 
 // Every successful floatd write bumps its cache generation, so any ledger-derived

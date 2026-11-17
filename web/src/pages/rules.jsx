@@ -10,7 +10,7 @@ import {
   createColumnHelper,
   flexRender,
 } from "@tanstack/react-table";
-import { CircleCheck, ListFilter, Sparkles } from "lucide-react";
+import { Check, ListFilter, Sparkles } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -22,15 +22,15 @@ import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Page, Section } from "../components/page.jsx";
+import { Account } from "../components/account.jsx";
+import { TagChip, tagLabel } from "../components/tag-editor.jsx";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Form, FormField } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Notice } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -48,7 +48,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { cn } from "@/lib/utils";
+import { cn, ON_ACCENT, ROW_ACTION } from "@/lib/utils";
 
 function emptyForm() {
   return { pattern: "", payee: "", account: "", matchAccount: "", priority: "0", tags: "", autoReviewed: true };
@@ -72,63 +72,75 @@ function tagsToString(tags) {
 
 const columnHelper = createColumnHelper();
 
+function Dash({ children = "—" }) {
+  return <span className="text-faint">{children}</span>;
+}
+
+// Change shows a preview's old value struck through and faint, then the new
+// value in ink.
+function Change({ from, children }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {from && <span className="text-faint line-through [&_*]:text-faint [&_span]:line-through">{from}</span>}
+      {from && <span aria-hidden="true" className="text-faint">→</span>}
+      {children}
+    </span>
+  );
+}
+
 const rulesColumns = [
   columnHelper.accessor("priority", {
     header: ({ column }) => <TableSortHeader column={column}>P</TableSortHeader>,
     cell: ({ getValue }) => (
-      <Badge variant="secondary" className="font-mono">{getValue()}</Badge>
+      <span className="block text-center tabular-nums text-muted-foreground">{getValue()}</span>
     ),
     sortingFn: "basic",
-    meta: { headerClass: "w-10 text-center" },
+    meta: { headerClass: "w-10" },
   }),
   columnHelper.accessor("pattern", {
     header: ({ column }) => <TableSortHeader column={column}>Pattern</TableSortHeader>,
     cell: ({ getValue }) => (
-      <span className="max-w-xs truncate font-mono text-xs" title={getValue()}>{getValue()}</span>
+      <span className="block max-w-xs truncate font-mono text-code" title={getValue()}>{getValue()}</span>
     ),
     filterFn: "includesString",
   }),
   columnHelper.accessor("payee", {
     header: ({ column }) => <TableSortHeader column={column}>Payee</TableSortHeader>,
     cell: ({ getValue }) =>
-      getValue() || <span className="text-muted-foreground/60">—</span>,
+      getValue() ? <span className="font-medium">{getValue()}</span> : <Dash />,
     filterFn: "includesString",
   }),
   columnHelper.accessor("account", {
     header: ({ column }) => <TableSortHeader column={column}>Account</TableSortHeader>,
-    cell: ({ getValue }) =>
-      getValue() ? (
-        <span className="font-mono text-xs">{getValue()}</span>
-      ) : (
-        <span className="text-muted-foreground/60">—</span>
-      ),
+    cell: ({ getValue }) => (getValue() ? <Account name={getValue()} variant="path" /> : <Dash />),
     filterFn: "includesString",
   }),
   columnHelper.accessor("matchAccount", {
-    header: ({ column }) => <TableSortHeader column={column}>Source Account</TableSortHeader>,
-    cell: ({ getValue }) =>
-      getValue() ? (
-        <span className="font-mono text-xs">{getValue()}</span>
-      ) : (
-        <span className="text-muted-foreground/60">all</span>
-      ),
+    header: ({ column }) => <TableSortHeader column={column}>Source account</TableSortHeader>,
+    cell: ({ getValue }) => (getValue() ? <Account name={getValue()} variant="path" /> : <Dash>all</Dash>),
     filterFn: "includesString",
   }),
   columnHelper.accessor((row) => tagsToString(row.tags), {
     id: "tags",
     header: "Tags",
-    cell: ({ getValue }) =>
-      getValue() || <span className="text-muted-foreground/60">—</span>,
-    meta: { headerClass: "text-xs" },
+    cell: ({ row }) => {
+      const entries = Object.entries(row.original.tags ?? {});
+      if (entries.length === 0) return <Dash />;
+      return (
+        <span className="flex flex-wrap gap-1">
+          {entries.map(([k, v]) => <TagChip key={k}>{tagLabel(k, v)}</TagChip>)}
+        </span>
+      );
+    },
     enableSorting: false,
   }),
   columnHelper.accessor("autoReviewed", {
-    header: "Auto-reviewed",
+    header: "Auto-review",
     cell: ({ getValue }) =>
       getValue() ? (
-        <CircleCheck className="size-4 text-success" />
+        <Check aria-label="Auto-marks reviewed" className="size-3.5 text-muted-foreground" />
       ) : (
-        <span className="text-muted-foreground/60">—</span>
+        <Dash />
       ),
     enableSorting: false,
     enableColumnFilter: false,
@@ -211,6 +223,7 @@ export function RulesPage() {
   const [applying, setApplying] = useState(false);
   const [applyProgress, setApplyProgress] = useState(null);
   const [applyResult, setApplyResult] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const saveRuleMutation = useMutation({
@@ -270,6 +283,7 @@ export function RulesPage() {
 
   async function handlePreviewApply() {
     setApplyError(null);
+    setPreviewError(null);
     setApplyLoading(true);
     setApplyPreviews(null);
     setApplyResult(null);
@@ -279,7 +293,7 @@ export function RulesPage() {
       setSelectedFids(new Set(res.previews.map((p) => p.fid)));
       setDrawerOpen(true);
     } catch (err) {
-      setApplyError(err);
+      setPreviewError(err);
     } finally {
       setApplyLoading(false);
     }
@@ -328,23 +342,20 @@ export function RulesPage() {
   const matchingRule = getMatchingRule();
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Categorization Rules" />
+    <Page>
+      <PageHeader title="Rules" />
 
-      {/* Card 1: Rule Editor */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{editingId ? "Edit Rule" : "Add Rule"}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form
-            onSubmit={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              form.handleSubmit();
-            }}
-          >
-            {formError && <ErrorBanner error={formError} />}
+      <Section title={editingId ? "Edit rule" : "Add rule"}>
+        <Form
+          className="gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            form.handleSubmit();
+          }}
+        >
+          {formError && <ErrorBanner error={formError} />}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <form.Field
               name="pattern"
               validators={{
@@ -372,199 +383,205 @@ export function RulesPage() {
                 </FormField>
               )}
             />
-            <FormRow cols={3}>
-              <form.Field
-                name="payee"
-                children={(field) => (
-                  <FormField label="Set Payee" htmlFor="rule-payee">
-                    <Input
-                      id="rule-payee"
-                      type="text"
-                      placeholder="Amazon"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                    />
-                  </FormField>
-                )}
-              />
-              <form.Field
-                name="account"
-                children={(field) => (
-                  <FormField label="Set Category Account">
-                    <AccountInput
-                      value={field.state.value}
-                      onChange={(v) => field.handleChange(v)}
-                      accounts={accountsData?.accounts ?? []}
-                      includeAccountPrefixes={["expenses", "income"]}
-                      placeholder="expenses:shopping"
-                    />
-                  </FormField>
-                )}
-              />
-              <form.Field
-                name="matchAccount"
-                children={(field) => (
-                  <FormField label="Match Source Account" hint="optional">
-                    <AccountInput
-                      value={field.state.value}
-                      onChange={(v) => field.handleChange(v)}
-                      accounts={accountsData?.accounts ?? []}
-                      includeAccountPrefixes={["assets", "liabilities"]}
-                      placeholder="all accounts"
-                      clearable
-                      clearLabel="All accounts"
-                    />
-                  </FormField>
-                )}
-              />
-            </FormRow>
-            <FormRow cols={2}>
-              <form.Field
-                name="tags"
-                children={(field) => (
-                  <FormField label="Add Tags" htmlFor="rule-tags" hint="key=val, key2">
-                    <Input
-                      id="rule-tags"
-                      type="text"
-                      className="font-mono"
-                      placeholder="source=import"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                    />
-                  </FormField>
-                )}
-              />
-              <form.Field
-                name="priority"
-                children={(field) => (
-                  <FormField label="Priority" htmlFor="rule-priority">
-                    <Input
-                      id="rule-priority"
-                      type="number"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                    />
-                  </FormField>
-                )}
-              />
-            </FormRow>
+            <form.Field
+              name="payee"
+              children={(field) => (
+                <FormField label="Set payee" htmlFor="rule-payee">
+                  <Input
+                    id="rule-payee"
+                    type="text"
+                    placeholder="Amazon"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                </FormField>
+              )}
+            />
+            <form.Field
+              name="account"
+              children={(field) => (
+                <FormField label="Set category account">
+                  <AccountInput
+                    value={field.state.value}
+                    onChange={(v) => field.handleChange(v)}
+                    accounts={accountsData?.accounts ?? []}
+                    includeAccountPrefixes={["expenses", "income"]}
+                    placeholder="expenses:shopping"
+                  />
+                </FormField>
+              )}
+            />
+            <form.Field
+              name="matchAccount"
+              children={(field) => (
+                <FormField label="Match source account" hint="optional">
+                  <AccountInput
+                    value={field.state.value}
+                    onChange={(v) => field.handleChange(v)}
+                    accounts={accountsData?.accounts ?? []}
+                    includeAccountPrefixes={["assets", "liabilities"]}
+                    placeholder="all accounts"
+                    clearable
+                    clearLabel="All accounts"
+                  />
+                </FormField>
+              )}
+            />
+          </div>
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
+            <form.Field
+              name="tags"
+              children={(field) => (
+                <FormField label="Add tags" htmlFor="rule-tags" hint="key=val, key2" className="w-full sm:w-64">
+                  <Input
+                    id="rule-tags"
+                    type="text"
+                    className="font-mono"
+                    placeholder="source=import"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                </FormField>
+              )}
+            />
+            <form.Field
+              name="priority"
+              children={(field) => (
+                <FormField label="Priority" htmlFor="rule-priority" className="w-24">
+                  <Input
+                    id="rule-priority"
+                    type="number"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                </FormField>
+              )}
+            />
             <form.Field
               name="autoReviewed"
               children={(field) => (
-                <div className="flex items-center gap-2">
+                <div className="flex h-8 items-center gap-2">
                   <Checkbox
                     id="rule-auto-reviewed"
                     checked={field.state.value}
                     onCheckedChange={(v) => field.handleChange(v)}
                   />
-                  <Label htmlFor="rule-auto-reviewed">Auto-mark as reviewed on import</Label>
+                  <Label htmlFor="rule-auto-reviewed" className="font-normal">Auto-mark as reviewed on import</Label>
                 </div>
               )}
             />
             <form.Subscribe
               selector={(state) => state.canSubmit}
               children={(canSubmit) => (
-                <FormActions align={editingId ? "between" : "end"}>
+                <div className="ml-auto flex items-center gap-2">
                   {editingId && (
-                    <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
+                    <Button type="button" variant="ghost" onClick={cancelEdit}>
                       Cancel
                     </Button>
                   )}
                   <Button
                     type="submit"
-                    size="sm"
                     disabled={!canSubmit}
                     isLoading={saveRuleMutation.isPending}
                     loadingText="Saving…"
                   >
-                    {editingId ? "Update Rule" : "Add Rule"}
+                    {editingId ? "Update rule" : "Add rule"}
                   </Button>
-                </FormActions>
+                </div>
               )}
             />
-          </Form>
-        </CardContent>
-      </Card>
-
-      {/* Card 2: Rules list + Apply section */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle>Rules</CardTitle>
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-              <Input
-                type="text"
-                placeholder="Filter rules…"
-                className="h-8 w-full min-w-0 sm:w-48"
-                value={globalFilter ?? ""}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setWizardOpen(true)}
-              >
-                <Sparkles data-icon="inline-start" className="size-3.5" />
-                Suggest Rules
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIssuesDialogOpen(true)}
-                disabled={rules.length < 2}
-              >
-                <Sparkles data-icon="inline-start" className="size-3.5" />
-                Find Issues
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePreviewApply}
-                isLoading={applyLoading}
-                loadingText="Previewing…"
-              >
-                Preview Changes
-              </Button>
-            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {rulesLoading && <Loading />}
-          {rulesError && <ErrorBanner error={rulesError} />}
-          {rulesData && rules.length === 0 && (
-            <EmptyState
-              icon={ListFilter}
-              title="No rules yet"
-              description="Add one above to start automatically categorizing transactions during import."
+        </Form>
+      </Section>
+
+      <Section
+        title="Rules"
+        description={rules.length > 0 ? rules.length : null}
+        action={
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+            <Input
+              type="text"
+              placeholder="Filter rules…"
+              aria-label="Filter rules"
+              className="h-7 w-full sm:w-48"
+              value={globalFilter ?? ""}
+              onChange={(e) => setGlobalFilter(e.target.value)}
             />
-          )}
-          {rulesData && rules.length > 0 && (
-            <>
-              <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <TableHead key={header.id}>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} className={cn(editingId === row.original.id && "bg-primary/10")}>
+            <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
+              <Sparkles data-icon="inline-start" />
+              Suggest Rules
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIssuesDialogOpen(true)}
+              disabled={rules.length < 2}
+            >
+              <Sparkles data-icon="inline-start" />
+              Find Issues
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviewApply}
+              isLoading={applyLoading}
+              loadingText="Previewing…"
+            >
+              Preview Changes
+            </Button>
+          </div>
+        }
+      >
+        {applyResult !== null && (
+          <Notice variant="info">Applied changes to {applyResult} transaction(s).</Notice>
+        )}
+        {/* A failed preview never opens the drawer, so its error shows here. */}
+        {previewError && (
+          <Notice variant="critical" data-slot="preview-error">
+            Couldn&rsquo;t preview changes: {(previewError.message || String(previewError)).replace(/^\[[^\]]+\]\s*/, "")}
+          </Notice>
+        )}
+        {rulesLoading && <Loading />}
+        {rulesError && <ErrorBanner error={rulesError} />}
+        {rulesData && rules.length === 0 && (
+          <EmptyState
+            icon={ListFilter}
+            title="No rules yet"
+            description="Add one above to start automatically categorizing transactions during import."
+          />
+        )}
+        {rulesData && rules.length > 0 && (
+          <>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id} className={header.column.columnDef.meta?.headerClass}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => {
+                  const editing = editingId === row.original.id;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={editing ? "selected" : undefined}
+                      className={cn("group/row", editing && cn("bg-accent hover:bg-accent data-[state=selected]:bg-accent", ON_ACCENT))}
+                    >
                       {row.getVisibleCells().map((cell) =>
                         cell.column.id === "actions" ? (
-                          <TableCell key={cell.id}>
-                            <div className="flex gap-1">
+                          <TableCell key={cell.id} className="py-1">
+                            <div className={cn("flex justify-end gap-1", !editing && ROW_ACTION)}>
                               <Button variant="ghost" size="xs" onClick={() => startEdit(row.original)}>
                                 Edit
                               </Button>
@@ -578,49 +595,43 @@ export function RulesPage() {
                             </div>
                           </TableCell>
                         ) : (
-                          <TableCell key={cell.id}>
+                          <TableCell key={cell.id} className="py-1">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </TableCell>
                         )
                       )}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </div>
-              <TablePagination table={table} pageSizeOptions={[5, 10, 25, 50]} />
-            </>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <TablePagination table={table} pageSizeOptions={[5, 10, 25, 50]} />
+          </>
+        )}
+        <div data-slot="rule-test" className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-3">
+          <Label htmlFor="rule-test-desc" className="font-normal whitespace-nowrap text-muted-foreground">
+            Test a description
+          </Label>
+          <Input
+            id="rule-test-desc"
+            type="text"
+            className="min-w-0 flex-1 basis-56 font-mono"
+            placeholder="AMAZON.COM PURCHASE"
+            value={testDesc}
+            onChange={(e) => setTestDesc(e.target.value)}
+          />
+          {testDesc && (
+            matchingRule ? (
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-accent px-2 py-0.5 text-control">
+                <span className="text-muted-foreground">Matches</span>
+                <span className="font-medium">{matchingRule.payee || matchingRule.account}</span>
+              </span>
+            ) : (
+              <span className="shrink-0 text-control text-faint">No match</span>
+            )
           )}
-          <Separator className="my-4" />
-          <div className="flex items-center gap-3">
-            <span className="whitespace-nowrap text-sm text-muted-foreground">Test description:</span>
-            <Input
-              type="text"
-              className="flex-1 font-mono"
-              placeholder="AMAZON.COM PURCHASE"
-              value={testDesc}
-              onChange={(e) => setTestDesc(e.target.value)}
-            />
-            {testDesc && (
-              matchingRule ? (
-                <Badge className="shrink-0 bg-success text-success-foreground">
-                  {matchingRule.payee || matchingRule.account}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="shrink-0">No match</Badge>
-              )
-            )}
-          </div>
-          {applyResult !== null && (
-            <Alert className="mt-3">
-              <CircleCheck className="size-4 text-success" />
-              <AlertDescription>
-                Applied changes to {applyResult} transaction(s).
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      </Section>
 
       <SuggestRulesWizard
         open={wizardOpen}
@@ -652,9 +663,10 @@ export function RulesPage() {
               <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="hover:bg-transparent">
                     <TableHead>
                       <Checkbox
+                        aria-label="Select all"
                         checked={selectedFids.size === applyPreviews.length}
                         onCheckedChange={() => {
                           if (selectedFids.size === applyPreviews.length) {
@@ -674,41 +686,34 @@ export function RulesPage() {
                 <TableBody>
                   {applyPreviews.map((p) => (
                     <TableRow key={p.fid}>
-                      <TableCell>
+                      <TableCell className="py-1">
                         <Checkbox
+                          aria-label={`Apply to ${p.description}`}
                           checked={selectedFids.has(p.fid)}
                           onCheckedChange={() => toggleFid(p.fid)}
                         />
                       </TableCell>
-                      <TableCell>{p.description}</TableCell>
-                      <TableCell className="text-xs">
+                      <TableCell className="py-1">{p.description}</TableCell>
+                      <TableCell className="py-1">
                         {p.newAccount ? (
-                          <span>
-                            <span className="text-muted-foreground/60 line-through">{p.currentAccount}</span>
-                            {" → "}
-                            <span className="text-success">{p.newAccount}</span>
-                          </span>
+                          <Change from={p.currentAccount ? <Account name={p.currentAccount} variant="path" /> : null}>
+                            <Account name={p.newAccount} variant="path" />
+                          </Change>
                         ) : (
-                          <span className="text-muted-foreground/60">—</span>
+                          <Dash />
                         )}
                       </TableCell>
-                      <TableCell className="text-xs">
+                      <TableCell className="py-1">
                         {p.newPayee ? (
-                          <span>
-                            <span className="text-muted-foreground/60 line-through">{p.currentPayee}</span>
-                            {" → "}
-                            <span className="text-success">{p.newPayee}</span>
-                          </span>
+                          <Change from={p.currentPayee}>
+                            <span className="font-medium">{p.newPayee}</span>
+                          </Change>
                         ) : (
-                          <span className="text-muted-foreground/60">—</span>
+                          <Dash />
                         )}
                       </TableCell>
-                      <TableCell className="text-xs">
-                        {p.willMarkReviewed ? (
-                          <span className="text-success">Will mark reviewed</span>
-                        ) : (
-                          <span className="text-muted-foreground/60">—</span>
-                        )}
+                      <TableCell className="py-1 text-muted-foreground">
+                        {p.willMarkReviewed ? "Will mark reviewed" : <Dash />}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -740,6 +745,6 @@ export function RulesPage() {
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
-    </div>
+    </Page>
   );
 }

@@ -39,7 +39,7 @@ export function InlineEdit({
   if (loading) {
     return (
       <span className="inline-flex items-center">
-        <Loader2 className="size-3 animate-spin" />
+        <Loader2 className="size-3 animate-spin text-faint" />
       </span>
     );
   }
@@ -57,6 +57,7 @@ export function InlineEdit({
           onClick={(e) => { e.stopPropagation(); onSave(); }}
           disabled={saving}
           title="Save"
+          aria-label="Save"
         >
           {saving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
         </Button>
@@ -66,11 +67,12 @@ export function InlineEdit({
           onClick={(e) => { e.stopPropagation(); onCancel(); }}
           disabled={saving}
           title="Cancel"
+          aria-label="Cancel"
         >
           <X className="size-3" />
         </Button>
         {error && (
-          <span className="basis-full text-[11px] leading-snug text-destructive">
+          <span className="basis-full text-[11px] leading-snug text-below">
             {error}
           </span>
         )}
@@ -86,7 +88,7 @@ export function InlineEdit({
     <span
       onClick={(e) => { e.stopPropagation(); onActivate?.(); }}
       className={cn(
-        "cursor-text decoration-dotted hover:underline",
+        "cursor-text rounded-sm decoration-faint decoration-dotted underline-offset-3 hover:underline",
         displayClassName,
       )}
       title={title}

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Check, Loader2, Plus, X } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { inlineEditKeyHandler } from "./inline-edit.jsx";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -38,13 +37,38 @@ function TagForm({ draft, setDraft, onSave, onCancel, working, saveTitle }) {
   );
 }
 
+// tagLabel is how a tag reads in lists: "#key" or "#key:value".
+export function tagLabel(key, value) {
+  return value ? `#${key}:${value}` : `#${key}`;
+}
+
+// TagChip is the quiet tag chip (sunken fill, 4px radius, ink-2).
+export function TagChip({ className, ...props }) {
+  return (
+    <span
+      data-slot="tag"
+      className={cn(
+        "inline-flex h-[18px] max-w-full shrink-0 items-center whitespace-nowrap rounded-sm bg-muted px-1.5 text-[11.5px] leading-none text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+// In quiet mode (dense rows) the remove button shows on chip hover/focus on
+// devices that can hover; touch devices always show it.
+const QUIET_REMOVE =
+  "[@media(hover:hover)]:hidden [@media(hover:hover)]:group-hover/tag:inline-flex [@media(hover:hover)]:group-focus-within/tag:inline-flex";
+
 // TagEditor edits a transaction's tags. In immediate-save mode (`fid` set)
 // each add/remove/edit fires its own bulkEditTransactions call. In controlled
 // mode (`value`/`onChange` set) edits only update local state so they can
 // be saved together with other field changes (or submitted as part of a
 // new transaction).
 // addButtonClassName styles the "+ Tag" button (e.g. to reveal it on hover).
-export function TagEditor({ fid, tags, onChanged, className, value, onChange, addButtonClassName }) {
+// quiet: dense-row mode (one line, remove buttons revealed on hover).
+export function TagEditor({ fid, tags, onChanged, className, value, onChange, addButtonClassName, quiet = false }) {
   const controlled = onChange != null;
   const currentTags = controlled ? (value || {}) : (tags || {});
   // null: form closed. "": adding a new tag. "<key>": editing that tag.
@@ -124,35 +148,39 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange, ad
 
   return (
     <div className={className}>
-      <div className="flex flex-wrap items-center gap-1">
+      <div className={cn("flex items-center gap-1", quiet ? "min-w-0" : "flex-wrap")}>
         {Object.entries(currentTags).map(([k, v]) =>
           editing === k ? (
             <TagForm key={k} draft={draft} setDraft={setDraft} onSave={save} onCancel={close} working={working} saveTitle="Save tag" />
           ) : (
-            <Badge key={k} variant="secondary" className="text-xs gap-1 pr-1">
+            <TagChip key={k} className="group/tag gap-0.5 pr-0.5">
               <button
                 type="button"
-                className="touch-target rounded-sm hover:underline disabled:opacity-50"
+                className="touch-target rounded-[3px] outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 onClick={(e) => { e.stopPropagation(); open(k, v); }}
                 disabled={isBusy}
                 title={`Edit tag "${k}"`}
               >
-                {v ? `${k}:${v}` : k}
+                {tagLabel(k, v)}
               </button>
               {removingKey === k ? (
                 <Loader2 className="size-2.5 animate-spin" />
               ) : (
                 <button
                   type="button"
-                  className="touch-target rounded-sm p-0.5 hover:bg-foreground/20 disabled:opacity-50"
+                  className={cn(
+                    "touch-target rounded-[3px] p-0.5 outline-none hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                    quiet && QUIET_REMOVE,
+                  )}
                   onClick={(e) => { e.stopPropagation(); removeTag(k); }}
                   disabled={isBusy}
                   title={`Remove tag "${k}"`}
+                  aria-label={`Remove tag "${k}"`}
                 >
                   <X className="size-2.5" />
                 </button>
               )}
-            </Badge>
+            </TagChip>
           ),
         )}
         {editing === "" ? (
@@ -162,7 +190,7 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange, ad
             type="button"
             variant="ghost"
             size="xs"
-            className={cn("text-muted-foreground", addButtonClassName)}
+            className={cn("text-muted-foreground", quiet && "h-[18px] px-1.5 text-[11.5px]", addButtonClassName)}
             onClick={(e) => { e.stopPropagation(); open(""); }}
             disabled={isBusy || editing !== null}
           >

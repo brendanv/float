@@ -9,8 +9,8 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { ExternalLink, Sparkles, ChevronDown, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowUpRight, Sparkles, ChevronDown, Users } from "lucide-react";
+import { cn, ROW_ACTION } from "@/lib/utils";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -18,9 +18,9 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
+import { Page, Section } from "../components/page.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   Table,
@@ -34,7 +34,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
+import { dayLabel } from "@/lib/transactions.js";
+
+// SectionToggle is a collapsible section heading: the title plus a chevron.
+function SectionToggle({ open, children }) {
+  return (
+    <CollapsibleTrigger className="touch-target inline-flex items-center gap-1.5 rounded-sm text-left">
+      {children}
+      <ChevronDown className={cn("size-3.5 shrink-0 text-faint transition-transform duration-200", !open && "-rotate-90")} />
+    </CollapsibleTrigger>
+  );
+}
+
+// DataTable renders a TanStack table with the shared dense table styles.
+function DataTable({ table }) {
+  return (
+    <Table>
+      <TableHeader>
+        {table.getHeaderGroups().map((hg) => (
+          <TableRow key={hg.id} className="hover:bg-transparent">
+            {hg.headers.map((header) => (
+              <TableHead key={header.id} className={header.column.columnDef.meta?.headerClass}>
+                {header.isPlaceholder
+                  ? null
+                  : flexRender(header.column.columnDef.header, header.getContext())}
+              </TableHead>
+            ))}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {table.getRowModel().rows.map((row) => (
+          <TableRow key={row.id} className="group/row">
+            {row.getVisibleCells().map((cell) => (
+              <TableCell key={cell.id} className={cn("py-1", cell.column.columnDef.meta?.cellClass)}>
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
 
 export function PayeesPage() {
   const navigate = useNavigate();
@@ -85,6 +127,7 @@ export function PayeesPage() {
         accessorKey: "name",
         header: ({ column }) => <TableSortHeader column={column}>Payee</TableSortHeader>,
         cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
+        meta: { cellClass: "w-full" },
       },
       {
         id: "actions",
@@ -94,18 +137,17 @@ export function PayeesPage() {
           <div className="flex justify-end">
             <Button
               variant="ghost"
-              size="sm"
-              className="gap-1.5"
+              size="xs"
+              className={cn("text-muted-foreground", ROW_ACTION)}
               onClick={() =>
                 navigate({ to: "/transactions", search: { payee: row.original.name } })
               }
             >
-              <ExternalLink className="size-3.5" />
               View transactions
+              <ArrowUpRight data-icon="inline-end" />
             </Button>
           </div>
         ),
-        meta: { headerClass: "w-44" },
       },
     ],
     [navigate],
@@ -133,17 +175,21 @@ export function PayeesPage() {
   const descRows = useMemo(() => {
     const map = new Map();
     for (const tx of txData?.transactions ?? []) {
-      if (!map.has(tx.description)) map.set(tx.description, { fids: [], hasUncategorized: false });
+      if (!map.has(tx.description)) {
+        map.set(tx.description, { fids: [], hasUncategorized: false, lastSeen: "" });
+      }
       const entry = map.get(tx.description);
       entry.fids.push(tx.fid);
+      if (tx.date > entry.lastSeen) entry.lastSeen = tx.date;
       if (!entry.hasUncategorized) {
         entry.hasUncategorized = (tx.postings ?? []).some((p) => p.account === "expenses:unknown");
       }
     }
-    return [...map.entries()].map(([description, { fids, hasUncategorized }]) => ({
+    return [...map.entries()].map(([description, { fids, hasUncategorized, lastSeen }]) => ({
       description,
       fids,
       count: fids.length,
+      lastSeen,
       hasUncategorized,
     }));
   }, [txData]);
@@ -201,14 +247,28 @@ export function PayeesPage() {
         id: "description",
         accessorKey: "description",
         header: ({ column }) => <TableSortHeader column={column}>Description</TableSortHeader>,
-        cell: ({ getValue }) => <span className="font-mono text-sm">{getValue()}</span>,
+        cell: ({ getValue }) => (
+          <span className="block max-w-[28rem] truncate" title={getValue()}>{getValue()}</span>
+        ),
+        meta: { cellClass: "w-full" },
       },
       {
         id: "count",
         accessorKey: "count",
-        header: ({ column }) => <TableSortHeader column={column}>Count</TableSortHeader>,
-        cell: ({ getValue }) => <Badge variant="secondary">{getValue()}</Badge>,
-        meta: { headerClass: "w-28" },
+        header: ({ column }) => <TableSortHeader column={column} align="right">Count</TableSortHeader>,
+        cell: ({ getValue }) => <span className="block text-right tabular-nums">{getValue()}</span>,
+        meta: { headerClass: "text-right" },
+      },
+      {
+        id: "lastSeen",
+        accessorKey: "lastSeen",
+        header: ({ column }) => <TableSortHeader column={column} align="right">Last seen</TableSortHeader>,
+        cell: ({ getValue }) => (
+          <span className="block text-right text-muted-foreground" title={getValue()}>
+            {getValue() ? dayLabel(getValue()).day : "—"}
+          </span>
+        ),
+        meta: { headerClass: "hidden text-right sm:table-cell", cellClass: "hidden sm:table-cell" },
       },
       {
         id: "actions",
@@ -217,8 +277,8 @@ export function PayeesPage() {
         cell: ({ row }) => {
           const { description, fids } = row.original;
           return activeDesc === description ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1.5">
                 <Input
                   autoFocus
                   placeholder="Payee name"
@@ -228,7 +288,7 @@ export function PayeesPage() {
                     if (e.key === "Enter") confirmSetPayee(fids);
                     if (e.key === "Escape") cancelSetPayee();
                   }}
-                  className="h-7 text-sm"
+                  className="h-7 w-44"
                 />
                 <Button
                   size="xs"
@@ -248,29 +308,33 @@ export function PayeesPage() {
                 </Button>
               </div>
               {setPayeeError && (
-                <p className="text-xs text-destructive">{setPayeeError}</p>
+                <p className="text-[11px] text-below">{setPayeeError}</p>
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => openSetPayee(description)}>
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="xs"
+                className={ROW_ACTION}
+                onClick={() => openSetPayee(description)}
+              >
                 Set payee
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
-                className="gap-1.5"
+                size="xs"
+                className={cn("text-muted-foreground", ROW_ACTION)}
                 onClick={() =>
                   navigate({ to: "/transactions", search: { search: description } })
                 }
               >
-                <ExternalLink className="size-3.5" />
                 View
+                <ArrowUpRight data-icon="inline-end" />
               </Button>
             </div>
           );
         },
-        meta: { headerClass: "w-72" },
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -302,157 +366,96 @@ export function PayeesPage() {
   if (isLoading) return <Loading />;
   if (error) return <ErrorBanner error={error} />;
 
+  const payeeCount = payeeTable.getFilteredRowModel().rows.length;
+  const descCount = descTable.getFilteredRowModel().rows.length;
+
   return (
-    <div className="flex flex-col gap-8">
+    <Page>
       <PageHeader title="Payees" />
-      {/* Section 1: Explicit payees */}
+
       <Collapsible open={payeesOpen} onOpenChange={setPayeesOpen}>
-        <Card>
-          <CardHeader>
-            <CollapsibleTrigger className="touch-target flex items-center gap-2 text-left">
-              <CardTitle>Payees</CardTitle>
-              <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", payeesOpen && "rotate-180")} />
-            </CollapsibleTrigger>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="flex flex-col gap-4">
+        <Section
+          title={<SectionToggle open={payeesOpen}>Payees</SectionToggle>}
+          description={payeeRows.length > 0 ? payeeRows.length : null}
+          action={
+            payeesOpen && (
               <Input
                 placeholder="Filter payees…"
+                aria-label="Filter payees"
                 value={payeeFilter}
                 onChange={(e) => payeeTable.setGlobalFilter(e.target.value)}
-                className="max-w-sm"
+                className="h-7 w-40 sm:w-56"
               />
-              {payeeTable.getFilteredRowModel().rows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No payees found.</p>
-              ) : (
-                <>
-                  <Table>
-                    <TableHeader>
-                      {payeeTable.getHeaderGroups().map((hg) => (
-                        <TableRow key={hg.id}>
-                          {hg.headers.map((header) => (
-                            <TableHead
-                              key={header.id}
-                              className={header.column.columnDef.meta?.headerClass}
-                            >
-                              {header.isPlaceholder
-                                ? null
-                                : flexRender(header.column.columnDef.header, header.getContext())}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableHeader>
-                    <TableBody>
-                      {payeeTable.getRowModel().rows.map((row) => (
-                        <TableRow key={row.id}>
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id}>
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <TablePagination table={payeeTable} />
-                </>
-              )}
-            </CardContent>
+            )
+          }
+        >
+          <CollapsibleContent className="flex flex-col gap-3">
+            {payeeCount === 0 ? (
+              <p className="text-control text-muted-foreground">No payees found.</p>
+            ) : (
+              <>
+                <DataTable table={payeeTable} />
+                <TablePagination table={payeeTable} />
+              </>
+            )}
           </CollapsibleContent>
-        </Card>
+        </Section>
       </Collapsible>
 
-      {/* Section 2: Common descriptions without payees */}
       <Collapsible open={descOpen} onOpenChange={setDescOpen}>
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <CollapsibleTrigger className="touch-target flex items-center gap-2 text-left">
-                <CardTitle>Common descriptions without a payee</CardTitle>
-                <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200", descOpen && "rotate-180")} />
-              </CollapsibleTrigger>
-              {descRows.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
-                  <Sparkles data-icon="inline-start" className="size-3.5" />
-                  Suggest Rules
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="flex flex-col gap-4">
-              {descRows.length === 0 ? (
-                <EmptyState
-                  icon={Users}
-                  title="All transactions have a payee assigned"
-                />
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <Input
-                      placeholder="Filter descriptions…"
-                      value={descFilter}
-                      onChange={(e) => descTable.setGlobalFilter(e.target.value)}
-                      className="max-w-sm"
+        <Section
+          title={<SectionToggle open={descOpen}>Descriptions without a payee</SectionToggle>}
+          description={descRows.length > 0 ? descRows.length : null}
+          action={
+            descRows.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
+                <Sparkles data-icon="inline-start" />
+                Suggest Rules
+              </Button>
+            )
+          }
+        >
+          <CollapsibleContent className="flex flex-col gap-3">
+            {descRows.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="All transactions have a payee assigned"
+              />
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <Input
+                    placeholder="Filter descriptions…"
+                    aria-label="Filter descriptions"
+                    value={descFilter}
+                    onChange={(e) => descTable.setGlobalFilter(e.target.value)}
+                    className="h-7 w-full sm:w-56"
+                  />
+                  <Label className="flex cursor-pointer items-center gap-2 text-control font-normal">
+                    <Checkbox
+                      checked={showUncategorizedOnly}
+                      onCheckedChange={(checked) => {
+                        setShowUncategorizedOnly(!!checked);
+                        setDescPagination((p) => ({ ...p, pageIndex: 0 }));
+                      }}
                     />
-                    <Label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={showUncategorizedOnly}
-                        onCheckedChange={(checked) => {
-                          setShowUncategorizedOnly(!!checked);
-                          setDescPagination((p) => ({ ...p, pageIndex: 0 }));
-                        }}
-                      />
-                      Uncategorized only
-                    </Label>
-                  </div>
-                  {descTable.getFilteredRowModel().rows.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No descriptions match your filter.
-                    </p>
-                  ) : (
-                    <>
-                      <Table>
-                        <TableHeader>
-                          {descTable.getHeaderGroups().map((hg) => (
-                            <TableRow key={hg.id}>
-                              {hg.headers.map((header) => (
-                                <TableHead
-                                  key={header.id}
-                                  className={header.column.columnDef.meta?.headerClass}
-                                >
-                                  {header.isPlaceholder
-                                    ? null
-                                    : flexRender(
-                                        header.column.columnDef.header,
-                                        header.getContext(),
-                                      )}
-                                </TableHead>
-                              ))}
-                            </TableRow>
-                          ))}
-                        </TableHeader>
-                        <TableBody>
-                          {descTable.getRowModel().rows.map((row) => (
-                            <TableRow key={row.id}>
-                              {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id}>
-                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      <TablePagination table={descTable} />
-                    </>
-                  )}
-                </>
-              )}
-            </CardContent>
+                    Uncategorized only
+                  </Label>
+                </div>
+                {descCount === 0 ? (
+                  <p className="text-control text-muted-foreground">
+                    No descriptions match your filter.
+                  </p>
+                ) : (
+                  <>
+                    <DataTable table={descTable} />
+                    <TablePagination table={descTable} />
+                  </>
+                )}
+              </>
+            )}
           </CollapsibleContent>
-        </Card>
+        </Section>
       </Collapsible>
 
       <SuggestRulesWizard
@@ -462,6 +465,6 @@ export function PayeesPage() {
         initialSourceType="nopayee"
         onRulesAdded={() => queryClient.invalidateQueries({ queryKey: queryKeys.rules() })}
       />
-    </div>
+    </Page>
   );
 }

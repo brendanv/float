@@ -1,4 +1,4 @@
-import { test } from "./fixtures.js";
+import { test, expect } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -30,8 +30,11 @@ test("add transaction page mobile", async ({ page }) => {
 
 test("trends page mobile", async ({ page }) => {
   await page.goto("/#/trends");
-  await page.waitForSelector(".trends-chart canvas", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(1000);
+  // Charts are SVG with entry animations off: wait for the drawn net worth
+  // line and the spending donut.
+  await page.locator(".trends-chart .recharts-area-curve").waitFor();
+  await page.locator(".recharts-pie-sector").first().waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/mobile-trends.png", fullPage: true });
 });
 
@@ -61,10 +64,8 @@ test("import page paste CSV mode mobile", async ({ page }) => {
 test("add transaction modal mobile (drawer)", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  // Open sidebar via the sidebar trigger button, then click Add Transaction
-  await page.locator('[data-slot="sidebar-trigger"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('[data-slot="sidebar-menu-button"]:has-text("Add Transaction")').click();
+  // The bottom tab bar's + button opens the new-transaction drawer.
+  await page.getByRole("button", { name: "New transaction" }).click();
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/mobile-add-transaction-modal.png", fullPage: true });
@@ -73,14 +74,14 @@ test("add transaction modal mobile (drawer)", async ({ page }) => {
 test("add transaction modal mobile with template selected", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  await page.locator('[data-slot="sidebar-trigger"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('[data-slot="sidebar-menu-button"]:has-text("Add Transaction")').click();
+  await page.getByRole("button", { name: "New transaction" }).click();
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(500);
   await page.locator('[role="dialog"] button:has-text("Mortgage Payment")').click();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "test-results/mobile-add-transaction-modal-template.png", fullPage: true });
+  // A four-posting template overflows the 80vh drawer; submit stays pinned.
+  await expect(page.locator('[role="dialog"] button[type="submit"]')).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: "test-results/mobile-add-transaction-modal-template.png", fullPage: false });
 });
 
 test("import create profile modal mobile (drawer)", async ({ page }) => {
@@ -108,7 +109,7 @@ test("import edit profile modal mobile (drawer)", async ({ page }) => {
 
 test("accounts rename dialog mobile (drawer)", async ({ page }) => {
   await page.goto("/#/accounts");
-  await page.waitForSelector('[data-slot="card"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('[data-slot="section"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.locator(".lucide-pencil").first().click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
@@ -120,7 +121,7 @@ test("snapshots diff dialog mobile (dialog)", async ({ page }) => {
   await page.goto("/#/snapshots");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  await page.locator("button", { hasText: "View diff" }).first().click();
+  await page.getByRole("button", { name: "View diff" }).first().click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/mobile-snapshots-diff.png", fullPage: true });

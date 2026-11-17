@@ -85,7 +85,7 @@ function ResponsiveDialogContent({
 function ResponsiveDialogHeader({ className, ...props }) {
   const isMobile = React.useContext(ResponsiveDialogContext)
   if (isMobile) {
-    return <DrawerHeader className={cn("px-0 !text-left", className)} {...props} />
+    return <DrawerHeader className={cn("px-0", className)} {...props} />
   }
   return <DialogHeader className={className} {...props} />
 }

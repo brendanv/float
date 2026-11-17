@@ -24,8 +24,8 @@ test("transactions page - delete confirmation", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  // Click the date cell (a stable target that won't intercept with the inline tag editor)
-  await page.click("tbody tr:first-child td:nth-child(2)");
+  // Open the first row's editor with its Edit button
+  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: /^Edit / }).click();
   await page.waitForTimeout(200);
   await page.click("button:has-text('Delete')");
   await page.waitForTimeout(300);
@@ -36,7 +36,7 @@ test("transactions page - expanded edit row", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  await page.click("tbody tr:first-child td:nth-child(2)");
+  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: /^Edit / }).click();
   await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/transactions-expanded-edit.png", fullPage: true });
 });
@@ -62,12 +62,12 @@ test("transactions page - from cell inline edit", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Activate the inline "From" cell on the first row (a normal 2-posting
-  // transaction). The From column is the 5th cell: select, date, status,
-  // description (with tags), from.
-  await page.click("tbody tr:first-child td:nth-child(5) > span");
+  // transaction). Grouped by day, the From column is the 4th cell: select,
+  // status, description (with tags), from.
+  await page.click("tbody tr[data-slot=transaction-row] >> nth=0 >> td:nth-child(4) > span");
   await page.waitForTimeout(200);
   // Open the typeahead popover
-  await page.click("tbody tr:first-child td:nth-child(5) button[role='combobox']");
+  await page.click("tbody tr[data-slot=transaction-row] >> nth=0 >> td:nth-child(4) button[role='combobox']");
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-from-edit.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 600 } });
 });
@@ -82,7 +82,7 @@ test("add transaction page", async ({ page }) => {
 test("add transaction modal", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  await page.click('button:has-text("Add Transaction")');
+  await page.click('button:has-text("New transaction")');
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/add-transaction-modal.png", fullPage: true });
@@ -91,7 +91,7 @@ test("add transaction modal", async ({ page }) => {
 test("add transaction modal with template selected", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  await page.click('button:has-text("Add Transaction")');
+  await page.click('button:has-text("New transaction")');
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(400);
   await page.click('[role="dialog"] button:has-text("Mortgage Payment")');
@@ -101,16 +101,31 @@ test("add transaction modal with template selected", async ({ page }) => {
 
 test("trends page", async ({ page }) => {
   await page.goto("/#/trends");
-  await page.waitForSelector(".trends-chart canvas", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(1000);
+  // Charts are SVG with entry animations off: wait for the drawn net worth
+  // line and the spending donut.
+  await page.locator(".trends-chart .recharts-area-curve").waitFor();
+  await page.locator(".recharts-pie-sector").first().waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/trends.png", fullPage: true });
 });
 
 test("monthly dashboard page", async ({ page }) => {
   await page.goto("/#/monthly");
-  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(500);
+  await page.locator('[data-slot="matrix-kept"]').waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/monthly-dashboard.png", fullPage: true });
+});
+
+test("monthly dashboard precision toggle", async ({ page }) => {
+  await page.goto("/#/monthly");
+  const matrix = page.locator('[data-slot="report-matrix"]');
+  const firstSalary = matrix.locator('[data-slot="matrix-row"]').first().locator('[data-slot="amount"]').first();
+  await expect(firstSalary).toHaveText("$5,200");
+  const precision = page.getByRole("group", { name: "Precision" });
+  await expect(precision.getByRole("button", { name: "$1,234", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await precision.getByRole("button", { name: "$1,234.56" }).click();
+  await expect(firstSalary).toHaveText("$5,200.00");
+  await expect(matrix.locator('[data-slot="matrix-kept"]')).toContainText("+$2,867.69");
 });
 
 test("prices page", async ({ page }) => {
@@ -174,14 +189,14 @@ test("accounts page - rename dialog confirm", async ({ page }) => {
   await page.screenshot({ path: "test-results/accounts-rename-confirm.png", fullPage: false });
 });
 
-test("transactions page - status filter select", async ({ page }) => {
+test("transactions page - needs review chip", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  const statusSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'Reviewed' }) }).first();
-  await expect(statusSelect).toHaveValue("all");
-  await statusSelect.selectOption("unreviewed");
-  await expect(statusSelect).toHaveValue("unreviewed");
+  const chip = page.getByRole("button", { name: /Needs review/ });
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
+  await chip.click();
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
   await page.waitForTimeout(150);
   await page.screenshot({ path: "test-results/transactions-filter-open.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 300 } });
 });
@@ -189,7 +204,7 @@ test("transactions page - status filter select", async ({ page }) => {
 test("transactions page - mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-mobile.png", fullPage: true });
 });
@@ -249,7 +264,7 @@ test("transactions page - account register edit account dropdown open", async ({
 test("transactions page - account register mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions?account=assets%3Achecking");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-account-register-mobile.png", fullPage: true });
 });
@@ -257,7 +272,7 @@ test("transactions page - account register mobile", async ({ page }) => {
 test("transactions page - account register mobile edit account", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions?account=assets%3Achecking");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Target visible elements only — the desktop table is display:none on mobile viewports
   await page.locator('[title$="— click to change"]:visible').first().click();
@@ -269,9 +284,10 @@ test("transactions page - account register mobile edit account", async ({ page }
 test("transactions page - mobile bulk edit toolbar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  const checkboxes = await page.locator(".card input[type=checkbox]").all();
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const checkboxes = await page.locator("[data-slot=transaction-card] [data-slot=checkbox]").all();
   for (const cb of checkboxes.slice(0, 3)) {
     await cb.click();
   }
@@ -438,16 +454,25 @@ test("import history page - file viewer dialog", async ({ page }) => {
   await page.goto("/#/imports");
   await page.waitForSelector("table", { timeout: 5000 });
   await page.waitForTimeout(400);
-  await page.locator("button", { hasText: "View file" }).first().click();
+  await page.getByRole("button", { name: "View file" }).first().click();
   await page.waitForSelector("pre", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/import-history-file-viewer.png", fullPage: true });
 });
 
 test("import detail page", async ({ page }) => {
-  await page.goto("/#/imports/2026-03-28-a1b2c3d4");
-  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(400);
+  // Import history opens a batch as the transactions list filtered to it.
+  await page.goto("/#/imports");
+  const batchQuery = page.waitForRequest(
+    (req) => req.url().endsWith("/ListTransactions") && (req.postData() || "").includes("float-import"),
+  );
+  await page.locator("tbody tr", { hasText: "2026-03-28-a1b2c3d4" }).locator("td").first().click();
+  await batchQuery;
+
+  await expect(page).toHaveURL(/importBatchId=2026-03-28-a1b2c3d4/);
+  await expect(page.getByRole("button", { name: "Import History" })).toBeVisible();
+  await expect(page.getByText("2026-03-28-a1b2c3d4", { exact: true })).toBeVisible();
+  await expect(page.locator("tr[data-slot=transaction-row]").first()).toBeVisible();
   await page.screenshot({ path: "test-results/import-detail.png", fullPage: true });
 });
 
@@ -539,6 +564,7 @@ test("rules page - suggest rules wizard suggestions step", async ({ page }) => {
 test("portfolio page", async ({ page }) => {
   await page.goto("/#/portfolio");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.locator(".portfolio-chart .recharts-area-curve").waitFor();
   await page.waitForTimeout(800);
   await page.screenshot({ path: "test-results/portfolio.png", fullPage: true });
 });
@@ -600,27 +626,26 @@ test("payees page - mobile", async ({ page }) => {
   await page.screenshot({ path: "test-results/payees-mobile.png", fullPage: true });
 });
 
-test("hamburger icon - closed state", async ({ page }) => {
+test("mobile tab bar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
+  const tabBar = page.locator('[data-slot="mobile-tab-bar"]');
+  await expect(tabBar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
   await page.waitForTimeout(400);
-  await page.screenshot({ path: "test-results/hamburger-closed.png", clip: { x: 0, y: 0, width: 390, height: 80 } });
+  await page.screenshot({ path: "test-results/mobile-tab-bar.png", clip: { x: 0, y: 764, width: 390, height: 80 } });
 });
 
-test("hamburger icon - open state", async ({ page }) => {
+test("mobile More opens the sidebar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
-  await page.waitForTimeout(400);
-  // Dismiss any Vite error overlay
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(200);
-  // Check the swap checkbox directly to toggle to open state
-  await page.evaluate(() => {
-    const cb = document.querySelector("label.swap-rotate input[type=checkbox]");
-    if (cb) { cb.checked = true; cb.dispatchEvent(new Event("change")); }
-  });
+  await page.getByRole("button", { name: "More" }).click();
+  const sheet = page.locator('[data-mobile="true"][data-sidebar="sidebar"]');
+  await expect(sheet.getByRole("link", { name: "Accounts" })).toBeVisible();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "test-results/hamburger-open.png", clip: { x: 0, y: 0, width: 390, height: 80 } });
+  await page.screenshot({ path: "test-results/mobile-more-open.png" });
+  await sheet.getByRole("link", { name: "Accounts" }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/accounts$/);
 });
 
 test("snapshots page", async ({ page }) => {
@@ -635,7 +660,7 @@ test("snapshots page - diff dialog (modified)", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   // Click the first "View diff" button (most recent snapshot — modified file)
-  await page.locator("button:has-text('View diff')").first().click();
+  await page.getByRole("button", { name: "View diff" }).first().click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/snapshots-diff.png", fullPage: true });
@@ -646,7 +671,7 @@ test("snapshots page - diff dialog (added + modified)", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   // Click the third "View diff" button — the import snapshot has both an added file and a modified file
-  await page.locator("button:has-text('View diff')").nth(2).click();
+  await page.getByRole("button", { name: "View diff" }).nth(2).click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/snapshots-diff-multi.png", fullPage: true });
@@ -776,15 +801,15 @@ test("accounts page - closed accounts", async ({ page }) => {
   });
   await page.goto("/#/accounts");
   await page.getByRole("button", { name: "Rename assets:oldbank", exact: true }).waitFor();
-  // Directly closed account shows a badge and a Reopen action; its inherited
+  // Directly closed account shows a "closed" tag and a Reopen action; its inherited
   // sub-account gets neither (it reopens with its parent).
-  const oldbankRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:oldbank", exact: true }) });
-  await expect(oldbankRow.getByText("Closed", { exact: true })).toBeVisible();
+  const oldbankRow = page.locator("[class~=\"group/row\"]", { has: page.getByRole("button", { name: "Rename assets:oldbank", exact: true }) });
+  await expect(oldbankRow.getByText("closed", { exact: true })).toBeVisible();
   await expect(oldbankRow.getByRole("button", { name: "Reopen" })).toBeVisible();
-  const childRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:oldbank:checking" }) });
+  const childRow = page.locator("[class~=\"group/row\"]", { has: page.getByRole("button", { name: "Rename assets:oldbank:checking" }) });
   await expect(childRow.getByRole("button", { name: /Reopen|Close/ })).toHaveCount(0);
 
-  const savingsRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:savings" }) });
+  const savingsRow = page.locator("[class~=\"group/row\"]", { has: page.getByRole("button", { name: "Rename assets:savings" }) });
   await savingsRow.hover();
   await savingsRow.getByRole("button", { name: "Close" }).click();
   await expect.poll(() => closedCalls).toContainEqual({ name: "assets:savings", closed: true });

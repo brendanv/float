@@ -11,13 +11,13 @@ export function EmptyState({
     <div
       data-slot="empty-state"
       className={cn(
-        "flex flex-col items-center gap-2 py-8 text-center text-muted-foreground",
+        "flex flex-col items-center gap-2 py-10 text-center text-muted-foreground",
         className,
       )}
     >
-      {Icon && <Icon className="size-8" />}
-      {title && <p className="text-sm font-medium text-foreground">{title}</p>}
-      {description && <p className="max-w-md text-sm">{description}</p>}
+      {Icon && <Icon className="size-6 text-faint" strokeWidth={1.7} />}
+      {title && <p className="text-heading font-semibold text-foreground">{title}</p>}
+      {description && <p className="max-w-md text-body">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );

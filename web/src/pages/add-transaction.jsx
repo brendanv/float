@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck } from "lucide-react";
+import { Check } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { PostingFields, toPostingInput } from "../components/posting-fields.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
-import { Card, CardContent } from "@/components/ui/card";
+import { Page } from "../components/page.jsx";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
+import { Form, FormField, FormActions } from "@/components/ui/form";
 
 function todayStr() {
   const d = new Date();
@@ -71,24 +71,28 @@ export function AddTransactionPage() {
 
   if (success) {
     return (
-      <Card className="mx-auto mt-8 max-w-lg">
-        <CardContent className="flex flex-col items-center text-center">
-          <CircleCheck className="mb-2 size-12 text-success" />
-          <p className="text-lg font-medium">Transaction added successfully!</p>
-          <p className="text-sm text-muted-foreground">Redirecting to transactions...</p>
-        </CardContent>
-      </Card>
+      <Page>
+        <PageHeader title="Add transaction" />
+        <div role="status" className="flex flex-col gap-1">
+          <p className="flex items-center gap-2 text-body font-medium">
+            <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent text-primary">
+              <Check className="size-3.5" />
+            </span>
+            Transaction added
+          </p>
+          <p className="pl-7 text-control text-muted-foreground">Redirecting to transactions…</p>
+        </div>
+      </Page>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Add Transaction" />
-      <Card className="max-w-2xl">
-        <CardContent>
+    <Page>
+      <PageHeader title="Add transaction" />
+      <div className="max-w-2xl">
           <Form onSubmit={handleSubmit}>
             {error && <ErrorBanner error={error} />}
-            <FormRow cols={2}>
+            <div className="grid gap-4 sm:grid-cols-[11rem_minmax(0,1fr)]">
               <FormField label="Date" htmlFor="date">
                 <Input
                   id="date"
@@ -108,7 +112,7 @@ export function AddTransactionPage() {
                   required
                 />
               </FormField>
-            </FormRow>
+            </div>
             <FormField label="Postings">
               <PostingFields
                 postings={postings}
@@ -118,12 +122,11 @@ export function AddTransactionPage() {
             </FormField>
             <FormActions>
               <Button type="submit" isLoading={submitting} loadingText="Adding…">
-                Add Transaction
+                Add transaction
               </Button>
             </FormActions>
           </Form>
-        </CardContent>
-      </Card>
-    </div>
+      </div>
+    </Page>
   );
 }

@@ -4,6 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { filterAndSortAccountNames } from "@/lib/accounts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+
+// Literal hledger syntax chips (@, { }, =) in front of a posting's extra
+// fields.
+const SYNTAX_CHIP =
+  "inline-flex h-8 pointer-coarse:min-h-10 shrink-0 select-none items-center rounded-md border border-input px-2 font-mono text-code text-muted-foreground";
+
+// Quiet icon buttons on a posting row: ink-3 until hovered.
+const ROW_ICON = "shrink-0 text-faint hover:text-foreground";
 
 export function AccountInput({
   value,
@@ -79,12 +88,12 @@ export function fieldsFromPosting(p) {
 function CostFields({ cost, onChange, onRemove }) {
   const c = cost || { commodity: "", quantity: "", isTotal: false };
   return (
-    <div className="ml-4 flex items-center gap-2 border-l pl-3">
+    <div className="ml-3 flex items-center gap-2 border-l border-border pl-3">
       <button
         type="button"
         onClick={() => onChange({ ...c, isTotal: !c.isTotal })}
         title={c.isTotal ? "Total price (@@) — click to switch to per-unit" : "Per-unit price (@) — click to switch to total"}
-        className="h-8 shrink-0 select-none rounded border border-input bg-background px-2 font-mono text-xs hover:bg-accent pointer-coarse:min-h-10 pointer-coarse:min-w-10"
+        className={cn(SYNTAX_CHIP, "text-foreground hover:bg-muted pointer-coarse:min-w-10 justify-center")}
       >
         {c.isTotal ? "@@" : "@"}
       </button>
@@ -94,7 +103,7 @@ function CostFields({ cost, onChange, onRemove }) {
         placeholder="0.00"
         value={c.quantity}
         onInput={(e) => onChange({ ...c, quantity: e.target.value })}
-        className="w-20 shrink-0 sm:w-24"
+        className="w-20 shrink-0 text-right sm:w-24"
       />
       <Input
         type="text"
@@ -112,7 +121,7 @@ function CostFields({ cost, onChange, onRemove }) {
               onClick={onRemove}
               type="button"
               aria-label="Remove price"
-              className="shrink-0"
+              className={ROW_ICON}
             >
               <X />
             </Button>
@@ -127,11 +136,11 @@ function CostFields({ cost, onChange, onRemove }) {
 function LotFields({ lot, onChange, onRemove }) {
   const l = lot || { date: "", label: "", costQuantity: "", costCommodity: "" };
   return (
-    <div className="ml-4 flex flex-wrap items-center gap-2 border-l pl-3">
+    <div className="ml-3 flex flex-wrap items-center gap-2 border-l border-border pl-3">
       <Tooltip>
         <TooltipTrigger
           render={
-            <span className="h-8 shrink-0 select-none rounded border border-input bg-background px-2 font-mono text-xs leading-8">
+            <span className={SYNTAX_CHIP}>
               {"{ }"}
             </span>
           }
@@ -157,7 +166,7 @@ function LotFields({ lot, onChange, onRemove }) {
         placeholder="Cost"
         value={l.costQuantity}
         onInput={(e) => onChange({ ...l, costQuantity: e.target.value })}
-        className="w-20 shrink-0 sm:w-24"
+        className="w-20 shrink-0 text-right sm:w-24"
       />
       <Input
         type="text"
@@ -175,7 +184,7 @@ function LotFields({ lot, onChange, onRemove }) {
               onClick={onRemove}
               type="button"
               aria-label="Remove lot"
-              className="shrink-0"
+              className={ROW_ICON}
             >
               <X />
             </Button>
@@ -190,8 +199,8 @@ function LotFields({ lot, onChange, onRemove }) {
 function AssertionFields({ assertion, onChange, onRemove }) {
   const a = assertion || { commodity: "", quantity: "" };
   return (
-    <div className="ml-4 flex items-center gap-2 border-l pl-3">
-      <span className="h-8 shrink-0 select-none rounded border border-input bg-background px-2 font-mono text-xs leading-8">
+    <div className="ml-3 flex items-center gap-2 border-l border-border pl-3">
+      <span className={SYNTAX_CHIP}>
         =
       </span>
       <Input
@@ -200,7 +209,7 @@ function AssertionFields({ assertion, onChange, onRemove }) {
         placeholder="0.00"
         value={a.quantity}
         onInput={(e) => onChange({ ...a, quantity: e.target.value })}
-        className="w-20 shrink-0 sm:w-24"
+        className="w-20 shrink-0 text-right sm:w-24"
       />
       <Input
         type="text"
@@ -218,7 +227,7 @@ function AssertionFields({ assertion, onChange, onRemove }) {
               onClick={onRemove}
               type="button"
               aria-label="Remove balance assertion"
-              className="shrink-0"
+              className={ROW_ICON}
             >
               <X />
             </Button>
@@ -230,6 +239,8 @@ function AssertionFields({ assertion, onChange, onRemove }) {
   );
 }
 
+// PostingFields edits a transaction's posting rows. Balancing and amount
+// inference are left to hledger on save.
 export function PostingFields({ postings, onChange, accounts }) {
   function update(index, patch) {
     const next = postings.map((p, i) => (i === index ? { ...p, ...patch } : p));
@@ -302,7 +313,8 @@ export function PostingFields({ postings, onChange, accounts }) {
                 value={p.account}
                 onChange={(v) => update(i, { account: v })}
                 accounts={accounts}
-                className="basis-[calc(100%-2.5rem)] sm:flex-1"
+                // The raw account path is mono once there is one.
+                className={cn("basis-[calc(100%-2.5rem)] sm:flex-1", p.account && "font-mono text-code")}
               />
               <Input
                 type="text"
@@ -317,7 +329,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                 placeholder={isLast(i) ? "Auto" : "0.00"}
                 value={p.quantity}
                 onInput={(e) => update(i, { quantity: e.target.value })}
-                className="order-3 w-auto min-w-0 flex-1 sm:order-none sm:w-24 sm:flex-none sm:shrink-0"
+                className="order-3 w-auto min-w-0 flex-1 text-right sm:order-none sm:w-28 sm:flex-none sm:shrink-0"
               />
               {!hasCost && (
                 <Tooltip>
@@ -329,7 +341,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                         onClick={() => updateCost(i, { commodity: "", quantity: "", isTotal: false })}
                         type="button"
                         aria-label="Add price"
-                        className="order-3 shrink-0 sm:order-none"
+                        className={cn(ROW_ICON, "order-3 sm:order-none")}
                       >
                         <Tag />
                       </Button>
@@ -348,7 +360,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                         onClick={() => updateLot(i, { date: "", label: "", costQuantity: "", costCommodity: "" })}
                         type="button"
                         aria-label="Add lot / cost basis"
-                        className="order-3 shrink-0 sm:order-none"
+                        className={cn(ROW_ICON, "order-3 sm:order-none")}
                       >
                         <Layers />
                       </Button>
@@ -367,7 +379,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                         onClick={() => updateAssertion(i, { commodity: "", quantity: "" })}
                         type="button"
                         aria-label="Add balance assertion"
-                        className="order-3 shrink-0 sm:order-none"
+                        className={cn(ROW_ICON, "order-3 sm:order-none")}
                       >
                         <Scale />
                       </Button>
@@ -383,7 +395,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                 disabled={postings.length <= 2}
                 type="button"
                 aria-label="Remove posting"
-                className="order-2 size-8 shrink-0 sm:order-none sm:size-7"
+                className={cn(ROW_ICON, "order-2 size-8 sm:order-none sm:size-7")}
               >
                 <X />
               </Button>
@@ -412,9 +424,11 @@ export function PostingFields({ postings, onChange, accounts }) {
           </div>
         );
       })}
-      <Button variant="ghost" size="sm" onClick={addRow} type="button">
-        <Plus data-icon="inline-start" /> Add posting
-      </Button>
+      <div>
+        <Button variant="ghost" size="sm" onClick={addRow} type="button" className="-ml-2 text-muted-foreground">
+          <Plus data-icon="inline-start" /> Add posting
+        </Button>
+      </div>
     </div>
   );
 }

@@ -30,7 +30,7 @@ Pagination (`limit`/`offset`) is applied after loading/caching the full hledger 
 
 ## Proactive Warming (`warm.go`)
 
-`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`closedaccounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1 (plus depth 1 with `openAccountsQuery`, the home page totals query, and the `--tree` report with `homeAccountTreeQuery`, the home page account list), full-history `networth`/`incomestmt`, plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
+`Handler.WarmEntries()` returns the fixed, priority-ordered `[]warm.Entry` that `cmd/floatd` feeds to an `internal/warm.Warmer`: `transactions:(nil)`, `accounts`/`closedaccounts`/`tags`/`payees`, `balances:0:(nil)`, `balancesvalued:now,USD` at depth 0 and 1 (plus depth 1 with `openAssetLiabilityQuery`, the web UI's net-worth summary on Overview and Trends, and the `--tree` report with the same query, the home page account list), full-history `networth`/`incomestmt`, plus one `aregister:<account>:(nil)` entry per account in `recentAccounts` — a small in-memory LRU (`recentAccountsCap` = 20) updated by every `GetAccountRegister` call. `WarmEntries` is called fresh at the start of each warm pass (not cached), so the LRU-derived entries reflect the latest accounts touched. Returns `nil` when `h.cache == nil`.
 
 ## Filtering in Go (`internal/txfilter`)
 

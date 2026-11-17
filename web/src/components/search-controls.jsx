@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Check, X, Search, CalendarDays } from "lucide-react";
+import { Check, ChevronDown, X, Search, CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile.js";
-import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
   Popover,
   PopoverContent,
@@ -18,10 +16,10 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { filterAndSortAccountNames } from "@/lib/accounts";
+import { filterAndSortAccountNames, splitAccount } from "@/lib/accounts";
+import { isHledgerQuery } from "@/lib/hledger-query";
 import { DATE_PRESETS, PAYEE_NONE } from "./search-presets.js";
 
 function pad2(n) {
@@ -153,17 +151,19 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", e
           <button
             type="button"
             className={cn(
-              "flex items-center gap-2 hover:bg-muted",
+              "flex items-center gap-2 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted",
               embedded
-                ? "h-7 px-2.5 text-xs pointer-coarse:min-h-10"
-                : "h-8 rounded-none border border-border px-3 text-sm font-medium pointer-coarse:min-h-10",
+                ? cn(CHIP, CHIP_OFF, "touch-target gap-1.5 px-2.5")
+                : "h-8 pointer-coarse:min-h-10 rounded-md border border-input px-3 text-sm font-medium",
             )}
           >
             <CalendarDays
               className={cn("shrink-0 text-muted-foreground", embedded ? "size-3.5" : "size-4")}
             />
             <span className="whitespace-nowrap">{formatDateRange(dateFrom, dateTo)}</span>
-            <span className="shrink-0 text-xs opacity-40">▾</span>
+            {embedded
+              ? <ChevronDown className="size-3.5 shrink-0 opacity-60" />
+              : <span className="shrink-0 text-xs opacity-40">▾</span>}
           </button>
         }
       />
@@ -249,13 +249,107 @@ export function PeriodBar({ dateFrom, dateTo, onChange, className }) {
   );
 }
 
-function DebouncedSearch({ value, onChange }) {
+
+// ── transaction toolbar ────────────────────────────────────────────────────
+
+// Filter chips: pills on paper; an active filter is accent-soft.
+const CHIP =
+  "inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-full border text-[12.5px] transition-colors";
+const CHIP_OFF =
+  "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground";
+const CHIP_ON = "border-transparent bg-accent font-medium text-primary";
+// Chips keep their 28px pill on touch devices; `touch-target` extends the hit
+// area to 40px (the chip row pads itself on coarse pointers so its sideways
+// scroll doesn't clip that area).
+const CHIP_BUTTON =
+  "touch-target inline-flex h-full min-w-0 items-center gap-1.5 rounded-full px-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+// FilterChip is the pill frame around a chip's button (`children`). When
+// the filter is active and clearable it adds a trailing clear button.
+function FilterChip({ active, onClear, clearLabel, className, children }) {
+  return (
+    <span data-slot="filter-chip" data-active={active || undefined} className={cn(CHIP, active ? CHIP_ON : CHIP_OFF, className)}>
+      {children}
+      {active && onClear && (
+        <button
+          type="button"
+          className="touch-target -ml-1.5 mr-1 inline-flex size-5 items-center justify-center rounded-full outline-none hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onClear}
+          aria-label={clearLabel}
+          title={clearLabel}
+        >
+          <X className="size-3" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+// ChipSelect is a filter chip that opens a list of options, with a search
+// box when `searchable`. `value` "" means no filter (shows `placeholder`).
+function ChipSelect({ value, onChange, options, placeholder, allLabel, searchPlaceholder, searchable = false, display, clearLabel, emptyText }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+  const active = !!value;
+
+  function pick(next) {
+    onChange(next);
+    setOpen(false);
+  }
+
+  return (
+    <FilterChip active={active} onClear={() => onChange("")} clearLabel={clearLabel}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          render={
+            <button type="button" role="combobox" aria-expanded={open} className={cn(CHIP_BUTTON, active && "pr-2")}>
+              <span className="max-w-48 truncate" title={selected?.title}>
+                {active ? (display ? display(value) : selected?.label ?? value) : placeholder}
+              </span>
+              {!active && <ChevronDown className="size-3.5 shrink-0 opacity-60" />}
+            </button>
+          }
+        />
+        <PopoverContent align="start" className="w-60 p-0">
+          <Command>
+            {searchable && <CommandInput placeholder={searchPlaceholder} />}
+            <CommandList>
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup>
+                <CommandItem value="__all__" onSelect={() => pick("")} data-checked={!value ? "true" : undefined}>
+                  {allLabel}
+                </CommandItem>
+                {options.map((o) => (
+                  <CommandItem
+                    key={o.value}
+                    value={o.value}
+                    onSelect={() => pick(o.value)}
+                    data-checked={value === o.value ? "true" : undefined}
+                  >
+                    {o.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </FilterChip>
+  );
+}
+
+// SearchField is the one wide search box. Plain words search descriptions;
+// text with an hledger query keyword is sent as a query (and set in mono).
+function SearchField({ value, onChange }) {
   const [local, setLocal] = useState(value || "");
   const timerRef = useRef(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setLocal(value || "");
   }, [value]);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   function handleInput(e) {
     const v = e.target.value;
@@ -265,73 +359,28 @@ function DebouncedSearch({ value, onChange }) {
   }
 
   return (
-    <div className="relative flex flex-1 items-center">
-      <Search className="pointer-events-none absolute left-2 size-3.5 text-muted-foreground" />
+    <div className="relative flex min-w-0 flex-1 items-center">
+      <Search className="pointer-events-none absolute left-2.5 size-3.5 text-faint" />
       <Input
         type="search"
-        placeholder="Search..."
+        aria-label="Search transactions"
+        placeholder={isMobile ? "Search or query" : "Search descriptions, or type an hledger query like acct:dining amt:>50"}
         value={local}
         onInput={handleInput}
-        className="h-7 flex-1 border-0 bg-transparent pl-7 shadow-none focus-visible:ring-0"
+        className={cn("h-8 bg-popover pl-8 dark:bg-popover", isHledgerQuery(local) && "font-mono text-code")}
       />
     </div>
   );
 }
 
-function AccountCombobox({ value, onChange, accounts, className }) {
-  const [open, setOpen] = useState(false);
-  const accountOptions = filterAndSortAccountNames(accounts);
+const STATUS_OPTIONS = [
+  { value: "reviewed", label: "Reviewed" },
+  { value: "nopayee", label: "No payee set" },
+];
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            role="combobox"
-            aria-expanded={open}
-            className={cn(
-              "flex h-7 items-center justify-between gap-1 px-2.5 text-xs hover:bg-muted pointer-coarse:min-h-10",
-              value ? "font-semibold" : "",
-              className,
-            )}
-          >
-            <span className="truncate">{value || "All accounts"}</span>
-            <span className="shrink-0 text-xs opacity-40">▾</span>
-          </button>
-        }
-      />
-      <PopoverContent align="start" className="w-56 p-0">
-        <Command>
-          <CommandInput placeholder="Search accounts..." />
-          <CommandList>
-            <CommandEmpty>No account found.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                value="__all__"
-                onSelect={() => { onChange(""); setOpen(false); }}
-                data-checked={!value ? "true" : undefined}
-              >
-                All accounts
-              </CommandItem>
-              {accountOptions.map((accountName) => (
-                <CommandItem
-                  key={accountName}
-                  value={accountName}
-                  onSelect={() => { onChange(accountName); setOpen(false); }}
-                  data-checked={value === accountName ? "true" : undefined}
-                >
-                  {accountName}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
+// SearchControls is the transactions toolbar: one search field, then the
+// filter chips (period, account, "Needs review", status, tags, payee) and
+// an optional summary on the right.
 export function SearchControls({
   dateFrom,
   dateTo,
@@ -340,6 +389,7 @@ export function SearchControls({
   status,
   payee,
   search,
+  searchKey,
   onDateRangeChange,
   onAccountChange,
   onTagChange,
@@ -348,148 +398,90 @@ export function SearchControls({
   onStatusChange,
   accounts,
   tags,
+  reviewCount,
+  summary,
 }) {
-  const reviewFilter = payee === PAYEE_NONE ? "nopayee" : (status || "all");
+  const needsReview = status === "unreviewed";
+  // "Needs review" has its own chip; the Status chip covers the rest.
+  const statusValue = payee === PAYEE_NONE ? "nopayee" : status === "reviewed" ? "reviewed" : "";
 
-  const hasActiveFilters = account || tag || payee || search;
+  function setStatusValue(next) {
+    if (next === "nopayee") {
+      onStatusChange("");
+      onPayeeChange(PAYEE_NONE);
+      return;
+    }
+    onStatusChange(next);
+    if (payee === PAYEE_NONE) onPayeeChange("");
+  }
 
-  // On mobile the filter row splits its width evenly between the three
-  // dropdowns so nothing overflows; on desktop each control sizes to content.
-  const selectClasses =
-    "min-w-0 flex-1 md:flex-none [&>select]:w-full [&>select]:border-0 [&>select]:bg-transparent [&>select]:shadow-none [&>select]:focus-visible:ring-0 [&>select:hover]:bg-muted dark:[&>select]:bg-transparent dark:[&>select:hover]:bg-muted";
+  function toggleNeedsReview() {
+    if (needsReview) {
+      onStatusChange("");
+      return;
+    }
+    // The chip's count is over all dates, so turning it on shows all time
+    // too and the list matches the count.
+    onStatusChange("unreviewed");
+    onDateRangeChange("", "");
+    if (payee === PAYEE_NONE) onPayeeChange("");
+  }
+
+  const accountOptions = filterAndSortAccountNames(accounts).map((name) => ({ value: name, label: name, title: name }));
+  const tagOptions = (tags || []).map((t) => ({ value: t, label: `#${t}` }));
 
   return (
-    <div className="mb-4 flex flex-col">
-      <div className="flex flex-col border border-border md:flex-row md:items-center">
-        {/* Row 1 on mobile: date picker + search */}
-        <div className="flex items-center">
-          <DateRangePicker
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            onChange={onDateRangeChange}
-            embedded
-          />
-          {onSearchChange && (
-            <div className="flex flex-1 items-center md:hidden">
-              <Separator orientation="vertical" className="h-5" />
-              <DebouncedSearch value={search} onChange={onSearchChange} />
-            </div>
-          )}
-        </div>
-
-        {/* Row 2 on mobile / inline on desktop: filter controls */}
-        <div className="flex items-center border-t border-border md:flex-1 md:border-t-0">
-          <Separator orientation="vertical" className="hidden h-5 md:block" />
-
-          <NativeSelect
-            size="sm"
-            value={reviewFilter}
-            onChange={(e) => {
-              const next = e.target.value;
-              if (next === "nopayee") {
-                onStatusChange("");
-                onPayeeChange(PAYEE_NONE);
-                return;
-              }
-              onStatusChange(next === "all" ? "" : next);
-              if (payee === PAYEE_NONE) onPayeeChange("");
-            }}
-            className={selectClasses}
-          >
-            <NativeSelectOption value="all">All</NativeSelectOption>
-            <NativeSelectOption value="reviewed">Reviewed</NativeSelectOption>
-            <NativeSelectOption value="unreviewed">Unreviewed</NativeSelectOption>
-            <NativeSelectOption value="nopayee">No payee set</NativeSelectOption>
-          </NativeSelect>
-
-          <Separator orientation="vertical" className="h-5" />
-
-          <AccountCombobox
+    <div data-slot="transaction-toolbar" className="flex flex-col gap-2.5">
+      {onSearchChange && <SearchField key={searchKey} value={search} onChange={onSearchChange} />}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/* Phones scroll the chip row sideways rather than wrapping it. */}
+        <div className="-mx-4 flex w-[calc(100%+2rem)] min-w-0 items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] pointer-coarse:-my-1.5 pointer-coarse:py-1.5 sm:mx-0 sm:w-auto sm:flex-1 sm:flex-wrap sm:overflow-visible sm:px-0">
+          <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={onDateRangeChange} embedded />
+          <ChipSelect
             value={account}
             onChange={onAccountChange}
-            accounts={accounts}
-            className="min-w-0 flex-1 md:flex-none"
+            options={accountOptions}
+            placeholder="Any account"
+            allLabel="All accounts"
+            searchable
+            searchPlaceholder="Search accounts..."
+            emptyText="No account found."
+            display={(v) => splitAccount(v).leaf}
+            clearLabel="Clear account filter"
           />
-
-          <Separator orientation="vertical" className="h-5" />
-
-          <NativeSelect
-            size="sm"
-            value={tag || "__any__"}
-            onChange={(e) => onTagChange(e.target.value === "__any__" ? "" : e.target.value)}
-            className={selectClasses}
-          >
-            <NativeSelectOption value="__any__">Any tag</NativeSelectOption>
-            {(tags || []).map((t) => (
-              <NativeSelectOption key={t} value={t}>{t}</NativeSelectOption>
-            ))}
-          </NativeSelect>
-
-          {onSearchChange && (
-            <div className="hidden flex-1 items-center md:flex">
-              <Separator orientation="vertical" className="h-5" />
-              <DebouncedSearch value={search} onChange={onSearchChange} />
-            </div>
+          <FilterChip active={needsReview}>
+            <button type="button" aria-pressed={needsReview} onClick={toggleNeedsReview} className={CHIP_BUTTON}>
+              Needs review{reviewCount > 0 ? ` · ${reviewCount}` : ""}
+            </button>
+          </FilterChip>
+          <ChipSelect
+            value={statusValue}
+            onChange={setStatusValue}
+            options={STATUS_OPTIONS}
+            placeholder="Status"
+            allLabel="Any status"
+            emptyText="No status."
+            clearLabel="Clear status filter"
+          />
+          <ChipSelect
+            value={tag}
+            onChange={onTagChange}
+            options={tagOptions}
+            placeholder="Tags"
+            allLabel="Any tag"
+            searchable
+            searchPlaceholder="Search tags..."
+            emptyText="No tag found."
+            clearLabel="Clear tag filter"
+          />
+          {payee && payee !== PAYEE_NONE && (
+            <FilterChip active onClear={() => onPayeeChange("")} clearLabel="Clear payee filter">
+              <span className={cn(CHIP_BUTTON, "pr-2")}>payee: {payee}</span>
+            </FilterChip>
           )}
         </div>
+        {summary}
       </div>
-
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-1 border border-t-0 border-border px-2 py-1.5">
-          {search && (
-            <Badge variant="secondary" className="gap-1">
-              search: {search}
-              <button
-                type="button"
-                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onSearchChange("")}
-                aria-label="Clear search filter"
-              >
-                <X className="size-3" />
-              </button>
-            </Badge>
-          )}
-          {payee && (
-            <Badge variant="secondary" className="gap-1">
-              {payee === PAYEE_NONE ? "no payee set" : `payee: ${payee}`}
-              <button
-                type="button"
-                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onPayeeChange("")}
-                aria-label="Clear payee filter"
-              >
-                <X className="size-3" />
-              </button>
-            </Badge>
-          )}
-          {account && (
-            <Badge variant="secondary" className="gap-1">
-              acct: {account}
-              <button
-                type="button"
-                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onAccountChange("")}
-                aria-label="Clear account filter"
-              >
-                <X className="size-3" />
-              </button>
-            </Badge>
-          )}
-          {tag && (
-            <Badge variant="secondary" className="gap-1">
-              tag: {tag}
-              <button
-                type="button"
-                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
-                onClick={() => onTagChange("")}
-                aria-label="Clear tag filter"
-              >
-                <X className="size-3" />
-              </button>
-            </Badge>
-          )}
-        </div>
-      )}
     </div>
   );
 }
