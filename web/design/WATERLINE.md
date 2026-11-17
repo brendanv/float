@@ -88,3 +88,15 @@ Each step is one subagent. "Verify" always includes `cd web && bun run build` an
 - Prefer editing shared primitives over per-page one-offs. Don't add new dependencies beyond the font swap unless the step requires it.
 - Stay inside your step's files. If something outside your scope is broken or ugly, note it in your final report rather than fixing it.
 - Commit your step as one or more focused commits on `claude/intelligent-tesla-bdclgg` with a message starting `web(waterline): step N – <title>`. Don't push.
+
+## As built (kept current by each step)
+
+- **Step 1 (tokens and type):** tokens in `style.css` with Tailwind classes (`text-faint`, `bg-inflow-soft`, `text-below`, `bg-warning-soft`, `--acct-*` incl. `--acct-other`). Radius scale: sm 4, md 6, lg 8, xl 12. Geist Mono replaces JetBrains Mono.
+- **Step 2 (primitives):**
+  - `components/amount.jsx`: `<Amount value commodity? cost? costBasis? size="default|figure|display" tone="auto|ink|inflow|below" signed? negate? />`. `value` can be a number/string, an amount object, or an array (one line per commodity). With a cost, the main line is the value at cost, with a mono lot line under it.
+  - `components/account.jsx`: `<Account name variant="leaf|path|full" glyph? type? />`, `<AccountGlyph type />`, `<Flow from to variant? />`. `lib/accounts.js`: `accountType`, `accountTypeFromCode`, `splitAccount`.
+  - `components/status.jsx`: `<StatusMark status fid? onStatusChange? />`. Static without `fid`; with `fid` it has `StatusButton`'s click-to-cycle behavior.
+  - `ui/alert.jsx`: variants `info|warning|critical`, plus `<Notice variant action>`.
+  - `ui/card.jsx`: `variant="raised|section"` (+ `size`). `PageCard` defaults to `section`.
+  - `components/page.jsx`: `Section`, `Eyebrow`, `DeltaChip`, `Sparkline`, `MetricHero`. `MetricCard` is flat and takes `amount`/`tone`.
+  - Type classes in `style.css`: `text-label`, `text-control`, `text-body`, `text-figure`, `text-display`, … (registered in `lib/utils.js` so `cn` keeps them). Body 13.5px, controls 13px, table heads 11px uppercase.
