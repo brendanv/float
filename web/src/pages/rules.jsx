@@ -228,6 +228,7 @@ export function RulesPage() {
   const [applying, setApplying] = useState(false);
   const [applyProgress, setApplyProgress] = useState(null);
   const [applyResult, setApplyResult] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const saveRuleMutation = useMutation({
@@ -287,6 +288,7 @@ export function RulesPage() {
 
   async function handlePreviewApply() {
     setApplyError(null);
+    setPreviewError(null);
     setApplyLoading(true);
     setApplyPreviews(null);
     setApplyResult(null);
@@ -296,7 +298,7 @@ export function RulesPage() {
       setSelectedFids(new Set(res.previews.map((p) => p.fid)));
       setDrawerOpen(true);
     } catch (err) {
-      setApplyError(err);
+      setPreviewError(err);
     } finally {
       setApplyLoading(false);
     }
@@ -540,6 +542,12 @@ export function RulesPage() {
       >
         {applyResult !== null && (
           <Notice variant="info">Applied changes to {applyResult} transaction(s).</Notice>
+        )}
+        {/* A failed preview never opens the drawer, so its error shows here. */}
+        {previewError && (
+          <Notice variant="critical" data-slot="preview-error">
+            Couldn&rsquo;t preview changes: {(previewError.message || String(previewError)).replace(/^\[[^\]]+\]\s*/, "")}
+          </Notice>
         )}
         {rulesLoading && <Loading />}
         {rulesError && <ErrorBanner error={rulesError} />}

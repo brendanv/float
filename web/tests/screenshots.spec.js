@@ -461,9 +461,18 @@ test("import history page - file viewer dialog", async ({ page }) => {
 });
 
 test("import detail page", async ({ page }) => {
-  await page.goto("/#/imports/2026-03-28-a1b2c3d4");
-  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(400);
+  // Import history opens a batch as the transactions list filtered to it.
+  await page.goto("/#/imports");
+  const batchQuery = page.waitForRequest(
+    (req) => req.url().endsWith("/ListTransactions") && (req.postData() || "").includes("float-import"),
+  );
+  await page.locator("tbody tr", { hasText: "2026-03-28-a1b2c3d4" }).locator("td").first().click();
+  await batchQuery;
+
+  await expect(page).toHaveURL(/importBatchId=2026-03-28-a1b2c3d4/);
+  await expect(page.getByRole("button", { name: "Import History" })).toBeVisible();
+  await expect(page.getByText("2026-03-28-a1b2c3d4", { exact: true })).toBeVisible();
+  await expect(page.locator("tr[data-slot=transaction-row]").first()).toBeVisible();
   await page.screenshot({ path: "test-results/import-detail.png", fullPage: true });
 });
 

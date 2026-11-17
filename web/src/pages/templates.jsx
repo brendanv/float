@@ -422,6 +422,8 @@ export function TemplatesPage() {
       {formOpen && (
         <Section title={editingTemplate ? "Edit template" : "New template"}>
           <TemplateForm
+            // Remount per template so Edit on another row resets the form.
+            key={editingTemplate?.id ?? "new"}
             initial={editingTemplate ?? undefined}
             accounts={accounts}
             onSave={async (data) => {
