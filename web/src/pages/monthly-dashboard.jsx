@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { DateRangePicker } from "../components/search-controls.jsx";
 import { DATE_PRESETS } from "../components/search-presets.js";
-import { formatCurrency } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Amount } from "../components/amount.jsx";
+import { Account } from "../components/account.jsx";
+import { Page } from "../components/page.jsx";
+import { Segmented } from "../components/segmented.jsx";
+import { accountType } from "@/lib/accounts.js";
 import { cn } from "@/lib/utils";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -37,93 +40,140 @@ function sumPeriods(perPeriodAmounts, negate) {
   return negate ? -total : total;
 }
 
-// AmountCell renders revenue and expense amounts in neutral ink: their sign
-// is already implied by the section. Only `signed` cells (net income) are
-// colored, green for a surplus and red for a deficit.
-function AmountCell({ value, className, signed }) {
-  if (value === null || value === undefined) {
-    return <td className={cn("px-3 py-1.5 text-right font-mono text-sm text-muted-foreground/60", className)}>—</td>;
-  }
+const SECTION_LABELS = { Revenues: "Income", Expenses: "Expenses" };
+
+// Heat hue per section: income arriving is inflow teal, spending is accent.
+const SECTION_HUE = { Revenues: "var(--inflow)", Expenses: "var(--primary)" };
+
+const PRECISION_OPTIONS = [
+  { value: "whole", label: "$1,234" },
+  { value: "cents", label: "$1,234.56" },
+];
+
+const CELL = "whitespace-nowrap px-2.5 py-[7px] text-right";
+const STICKY = "sticky left-0 z-10 bg-background";
+const AVG = "border-l border-border text-faint";
+
+function average(values, count) {
+  if (!count || values.every((v) => v === null)) return null;
+  return values.reduce((sum, v) => sum + (v ?? 0), 0) / count;
+}
+
+function total(values) {
+  return values.some((v) => v !== null) ? values.reduce((sum, v) => sum + (v ?? 0), 0) : null;
+}
+
+// heatStyle shades a cell by its size within its row (empty periods count
+// as zero): 4% of the section hue for the row's smallest value up to 24%
+// for its largest. Flat rows and zero/negative cells stay unshaded.
+function heatStyle(value, row, hue) {
+  if (!hue || value === null || value <= 0) return undefined;
+  const values = row.map((v) => v ?? 0);
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  if (max === min) return undefined;
+  const pct = Math.round(4 + ((value - min) / (max - min)) * 20);
+  return { backgroundColor: `color-mix(in oklch, ${hue} ${pct}%, transparent)` };
+}
+
+function MoneyCell({ value, whole, className, style, tone, signed }) {
   return (
-    <td
-      className={cn(
-        "whitespace-nowrap px-3 py-1.5 text-right font-mono text-sm tabular-nums",
-        signed && (value < 0 ? "text-destructive" : "text-success"),
-        className,
+    <td className={cn(CELL, className)} style={style}>
+      {value === null || value === undefined ? (
+        <span className="text-faint">–</span>
+      ) : (
+        <Amount value={value} commodity="USD" whole={whole} tone={tone} signed={signed} />
       )}
-    >
-      {formatCurrency(value, "USD")}
     </td>
   );
 }
 
-function SectionHeaderRow({ label, colCount }) {
+function SectionHeaderRow({ section, colCount }) {
   return (
-    <tr className="bg-muted/50">
-      <td
-        colSpan={colCount + 2}
-        className="sticky left-0 z-10 bg-muted/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-      >
-        {label}
+    <tr data-slot="matrix-section">
+      <td className={cn(STICKY, "px-2.5 pt-[18px] pb-1.5 text-label text-faint uppercase")}>
+        {SECTION_LABELS[section] ?? section}
       </td>
+      <td colSpan={colCount + 2} />
     </tr>
   );
 }
 
-function AccountRow({ row, periods }) {
-  const indent = (row.indent ?? 0) * 1.25;
+function AccountRow({ row, periods, whole }) {
+  const values = periods.map((_, i) => parseFirstAmount(row.perPeriodAmounts?.[i]));
+  const rowTotal = row.isTotal
+    ? sumPeriods(row.perPeriodAmounts, false)
+    : parseFirstAmount({ amounts: row.totalAmounts });
+  const hue = row.isTotal ? null : SECTION_HUE[row.section];
+  const label = SECTION_LABELS[row.section] ?? row.section;
 
   return (
-    <tr className={cn("border-b border-border/40 hover:bg-muted/30", row.isTotal && "font-semibold bg-muted/20")}>
+    <tr
+      data-slot={row.isTotal ? "matrix-total" : "matrix-row"}
+      className={cn(
+        "group",
+        row.isTotal ? "border-t border-input font-semibold" : "border-t border-border",
+      )}
+    >
       <td
-        className="sticky left-0 z-10 bg-card px-3 py-1.5 text-sm"
-        style={{ paddingLeft: row.isTotal ? "0.75rem" : `${indent + 0.75}rem`, minWidth: "200px" }}
+        className={cn(STICKY, "max-w-[14rem] px-2.5 py-[7px] text-left group-hover:bg-muted")}
+        style={row.isTotal ? undefined : { paddingLeft: `${0.625 + (row.indent ?? 0) * 1}rem` }}
       >
-        <span className={cn(row.isTotal && "text-foreground", !row.isTotal && "text-foreground/90")}>
-          {row.displayName || row.fullName}
-        </span>
+        {row.isTotal ? (
+          `Total ${label.toLowerCase()}`
+        ) : (
+          <Account
+            name={row.displayName || row.fullName}
+            variant="path"
+            type={accountType(row.fullName)}
+            title={row.fullName}
+            className="max-w-full"
+          />
+        )}
       </td>
-      {periods.map((_, i) => {
-        const al = row.perPeriodAmounts?.[i];
-        const v = parseFirstAmount(al);
-        return <AmountCell key={i} value={v} />;
-      })}
-      <AmountCell
-        value={row.isTotal
-          ? sumPeriods(row.perPeriodAmounts, false)
-          : (() => { const v = parseFirstAmount({ amounts: row.totalAmounts }); return v ?? null; })()
-        }
-        className="border-l border-border/40 font-semibold"
-      />
-    </tr>
-  );
-}
-
-function NetIncomeRow({ periods, netAmounts }) {
-  const periodValues = periods.map((_, i) => parseFirstAmount(netAmounts?.[i]) ?? null);
-  const total = periodValues.reduce((sum, v) => (v !== null ? sum + v : sum), 0);
-  const hasAny = periodValues.some((v) => v !== null);
-
-  return (
-    <tr className="border-t-2 border-border font-bold bg-muted/30">
-      <td
-        className="sticky left-0 z-10 bg-muted/30 px-3 py-2 text-sm font-bold"
-        style={{ minWidth: "200px" }}
-      >
-        Net Income
-      </td>
-      {periods.map((_, i) => (
-        <AmountCell key={i} value={periodValues[i]} signed />
+      {values.map((v, i) => (
+        <MoneyCell
+          key={i}
+          value={v}
+          whole={whole}
+          style={heatStyle(v, values, hue)}
+          className="group-hover:bg-muted"
+        />
       ))}
-      <AmountCell value={hasAny ? total : null} className="border-l border-border/40" signed />
+      <MoneyCell value={average(values, periods.length)} whole={whole} className={AVG} />
+      <MoneyCell value={rowTotal} whole={whole} className={cn("border-l border-border", !row.isTotal && "font-medium")} />
     </tr>
   );
 }
+
+// KeptRow is net income (income − expenses) per period: inflow when kept,
+// below when spending exceeded income.
+function KeptRow({ periods, netAmounts, whole }) {
+  const values = periods.map((_, i) => parseFirstAmount(netAmounts?.[i]));
+  const toneOf = (v) => (v === null ? undefined : v < 0 ? "below" : "inflow");
+  const avg = average(values, periods.length);
+  const sum = total(values);
+
+  return (
+    <tr data-slot="matrix-kept" className="border-t-2 border-foreground font-semibold">
+      <td className={cn(STICKY, "px-2.5 py-2 text-left")}>Kept</td>
+      {values.map((v, i) => (
+        <MoneyCell key={i} value={v} whole={whole} tone={toneOf(v)} signed className="py-2" />
+      ))}
+      <MoneyCell value={avg} whole={whole} tone={toneOf(avg)} signed className={cn(AVG, "py-2")} />
+      <MoneyCell value={sum} whole={whole} tone={toneOf(sum)} signed className="border-l border-border py-2" />
+    </tr>
+  );
+}
+
+const HEAD = "px-2.5 pt-1 pb-1.5 text-right text-label font-medium whitespace-nowrap text-faint uppercase";
 
 export function MonthlyDashboardPage() {
   const initial = DATE_PRESETS[4].fn(); // "Last 12 months"
   const [dateFrom, setDateFrom] = useState(initial.from);
   const [dateTo, setDateTo] = useState(initial.to);
+  const [precision, setPrecision] = useState("whole");
+  const whole = precision === "whole";
 
   const { data, isLoading, error } = useQuery({
     queryKey: queryKeys.incomeStatementTimeseries(dateFrom, dateTo),
@@ -134,11 +184,12 @@ export function MonthlyDashboardPage() {
   const rows = data?.rows ?? [];
   const netAmounts = data?.netAmounts ?? [];
 
-  const revenueRows = rows.filter((r) => r.section === "Revenues");
-  const expenseRows = rows.filter((r) => r.section === "Expenses");
+  const sections = ["Revenues", "Expenses"]
+    .map((section) => ({ section, rows: rows.filter((r) => r.section === section) }))
+    .filter((s) => s.rows.length > 0);
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader title="Monthly Dashboard">
         <DateRangePicker
           dateFrom={dateFrom}
@@ -146,65 +197,46 @@ export function MonthlyDashboardPage() {
           onChange={(from, to) => { setDateFrom(from); setDateTo(to); }}
           align="end"
         />
+        <Segmented
+          label="Precision"
+          options={PRECISION_OPTIONS}
+          value={precision}
+          onChange={setPrecision}
+        />
       </PageHeader>
 
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}
 
       {data && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium text-muted-foreground">
-              Income &amp; Expenses by Account
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th
-                      className="sticky left-0 z-20 bg-card px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
-                      style={{ minWidth: "200px" }}
-                    >
-                      Account
-                    </th>
-                    {periods.map((p, i) => (
-                      <th key={i} className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                        {formatPeriodHeader(p)}
-                      </th>
-                    ))}
-                    <th className="border-l border-border/40 px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {revenueRows.length > 0 && (
-                    <>
-                      <SectionHeaderRow label="Revenues" colCount={periods.length} />
-                      {revenueRows.map((row, i) => (
-                        <AccountRow key={i} row={row} periods={periods} />
-                      ))}
-                    </>
-                  )}
-                  {expenseRows.length > 0 && (
-                    <>
-                      <SectionHeaderRow label="Expenses" colCount={periods.length} />
-                      {expenseRows.map((row, i) => (
-                        <AccountRow key={i} row={row} periods={periods} />
-                      ))}
-                    </>
-                  )}
-                  {periods.length > 0 && (
-                    <NetIncomeRow periods={periods} netAmounts={netAmounts} />
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="-mx-1 overflow-x-auto px-1">
+          <table data-slot="report-matrix" className="w-full border-collapse text-body tabular-nums">
+            <thead>
+              <tr>
+                <th className={cn(STICKY, HEAD, "z-20 min-w-[9rem] text-left")}>Account</th>
+                {periods.map((p, i) => (
+                  <th key={i} className={HEAD}>{formatPeriodHeader(p)}</th>
+                ))}
+                <th className={cn(HEAD, "border-l border-border")}>Avg</th>
+                <th className={cn(HEAD, "border-l border-border")}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sections.map(({ section, rows: sectionRows }) => (
+                <Fragment key={section}>
+                  <SectionHeaderRow section={section} colCount={periods.length} />
+                  {sectionRows.map((row, i) => (
+                    <AccountRow key={i} row={row} periods={periods} whole={whole} />
+                  ))}
+                </Fragment>
+              ))}
+              {periods.length > 0 && (
+                <KeptRow periods={periods} netAmounts={netAmounts} whole={whole} />
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
+    </Page>
   );
 }

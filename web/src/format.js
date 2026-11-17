@@ -9,16 +9,20 @@ const CURRENCY_SYMBOLS = {
   CHF: "CHF ", CNY: "¥", INR: "₹", MXN: "MX$",
 };
 
-export function formatCurrency(quantity, commodity) {
+// formatCurrency formats a quantity in its commodity. Fiat shows two
+// decimals, or whole units (rounded) with `{ whole: true }`.
+export function formatCurrency(quantity, commodity, { whole = false } = {}) {
   const val = parseFloat(quantity);
   if (isNaN(val)) return "—";
   const sym = CURRENCY_SYMBOLS[commodity];
   if (sym) {
+    const digits = whole ? 0 : 2;
     const abs = Math.abs(val).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
     });
-    return (val < 0 ? "-" : "") + sym + abs;
+    const negative = val < 0 && (!whole || /[1-9]/.test(abs));
+    return (negative ? "-" : "") + sym + abs;
   }
   // Non-fiat commodity (e.g. "AAPL"): preserve original precision
   const raw = String(quantity).trim();

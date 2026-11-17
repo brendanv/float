@@ -30,8 +30,11 @@ test("add transaction page mobile", async ({ page }) => {
 
 test("trends page mobile", async ({ page }) => {
   await page.goto("/#/trends");
-  await page.waitForSelector(".trends-chart canvas", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(1000);
+  // Charts are SVG with entry animations off: wait for the drawn net worth
+  // line and the spending donut.
+  await page.locator(".trends-chart .recharts-area-curve").waitFor();
+  await page.locator(".recharts-pie-sector").first().waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/mobile-trends.png", fullPage: true });
 });
 

@@ -23,8 +23,8 @@ test("payees page mobile", async ({ page }) => {
 
 test("monthly dashboard mobile", async ({ page }) => {
   await page.goto("/#/monthly");
-  await page.waitForSelector("table, canvas, .loading", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(800);
+  await page.locator('[data-slot="matrix-kept"]').waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/mobile-monthly.png", fullPage: true });
 });
 

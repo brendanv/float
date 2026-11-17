@@ -101,16 +101,31 @@ test("add transaction modal with template selected", async ({ page }) => {
 
 test("trends page", async ({ page }) => {
   await page.goto("/#/trends");
-  await page.waitForSelector(".trends-chart canvas", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(1000);
+  // Charts are SVG with entry animations off: wait for the drawn net worth
+  // line and the spending donut.
+  await page.locator(".trends-chart .recharts-area-curve").waitFor();
+  await page.locator(".recharts-pie-sector").first().waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/trends.png", fullPage: true });
 });
 
 test("monthly dashboard page", async ({ page }) => {
   await page.goto("/#/monthly");
-  await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(500);
+  await page.locator('[data-slot="matrix-kept"]').waitFor();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/monthly-dashboard.png", fullPage: true });
+});
+
+test("monthly dashboard precision toggle", async ({ page }) => {
+  await page.goto("/#/monthly");
+  const matrix = page.locator('[data-slot="report-matrix"]');
+  const firstSalary = matrix.locator('[data-slot="matrix-row"]').first().locator('[data-slot="amount"]').first();
+  await expect(firstSalary).toHaveText("$5,200");
+  const precision = page.getByRole("group", { name: "Precision" });
+  await expect(precision.getByRole("button", { name: "$1,234", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await precision.getByRole("button", { name: "$1,234.56" }).click();
+  await expect(firstSalary).toHaveText("$5,200.00");
+  await expect(matrix.locator('[data-slot="matrix-kept"]')).toContainText("+$2,867.69");
 });
 
 test("prices page", async ({ page }) => {
@@ -540,6 +555,7 @@ test("rules page - suggest rules wizard suggestions step", async ({ page }) => {
 test("portfolio page", async ({ page }) => {
   await page.goto("/#/portfolio");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
+  await page.locator(".portfolio-chart .recharts-area-curve").waitFor();
   await page.waitForTimeout(800);
   await page.screenshot({ path: "test-results/portfolio.png", fullPage: true });
 });

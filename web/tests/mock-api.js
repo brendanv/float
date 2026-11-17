@@ -1487,103 +1487,73 @@ const MOCK_IS_PERIODS = [
   "2026-03-01",
 ];
 
+// Monthly figures vary so the Reports matrix's per-row heat shading shows;
+// parent, total and net rows are derived so the report stays consistent.
+const MOCK_IS_REVENUE = {
+  salary: [5200, 5200, 5200, 5200, 5200, 5200, 5200, 5200, 5200, 5200, 5200, 5200],
+  freelance: [0, 800, 0, 0, 1200, 0, 0, 450, 0, 0, 900, 0],
+};
+const MOCK_IS_EXPENSES = {
+  groceries: [412.18, 468.4, 431.05, 502.77, 445.3, 450, 438.62, 471.9, 455.25, 520.14, 433.8, 450],
+  dining: [180.5, 240.25, 196, 265.8, 210, 210, 188.4, 232.6, 301.45, 175, 205.3, 210],
+  utilities: [140.2, 118.6, 98.45, 92.1, 121.75, 128.3, 145.9, 168.2, 182.4, 175.35, 151.1, 95],
+  rent: [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500],
+  subscriptions: [57.43, 57.43, 57.43, 57.43, 57.43, 57.43, 57.43, 57.43, 69.42, 69.42, 69.42, 69.42],
+  transport: [42, 61.5, 28, 55.25, 49, 57.8, 31.4, 64.9, 38, 45.6, 52.3, 28],
+};
+
+const sumSeries = (series) =>
+  MOCK_IS_PERIODS.map((_, i) => series.reduce((sum, s) => sum + s[i], 0));
+const toAmountLists = (values) => values.map((v) => makeAmountList(v.toFixed(2)));
+const seriesTotal = (values) => [
+  { commodity: "USD", quantity: values.reduce((a, b) => a + b, 0).toFixed(2) },
+];
+
+function mockISRows(section, prefix, accounts, { parent } = {}) {
+  const totals = sumSeries(Object.values(accounts));
+  const rows = [];
+  if (parent) {
+    rows.push({
+      displayName: prefix,
+      fullName: prefix,
+      indent: 0,
+      section,
+      isTotal: false,
+      perPeriodAmounts: toAmountLists(totals),
+      totalAmounts: seriesTotal(totals),
+    });
+  }
+  for (const [name, values] of Object.entries(accounts)) {
+    if (values.every((v) => v === 0)) continue;
+    rows.push({
+      displayName: name,
+      fullName: `${prefix}:${name}`,
+      indent: 1,
+      section,
+      isTotal: false,
+      perPeriodAmounts: values.map((v) => (v === 0 ? { amounts: [] } : makeAmountList(v.toFixed(2)))),
+      totalAmounts: seriesTotal(values),
+    });
+  }
+  rows.push({
+    displayName: `Total ${section}`,
+    fullName: "",
+    indent: 0,
+    section,
+    isTotal: true,
+    perPeriodAmounts: toAmountLists(totals),
+    totalAmounts: [],
+  });
+  return { rows, totals };
+}
+
+const MOCK_IS_REV = mockISRows("Revenues", "income", MOCK_IS_REVENUE);
+const MOCK_IS_EXP = mockISRows("Expenses", "expenses", MOCK_IS_EXPENSES, { parent: true });
+
 export const mockIncomeStatementTimeseries = {
   periods: MOCK_IS_PERIODS,
-  rows: [
-    // Revenues section
-    {
-      displayName: "salary",
-      fullName: "income:salary",
-      indent: 1,
-      section: "Revenues",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("5200.00")),
-      totalAmounts: [{ commodity: "USD", quantity: "62400.00" }],
-    },
-    {
-      displayName: "Total Revenues",
-      fullName: "",
-      indent: 0,
-      section: "Revenues",
-      isTotal: true,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("5200.00")),
-      totalAmounts: [],
-    },
-    // Expenses section
-    {
-      displayName: "expenses",
-      fullName: "expenses",
-      indent: 0,
-      section: "Expenses",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2340.43")),
-      totalAmounts: [{ commodity: "USD", quantity: "28085.16" }],
-    },
-    {
-      displayName: "groceries",
-      fullName: "expenses:groceries",
-      indent: 1,
-      section: "Expenses",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("450.00")),
-      totalAmounts: [{ commodity: "USD", quantity: "5400.00" }],
-    },
-    {
-      displayName: "dining",
-      fullName: "expenses:dining",
-      indent: 1,
-      section: "Expenses",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("210.00")),
-      totalAmounts: [{ commodity: "USD", quantity: "2520.00" }],
-    },
-    {
-      displayName: "utilities",
-      fullName: "expenses:utilities",
-      indent: 1,
-      section: "Expenses",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("95.00")),
-      totalAmounts: [{ commodity: "USD", quantity: "1140.00" }],
-    },
-    {
-      displayName: "rent",
-      fullName: "expenses:rent",
-      indent: 1,
-      section: "Expenses",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("1500.00")),
-      totalAmounts: [{ commodity: "USD", quantity: "18000.00" }],
-    },
-    {
-      displayName: "subscriptions",
-      fullName: "expenses:subscriptions",
-      indent: 1,
-      section: "Expenses",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("57.43")),
-      totalAmounts: [{ commodity: "USD", quantity: "689.16" }],
-    },
-    {
-      displayName: "transport",
-      fullName: "expenses:transport",
-      indent: 1,
-      section: "Expenses",
-      isTotal: false,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("28.00")),
-      totalAmounts: [{ commodity: "USD", quantity: "336.00" }],
-    },
-    {
-      displayName: "Total Expenses",
-      fullName: "",
-      indent: 0,
-      section: "Expenses",
-      isTotal: true,
-      perPeriodAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2340.43")),
-      totalAmounts: [],
-    },
-  ],
-  netAmounts: MOCK_IS_PERIODS.map(() => makeAmountList("2859.57")),
+  rows: [...MOCK_IS_REV.rows, ...MOCK_IS_EXP.rows],
+  netAmounts: toAmountLists(MOCK_IS_REV.totals.map((v, i) => v - MOCK_IS_EXP.totals[i])),
 };
 
 function encodeConnectStreamingBody(messages) {

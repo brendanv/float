@@ -2,6 +2,7 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
 import { cn } from "@/lib/utils"
+import { Amount } from "@/components/amount.jsx"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = {
@@ -87,7 +88,14 @@ return color ? `  --color-${key}: ${color};` : null
   );
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+// ChartTooltip is recharts' Tooltip without its slide animation, so the
+// tooltip tracks the pointer and screenshots are stable. Items are listed
+// largest first, which matches the lines' vertical order.
+const byValueDesc = (item) => -(Number(item?.value) || 0)
+
+function ChartTooltip(props) {
+  return <RechartsPrimitive.Tooltip isAnimationActive={false} itemSorter={byValueDesc} {...props} />
+}
 
 function ChartTooltipContent({
   active,
@@ -102,7 +110,8 @@ function ChartTooltipContent({
   formatter,
   color,
   nameKey,
-  labelKey
+  labelKey,
+  commodity
 }) {
   const { config } = useChart()
 
@@ -151,7 +160,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "grid min-w-32 items-start gap-1.5 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs shadow-xl",
+        "grid min-w-36 items-start gap-1.5 rounded-lg bg-popover px-2.5 py-2 text-[12px] text-popover-foreground shadow-md ring-1 ring-foreground/10",
         className
       )}>
       {!nestLabel ? tooltipLabel : null}
@@ -206,11 +215,15 @@ function ChartTooltipContent({
                         </span>
                       </div>
                       {item.value != null && (
-                        <span className="font-mono font-medium text-foreground tabular-nums">
-                          {typeof item.value === "number"
-                            ? item.value.toLocaleString()
-                            : String(item.value)}
-                        </span>
+                        commodity ? (
+                          <Amount value={item.value} commodity={commodity} className="font-medium text-foreground" />
+                        ) : (
+                          <span className="font-medium text-foreground tabular-nums">
+                            {typeof item.value === "number"
+                              ? item.value.toLocaleString()
+                              : String(item.value)}
+                          </span>
+                        )
                       )}
                     </div>
                   </>
@@ -308,7 +321,97 @@ function getPayloadConfigFromPayload(
   return configLabelKey in config ? config[configLabelKey] : config[key]
 }
 
+// --- Waterline chart conventions -------------------------------------------
+// Lines are 1.8px; the primary series gets a soft area fill (ChartAreaFill)
+// and every line ends in a dot. With three or fewer series, label the line
+// ends (chartEndLabel) instead of drawing a legend. Axis ticks are ink-3 and
+// grid lines are the rule color (set on ChartContainer). Entry animations
+// are off (isAnimationActive={false} on every series, the tooltip has it
+// built in) so charts render settled and screenshots are stable.
+
+const CHART_STROKE = 1.8
+
+// Shared axis props: no tick or axis lines, quiet spacing.
+const CHART_X_AXIS = { tickLine: false, axisLine: false, tickMargin: 8, minTickGap: 24 }
+const CHART_Y_AXIS = { tickLine: false, axisLine: false, tickMargin: 4, width: 52 }
+
+const compactFormatters = new Map()
+
+// compactCurrency formats an axis tick as "$12.5K". Non-fiat commodities
+// fall back to a compact number.
+function compactCurrency(value, commodity = "USD") {
+  let fmt = compactFormatters.get(commodity)
+  if (!fmt) {
+    try {
+      fmt = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: commodity,
+        notation: "compact",
+        maximumFractionDigits: 1,
+      })
+    } catch {
+      fmt = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 })
+    }
+    compactFormatters.set(commodity, fmt)
+  }
+  return fmt.format(value)
+}
+
+// ChartAreaFill is the vertical gradient under the primary series. Render it
+// inside the chart and use fill={`url(#${id})`} on the <Area>.
+function ChartAreaFill({ id, color, opacity = 0.14 }) {
+  return (
+    <defs>
+      <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor={color} stopOpacity={opacity} />
+        <stop offset="1" stopColor={color} stopOpacity={0} />
+      </linearGradient>
+    </defs>
+  )
+}
+
+// chartEndLabel returns a <LabelList content> renderer that draws the
+// endpoint dot and, when `name` is set, the series name beside it. Leave
+// about 76px of right margin for the name.
+function chartEndLabel(name, color, lastIndex) {
+  function EndLabel({ x, y, index }) {
+    if (index !== lastIndex || x == null || y == null) return null
+    return (
+      <g data-slot="chart-end-label">
+        <circle cx={x} cy={y} r={3} fill={color} stroke="var(--background)" strokeWidth={1.5} />
+        {name && (
+          <text x={x + 8} y={y} dy="0.35em" fill={color} fontSize={11.5} fontWeight={500}>
+            {name}
+          </text>
+        )}
+      </g>
+    )
+  }
+  return EndLabel
+}
+
+// ChartTooltipRow is one tooltip line for a ChartTooltipContent formatter:
+// a swatch, the series label in ink-2 and the value (usually an <Amount>).
+function ChartTooltipRow({ color, label, children }) {
+  return (
+    <>
+      <div className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+      <div className="flex flex-1 items-center justify-between gap-3 leading-none">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium text-foreground">{children}</span>
+      </div>
+    </>
+  )
+}
+
 export {
+  CHART_STROKE,
+  CHART_X_AXIS,
+  CHART_Y_AXIS,
+  ChartAreaFill,
+  ChartTooltipRow,
+  chartEndLabel,
+  compactCurrency,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,

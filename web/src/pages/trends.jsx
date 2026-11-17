@@ -19,9 +19,16 @@ import {
   timeseriesBegin,
 } from "@/lib/net-worth.js";
 import {
+  CHART_STROKE,
+  CHART_X_AXIS,
+  CHART_Y_AXIS,
+  ChartAreaFill,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipRow,
+  chartEndLabel,
+  compactCurrency,
 } from "@/components/ui/chart";
 
 // Net worth is ink (the primary series, with an area fill); assets and
@@ -40,29 +47,6 @@ const RANGES = [
   { label: "All", months: null },
 ];
 
-const compactUSD = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-// endLabel renders a series name and an endpoint dot at the last point.
-function endLabel(name, color, lastIndex) {
-  function EndLabel({ x, y, index }) {
-    if (index !== lastIndex || x == null || y == null) return null;
-    return (
-      <g>
-        <circle cx={x} cy={y} r={3} fill={color} stroke="var(--background)" strokeWidth={1.5} />
-        <text x={x + 8} y={y} dy="0.35em" fill={color} fontSize={11.5} fontWeight={500}>
-          {name}
-        </text>
-      </g>
-    );
-  }
-  return EndLabel;
-}
-
 function NetWorthChart({ snapshots }) {
   const fillId = useId().replace(/:/g, "");
   const chartData = snapshots.map((s) => ({
@@ -80,39 +64,18 @@ function NetWorthChart({ snapshots }) {
         data={chartData}
         margin={{ top: 8, left: 4, right: 76, bottom: 0 }}
       >
-        <defs>
-          <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--color-netWorth)" stopOpacity={0.1} />
-            <stop offset="1" stopColor="var(--color-netWorth)" stopOpacity={0} />
-          </linearGradient>
-        </defs>
+        <ChartAreaFill id={fillId} color="var(--color-netWorth)" opacity={0.1} />
         <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          minTickGap={24}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={4}
-          width={52}
-          tickFormatter={(v) => compactUSD.format(v)}
-        />
+        <XAxis dataKey="date" {...CHART_X_AXIS} />
+        <YAxis {...CHART_Y_AXIS} tickFormatter={(v) => compactCurrency(v)} />
         <ChartTooltip
           cursor={false}
           content={
             <ChartTooltipContent
               formatter={(value, name, item) => (
-                <>
-                  <div className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
-                  <div className="flex flex-1 items-center justify-between gap-2 leading-none">
-                    <span className="text-muted-foreground">{chartConfig[name]?.label ?? name}</span>
-                    <Amount value={value} commodity="USD" className="font-medium text-foreground" />
-                  </div>
-                </>
+                <ChartTooltipRow color={item.color} label={chartConfig[name]?.label ?? name}>
+                  <Amount value={value} commodity="USD" />
+                </ChartTooltipRow>
               )}
             />
           }
@@ -121,32 +84,32 @@ function NetWorthChart({ snapshots }) {
           dataKey="liabilities"
           type="monotone"
           stroke="var(--color-liabilities)"
-          strokeWidth={1.5}
+          strokeWidth={CHART_STROKE}
           dot={false}
           isAnimationActive={false}
         >
-          <LabelList dataKey="liabilities" content={endLabel("Liabilities", "var(--color-liabilities)", last)} />
+          <LabelList dataKey="liabilities" content={chartEndLabel("Liabilities", "var(--color-liabilities)", last)} />
         </Line>
         <Line
           dataKey="assets"
           type="monotone"
           stroke="var(--color-assets)"
-          strokeWidth={1.5}
+          strokeWidth={CHART_STROKE}
           dot={false}
           isAnimationActive={false}
         >
-          <LabelList dataKey="assets" content={endLabel("Assets", "var(--color-assets)", last)} />
+          <LabelList dataKey="assets" content={chartEndLabel("Assets", "var(--color-assets)", last)} />
         </Line>
         <Area
           dataKey="netWorth"
           type="monotone"
           stroke="var(--color-netWorth)"
-          strokeWidth={1.8}
+          strokeWidth={CHART_STROKE}
           fill={`url(#${fillId})`}
           dot={false}
           isAnimationActive={false}
         >
-          <LabelList dataKey="netWorth" content={endLabel("Net worth", "var(--color-netWorth)", last)} />
+          <LabelList dataKey="netWorth" content={chartEndLabel("Net worth", "var(--color-netWorth)", last)} />
         </Area>
       </ComposedChart>
     </ChartContainer>
@@ -184,15 +147,10 @@ function ExpenseDonutChart({ expenseRows }) {
                 formatter={(value, name) => {
                   const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0";
                   return (
-                    <>
-                      <div className="shrink-0 rounded-[2px] h-2.5 w-2.5" style={{ backgroundColor: donutConfig[name]?.color }} />
-                      <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                        <span className="text-muted-foreground">{name}</span>
-                        <span className="font-medium text-foreground">
-                          <Amount value={value} commodity="USD" /> ({pct}%)
-                        </span>
-                      </div>
-                    </>
+                    <ChartTooltipRow color={donutConfig[name]?.color} label={name}>
+                      <Amount value={value} commodity="USD" />
+                      <span className="ml-1.5 font-normal text-faint">{pct}%</span>
+                    </ChartTooltipRow>
                   );
                 }}
               />
@@ -205,8 +163,9 @@ function ExpenseDonutChart({ expenseRows }) {
             innerRadius="60%"
             outerRadius="80%"
             strokeWidth={2}
-            stroke="var(--card)"
+            stroke="var(--background)"
             paddingAngle={0}
+            isAnimationActive={false}
           >
             {categories.map((c) => (
               <Cell key={c.name} fill={c.color} />

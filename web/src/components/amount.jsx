@@ -45,7 +45,7 @@ function Figure({ text, split }) {
   );
 }
 
-function SingleAmount({ value, commodity, cost, costBasis, size, tone, signed, negate, className, ...props }) {
+function SingleAmount({ value, commodity, cost, costBasis, size, tone, signed, negate, whole, className, ...props }) {
   let quantity = value;
   if (value && typeof value === "object") {
     quantity = value.quantity;
@@ -59,10 +59,10 @@ function SingleAmount({ value, commodity, cost, costBasis, size, tone, signed, n
   const hasLot = hasCost || !!formatCostBasis(costBasis);
   const total = hasCost ? costTotal(quantity, cost) : null;
   const primary = total !== null
-    ? formatCurrency(total, cost.commodity)
-    : formatCurrency(quantity, commodity);
+    ? formatCurrency(total, cost.commodity, { whole })
+    : formatCurrency(quantity, commodity, { whole });
   const shownQuantity = total !== null ? total : parseFloat(quantity);
-  const text = signed && shownQuantity > 0 ? `+${primary}` : primary;
+  const text = signed && shownQuantity > 0 && /[1-9]/.test(primary) ? `+${primary}` : primary;
   const detail = hasLot
     ? formatCurrency(quantity, commodity) + formatCostBasis(costBasis) + formatCost(cost)
     : null;

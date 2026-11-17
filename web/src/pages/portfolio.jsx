@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useId } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
+  LabelList,
   Line,
-  LineChart,
   XAxis,
   YAxis,
   PieChart,
@@ -27,6 +29,7 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Stats15 } from "../components/stats-15.jsx";
 import { PageHeader } from "../components/page-header.jsx";
+import { Amount } from "../components/amount.jsx";
 import { DashboardGrid, MetricCard, Page } from "../components/page.jsx";
 import {
   Card,
@@ -37,11 +40,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  CHART_STROKE,
+  CHART_X_AXIS,
+  CHART_Y_AXIS,
+  ChartAreaFill,
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipRow,
+  chartEndLabel,
+  compactCurrency,
 } from "@/components/ui/chart";
 import {
   Table,
@@ -383,6 +391,7 @@ function AllocationChart({ holdings, currencyTotals }) {
                   outerRadius="80%"
                   strokeWidth={2}
                   stroke="var(--card)"
+                  isAnimationActive={false}
                 >
                   {pieData.map((d) => (
                     <Cell key={d.symbol} fill={d.color} />
@@ -615,6 +624,7 @@ function MultiPeriodReturns({ snapshots }) {
 }
 
 function PortfolioChart({ snapshots, timeRange, onTimeRangeChange }) {
+  const fillId = useId().replace(/:/g, "");
   const hasCostBasis = useMemo(
     () => snapshots?.some((s) => s.costBasis),
     [snapshots],
@@ -644,12 +654,17 @@ function PortfolioChart({ snapshots, timeRange, onTimeRangeChange }) {
     }),
   }));
 
+  // Market value is the primary series (accent, area fill); cost basis is a
+  // quiet dashed ink-3 line. Two series, so the line ends are labelled
+  // instead of drawing a legend.
   const chartConfig = {
-    marketValue: { label: "Market Value", color: "var(--chart-1)" },
+    marketValue: { label: "Market value", color: "var(--primary)" },
     ...(hasCostBasis && {
-      costBasis: { label: "Cost Basis", color: "var(--chart-2)" },
+      costBasis: { label: "Cost basis", color: "var(--faint)" },
     }),
   };
+  const last = chartData.length - 1;
+  const currency = snapshots.find((s) => s.totalValue)?.totalValue?.commodity || "USD";
 
   return (
     <Card className="h-full">
@@ -658,68 +673,53 @@ function PortfolioChart({ snapshots, timeRange, onTimeRangeChange }) {
         onTimeRangeChange={onTimeRangeChange}
       />
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-80 w-full">
-          <LineChart
+        <ChartContainer config={chartConfig} className="portfolio-chart aspect-auto h-80 w-full">
+          <ComposedChart
             accessibilityLayer
             data={chartData}
-            margin={{ left: 12, right: 12 }}
+            margin={{ top: 8, left: 4, right: 84, bottom: 0 }}
           >
+            <ChartAreaFill id={fillId} color="var(--color-marketValue)" />
             <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              width={80}
-              tickFormatter={(v) => formatCurrency(v?.toString(), "USD")}
-            />
+            <XAxis dataKey="date" {...CHART_X_AXIS} />
+            <YAxis {...CHART_Y_AXIS} tickFormatter={(v) => compactCurrency(v, currency)} />
             <ChartTooltip
               cursor={false}
               content={
                 <ChartTooltipContent
                   formatter={(value, name, item) => (
-                    <>
-                      <div
-                        className="shrink-0 rounded-[2px] h-2.5 w-2.5"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <div className="flex flex-1 justify-between items-center gap-2 leading-none">
-                        <span className="text-muted-foreground">
-                          {chartConfig[name]?.label ?? name}
-                        </span>
-                        <span className="font-mono font-medium tabular-nums">
-                          {formatCurrency(value?.toString(), "USD")}
-                        </span>
-                      </div>
-                    </>
+                    <ChartTooltipRow color={item.color} label={chartConfig[name]?.label ?? name}>
+                      <Amount value={value} commodity={currency} />
+                    </ChartTooltipRow>
                   )}
                 />
               }
-            />
-            <ChartLegend content={<ChartLegendContent />} />
-            <Line
-              dataKey="marketValue"
-              type="monotone"
-              stroke="var(--color-marketValue)"
-              strokeWidth={2}
-              dot={false}
             />
             {hasCostBasis && (
               <Line
                 dataKey="costBasis"
                 type="monotone"
                 stroke="var(--color-costBasis)"
-                strokeWidth={2}
-                dot={false}
+                strokeWidth={CHART_STROKE}
                 strokeDasharray="5 3"
-              />
+                dot={false}
+                isAnimationActive={false}
+              >
+                <LabelList dataKey="costBasis" content={chartEndLabel("Cost basis", "var(--color-costBasis)", last)} />
+              </Line>
             )}
-          </LineChart>
+            <Area
+              dataKey="marketValue"
+              type="monotone"
+              stroke="var(--color-marketValue)"
+              strokeWidth={CHART_STROKE}
+              fill={`url(#${fillId})`}
+              dot={false}
+              isAnimationActive={false}
+            >
+              <LabelList dataKey="marketValue" content={chartEndLabel("Market value", "var(--color-marketValue)", last)} />
+            </Area>
+          </ComposedChart>
         </ChartContainer>
       </CardContent>
     </Card>
