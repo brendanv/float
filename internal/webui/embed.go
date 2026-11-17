@@ -39,8 +39,13 @@ func Handler() http.Handler {
 		// Hashed assets (Vite output) can be cached aggressively.
 		if strings.HasPrefix(path, "assets/") {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		} else if path == "index.html" {
+		} else if path == "index.html" || path == "sw.js" || path == "manifest.webmanifest" {
+			// Revalidate the shell, service worker and manifest so installed
+			// apps pick up new builds.
 			w.Header().Set("Cache-Control", "no-cache")
+		}
+		if path == "manifest.webmanifest" {
+			w.Header().Set("Content-Type", "application/manifest+json")
 		}
 
 		fileServer.ServeHTTP(w, r)

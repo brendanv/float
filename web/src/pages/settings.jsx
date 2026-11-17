@@ -17,6 +17,7 @@ import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from "@/compon
 import { ChevronDown, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { downloadBlob } from "@/lib/download";
+import { promptInstall, useInstallState } from "@/lib/pwa";
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -619,8 +620,56 @@ export function SettingsPage() {
           </CollapsibleContent>
         </Section>
       </Collapsible>
+
+      <Section title="App">
+        <SettingGroups>
+          <SettingGroup
+            title="Install on this device"
+            description="Add float to your home screen or dock to open it full screen, like a native app."
+          >
+            <InstallApp />
+          </SettingGroup>
+        </SettingGroups>
+      </Section>
     </Page>
   );
+}
+
+// InstallApp offers the browser's install dialog when it has one, and
+// otherwise says how to install by hand.
+function InstallApp() {
+  const state = useInstallState();
+  switch (state) {
+    case "installed":
+      return <ConfigState on>Running as an installed app.</ConfigState>;
+    case "prompt":
+      return (
+        <Button variant="outline" onClick={promptInstall}>
+          <Download />
+          Install float
+        </Button>
+      );
+    case "ios":
+      return (
+        <p className="text-control text-muted-foreground">
+          In Safari, tap <span className="text-foreground">Share</span>, then{" "}
+          <span className="text-foreground">Add to Home Screen</span>.
+        </p>
+      );
+    case "insecure":
+      return (
+        <ConfigState>
+          Browsers only install apps served over HTTPS. Put floatd behind a TLS proxy, then reload this page.
+        </ConfigState>
+      );
+    default:
+      return (
+        <p className="text-control text-muted-foreground">
+          Use your browser&apos;s <span className="text-foreground">Install app</span> or{" "}
+          <span className="text-foreground">Add to Home Screen</span> menu item.
+        </p>
+      );
+  }
 }
 
 // SectionToggle is a collapsible section heading: the title plus a chevron.

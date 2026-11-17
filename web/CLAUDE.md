@@ -42,7 +42,8 @@ src/
 ├── hooks/
 │   └── use-mobile.js  # responsive breakpoint detection
 ├── lib/
-│   └── utils.js       # cn() helper (clsx + tailwind-merge)
+│   ├── utils.js       # cn() helper (clsx + tailwind-merge)
+│   └── pwa.js         # service worker registration (prod only), install prompt, theme-color sync
 └── pages/             # one file per route
 ```
 
@@ -128,6 +129,10 @@ After any ledger mutation call `invalidateLedgerQueries(queryClient)` from `quer
 Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `payee:`/`desc:`/`tag:` values are regexes, so literal names must go through `escapeRegex`/`exactRegex` (e.g. `SQ *COFFEE`), and `dateRangeQuery` handles open-ended ranges. `isHledgerQuery` decides whether search text is a raw hledger query (sent as tokens, shown in mono) or literal description text.
 
 `UpdateTransaction` replaces all postings: send every posting's `comment` back (`fieldsFromPosting` → `toPostingInput` carry it) or it is deleted. An empty `comment`/`tags` keeps the existing value; set `replaceComment`/`replaceTags` to clear.
+
+## Installable app (PWA)
+
+`public/manifest.webmanifest`, `public/sw.js` and the `icon-*`/`apple-touch-icon` PNGs make the UI installable. The service worker only caches the app shell (`/`, network first) and hashed `/assets/*` (cache first); it never touches RPCs or `/api/*`. It is registered in production builds only, so `bun run dev` and Playwright run without it. Settings › App offers the browser's install prompt or platform instructions. Browsers only install over HTTPS (or `localhost`).
 
 ## Adding a New Page
 

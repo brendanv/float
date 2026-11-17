@@ -20,6 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { setThemeColor } from "@/lib/pwa.js";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 import { CommandPalette } from "./command-palette.jsx";
 import { NAV_GROUPS, SETTINGS_ITEM, navItemFor } from "./nav-items.js";
@@ -82,6 +83,7 @@ function useTheme() {
     const next = !isDark;
     setIsDark(next);
     document.documentElement.classList.toggle("dark", next);
+    setThemeColor(next);
     localStorage.setItem("float-theme", next ? "dark" : "light");
   }
   return [isDark, toggle];
