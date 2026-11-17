@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
-import { ROW_ACTION } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -42,6 +42,91 @@ function oneYearAgo() {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+// A price older than this many days is stale: worth a backfill.
+const STALE_DAYS = 7;
+
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// daysBetween counts whole days between two "YYYY-MM-DD" dates.
+function daysBetween(from, to) {
+  return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+}
+
+function dayAfter(date) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
+function formatAge(days) {
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day";
+  if (days < 60) return `${days} days`;
+  if (days < 730) return `${Math.round(days / 30.44)} months`;
+  return `${Math.round(days / 365.25)} years`;
+}
+
+// latestByCommodity picks each commodity's most recent P directive, oldest
+// first, so the commodities most in need of an update lead the list.
+function latestByCommodity(prices, today) {
+  const latest = new Map();
+  for (const p of prices) {
+    const cur = latest.get(p.commodity);
+    if (!cur || p.date > cur.date) latest.set(p.commodity, p);
+  }
+  return [...latest.values()]
+    .map((p) => {
+      const age = daysBetween(p.date, today);
+      return { ...p, age, stale: age > STALE_DAYS };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date) || a.commodity.localeCompare(b.commodity));
+}
+
+function LatestPricesTable({ latest, onBackfill }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead>Commodity</TableHead>
+          <TableHead className="text-right">Latest price</TableHead>
+          <TableHead>As of</TableHead>
+          <TableHead>Age</TableHead>
+          <TableHead className="w-px" />
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {latest.map((p) => (
+          <TableRow key={p.commodity} className="group/row" data-slot="latest-price" data-stale={p.stale || undefined}>
+            <TableCell><span className="font-mono text-code font-medium">{p.commodity}</span></TableCell>
+            <TableCell className="text-right">
+              {p.price && <Amount value={{ quantity: p.price.quantity, commodity: p.price.commodity }} />}
+            </TableCell>
+            <TableCell className="text-muted-foreground">{p.date}</TableCell>
+            <TableCell className={p.stale ? "text-warning" : "text-muted-foreground"}>
+              {formatAge(p.age)}
+              {p.stale && <span className="sr-only"> (stale)</span>}
+            </TableCell>
+            <TableCell className="w-px text-right">
+              <Button
+                variant="ghost"
+                size="xs"
+                className={cn("text-muted-foreground", !p.stale && ROW_ACTION)}
+                aria-label={`Backfill ${p.commodity}`}
+                onClick={() => onBackfill([p.commodity], dayAfter(p.date))}
+              >
+                Backfill
+              </Button>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
 }
 
 const colHelper = createColumnHelper();
@@ -308,6 +393,19 @@ export function PricesPage() {
     invalidateLedgerQueries(queryClient);
   }
 
+  // prefillBackfill fills the backfill form and brings it into view.
+  function prefillBackfill(commodities, startDate) {
+    setBackfillCommodities(commodities.join(", "));
+    setBackfillStartDate(startDate);
+    setBackfillEndDate(today());
+    const input = document.getElementById("backfill-commodities");
+    input?.scrollIntoView({ block: "center", behavior: "smooth" });
+    input?.focus({ preventScroll: true });
+  }
+
+  const latest = latestByCommodity(pricesData?.prices ?? [], localToday());
+  const stale = latest.filter((p) => p.stale);
+
   function handlePrefill() {
     const prices = pricesData?.prices;
     if (!prices?.length) return;
@@ -324,6 +422,26 @@ export function PricesPage() {
 
   return (
     <Page>
+      {latest.length > 0 && (
+        <Section
+          title="Latest by commodity"
+          description={stale.length > 0
+            ? `${stale.length} of ${latest.length} older than ${STALE_DAYS} days`
+            : `All ${latest.length} up to date`}
+          action={stale.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => prefillBackfill(stale.map((p) => p.commodity), dayAfter(stale[0].date))}
+            >
+              Backfill stale
+            </Button>
+          )}
+        >
+          <LatestPricesTable latest={latest} onBackfill={prefillBackfill} />
+        </Section>
+      )}
+
       <Section title="Add price">
         <Form onSubmit={handleSubmit}>
           {formError && <ErrorBanner error={formError} />}

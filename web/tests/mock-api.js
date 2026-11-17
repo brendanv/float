@@ -1600,6 +1600,8 @@ export async function mockLedgerApi(
     accountRegisterRows,
     accountDeclarations,
     portfolioHoldings,
+    prices,
+    balanceTreeRows,
     stripeEnabled = true,
     aiEnabled = true,
   } = {},
@@ -1695,7 +1697,7 @@ export async function mockLedgerApi(
         let rows;
         if (reqBody.tree) {
           // The Accounts page asks for every account type as one tree.
-          rows = query.includes("type:AL") ? mockAccountTreeRows : mockFullAccountTreeRows;
+          rows = query.includes("type:AL") ? mockAccountTreeRows : (balanceTreeRows ?? mockFullAccountTreeRows);
         }
         else if (isExpense) rows = mockExpenseBalanceRows;
         else if (isRevenue) rows = mockRevenueBalanceRows;
@@ -1975,7 +1977,7 @@ export async function mockLedgerApi(
         body = {};
         break;
       case "ListPrices":
-        body = { prices: mockPrices };
+        body = { prices: prices ?? mockPrices };
         break;
       case "AddPrice":
         body = {

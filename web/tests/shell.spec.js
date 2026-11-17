@@ -5,16 +5,13 @@ test.beforeEach(async ({ page }) => {
   await mockLedgerApi(page);
 });
 
-test("sidebar marks the group active and shows the review count", async ({ page }) => {
+test("sidebar marks the group active without a review badge", async ({ page }) => {
   await page.goto("/#/lots");
   const sidebar = page.locator('[data-slot="sidebar"]');
   await expect(sidebar.locator('[data-slot="sidebar-menu-button"][data-active]')).toHaveText("Investments");
   // TanStack only marks an exact href match; grouped routes set it themselves.
   await expect(sidebar.locator('[aria-current="page"]')).toHaveText("Investments");
-  const count = sidebar.locator('[data-slot="review-count"]');
-  await expect(count).toHaveText("6");
-  await count.click();
-  await expect(page).toHaveURL(/#\/transactions\?search=not%3Astatus%3A\*/);
+  await expect(sidebar.locator('[data-slot="review-count"]')).toHaveCount(0);
 });
 
 test("section tabs reach every route in a group", async ({ page }) => {

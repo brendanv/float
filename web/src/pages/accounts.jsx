@@ -69,8 +69,38 @@ function closedState(name, byName) {
   return null;
 }
 
-// Raw (unvalued) inclusive balances for every account, as an hledger tree.
-const BALANCE_TREE_PARAMS = { tree: true };
+// Inclusive balances for every account, as an hledger tree, at today's
+// market value (as on Overview). Raw balances keep one amount per lot, which
+// buries investment accounts under their lot history; valued, priced
+// holdings collapse into one figure. Units and lots live on Investments.
+const BALANCE_TREE_PARAMS = { tree: true, value: "now,USD" };
+
+// Amount lists longer than this collapse behind a "+N more" toggle
+// (commodities hledger can't value, e.g. no price yet, stay per lot).
+const MAX_AMOUNTS = 2;
+
+// BalanceCell renders an account's amounts, collapsing long lists to the
+// first amount and a toggle so a row stays one line tall.
+function BalanceCell({ amounts, negate, name }) {
+  const [expanded, setExpanded] = useState(false);
+  const nonZero = amounts.filter((a) => parseFloat(a?.quantity) !== 0);
+  if (nonZero.length <= MAX_AMOUNTS) return <Amount value={amounts} negate={negate} />;
+  const hidden = nonZero.length - 1;
+  return (
+    <div className="flex flex-col items-end">
+      <Amount value={expanded ? nonZero : nonZero.slice(0, 1)} negate={negate} />
+      <button
+        type="button"
+        className="touch-target rounded text-[11.5px] leading-4 text-faint hover:text-foreground"
+        aria-expanded={expanded}
+        aria-label={expanded ? `Show fewer amounts for ${name}` : `Show ${hidden} more amounts for ${name}`}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {expanded ? "Show less" : `+${hidden} more`}
+      </button>
+    </div>
+  );
+}
 
 // balancesByName maps each account to its `hledger bal --tree` amounts.
 // hledger elides a parent with a single child and no postings of its own
@@ -180,7 +210,7 @@ function AccountRow({ name, depth, tree }) {
         )}
       </div>
       <div className={cn("min-w-[5.5rem] py-1 text-right", closed && "text-faint")}>
-        {amounts && <Amount value={amounts} negate={NEGATE_TYPES.has(type)} />}
+        {amounts && <BalanceCell amounts={amounts} negate={NEGATE_TYPES.has(type)} name={name} />}
       </div>
     </div>
   );
@@ -334,7 +364,7 @@ export function AccountsPage() {
 
       <Section
         title="Account tree"
-        action={<span className="text-label uppercase text-faint">Balance</span>}
+        action={<span className="text-label uppercase text-faint">Value</span>}
       >
         {isLoading && <Loading />}
         {fetchError && <ErrorBanner error={fetchError} />}
