@@ -792,10 +792,10 @@ test("accounts page - closed accounts", async ({ page }) => {
   });
   await page.goto("/#/accounts");
   await page.getByRole("button", { name: "Rename assets:oldbank", exact: true }).waitFor();
-  // Directly closed account shows a badge and a Reopen action; its inherited
+  // Directly closed account shows a "closed" tag and a Reopen action; its inherited
   // sub-account gets neither (it reopens with its parent).
   const oldbankRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:oldbank", exact: true }) });
-  await expect(oldbankRow.getByText("Closed", { exact: true })).toBeVisible();
+  await expect(oldbankRow.getByText("closed", { exact: true })).toBeVisible();
   await expect(oldbankRow.getByRole("button", { name: "Reopen" })).toBeVisible();
   const childRow = page.locator(".group", { has: page.getByRole("button", { name: "Rename assets:oldbank:checking" }) });
   await expect(childRow.getByRole("button", { name: /Reopen|Close/ })).toHaveCount(0);

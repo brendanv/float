@@ -125,6 +125,17 @@ export const mockAccountTreeRows = [
   { fullName: "liabilities:creditcard", displayName: "liabilities:creditcard", indent: 0, amounts: [{ commodity: "USD", quantity: "-1230.00" }] },
 ];
 
+// `hledger bal --tree` over every account type (Accounts page balances).
+const mockExpenseTotal = mockExpenseBalanceRows
+  .reduce((sum, r) => sum + parseFloat(r.amounts[0].quantity), 0)
+  .toFixed(2);
+export const mockFullAccountTreeRows = [
+  ...mockAccountTreeRows,
+  { fullName: "expenses", displayName: "expenses", indent: 0, amounts: [{ commodity: "USD", quantity: mockExpenseTotal }] },
+  ...mockExpenseBalanceRows.map((r) => ({ ...r, indent: 1 })),
+  ...mockRevenueBalanceRows.map((r) => ({ ...r, indent: 0 })),
+];
+
 export const mockTransactions = [
   {
     fid: "a1b2c3d4",
@@ -1678,7 +1689,10 @@ export async function mockLedgerApi(
         const isExpense = query.includes("type:X");
         const isRevenue = query.includes("type:R");
         let rows;
-        if (reqBody.tree) rows = mockAccountTreeRows;
+        if (reqBody.tree) {
+          // The Accounts page asks for every account type as one tree.
+          rows = query.includes("type:AL") ? mockAccountTreeRows : mockFullAccountTreeRows;
+        }
         else if (isExpense) rows = mockExpenseBalanceRows;
         else if (isRevenue) rows = mockRevenueBalanceRows;
         else

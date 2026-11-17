@@ -2,20 +2,20 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
-import { BookOpen } from "lucide-react";
+import { BookOpen, ChevronRight, Pencil } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { AccountInput } from "../components/posting-fields.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
-import { Page, PageCard } from "../components/page.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Page, Section } from "../components/page.jsx";
+import { Amount } from "../components/amount.jsx";
+import { AccountGlyph } from "../components/account.jsx";
+import { TagChip } from "../components/tag-editor.jsx";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ChevronRight, ChevronDown, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
+import { Form, FormField } from "@/components/ui/form";
+import { accountType } from "@/lib/accounts.js";
 import { cn } from "@/lib/utils";
 import {
   ResponsiveDialog,
@@ -69,69 +69,117 @@ function closedState(name, byName) {
   return null;
 }
 
-const rowActionClass = "md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 transition-opacity";
+// Raw (unvalued) inclusive balances for every account, as an hledger tree.
+const BALANCE_TREE_PARAMS = { tree: true };
 
-function AccountTreeNode({ name, depth, tree }) {
-  const { byName, children, declaredNames, pendingName, onDelete, onRename, onSetClosed } = tree;
-  const [expanded, setExpanded] = useState(true);
-  const kids = children.get(name) ?? [];
-  const decl = byName.get(name);
-  const hasKids = kids.length > 0;
+// Credit-normal accounts read as positive amounts owed / earned.
+const NEGATE_TYPES = new Set(["liability", "income", "equity"]);
+
+// balancesByName maps each account to its `hledger bal --tree` amounts.
+// hledger elides a parent with a single child and no postings of its own
+// into one "parent:child" row; the elided parents share that row's total.
+function balancesByName(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    map.set(row.fullName, row.amounts);
+    const shown = String(row.displayName || "").split(":").length;
+    const parts = row.fullName.split(":");
+    for (let i = 1; i < shown; i++) {
+      const ancestor = parts.slice(0, parts.length - i).join(":");
+      if (!map.has(ancestor)) map.set(ancestor, row.amounts);
+    }
+  }
+  return map;
+}
+
+// visibleRows flattens the tree depth-first, skipping collapsed subtrees.
+function visibleRows(roots, children, collapsed) {
+  const out = [];
+  function walk(name, depth) {
+    out.push({ name, depth });
+    if (collapsed.has(name)) return;
+    for (const child of children.get(name) ?? []) walk(child, depth + 1);
+  }
+  for (const root of roots) walk(root, 0);
+  return out;
+}
+
+// Row actions show on row hover or keyboard focus on devices that can
+// hover; touch devices always show them.
+const ROW_ACTION =
+  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity";
+
+function AccountRow({ name, depth, tree }) {
+  const { byName, children, declaredNames, balances, collapsed, pendingName, onToggle, onDelete, onRename, onSetClosed } = tree;
+  const hasKids = (children.get(name) ?? []).length > 0;
+  const expanded = !collapsed.has(name);
   const label = name.split(":").at(-1);
   const closed = closedState(name, byName);
+  const canDelete = declaredNames.has(name) && !byName.get(name)?.hasPostings;
+  const type = accountType(name);
+  const amounts = balances.get(name);
+  const isRoot = depth === 0;
 
   return (
-    <div>
-      <div
-        className="flex items-center gap-1 py-0.5 rounded hover:bg-muted/50 group"
-        style={{ paddingLeft: `${depth * 1.25 + 0.25}rem` }}
-      >
+    <div
+      data-slot="account-row"
+      className={cn(
+        "group grid min-h-[34px] grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 border-b border-border px-1 hover:bg-muted/50",
+        isRoot && "font-semibold",
+        isRoot && "[&:not(:first-child)]:mt-4",
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: `${depth * 1.125}rem` }}>
         <button
-          className="flex items-center justify-center w-4 h-4 shrink-0"
-          onClick={() => hasKids && setExpanded((e) => !e)}
+          type="button"
+          className="-ml-1 flex size-5 shrink-0 items-center justify-center rounded text-faint hover:text-foreground disabled:pointer-events-none"
+          onClick={() => onToggle(name)}
+          disabled={!hasKids}
           tabIndex={hasKids ? 0 : -1}
-          aria-label={expanded ? "Collapse" : "Expand"}
+          aria-label={hasKids ? `${expanded ? "Collapse" : "Expand"} ${name}` : undefined}
+          aria-hidden={hasKids ? undefined : true}
+          aria-expanded={hasKids ? expanded : undefined}
         >
           {hasKids && (
-            <ChevronRight
-              className={`size-3 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`}
-            />
+            <ChevronRight className={cn("size-3.5 transition-transform", expanded && "rotate-90")} />
           )}
         </button>
-        <div className="flex flex-1 items-center gap-1 min-w-0">
-          <span
-            className={cn("font-mono text-sm truncate", closed && "text-muted-foreground")}
-            title={closed === "inherited" ? `${name} (closed via parent account)` : name}
-          >
-            {label}
-          </span>
-          {closed === "closed" && <Badge variant="secondary">Closed</Badge>}
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Rename ${name}`}
-            title={`Rename ${name}`}
-            onClick={() => onRename(name)}
-          >
-            <Pencil className="size-3" />
-          </Button>
-        </div>
+        <AccountGlyph type={type} />
+        <span
+          className={cn("min-w-0 truncate", closed && "text-faint")}
+          title={closed === "inherited" ? `${name} (closed via parent account)` : name}
+        >
+          {label}
+        </span>
+        {closed === "closed" && <TagChip className="font-normal">closed</TagChip>}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className={cn("text-muted-foreground", ROW_ACTION)}
+          aria-label={`Rename ${name}`}
+          title={`Rename ${name}`}
+          onClick={() => onRename(name)}
+        >
+          <Pencil className="size-3" />
+        </Button>
+      </div>
+      <div className="flex items-center gap-1 font-normal">
         {closed !== "inherited" && (
           <Button
             variant="ghost"
             size="xs"
-            className={rowActionClass}
+            className={cn("text-muted-foreground", ROW_ACTION)}
             isLoading={pendingName === name}
             onClick={() => onSetClosed(name, !closed)}
           >
             {closed ? "Reopen" : "Close"}
           </Button>
         )}
-        {declaredNames.has(name) && !decl?.hasPostings && (
+        {canDelete && (
           <Button
             variant="destructive-ghost"
             size="xs"
-            className={cn(rowActionClass, "mr-1")}
+            className={ROW_ACTION}
             isLoading={pendingName === name}
             onClick={() => onDelete(name)}
           >
@@ -139,77 +187,10 @@ function AccountTreeNode({ name, depth, tree }) {
           </Button>
         )}
       </div>
-      {hasKids && expanded && (
-        <div>
-          {kids.map((child) => (
-            <AccountTreeNode key={child} name={child} depth={depth + 1} tree={tree} />
-          ))}
-        </div>
-      )}
+      <div className={cn("min-w-[5.5rem] py-1 text-right", closed && "text-faint")}>
+        {amounts && <Amount value={amounts} negate={NEGATE_TYPES.has(type)} />}
+      </div>
     </div>
-  );
-}
-
-function RootAccountCard({ root, tree }) {
-  const { byName, children, declaredNames, pendingName, onDelete, onRename } = tree;
-  const [open, setOpen] = useState(true);
-  const kids = children.get(root) ?? [];
-  const canDelete = declaredNames.has(root) && !byName.get(root)?.hasPostings;
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex flex-1 items-center gap-1 min-w-0">
-              <CardTitle className="capitalize truncate" title={root}>{root}</CardTitle>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`Rename ${root}`}
-                title={`Rename ${root}`}
-                onClick={() => onRename(root)}
-              >
-                <Pencil className="size-3" />
-              </Button>
-              <CollapsibleTrigger
-                className="flex items-center justify-center size-6 shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label={open ? `Collapse ${root}` : `Expand ${root}`}
-              >
-                <ChevronDown
-                  className={cn(
-                    "size-4 transition-transform duration-200",
-                    open && "rotate-180",
-                  )}
-                />
-              </CollapsibleTrigger>
-            </div>
-            {canDelete && (
-              <Button
-                variant="destructive-ghost"
-                size="xs"
-                isLoading={pendingName === root}
-                onClick={() => onDelete(root)}
-              >
-                Delete
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent>
-            {kids.length > 0 ? (
-              <div>
-                {kids.map((child) => (
-                  <AccountTreeNode key={child} name={child} depth={0} tree={tree} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No sub-accounts declared.</p>
-            )}
-          </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
   );
 }
 
@@ -226,11 +207,17 @@ export function AccountsPage() {
     queryFn: () => ledgerClient.listAccounts({}),
   });
 
+  const { data: balancesData } = useQuery({
+    queryKey: queryKeys.balances(BALANCE_TREE_PARAMS),
+    queryFn: () => ledgerClient.getBalances(BALANCE_TREE_PARAMS),
+  });
+
   const [name, setName] = useState("");
   const [formError, setFormError] = useState(null);
   const [pendingName, setPendingName] = useState(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameAccountName, setRenameAccountName] = useState("");
+  const [collapsed, setCollapsed] = useState(() => new Set());
 
   const addMutation = useMutation({
     mutationFn: (vars) => ledgerClient.declareAccount(vars),
@@ -290,6 +277,15 @@ export function AccountsPage() {
     setRenameOpen(true);
   }
 
+  function handleToggle(name) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
   const declarations = data?.declarations ?? [];
   const declaredNames = new Set(declarations.map((d) => d.name));
   const usedAccountNames = (accountsData?.accounts ?? []).map((a) => a.fullName);
@@ -298,27 +294,29 @@ export function AccountsPage() {
     byName,
     children,
     declaredNames,
+    balances: balancesByName(balancesData?.report?.rows ?? []),
+    collapsed,
     pendingName,
+    onToggle: handleToggle,
     onDelete: handleDelete,
     onRename: handleRename,
     onSetClosed: handleSetClosed,
   };
+  const rows = visibleRows(roots, children, collapsed);
 
   return (
     <Page>
-      <PageHeader
-        title="Accounts"
-        description="Declare, rename, and close accounts. Closed accounts are hidden from account pickers and home page totals; hledger reports are unchanged."
-      />
+      <PageHeader title="Accounts" />
 
-      <PageCard title="Declare Account">
-        <Form onSubmit={handleSubmit}>
+      <Section title="Declare account">
+        <Form onSubmit={handleSubmit} className="gap-3">
           {formError && <ErrorBanner error={formError} />}
-          <FormRow cols={2}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
             <FormField
-              label="Account Name"
+              label="Account name"
               htmlFor="acct-name"
               description="Colon-separated hierarchy, e.g. assets:bank:checking"
+              className="sm:w-96"
             >
               <Input
                 id="acct-name"
@@ -330,35 +328,44 @@ export function AccountsPage() {
                 required
               />
             </FormField>
-          </FormRow>
-          <FormActions>
             <Button
               type="submit"
+              className="self-start sm:mt-[1.5625rem]"
               isLoading={addMutation.isPending}
               loadingText="Declaring..."
             >
-              Declare Account
+              Declare account
             </Button>
-          </FormActions>
+          </div>
         </Form>
-      </PageCard>
+      </Section>
 
-      {isLoading && <Loading />}
-      {fetchError && <ErrorBanner error={fetchError} />}
-      {data && roots.length === 0 && (
-        <Card>
-          <CardContent>
-            <EmptyState
-              icon={BookOpen}
-              title="No accounts yet"
-              description="Declare accounts to get type-aware classification (assets, liabilities, income, expenses, equity)."
-            />
-          </CardContent>
-        </Card>
-      )}
-      {data && roots.map((root) => (
-        <RootAccountCard key={root} root={root} tree={tree} />
-      ))}
+      <Section
+        title="Account tree"
+        action={<span className="text-label uppercase text-faint">Balance</span>}
+      >
+        {isLoading && <Loading />}
+        {fetchError && <ErrorBanner error={fetchError} />}
+        {data && roots.length === 0 && (
+          <EmptyState
+            icon={BookOpen}
+            title="No accounts yet"
+            description="Declare accounts to get type-aware classification (assets, liabilities, income, expenses, equity)."
+          />
+        )}
+        {data && roots.length > 0 && (
+          <div data-slot="account-tree" className="-mt-3 flex flex-col text-body">
+            {rows.map(({ name, depth }) => (
+              <AccountRow key={name} name={name} depth={depth} tree={tree} />
+            ))}
+          </div>
+        )}
+        {data && roots.length > 0 && (
+          <p className="text-[12.5px] text-faint">
+            Closed accounts are hidden from account pickers and Overview totals; hledger reports are unchanged.
+          </p>
+        )}
+      </Section>
 
       <RenameAccountDialog
         open={renameOpen}
@@ -438,7 +445,7 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent size="sm" showCloseButton>
         <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Rename Account</ResponsiveDialogTitle>
+          <ResponsiveDialogTitle>Rename account</ResponsiveDialogTitle>
           <ResponsiveDialogDescription>
             Renames an account in the declaration file and across every posting in your
             journal history.
@@ -476,13 +483,13 @@ function RenameAccountDialog({ open, onOpenChange, selectedAccountName = "" }) {
           </Form>
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="rounded-md border bg-muted/40 p-3 text-xs">
+            <div className="rounded-lg bg-muted px-3 py-2.5 text-control">
               <div className="text-muted-foreground">Rename</div>
-              <div className="font-mono">{oldName.trim()}</div>
-              <div className="text-muted-foreground mt-2">to</div>
-              <div className="font-mono">{newName.trim()}</div>
+              <div className="font-mono text-code">{oldName.trim()}</div>
+              <div className="mt-2 text-muted-foreground">to</div>
+              <div className="font-mono text-code">{newName.trim()}</div>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-control text-muted-foreground">
               This updates the account declaration and rewrites every posting that references{" "}
               <span className="font-mono">{oldName.trim()}</span> or any sub-account beneath it.
               The change is committed to the snapshot history and cannot be undone except by
