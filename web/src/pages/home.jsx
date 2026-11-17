@@ -110,7 +110,7 @@ export function HomePage() {
     queryFn: () => ledgerClient.listAccounts({}),
   });
 
-  const { data: balancesData } = useQuery(netWorthSummaryQuery());
+  const { data: balancesData, error: summaryError } = useQuery(netWorthSummaryQuery());
 
   const { data: treeData, isLoading: treeLoading, error: treeError } = useQuery({
     queryKey: queryKeys.balances(ACCOUNT_TREE_PARAMS),
@@ -136,6 +136,7 @@ export function HomePage() {
 
       <ReviewNotice />
 
+      {summaryError && <ErrorBanner error={summaryError} />}
       {hasSummary && (
         <div className="flex flex-col gap-6">
           <MetricHero

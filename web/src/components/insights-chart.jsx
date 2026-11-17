@@ -3,6 +3,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Amount } from "./amount.jsx";
 import { Account } from "./account.jsx";
+import { ErrorBanner } from "./error-banner.jsx";
 
 function quantity(amounts) {
   if (!amounts || amounts.length === 0) return 0;
@@ -51,15 +52,18 @@ export function InsightsChart({ periodQuery }) {
   const expenseParams = { depth: 2, query: [...periodQuery, "type:X"] };
   const revenueParams = { depth: 2, query: [...periodQuery, "type:R"] };
 
-  const { data: expensesData, isLoading: expensesLoading } = useQuery({
+  const { data: expensesData, isLoading: expensesLoading, error: expensesError } = useQuery({
     queryKey: queryKeys.balances(expenseParams),
     queryFn: () => ledgerClient.getBalances(expenseParams),
   });
 
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+  const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useQuery({
     queryKey: queryKeys.balances(revenueParams),
     queryFn: () => ledgerClient.getBalances(revenueParams),
   });
+
+  const error = expensesError || revenueError;
+  if (error) return <ErrorBanner error={error} />;
 
   const expenseRows = expensesData?.report?.rows || [];
   const revenueRows = revenueData?.report?.rows || [];
