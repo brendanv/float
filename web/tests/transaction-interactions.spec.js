@@ -88,7 +88,7 @@ test("removing the last tag in the detail editor clears tags", async ({ page }) 
   const updates = captureRpc(page, "UpdateTransaction");
   await page.goto("/#/transactions");
 
-  await rowFor(page, "Coffee Shop").getByRole("button", { name: "Edit" }).click();
+  await rowFor(page, "Coffee Shop").getByRole("button", { name: /^Edit / }).click();
   const form = page.locator("tbody form");
   await form.getByTitle('Remove tag "trip"').click();
   await form.getByRole("button", { name: "Save" }).click();
@@ -374,6 +374,34 @@ test.describe("mobile", () => {
     expect((await toggle.boundingBox()).width).toBeGreaterThanOrEqual(40);
     await toggle.click();
     await expect.poll(() => statusCalls.length).toBe(1);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("a card opens its editor from the keyboard", async ({ page }) => {
+    await mockLedgerApi(page, { transactions });
+    await page.goto("/#/transactions");
+
+    const row = card(page, "Grocer");
+    await expect(row).toHaveAttribute("role", "button");
+    await expect(row).toHaveAccessibleName("Edit Grocer");
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog").getByText("Edit Transaction")).toBeVisible();
+  });
+
+  test("in Select mode a tap toggles the card's selection", async ({ page }) => {
+    await mockLedgerApi(page, { transactions });
+    await page.goto("/#/transactions");
+
+    await page.getByRole("button", { name: "Select", exact: true }).click();
+    const row = card(page, "Grocer");
+    const check = row.getByRole("checkbox", { name: "Select transaction" });
+    await expect(row).not.toHaveAttribute("role", "button");
+    await row.getByText("Grocer").click();
+    await expect(check).toBeChecked();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await row.getByText("Grocer").click();
+    await expect(check).not.toBeChecked();
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 

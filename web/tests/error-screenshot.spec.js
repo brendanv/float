@@ -72,9 +72,9 @@ test("templates page - Edit on another template resets the form", async ({ page 
   const row = (name) => page.locator("tbody tr", { hasText: name });
   const nameInput = page.locator("#tmpl-name");
 
-  await row("Mortgage Payment").getByRole("button", { name: "Edit" }).click();
+  await row("Mortgage Payment").getByRole("button", { name: /^Edit / }).click();
   await expect(nameInput).toHaveValue("Mortgage Payment");
-  await row("Bi-weekly Paycheck").getByRole("button", { name: "Edit" }).click();
+  await row("Bi-weekly Paycheck").getByRole("button", { name: /^Edit / }).click();
   await expect(nameInput).toHaveValue("Bi-weekly Paycheck");
   await expect(page.locator("#tmpl-payee")).not.toHaveValue("Bank of America");
 });

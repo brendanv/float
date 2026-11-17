@@ -150,6 +150,7 @@ const descriptionColumn = col.accessor((tx) => tx.description, {
             size="xs"
             className={cn("h-5 shrink-0 px-1.5 text-[12px] font-normal text-muted-foreground aria-expanded:opacity-100", ROW_ACTION)}
             aria-expanded={row.getIsExpanded()}
+            aria-label={`Edit ${tx.payee || tx.description}`}
             onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
           >
             Edit

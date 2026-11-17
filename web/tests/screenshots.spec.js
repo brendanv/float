@@ -25,7 +25,7 @@ test("transactions page - delete confirmation", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Open the first row's editor with its Edit button
-  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: "Edit" }).click();
+  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: /^Edit / }).click();
   await page.waitForTimeout(200);
   await page.click("button:has-text('Delete')");
   await page.waitForTimeout(300);
@@ -36,7 +36,7 @@ test("transactions page - expanded edit row", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: "Edit" }).click();
+  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: /^Edit / }).click();
   await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/transactions-expanded-edit.png", fullPage: true });
 });

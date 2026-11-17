@@ -321,8 +321,12 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
   const isSelected = !!tx.fid && !!selectedFids?.has(tx.fid);
   // Outside register mode the whole row is one tap target that opens the
   // editor; there is no inline editing on rows (small targets that each did
-  // something different were too easy to mis-tap on a phone).
+  // something different were too easy to mis-tap on a phone). In Select
+  // mode a tap toggles the row's selection instead (the checkbox is the
+  // keyboard path for that).
   const canOpen = !isRegisterMode && !!tx.fid;
+  const opensEditor = canOpen && !showCheck;
+  const togglesSelection = showCheck && !!tx.fid;
   const [editing, setEditing] = useState(false);
 
   let amount, balance;
@@ -351,6 +355,19 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
   const tags = Object.entries(tx.tags || {});
   const stop = (e) => e.stopPropagation();
 
+  function handleRowClick() {
+    if (togglesSelection) toggleSelected();
+    else if (opensEditor) setEditing(true);
+  }
+
+  // Enter/Space on the row itself; keys inside nested controls (status
+  // mark, checkbox) are theirs.
+  function handleRowKeyDown(e) {
+    if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    setEditing(true);
+  }
+
   return (
     <>
       <div
@@ -359,10 +376,17 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
         className={cn(
           "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 border-t border-border py-2",
           showCheck && "grid-cols-[auto_auto_minmax(0,1fr)_auto]",
-          canOpen && "cursor-pointer active:bg-muted/50",
+          (opensEditor || togglesSelection) && "cursor-pointer active:bg-muted/50",
+          opensEditor && "outline-none focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-ring",
           isSelected && cn("-mx-2 rounded-md border-transparent bg-accent px-2", ON_ACCENT),
         )}
-        onClick={() => { if (canOpen) setEditing(true); }}
+        onClick={handleRowClick}
+        {...(opensEditor && {
+          role: "button",
+          tabIndex: 0,
+          "aria-label": `Edit ${tx.payee || tx.description}`,
+          onKeyDown: handleRowKeyDown,
+        })}
       >
         {showCheck && (
           // Padded label enlarges the tap target around the 16px box.

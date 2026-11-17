@@ -54,7 +54,7 @@ test("transactions page - lot disposal expanded", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
-  await page.locator("tbody tr", { hasText: "Sell AAPL" }).first().getByRole("button", { name: "Edit" }).click();
+  await page.locator("tbody tr", { hasText: "Sell AAPL" }).first().getByRole("button", { name: /^Edit / }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/transactions-lot-disposal.png", fullPage: true });
 });
