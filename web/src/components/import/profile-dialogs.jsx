@@ -296,7 +296,7 @@ export function CreateProfileModal({ open, onCreated, onClose }) {
                   />
                 </FormField>
                 <div className="flex items-end">
-                  <Button type="button" size="sm" variant="secondary" onClick={handleGenerateRules}>
+                  <Button type="button" size="sm" variant="outline" onClick={handleGenerateRules}>
                     Generate rules
                   </Button>
                 </div>
@@ -307,7 +307,7 @@ export function CreateProfileModal({ open, onCreated, onClose }) {
             <Button
               type="button"
               size="sm"
-              variant="secondary"
+              variant="outline"
               className="self-start"
               onClick={handleGenerateRules}
             >

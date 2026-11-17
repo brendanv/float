@@ -1428,12 +1428,14 @@ export const mockStripeLinkedAccounts = [
     stripeAccountId: "fca_chase_abc123",
     hledgerAccount: "assets:checking:chase",
     displayName: "Chase Checking ****1234",
+    institutionName: "Chase",
     lastFetchedAt: "2026-05-10T00:00:00Z",
   },
   {
     stripeAccountId: "fca_bofa_xyz789",
     hledgerAccount: "assets:savings:bofa",
     displayName: "Bank of America Savings ****5678",
+    institutionName: "Bank of America",
     lastFetchedAt: "2026-05-09T00:00:00Z",
   },
 ];
@@ -1457,6 +1459,7 @@ export const mockStripeImportCandidates = [
       tags: {},
     },
     matchedRuleId: "ccdd3344",
+    sourceId: "fctxn_starbucks_1234",
   },
   {
     transaction: {
@@ -1476,6 +1479,7 @@ export const mockStripeImportCandidates = [
       tags: {},
     },
     matchedRuleId: "",
+    sourceId: "fctxn_electric_0508",
   },
 ];
 
@@ -2088,6 +2092,7 @@ export async function mockLedgerApi(
                   },
                   isDuplicate: false,
                   matchedRuleId: "",
+                  sourceId: "fctxn_payroll_0511",
                 },
               ],
             },

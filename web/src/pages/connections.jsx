@@ -54,13 +54,16 @@ function AccountName({ account }) {
     <span className="flex min-w-0 items-baseline gap-2">
       <span className="truncate font-medium">{account.displayName || account.stripeAccountId}</span>
       {account.institutionName && (
-        <span className="shrink-0 truncate text-control text-faint">{account.institutionName}</span>
+        <span className="min-w-0 shrink-[4] truncate text-control text-faint">{account.institutionName}</span>
       )}
     </span>
   );
 }
 
-const ROW = "flex flex-wrap items-center gap-x-4 gap-y-1 py-1.5 sm:min-h-[38px]";
+// Phone: name, then account and last import, then actions, wrapping.
+// From md: one dense line on a shared grid so the columns line up.
+const ROW =
+  "flex flex-wrap items-center gap-x-4 gap-y-1 py-1.5 md:grid md:min-h-[38px] md:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_minmax(0,9.5rem)_auto] md:py-1";
 
 // LinkedAccountRow is one configured account: status dot, name +
 // institution, hledger account, last import (relative), and its fetch
@@ -83,10 +86,10 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
           <StatusDot {...dot} />
           <AccountName account={account} />
         </span>
-        <span className="min-w-0 basis-48 pl-[26px] sm:pl-0">
+        <span className="min-w-0 basis-48 pl-[26px] md:pl-0">
           <Account name={account.hledgerAccount} variant="path" />
         </span>
-        <span className="min-w-0 basis-40 pl-[26px] text-control sm:pl-0">
+        <span className="min-w-0 basis-40 pl-[26px] text-control md:pl-0">
           {line ? (
             <span className={cn(LINE_TONE[line.tone])}>{line.text}</span>
           ) : account.lastFetchedAt ? (
@@ -133,7 +136,7 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
           </Button>
         </span>
       </div>
-      <FetchResults fetch={fetch} className="pb-4 sm:pl-[26px]" />
+      <FetchResults fetch={fetch} className="pb-4 md:pl-[26px]" />
     </li>
   );
 }
@@ -146,8 +149,8 @@ function UnmappedAccountRow({ account, onConfigure, onDisconnect, disabled }) {
         <StatusDot tone="warning" label="Needs an hledger account" />
         <AccountName account={account} />
       </span>
-      <span className="min-w-0 basis-48 pl-[26px] text-control text-warning sm:pl-0">Needs an hledger account</span>
-      <span className="min-w-0 basis-40 truncate pl-[26px] font-mono text-[11.5px] text-faint sm:pl-0">
+      <span className="min-w-0 basis-48 pl-[26px] text-control text-warning md:pl-0">Needs an hledger account</span>
+      <span className="min-w-0 basis-40 truncate pl-[26px] font-mono text-[11.5px] text-faint md:pl-0">
         {account.stripeAccountId}
       </span>
       <span className="ml-auto flex shrink-0 items-center gap-1">
