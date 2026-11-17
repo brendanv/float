@@ -82,7 +82,7 @@ export function AccountList({ rows, accounts }) {
               <Link
                 to="/transactions"
                 search={{ account: section.root }}
-                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground pointer-coarse:py-3"
               >
                 {SECTION_LABELS[section.type]}
                 {flip && <span className="ml-1.5 font-normal normal-case tracking-normal">(owed)</span>}
@@ -93,13 +93,13 @@ export function AccountList({ rows, accounts }) {
               {section.rows.map((row) => (
                 <li
                   key={row.fullName}
-                  className="flex items-baseline justify-between gap-3 border-b border-border/50 py-1.5 last:border-0"
+                  className="flex items-baseline justify-between gap-3 border-b border-border/50 py-1.5 last:border-0 pointer-coarse:py-0"
                 >
                   <Link
                     to="/transactions"
                     search={{ account: row.fullName }}
                     title={row.fullName}
-                    className="min-w-0 truncate text-sm hover:underline"
+                    className="min-w-0 truncate text-sm hover:underline pointer-coarse:py-2.5"
                     style={{ paddingLeft: `${row.level * 1}rem` }}
                   >
                     {row.label}

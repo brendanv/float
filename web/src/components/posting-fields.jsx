@@ -84,7 +84,7 @@ function CostFields({ cost, onChange, onRemove }) {
         type="button"
         onClick={() => onChange({ ...c, isTotal: !c.isTotal })}
         title={c.isTotal ? "Total price (@@) — click to switch to per-unit" : "Per-unit price (@) — click to switch to total"}
-        className="h-8 shrink-0 select-none rounded border border-input bg-background px-2 font-mono text-xs hover:bg-accent"
+        className="h-8 shrink-0 select-none rounded border border-input bg-background px-2 font-mono text-xs hover:bg-accent pointer-coarse:min-h-10 pointer-coarse:min-w-10"
       >
         {c.isTotal ? "@@" : "@"}
       </button>

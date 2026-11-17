@@ -155,8 +155,8 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", e
             className={cn(
               "flex items-center gap-2 hover:bg-muted",
               embedded
-                ? "h-7 px-2.5 text-xs"
-                : "h-8 rounded-none border border-border px-3 text-sm font-medium",
+                ? "h-7 px-2.5 text-xs pointer-coarse:min-h-10"
+                : "h-8 rounded-none border border-border px-3 text-sm font-medium pointer-coarse:min-h-10",
             )}
           >
             <CalendarDays
@@ -169,35 +169,39 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", e
       />
       <PopoverContent
         align={align}
-        className="w-auto flex-row gap-0 p-0"
+        // On phones the presets stack above a single-month calendar (40px
+        // cells don't fit beside the sidebar) and the popover scrolls.
+        className="w-auto flex-row gap-0 p-0 max-md:max-h-(--available-height) max-md:flex-col max-md:overflow-y-auto"
       >
         {/* Presets sidebar */}
-        <div className="flex min-w-[140px] flex-col border-r p-2">
+        <div className="flex min-w-[140px] flex-col border-r p-2 max-md:border-r-0 max-md:border-b">
           <p className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">Presets</p>
-          {DATE_PRESETS.map((p) => {
-            const { from, to } = p.fn();
-            const isActive = from === dateFrom && to === dateTo;
-            return (
-              <button
-                key={p.label}
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted",
-                  isActive && "font-semibold",
-                )}
-                onClick={() => handlePreset(from, to)}
-              >
-                {isActive
-                  ? <Check className="size-3.5 text-primary shrink-0" />
-                  : <span className="size-3.5 shrink-0" />}
-                {p.label}
-              </button>
-            );
-          })}
+          <div className="grid max-md:grid-cols-2">
+            {DATE_PRESETS.map((p) => {
+              const { from, to } = p.fn();
+              const isActive = from === dateFrom && to === dateTo;
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted pointer-coarse:py-2.5",
+                    isActive && "font-semibold",
+                  )}
+                  onClick={() => handlePreset(from, to)}
+                >
+                  {isActive
+                    ? <Check className="size-3.5 text-primary shrink-0" />
+                    : <span className="size-3.5 shrink-0" />}
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
           <Separator className="my-2" />
           <p className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">Custom range</p>
-          <div className="flex flex-col gap-1 px-2">
-            <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-1 px-2 max-md:flex-row max-md:gap-2">
+            <div className="flex min-w-0 flex-col gap-0.5 max-md:flex-1">
               <span className="text-xs text-muted-foreground">From</span>
               <Input
                 type="date"
@@ -206,7 +210,7 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", e
                 onChange={(e) => onChange(e.target.value, dateTo)}
               />
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-0.5 max-md:flex-1">
               <span className="text-xs text-muted-foreground">To</span>
               <Input
                 type="date"
@@ -287,7 +291,7 @@ function AccountCombobox({ value, onChange, accounts, className }) {
             role="combobox"
             aria-expanded={open}
             className={cn(
-              "flex h-7 items-center justify-between gap-1 px-2.5 text-xs hover:bg-muted",
+              "flex h-7 items-center justify-between gap-1 px-2.5 text-xs hover:bg-muted pointer-coarse:min-h-10",
               value ? "font-semibold" : "",
               className,
             )}
@@ -437,7 +441,7 @@ export function SearchControls({
               search: {search}
               <button
                 type="button"
-                className="cursor-pointer opacity-60 hover:opacity-100"
+                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
                 onClick={() => onSearchChange("")}
                 aria-label="Clear search filter"
               >
@@ -450,7 +454,7 @@ export function SearchControls({
               {payee === PAYEE_NONE ? "no payee set" : `payee: ${payee}`}
               <button
                 type="button"
-                className="cursor-pointer opacity-60 hover:opacity-100"
+                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
                 onClick={() => onPayeeChange("")}
                 aria-label="Clear payee filter"
               >
@@ -463,7 +467,7 @@ export function SearchControls({
               acct: {account}
               <button
                 type="button"
-                className="cursor-pointer opacity-60 hover:opacity-100"
+                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
                 onClick={() => onAccountChange("")}
                 aria-label="Clear account filter"
               >
@@ -476,7 +480,7 @@ export function SearchControls({
               tag: {tag}
               <button
                 type="button"
-                className="cursor-pointer opacity-60 hover:opacity-100"
+                className="touch-target cursor-pointer opacity-60 hover:opacity-100"
                 onClick={() => onTagChange("")}
                 aria-label="Clear tag filter"
               >

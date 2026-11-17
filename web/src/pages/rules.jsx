@@ -494,11 +494,11 @@ export function RulesPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <CardTitle>Rules</CardTitle>
-            <div className="flex w-full items-center gap-2 sm:w-auto">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
               <Input
                 type="text"
                 placeholder="Filter rules…"
-                className="h-8 min-w-0 flex-1 sm:w-48 sm:flex-none"
+                className="h-8 w-full min-w-0 sm:w-48"
                 value={globalFilter ?? ""}
                 onChange={(e) => setGlobalFilter(e.target.value)}
               />

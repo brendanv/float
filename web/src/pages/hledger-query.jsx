@@ -248,7 +248,7 @@ function NaturalLanguageTab() {
 
             <div className="border-t pt-3">
               <button
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="touch-target flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 onClick={() => setDetailsOpen((o) => !o)}
               >
                 {detailsOpen ? (

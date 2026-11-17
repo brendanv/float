@@ -87,7 +87,7 @@ function AccountTreeNode({ name, depth, tree }) {
         style={{ paddingLeft: `${depth * 1.25 + 0.25}rem` }}
       >
         <button
-          className="flex items-center justify-center w-4 h-4 shrink-0"
+          className="touch-target flex items-center justify-center w-4 h-4 shrink-0"
           onClick={() => hasKids && setExpanded((e) => !e)}
           tabIndex={hasKids ? 0 : -1}
           aria-label={expanded ? "Collapse" : "Expand"}
@@ -172,7 +172,7 @@ function RootAccountCard({ root, tree }) {
                 <Pencil className="size-3" />
               </Button>
               <CollapsibleTrigger
-                className="flex items-center justify-center size-6 shrink-0 text-muted-foreground hover:text-foreground"
+                className="flex items-center justify-center size-6 shrink-0 text-muted-foreground hover:text-foreground pointer-coarse:size-10"
                 aria-label={open ? `Collapse ${root}` : `Expand ${root}`}
               >
                 <ChevronDown
