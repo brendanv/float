@@ -65,7 +65,7 @@ export function StatusMark({ status, fid, onStatusChange, className }) {
 
   const title = error
     ? `Couldn't update status: ${error}`
-    : isReviewed ? "Reviewed — click to mark pending" : "Unreviewed — click to mark reviewed";
+    : `${statusLabel(status)} — click to mark ${isReviewed ? "pending" : "reviewed"}`;
 
   return (
     <Tooltip>

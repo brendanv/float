@@ -199,6 +199,18 @@ test("an import batch opens from the keyboard", async ({ page }) => {
   await expect(page).toHaveURL(/importBatchId=2026-03-28-a1b2c3d4/);
 });
 
+test("the status button names the current status", async ({ page }) => {
+  const pending = { ...simple("p0000001", "2026-03-16", "Landlord", "900.00"), status: "Pending" };
+  const cleared = { ...simple("c0000001", "2026-03-15", "Bakery", "6.00"), status: "Cleared" };
+  await mockLedgerApi(page, { transactions: [...transactions, pending, cleared] });
+  await page.goto("/#/transactions");
+
+  const mark = (text) => rowFor(page, text).locator("button[data-slot=status-mark]");
+  await expect(mark("Landlord")).toHaveAccessibleName("Pending — click to mark reviewed");
+  await expect(mark("Grocer")).toHaveAccessibleName("Unreviewed — click to mark reviewed");
+  await expect(mark("Bakery")).toHaveAccessibleName("Reviewed — click to mark pending");
+});
+
 test("rows group by day unless sorted by another column", async ({ page }) => {
   await mockLedgerApi(page, { transactions });
   await page.goto("/#/transactions");
