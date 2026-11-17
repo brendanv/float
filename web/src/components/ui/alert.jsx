@@ -113,7 +113,7 @@ function Notice({
 }) {
   return (
     <Alert variant={variant} className={className} {...props}>
-      <span data-slot="alert-description" className="min-w-0 flex-1">{children}</span>
+      <span data-slot="alert-description" className="min-w-0 flex-[1_1_14rem]">{children}</span>
       {action && <AlertAction>{action}</AlertAction>}
     </Alert>
   );
