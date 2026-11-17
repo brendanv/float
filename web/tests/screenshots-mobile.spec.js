@@ -109,7 +109,7 @@ test("import edit profile modal mobile (drawer)", async ({ page }) => {
 
 test("accounts rename dialog mobile (drawer)", async ({ page }) => {
   await page.goto("/#/accounts");
-  await page.waitForSelector('[data-slot="card"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('[data-slot="section"]', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.locator(".lucide-pencil").first().click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});

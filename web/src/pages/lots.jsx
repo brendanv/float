@@ -17,7 +17,7 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { FilterInput } from "../components/filter-input.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
-import { Page, PageCard } from "../components/page.jsx";
+import { Page, Section } from "../components/page.jsx";
 import { Amount } from "../components/amount.jsx";
 import { Account } from "../components/account.jsx";
 import {
@@ -203,7 +203,7 @@ export function LotsPage() {
 
   return (
     <Page>
-      <PageCard
+      <Section
         title="Open lots"
         description={data ? `${lots.length} ${lots.length === 1 ? "lot" : "lots"}` : undefined}
       >
@@ -221,7 +221,7 @@ export function LotsPage() {
             />
           )
         )}
-      </PageCard>
+      </Section>
     </Page>
   );
 }

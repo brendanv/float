@@ -17,7 +17,7 @@ import { ErrorBanner } from "../components/error-banner.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
-import { Page, PageCard } from "../components/page.jsx";
+import { Page, Section } from "../components/page.jsx";
 import { Amount } from "../components/amount.jsx";
 import { Notice } from "@/components/ui/alert";
 import {
@@ -324,7 +324,7 @@ export function PricesPage() {
 
   return (
     <Page>
-      <PageCard title="Add price">
+      <Section title="Add price">
         <Form onSubmit={handleSubmit}>
           {formError && <ErrorBanner error={formError} />}
           <FormRow cols={4} className="sm:grid-cols-2 lg:grid-cols-4">
@@ -378,9 +378,9 @@ export function PricesPage() {
             </Button>
           </FormActions>
         </Form>
-      </PageCard>
+      </Section>
 
-      <PageCard title="Backfill price history" description="Daily closes from Alpha Vantage">
+      <Section title="Backfill price history" description="Daily closes from Alpha Vantage">
         <Form onSubmit={handleBackfill}>
           {backfillError && <ErrorBanner error={backfillError} />}
           {backfillResults && <BackfillResults results={backfillResults} />}
@@ -445,9 +445,9 @@ export function PricesPage() {
             </Button>
           </FormActions>
         </Form>
-      </PageCard>
+      </Section>
 
-      <PageCard
+      <Section
         title="Price history"
         description={pricesData?.prices?.length ? priceSummary(pricesData.prices) : undefined}
       >
@@ -464,7 +464,7 @@ export function PricesPage() {
             />
           )
         )}
-      </PageCard>
+      </Section>
     </Page>
   );
 }

@@ -58,7 +58,7 @@ test("snapshots mobile", async ({ page }) => {
 
 test("accounts page mobile", async ({ page }) => {
   await page.goto("/#/accounts");
-  await page.waitForSelector('[data-slot="card"], .loading', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('[data-slot="section"], .loading', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/mobile-accounts.png", fullPage: true });
 });

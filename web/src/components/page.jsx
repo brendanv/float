@@ -1,15 +1,6 @@
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { Amount } from "./amount.jsx";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export function Page({ className, ...props }) {
   return (
@@ -21,39 +12,9 @@ export function Page({ className, ...props }) {
   );
 }
 
-// PageCard is a page section: by default the flat "section" card (heading
-// over a hairline, no ring or fill). Pass variant="raised" for a genuine
-// object such as a standalone form panel.
-export function PageCard({
-  title,
-  description,
-  action,
-  children,
-  className,
-  contentClassName,
-  headerClassName,
-  variant = "section",
-  size,
-  ...props
-}) {
-  const hasHeader = title || description || action;
-
-  return (
-    <Card data-slot="page-card" variant={variant} size={size} className={className} {...props}>
-      {hasHeader && (
-        <CardHeader className={headerClassName}>
-          {title && <CardTitle>{title}</CardTitle>}
-          {description && <CardDescription>{description}</CardDescription>}
-          {action && <CardAction>{action}</CardAction>}
-        </CardHeader>
-      )}
-      <CardContent className={contentClassName}>{children}</CardContent>
-    </Card>
-  );
-}
-
-// Section is a semantic page section (<section> + <h2>) with the same
-// heading-over-hairline header as PageCard, for layouts that are not cards.
+// Section is a semantic page section (<section> + <h2>): a heading over a
+// hairline with an optional description and action, content straight on the
+// page.
 export function Section({ title, description, action, children, className, headerClassName, ...props }) {
   const id = useId();
   return (

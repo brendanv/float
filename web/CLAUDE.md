@@ -66,7 +66,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 | `/templates` | `TemplatesPage` | Organize › Templates | Saved transaction templates |
 | `/connections` | `ConnectionsPage` | Bring in › Connections | Stripe Financial Connections linking, refresh, fetch, import |
 | `/import` | `ImportPage` | Bring in › Import › Import | CSV import wizard and bank profiles |
-| `/imports` | `ImportsHistoryPage` | Bring in › Import › History | Import batches (a row opens `/transactions?importBatchId=`) and original CSVs |
+| `/imports` | `ImportsHistoryPage` | Bring in › Import › History | Import batches (a row, or its Source link, opens `/transactions?importBatchId=`) and original CSVs |
 | `/settings` | `SettingsPage` | Settings › General | Timezone, export, Alpha Vantage, Stripe, AI |
 | `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status |
 | `/snapshots` | `SnapshotsPage` | Settings › Snapshots | Git snapshots, diffs and restores |
@@ -86,15 +86,17 @@ The UI follows the Waterline language (tokens in `src/style.css`; visual referen
 | `Account`, `AccountGlyph`, `Flow` (`components/account.jsx`) | Account names: `leaf`/`path` in dense views with the type glyph, `full` (mono) in editors. `accountType()` lives in `lib/accounts.js`. |
 | `StatusMark` (`components/status.jsx`) | Transaction status: nothing for Cleared, accent dot for unreviewed, amber ring for Pending. |
 | `Notice` (`ui/alert.jsx`, `variant="info\|warning\|critical"`) | One-line messages with an optional action. `ErrorBanner` is the critical Notice for RPC errors. |
-| `PageHeader`, `Section`, `MetricHero`, `DeltaChip`, `Sparkline`, `Eyebrow` (`page-header.jsx`, `page.jsx`) | Page title + actions slot; flat sections (heading, hairline, action slot); hero figures. |
-| `Segmented`, `SectionTabs`, `FilterChip`/`ChipSelect`, `TagChip` | Small option toggles, group tabs (rendered by the shell), toolbar filters, quiet `#tag` chips. |
+| `PageHeader`, `Section`, `MetricHero`, `DeltaChip`, `Sparkline`, `Eyebrow` (`page-header.jsx`, `page.jsx`) | Page title + actions slot (grouped routes pass no `title`: the group header draws it); flat sections (heading, hairline, action slot); hero figures. |
+| `Segmented`, `SectionTabs`, `TagChip` | Small option toggles, group tabs (rendered by the shell), quiet `#tag` chips. |
 | `ui/chart.jsx` helpers | `CHART_STROKE`, `CHART_X_AXIS`/`CHART_Y_AXIS`, `ChartAreaFill`, `chartEndLabel`, `ChartTooltipRow`; animations off. |
-| `ROW_ACTION` (`lib/utils.js`) | Hover/focus-revealed row actions (rows carry `group/row`; touch always shows them). |
+| `ROW_ACTION` (`lib/utils.js`) | Hover/focus-revealed row actions (rows carry `group/row`; touch always shows them). The only row-action helper. |
+| `NET_WORTH_SUMMARY_PARAMS`/`netWorthSummary` (`lib/net-worth.js`) | Current net worth (open asset/liability accounts, valued; hledger's report total). Overview and Trends share it; floatd pre-warms it. |
+| `downloadBlob` (`lib/download.js`) | Saving RPC bytes/text as a file. |
 
 Do:
 
 - Put content straight on the page: `Section` heading + hairline, spacing between sections. Borders, fills and shadows only for objects (dialogs, popovers, notices, form fields, the selected item).
-- Use color only for a fact: accent = action/assets, `inflow` = income arriving, `below` = owed/negative, `warning` = needs a look. Static balances, net worth and transfers stay ink. `--chart-*` only for categories.
+- Use color only for a fact: accent = action/assets (and "ok"/"configured" states), `inflow` = income arriving (never generic success), `below` = owed/negative, `warning` = needs a look. Static balances, net worth and transfers stay ink. `--chart-*` only for categories.
 - Keep tables dense (~34px rows desktop, ~48px phone), sentence-case labels and headings, `text-label` uppercase table heads.
 - Check new UI in light and dark at 1280px and 390px (no horizontal page overflow; the phone tab bar covers the bottom).
 
@@ -102,7 +104,7 @@ Don't:
 
 - Don't use `font-mono` for amounts; mono is for hledger syntax only (queries, regexes, raw account paths in inputs, codes, CSV rules, logs, commodity symbols).
 - Don't add up postings or balances in JS. Totals, balancing, cost conversion and valuation come from hledger reports; the UI may pick values out of a report, flip a sign for display, or derive a label from a report's own totals.
-- Don't wrap sections in `Card`s or nest cards; use `Card variant="raised"` only for genuine objects.
+- Don't wrap sections in `Card`s or nest cards; use `Section` for page sections and `Card` (`ui/card.jsx`, raised only) for genuine objects.
 - Don't use `text-success`/`text-destructive` (or red/green) as decoration, show destructive row actions permanently, or add subtitles/breadcrumbs that repeat the title.
 
 ## API Access
@@ -122,7 +124,7 @@ const { data } = useQuery({
 
 After any ledger mutation call `invalidateLedgerQueries(queryClient)` from `query-keys.js`: floatd bumps its cache generation on every write, so any ledger-derived query may be stale, and a hand-picked key list misses pages (with `staleTime: 30s` they would show old data). Keep query-key construction centralized in `query-keys.js`.
 
-Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `payee:`/`desc:`/`tag:` values are regexes, so literal names must go through `escapeRegex`/`exactRegex` (e.g. `SQ *COFFEE`), and `dateRangeQuery` handles open-ended ranges.
+Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `payee:`/`desc:`/`tag:` values are regexes, so literal names must go through `escapeRegex`/`exactRegex` (e.g. `SQ *COFFEE`), and `dateRangeQuery` handles open-ended ranges. `isHledgerQuery` decides whether search text is a raw hledger query (sent as tokens, shown in mono) or literal description text.
 
 `UpdateTransaction` replaces all postings: send every posting's `comment` back (`fieldsFromPosting` → `toPostingInput` carry it) or it is deleted. An empty `comment`/`tags` keeps the existing value; set `replaceComment`/`replaceTags` to clear.
 
@@ -141,7 +143,7 @@ Add components with `bunx shadcn@latest add <component>`, which writes to `src/c
 
 On touch devices (`pointer: coarse`) every control must offer a ≥40px hit area; desktop sizing is unchanged. The `components/ui` primitives (Button, Input, NativeSelect, Select, Combobox, Tabs, Checkbox, menu items, Calendar, sidebar) already grow via `pointer-coarse:min-h-10` / `min-w-10`, so prefer them over raw `<button>`s. For a small inline control whose visual size should stay (sort header, chip ✕, tree chevron) add the `touch-target` utility from `style.css`, which extends the hit area with an invisible `::after` (don't combine it with components that already use `::after`, e.g. tabs or checkbox). `tests/touch-targets.spec.js` enforces this on every route; links inside running text are exempt.
 
-The Waterline primitives follow the same rule without changing their look: `Segmented` options and `FilterChip`/`ChipSelect` buttons (and their ✕) use `touch-target`, and the chip row pads itself vertically on coarse pointers so its sideways scroll doesn't clip the extended area. Note that `overflow-x-auto` clips an `::after` vertically too, so inside a scrolling row either make room with padding or grow the control (as `SectionTabs` does with `pointer-coarse:pt-2.5`; its underline is an inset shadow, not `::after`).
+The Waterline primitives follow the same rule without changing their look: `Segmented` options and the toolbar filter chips in `search-controls.jsx` (and their ✕) use `touch-target`, and the chip row pads itself vertically on coarse pointers so its sideways scroll doesn't clip the extended area. Note that `overflow-x-auto` clips an `::after` vertically too, so inside a scrolling row either make room with padding or grow the control (as `SectionTabs` does with `pointer-coarse:pt-2.5`; its underline is an inset shadow, not `::after`).
 
 ## Screenshots / Visual Testing
 
