@@ -117,7 +117,7 @@
 }
 
 /*
- * Waterline tokens (see web/design/WATERLINE.md). shadcn variable names are
+ * Waterline tokens (see the "Design language" section of web/CLAUDE.md). shadcn variable names are
  * kept and remapped: paper = background/card, raised = popover,
  * sunken = muted/secondary/sidebar, ink/ink-2/ink-3 = foreground/
  * muted-foreground/faint, rule = border, rule-strong = input.
