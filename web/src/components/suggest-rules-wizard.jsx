@@ -19,7 +19,7 @@ import {
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { cn } from "@/lib/utils";
+import { cn, ON_ACCENT } from "@/lib/utils";
 
 const SOURCE_LABELS = {
   unreviewed: "Unreviewed transactions",
@@ -197,7 +197,7 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
                     key={i}
                     className={cn(
                       "flex gap-3 rounded-lg p-3 ring-1",
-                      selected.has(i) ? "bg-accent ring-primary/25" : "ring-border",
+                      selected.has(i) ? cn("bg-accent ring-primary/25", ON_ACCENT) : "ring-border",
                     )}
                   >
                     <Checkbox

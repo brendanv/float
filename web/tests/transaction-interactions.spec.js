@@ -354,6 +354,22 @@ test.describe("mobile", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
+  test("phone register balance follows the account type", async ({ page }) => {
+    // A credit card charge: Change and Balance both read as owed (flipped
+    // positive), and only the owed balance is coral, as on desktop.
+    await mockLedgerApi(page, {
+      accountRegisterRows: [{
+        fid: "cc000001", date: "2026-03-10", description: "Rent | march", status: "Cleared",
+        otherAccounts: ["expenses:rent"], change: usd("-5200.00"), runningTotal: usd("-5200.00"), tags: {},
+      }],
+    });
+    await page.goto("/#/transactions?account=liabilities:credit-card");
+    const amounts = card(page, "Rent").locator("[data-slot=amount]");
+    await expect(amounts.nth(0)).toHaveText("+$5,200.00");
+    await expect(amounts.nth(1)).toHaveText("$5,200.00");
+    await expect(amounts.nth(1)).toHaveClass(/text-below/);
+  });
+
   test("sidebar New transaction closes the sidebar", async ({ page }) => {
     await mockLedgerApi(page, { transactions });
     await page.goto("/#/transactions");

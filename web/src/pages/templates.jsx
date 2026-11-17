@@ -42,7 +42,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn, ROW_ACTION } from "@/lib/utils";
+import { cn, ON_ACCENT, ROW_ACTION } from "@/lib/utils";
 
 const columnHelper = createColumnHelper();
 
@@ -469,7 +469,7 @@ export function TemplatesPage() {
                   <TableRow
                     key={row.id}
                     data-state={editingTemplate?.id === row.original.id ? "selected" : undefined}
-                    className="group/row data-[state=selected]:bg-accent"
+                    className={cn("group/row data-[state=selected]:bg-accent", editingTemplate?.id === row.original.id && ON_ACCENT)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} className="py-1">

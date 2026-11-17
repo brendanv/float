@@ -48,7 +48,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { cn, ROW_ACTION } from "@/lib/utils";
+import { cn, ON_ACCENT, ROW_ACTION } from "@/lib/utils";
 
 function emptyForm() {
   return { pattern: "", payee: "", account: "", matchAccount: "", priority: "0", tags: "", autoReviewed: true };
@@ -576,7 +576,7 @@ export function RulesPage() {
                     <TableRow
                       key={row.id}
                       data-state={editing ? "selected" : undefined}
-                      className={cn("group/row", editing && "bg-accent hover:bg-accent data-[state=selected]:bg-accent")}
+                      className={cn("group/row", editing && cn("bg-accent hover:bg-accent data-[state=selected]:bg-accent", ON_ACCENT))}
                     >
                       {row.getVisibleCells().map((cell) =>
                         cell.column.id === "actions" ? (

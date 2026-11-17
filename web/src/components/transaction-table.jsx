@@ -42,7 +42,7 @@ import {
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
-import { cn } from "@/lib/utils";
+import { cn, ON_ACCENT } from "@/lib/utils";
 
 // ── day grouping ───────────────────────────────────────────────────────────
 
@@ -228,7 +228,7 @@ function TransactionRow({ row, isRegisterMode, selectable, selectedFids, account
         className={cn(
           "group/row border-border",
           !isRegisterMode && "cursor-pointer",
-          isSelected && "bg-accent hover:bg-accent",
+          isSelected && cn("bg-accent hover:bg-accent", ON_ACCENT),
         )}
       >
         {row.getVisibleCells().map((cell) => (
@@ -325,12 +325,15 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
   const canOpen = !isRegisterMode && !!tx.fid;
   const [editing, setEditing] = useState(false);
 
-  let amount;
+  let amount, balance;
   if (isRegisterMode) {
-    const { negate, changeTone } = registerDisplay(registerAccount);
+    const { negate, changeTone, balanceTone } = registerDisplay(registerAccount);
+    const first = (amounts) => (amounts.length > 0 ? parseFloat(amounts[0].quantity) || 0 : 0);
     const change = tx.change || [];
-    const q = change.length > 0 ? parseFloat(change[0].quantity) || 0 : 0;
-    amount = <Amount value={change} tone={changeTone(q)} negate={negate} signed />;
+    const total = tx.runningTotal || [];
+    const tone = balanceTone(first(total));
+    amount = <Amount value={change} tone={changeTone(first(change))} negate={negate} signed />;
+    balance = <Amount value={total} tone={tone} negate={negate} className={tone === "below" ? undefined : "text-muted-foreground"} />;
   } else {
     const income = isIncome(tx);
     amount = <Amount value={displayAmounts(tx)} tone={income ? "inflow" : "auto"} signed={income} />;
@@ -357,7 +360,7 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
           "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 border-t border-border py-2",
           showCheck && "grid-cols-[auto_auto_minmax(0,1fr)_auto]",
           canOpen && "cursor-pointer active:bg-muted/50",
-          isSelected && "-mx-2 rounded-md border-transparent bg-accent px-2",
+          isSelected && cn("-mx-2 rounded-md border-transparent bg-accent px-2", ON_ACCENT),
         )}
         onClick={() => { if (canOpen) setEditing(true); }}
       >
@@ -430,9 +433,7 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
           )}
         </span>
         {isRegisterMode && (
-          <span className="text-right text-[11.5px] text-faint">
-            <Amount value={tx.runningTotal || []} />
-          </span>
+          <span className="text-right text-[11.5px]">{balance}</span>
         )}
       </div>
       {/* A sibling of the row, not a child: React events bubble through

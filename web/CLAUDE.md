@@ -90,6 +90,7 @@ The UI follows the Waterline language (tokens in `src/style.css`). Prefer these 
 | `Segmented`, `SectionTabs`, `TagChip` | Small option toggles, group tabs (rendered by the shell), quiet `#tag` chips. |
 | `ui/chart.jsx` helpers | `CHART_STROKE`, `CHART_X_AXIS`/`CHART_Y_AXIS`, `ChartAreaFill`, `chartEndLabel`, `ChartTooltipRow`; animations off. |
 | `ROW_ACTION` (`lib/utils.js`) | Hover/focus-revealed row actions (rows carry `group/row`; touch always shows them). The only row-action helper. |
+| `ON_ACCENT` (`lib/utils.js`) | On any `bg-accent` selected/editing container: promotes `text-faint` to muted (faint is under 4.5:1 on accent). |
 | `NET_WORTH_SUMMARY_PARAMS`/`netWorthSummary` (`lib/net-worth.js`) | Current net worth (open asset/liability accounts, valued; hledger's report total). Overview and Trends share it; floatd pre-warms it. |
 | `downloadBlob` (`lib/download.js`) | Saving RPC bytes/text as a file. |
 

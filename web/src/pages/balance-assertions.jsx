@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn, ON_ACCENT } from "@/lib/utils";
 
 // collapseAmountsByCommodity sums amounts with the same commodity, dropping cost
 // annotations. Investment accounts can have many lots at different cost bases;
@@ -138,7 +138,7 @@ function AssertionRow({ status, accounts, onSaved }) {
     <>
       <TableRow
         data-slot="assertion-row"
-        className={cn(tx && "cursor-pointer", open && "bg-accent hover:bg-accent")}
+        className={cn(tx && "cursor-pointer", open && cn("bg-accent hover:bg-accent", ON_ACCENT))}
         onClick={() => tx && setOpen((o) => !o)}
       >
         <TableCell className="w-8 pr-0 align-middle">
@@ -185,7 +185,7 @@ function AssertionRow({ status, accounts, onSaved }) {
         </TableCell>
       </TableRow>
       {open && tx && (
-        <TableRow className="bg-accent/40 hover:bg-accent/40">
+        <TableRow className={cn("bg-accent/40 hover:bg-accent/40", ON_ACCENT)}>
           <TableCell colSpan={6} className="p-0 whitespace-normal">
             <AssertionEditor
               account={status.account}

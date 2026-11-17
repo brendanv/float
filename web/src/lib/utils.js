@@ -16,6 +16,11 @@ export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
+// ON_ACCENT goes on a container with the accent background (the selected
+// row, the row being edited): faint text is under 4.5:1 on accent, so it is
+// promoted to muted inside.
+export const ON_ACCENT = "[&_.text-faint]:text-muted-foreground";
+
 // ROW_ACTION hides a table row's secondary actions (Edit, Delete, …) until
 // the row (`group/row`) is hovered or focused, on devices that can hover;
 // touch devices always show them.
