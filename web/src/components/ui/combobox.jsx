@@ -76,7 +76,7 @@ export function Combobox({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              "flex h-8 w-full min-w-0 items-center justify-between rounded-md border border-input bg-background px-2.5 text-control outline-offset-0 outline-none transition-colors hover:bg-background focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+              "flex h-8 w-full min-w-0 items-center justify-between gap-1.5 rounded-md border border-input bg-transparent pr-2 pl-2.5 text-left text-control outline-none transition-colors focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-expanded:border-ring dark:bg-input/30 dark:hover:bg-input/50",
               !value && "text-muted-foreground",
               className
             )}
@@ -86,7 +86,7 @@ export function Combobox({
                 ? normalized.find((o) => o.value === value)?.label ?? value
                 : placeholder}
             </span>
-            <ChevronsUpDown className="ml-1 size-3.5 shrink-0 opacity-50" />
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
           </button>
         }
       />

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck } from "lucide-react";
+import { Check } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { todayStr } from "../format.js";
@@ -10,7 +10,7 @@ import { ErrorBanner } from "./error-banner.jsx";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
-import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
+import { Form, FormField, FormActions } from "@/components/ui/form";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -68,8 +68,10 @@ function TemplatePicker({ templates, selectedId, onSelect }) {
           key={t.id}
           type="button"
           size="xs"
-          variant={selectedId === t.id ? "default" : "outline"}
+          variant="outline"
+          aria-pressed={selectedId === t.id}
           onClick={() => onSelect(selectedId === t.id ? "" : t.id)}
+          className="aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-foreground"
         >
           {t.name}
         </Button>
@@ -139,7 +141,7 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
     <Form onSubmit={handleSubmit}>
       {error && <ErrorBanner error={error} />}
       {!initialValues && templates.length > 0 && (
-        <FormField label="Start from a template" hint="optional">
+        <FormField label="Start from a template" hint="optional" className="border-b border-border pb-4">
           <TemplatePicker
             templates={templates}
             selectedId={selectedTemplateId}
@@ -147,8 +149,8 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
           />
         </FormField>
       )}
-      <FormRow cols={2}>
-        <FormField label="Date" htmlFor="txn-date" className="sm:col-span-1">
+      <div className="grid gap-4 sm:grid-cols-[11rem_minmax(0,1fr)]">
+        <FormField label="Date" htmlFor="txn-date">
           <Input
             id="txn-date"
             type="date"
@@ -157,7 +159,7 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
             required
           />
         </FormField>
-        <FormField label="Description" htmlFor="txn-description" className="sm:col-span-1">
+        <FormField label="Description" htmlFor="txn-description">
           <Input
             id="txn-description"
             type="text"
@@ -167,12 +169,13 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
             required
           />
         </FormField>
-      </FormRow>
+      </div>
       <FormField label="Postings">
         <PostingFields
           postings={postings}
           onChange={setPostings}
           accounts={accountsData?.accounts || []}
+          showBalance
         />
       </FormField>
       <FormField label="Tags">
@@ -180,7 +183,7 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
       </FormField>
       <FormActions>
         <Button type="submit" isLoading={submitting} loadingText="Adding…">
-          Add Transaction
+          Add transaction
         </Button>
       </FormActions>
     </Form>
@@ -209,13 +212,15 @@ export function AddTransactionModal({ open, onOpenChange, initialValues }) {
     <ResponsiveDialog open={open} onOpenChange={handleOpenChange}>
       <ResponsiveDialogContent size="lg" showCloseButton>
         <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>{initialValues ? "Duplicate Transaction" : "Add Transaction"}</ResponsiveDialogTitle>
+          <ResponsiveDialogTitle>{initialValues ? "Duplicate transaction" : "Add transaction"}</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
         {success ? (
-          <div className="flex flex-col items-center gap-2 py-4 text-center">
-            <CircleCheck className="size-12 text-success" />
-            <p className="text-sm font-medium">Transaction added successfully!</p>
-          </div>
+          <p role="status" className="flex items-center gap-2 py-6 text-body font-medium">
+            <span className="inline-flex size-5 items-center justify-center rounded-full bg-inflow-soft text-inflow">
+              <Check className="size-3.5" />
+            </span>
+            Transaction added
+          </p>
         ) : (
           <AddTransactionForm onSuccess={handleSuccess} initialValues={initialValues} />
         )}
