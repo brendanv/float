@@ -120,7 +120,7 @@ export function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountP
                     {sym}
                     <button
                       type="button"
-                      className="ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
+                      className="touch-target ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
                       onClick={() => removeSymbol(sym)}
                       disabled={isPending}
                     >
@@ -156,7 +156,7 @@ export function ExclusionsDialog({ open, onOpenChange, accountPrefix, onAccountP
                     {prefix}
                     <button
                       type="button"
-                      className="ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
+                      className="touch-target ml-0.5 rounded opacity-60 hover:opacity-100 hover:text-destructive"
                       onClick={() => removePrefix(prefix)}
                       disabled={isPending}
                     >

@@ -57,7 +57,7 @@ const lotColumns = [
     cell: ({ getValue, table }) => (
       <button
         type="button"
-        className="cursor-pointer rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        className="touch-target cursor-pointer rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => table.options.meta.onSelectAccount(getValue())}
       >
         <Account name={getValue()} variant="path" />

@@ -132,7 +132,7 @@ function AccountRow({ name, depth, tree }) {
       <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: `${depth * 1.125}rem` }}>
         <button
           type="button"
-          className="-ml-1 flex size-5 shrink-0 items-center justify-center rounded text-faint hover:text-foreground disabled:pointer-events-none"
+          className="touch-target -ml-1 flex size-5 shrink-0 items-center justify-center rounded text-faint hover:text-foreground disabled:pointer-events-none"
           onClick={() => onToggle(name)}
           disabled={!hasKids}
           tabIndex={hasKids ? 0 : -1}

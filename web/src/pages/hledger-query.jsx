@@ -255,7 +255,7 @@ function NaturalLanguageTab() {
             <button
               type="button"
               aria-expanded={detailsOpen}
-              className="inline-flex w-fit items-center gap-1.5 rounded-sm text-control text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+              className="touch-target inline-flex w-fit items-center gap-1.5 rounded-sm text-control text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
               onClick={() => setDetailsOpen((o) => !o)}
             >
               <ChevronRight className={cn("size-3.5 text-faint transition-transform duration-150", detailsOpen && "rotate-90")} />

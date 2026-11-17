@@ -633,7 +633,7 @@ export function SettingsPage() {
 // SectionToggle is a collapsible section heading: the title plus a chevron.
 function SectionToggle({ open, children }) {
   return (
-    <CollapsibleTrigger className="inline-flex items-center gap-1.5 rounded-sm text-left">
+    <CollapsibleTrigger className="touch-target inline-flex items-center gap-1.5 rounded-sm text-left">
       {children}
       <ChevronDown className={cn("size-3.5 shrink-0 text-faint transition-transform duration-200", !open && "-rotate-90")} />
     </CollapsibleTrigger>

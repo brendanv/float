@@ -156,7 +156,7 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange, ad
             <TagChip key={k} className="group/tag gap-0.5 pr-0.5">
               <button
                 type="button"
-                className="rounded-[3px] outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                className="touch-target rounded-[3px] outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 onClick={(e) => { e.stopPropagation(); open(k, v); }}
                 disabled={isBusy}
                 title={`Edit tag "${k}"`}
@@ -169,7 +169,7 @@ export function TagEditor({ fid, tags, onChanged, className, value, onChange, ad
                 <button
                   type="button"
                   className={cn(
-                    "rounded-[3px] p-0.5 outline-none hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                    "touch-target rounded-[3px] p-0.5 outline-none hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
                     quiet && QUIET_REMOVE,
                   )}
                   onClick={(e) => { e.stopPropagation(); removeTag(k); }}

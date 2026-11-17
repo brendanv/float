@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 // Literal hledger syntax chips (@, { }, =) in front of a posting's extra
 // fields.
 const SYNTAX_CHIP =
-  "inline-flex h-8 shrink-0 select-none items-center rounded-md border border-input px-2 font-mono text-code text-muted-foreground";
+  "inline-flex h-8 pointer-coarse:min-h-10 shrink-0 select-none items-center rounded-md border border-input px-2 font-mono text-code text-muted-foreground";
 
 // Quiet icon buttons on a posting row: ink-3 until hovered.
 const ROW_ICON = "shrink-0 text-faint hover:text-foreground";
@@ -93,7 +93,7 @@ function CostFields({ cost, onChange, onRemove }) {
         type="button"
         onClick={() => onChange({ ...c, isTotal: !c.isTotal })}
         title={c.isTotal ? "Total price (@@) — click to switch to per-unit" : "Per-unit price (@) — click to switch to total"}
-        className={cn(SYNTAX_CHIP, "text-foreground hover:bg-muted")}
+        className={cn(SYNTAX_CHIP, "text-foreground hover:bg-muted pointer-coarse:min-w-10 justify-center")}
       >
         {c.isTotal ? "@@" : "@"}
       </button>

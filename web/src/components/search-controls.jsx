@@ -152,8 +152,8 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", e
             className={cn(
               "flex items-center gap-2 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted",
               embedded
-                ? cn(CHIP, CHIP_OFF, "gap-1.5 px-2.5")
-                : "h-8 rounded-md border border-input px-3 text-sm font-medium",
+                ? cn(CHIP, CHIP_OFF, "touch-target gap-1.5 px-2.5")
+                : "h-8 pointer-coarse:min-h-10 rounded-md border border-input px-3 text-sm font-medium",
             )}
           >
             <CalendarDays
@@ -168,35 +168,39 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", e
       />
       <PopoverContent
         align={align}
-        className="w-auto flex-row gap-0 p-0"
+        // On phones the presets stack above a single-month calendar (40px
+        // cells don't fit beside the sidebar) and the popover scrolls.
+        className="w-auto flex-row gap-0 p-0 max-md:max-h-(--available-height) max-md:flex-col max-md:overflow-y-auto"
       >
         {/* Presets sidebar */}
-        <div className="flex min-w-[140px] flex-col border-r p-2">
+        <div className="flex min-w-[140px] flex-col border-r p-2 max-md:border-r-0 max-md:border-b">
           <p className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">Presets</p>
-          {DATE_PRESETS.map((p) => {
-            const { from, to } = p.fn();
-            const isActive = from === dateFrom && to === dateTo;
-            return (
-              <button
-                key={p.label}
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted",
-                  isActive && "font-semibold",
-                )}
-                onClick={() => handlePreset(from, to)}
-              >
-                {isActive
-                  ? <Check className="size-3.5 text-primary shrink-0" />
-                  : <span className="size-3.5 shrink-0" />}
-                {p.label}
-              </button>
-            );
-          })}
+          <div className="grid max-md:grid-cols-2">
+            {DATE_PRESETS.map((p) => {
+              const { from, to } = p.fn();
+              const isActive = from === dateFrom && to === dateTo;
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted pointer-coarse:py-2.5",
+                    isActive && "font-semibold",
+                  )}
+                  onClick={() => handlePreset(from, to)}
+                >
+                  {isActive
+                    ? <Check className="size-3.5 text-primary shrink-0" />
+                    : <span className="size-3.5 shrink-0" />}
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
           <Separator className="my-2" />
           <p className="mb-1.5 px-2 text-xs font-medium text-muted-foreground">Custom range</p>
-          <div className="flex flex-col gap-1 px-2">
-            <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-1 px-2 max-md:flex-row max-md:gap-2">
+            <div className="flex min-w-0 flex-col gap-0.5 max-md:flex-1">
               <span className="text-xs text-muted-foreground">From</span>
               <Input
                 type="date"
@@ -205,7 +209,7 @@ export function DateRangePicker({ dateFrom, dateTo, onChange, align = "start", e
                 onChange={(e) => onChange(e.target.value, dateTo)}
               />
             </div>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-col gap-0.5 max-md:flex-1">
               <span className="text-xs text-muted-foreground">To</span>
               <Input
                 type="date"
@@ -253,8 +257,11 @@ const CHIP =
 const CHIP_OFF =
   "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground";
 const CHIP_ON = "border-transparent bg-accent font-medium text-primary";
+// Chips keep their 28px pill on touch devices; `touch-target` extends the hit
+// area to 40px (the chip row pads itself on coarse pointers so its sideways
+// scroll doesn't clip that area).
 const CHIP_BUTTON =
-  "inline-flex h-full min-w-0 items-center gap-1.5 rounded-full px-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "touch-target inline-flex h-full min-w-0 items-center gap-1.5 rounded-full px-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // FilterChip is the pill frame around a chip's button (`children`). When
 // the filter is active and clearable it adds a trailing clear button.
@@ -265,7 +272,7 @@ function FilterChip({ active, onClear, clearLabel, className, children }) {
       {active && onClear && (
         <button
           type="button"
-          className="-ml-1.5 mr-1 inline-flex size-5 items-center justify-center rounded-full outline-none hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
+          className="touch-target -ml-1.5 mr-1 inline-flex size-5 items-center justify-center rounded-full outline-none hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring"
           onClick={onClear}
           aria-label={clearLabel}
           title={clearLabel}
@@ -425,7 +432,7 @@ export function SearchControls({
       {onSearchChange && <SearchField value={search} onChange={onSearchChange} />}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Phones scroll the chip row sideways rather than wrapping it. */}
-        <div className="-mx-4 flex w-[calc(100%+2rem)] min-w-0 items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:w-auto sm:flex-1 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <div className="-mx-4 flex w-[calc(100%+2rem)] min-w-0 items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] pointer-coarse:-my-1.5 pointer-coarse:py-1.5 sm:mx-0 sm:w-auto sm:flex-1 sm:flex-wrap sm:overflow-visible sm:px-0">
           <DateRangePicker dateFrom={dateFrom} dateTo={dateTo} onChange={onDateRangeChange} embedded />
           <ChipSelect
             value={account}

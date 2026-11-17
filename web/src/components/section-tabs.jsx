@@ -23,7 +23,7 @@ export function SectionTabs({ items, currentPath, label = "Section", className }
             to={item.to}
             aria-current={current ? "page" : undefined}
             className={cn(
-              "shrink-0 rounded-sm pb-2.5 text-body font-medium whitespace-nowrap text-faint outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+              "shrink-0 rounded-sm pb-2.5 text-center text-body pointer-coarse:min-w-10 pointer-coarse:pt-2.5 font-medium whitespace-nowrap text-faint outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
               current && "text-foreground shadow-[inset_0_-2px_0_var(--primary)]",
             )}
           >

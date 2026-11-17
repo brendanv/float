@@ -137,6 +137,12 @@ Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `paye
 
 Add components with `bunx shadcn@latest add <component>`, which writes to `src/components/ui/`. Use the `shadcn` skill when composing or repairing shadcn components.
 
+## Touch Targets
+
+On touch devices (`pointer: coarse`) every control must offer a ≥40px hit area; desktop sizing is unchanged. The `components/ui` primitives (Button, Input, NativeSelect, Select, Combobox, Tabs, Checkbox, menu items, Calendar, sidebar) already grow via `pointer-coarse:min-h-10` / `min-w-10`, so prefer them over raw `<button>`s. For a small inline control whose visual size should stay (sort header, chip ✕, tree chevron) add the `touch-target` utility from `style.css`, which extends the hit area with an invisible `::after` (don't combine it with components that already use `::after`, e.g. tabs or checkbox). `tests/touch-targets.spec.js` enforces this on every route; links inside running text are exempt.
+
+The Waterline primitives follow the same rule without changing their look: `Segmented` options and `FilterChip`/`ChipSelect` buttons (and their ✕) use `touch-target`, and the chip row pads itself vertically on coarse pointers so its sideways scroll doesn't clip the extended area. Note that `overflow-x-auto` clips an `::after` vertically too, so inside a scrolling row either make room with padding or grow the control (as `SectionTabs` does with `pointer-coarse:pt-2.5`; its underline is an inset shadow, not `::after`).
+
 ## Screenshots / Visual Testing
 
 Playwright specs in `tests/` mock ConnectRPC responses using `tests/mock-api.js`; no live server is required. Desktop, mobile, and feature-specific screenshot specs cover major pages. Use the `web-screenshots` skill or `bun run screenshots` to regenerate. Config lives in `playwright.config.js`.
@@ -144,5 +150,7 @@ Playwright specs in `tests/` mock ConnectRPC responses using `tests/mock-api.js`
 Specs must import `test`/`expect` from `./fixtures.js`, not `@playwright/test`. The fixture fails a test on any uncaught page error, `console.error` (including React dev warnings), a visible Vite error overlay, or a `LedgerService` RPC that falls through to the `default` case in `mock-api.js`. Fix the cause instead of suppressing it; a test that deliberately triggers an error can use `test.use({ allowedErrors: [/status of 400/] })`.
 
 React is 18: components that receive a ref (anything used as a base-ui `render` element, or as a Radix/vaul child) must use `forwardRef`. base-ui primitives (`Dialog*`, `Tooltip*`, …) take `render={<Button />}`, not `asChild`; vaul's `Drawer*` primitives still use `asChild`.
+
+To render mobile with touch styles use `hasTouch: true, isMobile: true` and take viewport (not `fullPage`) screenshots, or measure before the screenshot: in Chromium a `fullPage` screenshot resets touch emulation, so `(pointer: coarse)` stops matching for the rest of the test.
 
 If the preinstalled Chromium doesn't match the pinned Playwright, set `PW_CHROMIUM_PATH` (e.g. `/opt/pw-browsers/chromium` in Claude Code on the web).

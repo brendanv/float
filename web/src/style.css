@@ -272,6 +272,29 @@
   }
 }
 
+/*
+ * Touch targets. On coarse pointers (phones, tablets) interactive controls
+ * should be at least 40px. The shadcn primitives in components/ui grow via
+ * `pointer-coarse:min-h-10`; for small inline controls whose visual size
+ * should not change (sort headers, chip remove buttons, tree chevrons) add
+ * `touch-target`, which extends the hit area with an invisible pseudo-element.
+ * Do not combine it with components that already use ::after (tabs, checkbox).
+ */
+@utility touch-target {
+  position: relative;
+  @media (pointer: coarse) {
+    &::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 2.5rem);
+      height: max(100%, 2.5rem);
+      translate: -50% -50%;
+    }
+  }
+}
+
 /* Prevent iOS Safari from zooming on input focus (triggered when font-size < 16px) */
 @supports (-webkit-touch-callout: none) {
   input, select, textarea {

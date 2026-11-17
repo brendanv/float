@@ -20,7 +20,7 @@ export function Segmented({ options, value, onChange, label, className }) {
             aria-pressed={selected}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "h-6 min-w-9 rounded-[4px] px-2.5 text-[12.5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+              "touch-target h-6 min-w-9 rounded-[4px] px-2.5 text-[12.5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
               selected && "bg-muted font-medium text-foreground ring-1 ring-border ring-inset",
             )}
           >

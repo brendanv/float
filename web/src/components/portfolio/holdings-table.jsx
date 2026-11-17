@@ -40,7 +40,7 @@ function SortableHeader({ column, children, className }) {
   return (
     <button
       className={cn(
-        "flex items-center gap-0.5 hover:text-foreground transition-colors",
+        "touch-target flex items-center gap-0.5 hover:text-foreground transition-colors",
         className,
       )}
       onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}

@@ -151,7 +151,7 @@ function AssertionRow({ status, accounts, onSaved }) {
                 e.stopPropagation();
                 setOpen((o) => !o);
               }}
-              className="inline-flex size-5 items-center justify-center rounded-sm text-faint outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+              className="touch-target inline-flex size-5 items-center justify-center rounded-sm text-faint outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
             >
               <ChevronRight className={cn("size-3.5 transition-transform duration-150", open && "rotate-90")} />
             </button>

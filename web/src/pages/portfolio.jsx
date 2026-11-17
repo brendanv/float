@@ -40,11 +40,11 @@ function PriceNotice({ variant, linkLabel, generate, children }) {
       variant={variant}
       action={
         <>
-          <Link to="/prices">{linkLabel}</Link>
+          <Link to="/prices" className="touch-target">{linkLabel}</Link>
           <span aria-hidden="true" className="text-faint">·</span>
           <button
             type="button"
-            className={cn("font-medium underline-offset-3 hover:underline disabled:opacity-50", linkTone)}
+            className={cn("touch-target font-medium underline-offset-3 hover:underline disabled:opacity-50", linkTone)}
             disabled={generate.isPending}
             onClick={() => generate.mutate()}
           >

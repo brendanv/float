@@ -54,7 +54,7 @@ function ReviewNotice() {
         <Link
           to="/transactions"
           search={UNREVIEWED_SEARCH}
-          className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          className="touch-target inline-flex items-center gap-1 font-medium text-primary hover:underline"
         >
           Review
           <ArrowRight className="size-3.5" aria-hidden="true" />
