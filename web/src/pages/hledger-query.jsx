@@ -1,14 +1,14 @@
 import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Play, AlertCircle, CheckCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { Play, ChevronRight } from "lucide-react";
 import { ledgerClient } from "../client.js";
-import { PageHeader } from "../components/page-header.jsx";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Page, Section, Eyebrow } from "../components/page.jsx";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Notice } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 const HLEDGER_EXAMPLES = [
   { label: "Account balances", args: "bal" },
@@ -26,6 +26,61 @@ const NL_EXAMPLES = [
   "What's my current net worth?",
   "Show me my income vs expenses for this year",
 ];
+
+// Kbd is a keyboard shortcut chip.
+function Kbd({ children }) {
+  return (
+    <kbd className="rounded-sm border border-input px-1 font-mono text-[10.5px] leading-4 text-muted-foreground">
+      {children}
+    </kbd>
+  );
+}
+
+// Output is a block of raw hledger output: mono on a sunken surface, or on
+// the below tint for stderr.
+function Output({ children, tone = "ink" }) {
+  return (
+    <pre
+      className={cn(
+        "overflow-x-auto rounded-lg px-3 py-2.5 font-mono text-code leading-relaxed whitespace-pre",
+        tone === "below" ? "bg-below-soft text-below" : "bg-muted",
+      )}
+    >
+      {children}
+    </pre>
+  );
+}
+
+// RunState is the result's status: an inflow or below dot and a label.
+function RunState({ ok }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden="true" className={cn("size-2 rounded-full", ok ? "bg-inflow" : "bg-below")} />
+      {ok ? "Success" : "Error"}
+    </span>
+  );
+}
+
+// Examples is a row of quiet example chips that fill the input.
+function Examples({ items, onPick, mono = false }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Eyebrow className="mr-1">Examples</Eyebrow>
+      {items.map((ex) => (
+        <Button
+          key={ex.value}
+          variant="outline"
+          size="xs"
+          className={cn("font-normal text-muted-foreground hover:text-foreground", mono && "font-mono text-[12px]")}
+          title={ex.title}
+          onClick={() => onPick(ex.value)}
+        >
+          {ex.value}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
 function HledgerTab() {
   const [args, setArgs] = useState("");
@@ -61,99 +116,65 @@ function HledgerTab() {
   const cmdLine = data?.commandLine ?? "";
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="hledger-args">Arguments</Label>
-        <div className="flex gap-2">
-          <Textarea
-            id="hledger-args"
-            ref={textareaRef}
-            value={args}
-            onChange={(e) => setArgs(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="bal --depth 2 assets"
-            className="font-mono resize-none"
-            rows={2}
-          />
-          <Button
-            onClick={run}
-            disabled={!args.trim()}
-            isLoading={isPending}
-            loadingText="Running…"
-            className="self-start shrink-0"
-          >
-            <Play className="size-4" />
-            Run
-          </Button>
+    <div className="flex flex-col gap-6">
+      <div className="flex max-w-3xl flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="hledger-args" className="text-control">Arguments</Label>
+          <div className="flex gap-2">
+            <Textarea
+              id="hledger-args"
+              ref={textareaRef}
+              value={args}
+              onChange={(e) => setArgs(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="bal --depth 2 assets"
+              className="min-h-0 resize-none font-mono text-code"
+              rows={2}
+            />
+            <Button
+              onClick={run}
+              disabled={!args.trim()}
+              isLoading={isPending}
+              loadingText="Running…"
+              className="shrink-0 self-start"
+            >
+              <Play data-icon="inline-start" />
+              Run
+            </Button>
+          </div>
+          <p className="text-control text-faint">
+            <Kbd>Ctrl+Enter</Kbd> runs. Leave out <code className="font-mono text-code text-muted-foreground">hledger</code> and{" "}
+            <code className="font-mono text-code text-muted-foreground">-f &lt;journal&gt;</code>.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Press <kbd className="rounded border px-1 py-0.5 font-mono text-xs">Ctrl+Enter</kbd> to run.
-          Do not include <code className="font-mono text-xs">hledger</code> or{" "}
-          <code className="font-mono text-xs">-f &lt;journal&gt;</code>.
-        </p>
+        <Examples
+          items={HLEDGER_EXAMPLES.map((ex) => ({ value: ex.args, title: ex.label }))}
+          onPick={applyExample}
+          mono
+        />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <span className="text-xs text-muted-foreground self-center">Examples:</span>
-        {HLEDGER_EXAMPLES.map((ex) => (
-          <Button
-            key={ex.args}
-            variant="outline"
-            size="xs"
-            className="font-mono text-xs"
-            onClick={() => applyExample(ex.args)}
-          >
-            {ex.args}
-          </Button>
-        ))}
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>{error.message || String(error)}</AlertDescription>
-        </Alert>
-      )}
+      {error && <Notice variant="critical">{error.message || String(error)}</Notice>}
 
       {hasResult && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              {success ? (
-                <CheckCircle className="size-4 text-green-500" />
-              ) : (
-                <AlertCircle className="size-4 text-destructive" />
-              )}
-              <CardTitle className="text-sm font-medium">
-                {success ? "Success" : "Error"}
-              </CardTitle>
+        <Section title="Output" description={<RunState ok={success} />}>
+          <p className="font-mono text-code break-all text-muted-foreground">$ {cmdLine}</p>
+          {stdout && (
+            <div className="flex flex-col gap-1.5">
+              {stderr && <Eyebrow>stdout</Eyebrow>}
+              <Output>{stdout}</Output>
             </div>
-            <CardDescription className="font-mono text-xs break-all">
-              $ {cmdLine}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {stdout && (
-              <div className="flex flex-col gap-1">
-                {stderr && <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">stdout</p>}
-                <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs font-mono whitespace-pre">
-                  {stdout}
-                </pre>
-              </div>
-            )}
-            {stderr && (
-              <div className="flex flex-col gap-1">
-                {stdout && <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">stderr</p>}
-                <pre className="overflow-x-auto rounded-md bg-destructive/10 p-3 text-xs font-mono whitespace-pre text-destructive">
-                  {stderr}
-                </pre>
-              </div>
-            )}
-            {!stdout && !stderr && (
-              <p className="text-sm text-muted-foreground">(no output)</p>
-            )}
-          </CardContent>
-        </Card>
+          )}
+          {stderr && (
+            <div className="flex flex-col gap-1.5">
+              {stdout && <Eyebrow>stderr</Eyebrow>}
+              <Output tone="below">{stderr}</Output>
+            </div>
+          )}
+          {!stdout && !stderr && (
+            <p className="text-control text-muted-foreground">(no output)</p>
+          )}
+        </Section>
       )}
     </div>
   );
@@ -189,111 +210,73 @@ function NaturalLanguageTab() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="nl-question">Question</Label>
-        <div className="flex gap-2">
-          <Textarea
-            id="nl-question"
-            ref={textareaRef}
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="How much did I spend on groceries last month?"
-            className="resize-none"
-            rows={2}
-          />
-          <Button
-            onClick={ask}
-            disabled={!question.trim()}
-            isLoading={isPending}
-            loadingText="Running…"
-            className="self-start shrink-0"
-          >
-            <Play className="size-4" />
-            Run
-          </Button>
+    <div className="flex flex-col gap-6">
+      <div className="flex max-w-3xl flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="nl-question" className="text-control">Question</Label>
+          <div className="flex gap-2">
+            <Textarea
+              id="nl-question"
+              ref={textareaRef}
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="How much did I spend on groceries last month?"
+              className="min-h-0 resize-none"
+              rows={2}
+            />
+            <Button
+              onClick={ask}
+              disabled={!question.trim()}
+              isLoading={isPending}
+              loadingText="Running…"
+              className="shrink-0 self-start"
+            >
+              <Play data-icon="inline-start" />
+              Run
+            </Button>
+          </div>
+          <p className="text-control text-faint">
+            <Kbd>Ctrl+Enter</Kbd> runs. The AI turns your question into an hledger query and answers from its output.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Press <kbd className="rounded border px-1 py-0.5 font-mono text-xs">Ctrl+Enter</kbd> to run.
-        </p>
+        <Examples items={NL_EXAMPLES.map((q) => ({ value: q }))} onPick={applyExample} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <span className="text-xs text-muted-foreground self-center">Examples:</span>
-        {NL_EXAMPLES.map((ex) => (
-          <Button
-            key={ex}
-            variant="outline"
-            size="xs"
-            className="text-xs"
-            onClick={() => applyExample(ex)}
-          >
-            {ex}
-          </Button>
-        ))}
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>{error.message || String(error)}</AlertDescription>
-        </Alert>
-      )}
+      {error && <Notice variant="critical">{error.message || String(error)}</Notice>}
 
       {data && (
-        <Card>
-          <CardContent className="flex flex-col gap-4 pt-6">
-            <p className="text-sm leading-relaxed">{data.answer}</p>
-
-            <div className="border-t pt-3">
-              <button
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => setDetailsOpen((o) => !o)}
-              >
-                {detailsOpen ? (
-                  <ChevronDown className="size-3.5" />
-                ) : (
-                  <ChevronRight className="size-3.5" />
-                )}
-                Query details
-              </button>
-
-              {detailsOpen && (
-                <div className="mt-3 flex flex-col gap-3">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Command
-                    </p>
-                    <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs font-mono">
-                      hledger {data.hledgerArgs}
-                    </pre>
-                  </div>
-
-                  {data.rawOutput && (
-                    <div className="flex flex-col gap-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Raw output
-                      </p>
-                      <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs font-mono whitespace-pre">
-                        {data.rawOutput}
-                      </pre>
-                    </div>
-                  )}
-
-                  {!data.querySuccess && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="size-4" />
-                      <AlertDescription className="text-xs">
-                        The hledger query did not run successfully.
-                      </AlertDescription>
-                    </Alert>
-                  )}
+        <Section title="Answer">
+          <p className="max-w-3xl text-body leading-relaxed">{data.answer}</p>
+          {!data.querySuccess && (
+            <Notice variant="warning">The hledger query did not run successfully.</Notice>
+          )}
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              aria-expanded={detailsOpen}
+              className="inline-flex w-fit items-center gap-1.5 rounded-sm text-control text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+              onClick={() => setDetailsOpen((o) => !o)}
+            >
+              <ChevronRight className={cn("size-3.5 text-faint transition-transform duration-150", detailsOpen && "rotate-90")} />
+              Query details
+            </button>
+            {detailsOpen && (
+              <div className="flex flex-col gap-3 pl-5">
+                <div className="flex flex-col gap-1.5">
+                  <Eyebrow>Command</Eyebrow>
+                  <Output>hledger {data.hledgerArgs}</Output>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                {data.rawOutput && (
+                  <div className="flex flex-col gap-1.5">
+                    <Eyebrow>Raw output</Eyebrow>
+                    <Output>{data.rawOutput}</Output>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </Section>
       )}
     </div>
   );
@@ -301,27 +284,19 @@ function NaturalLanguageTab() {
 
 export function HledgerQueryPage() {
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Query"
-        description="Run queries against your journal directly or ask in natural language."
-      />
-      <Card>
-        <CardContent>
-          <Tabs defaultValue="hledger">
-            <TabsList className="mb-4">
-              <TabsTrigger value="hledger">hledger</TabsTrigger>
-              <TabsTrigger value="natural-language">Natural language</TabsTrigger>
-            </TabsList>
-            <TabsContent value="hledger">
-              <HledgerTab />
-            </TabsContent>
-            <TabsContent value="natural-language">
-              <NaturalLanguageTab />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+    <Page>
+      <Tabs defaultValue="hledger" className="gap-6">
+        <TabsList>
+          <TabsTrigger value="hledger">hledger</TabsTrigger>
+          <TabsTrigger value="natural-language">Natural language</TabsTrigger>
+        </TabsList>
+        <TabsContent value="hledger">
+          <HledgerTab />
+        </TabsContent>
+        <TabsContent value="natural-language">
+          <NaturalLanguageTab />
+        </TabsContent>
+      </Tabs>
+    </Page>
   );
 }

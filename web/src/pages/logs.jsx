@@ -1,14 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { createGrpcWebTransport } from "@connectrpc/connect-web";
 import { LedgerService } from "@/gen/float/v1/ledger_pb.js";
-import { Page, PageCard } from "../components/page.jsx";
+import { Page, Section } from "../components/page.jsx";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ScrollText, Trash2, CircleAlert } from "lucide-react";
-import { PageHeader } from "../components/page-header.jsx";
+import { Notice } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
 const LEVELS = ["DEBUG", "INFO", "WARN", "ERROR"];
 
@@ -16,11 +14,20 @@ const logsClient = createClient(LedgerService, createGrpcWebTransport({
   baseUrl: window.location.origin,
 }));
 
-function levelVariant(level) {
-  if (level === "ERROR") return "destructive";
-  if (level === "WARN") return "secondary";
-  return "outline";
-}
+// Log levels are color-coded: errors in below, warnings in warning, info
+// in ink-2 and debug in ink-3.
+const LEVEL_CLASS = {
+  ERROR: "text-below font-medium",
+  WARN: "text-warning font-medium",
+  INFO: "text-muted-foreground",
+  DEBUG: "text-faint",
+};
+
+const STATUS = {
+  connected: { label: "Live", dot: "bg-inflow" },
+  connecting: { label: "Connecting…", dot: "border border-faint" },
+  error: { label: "Disconnected", dot: "bg-below" },
+};
 
 function formatAttrs(attrs) {
   const entries = Object.entries(attrs ?? {});
@@ -84,74 +91,69 @@ export function LogsPage() {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [entries]);
 
-  const statusBadge = useMemo(() => {
-    if (status === "connected") return <Badge variant="outline">Live</Badge>;
-    if (status === "connecting") return <Badge variant="secondary">Connecting...</Badge>;
-    return <Badge variant="destructive">Disconnected</Badge>;
-  }, [status]);
+  const state = STATUS[status] ?? STATUS.error;
 
   return (
     <Page>
-      <PageHeader
-        title="Logs"
-        description="Live server logs via gRPC stream. The connection closes automatically when you leave this page."
-      />
-
-      <PageCard
-        title={
-          <span className="flex items-center gap-2">
-            <ScrollText />
-            Stream
+      <Section
+        title="Server log"
+        description={
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden="true" className={cn("size-2 rounded-full", state.dot)} />
+            {state.label}
           </span>
         }
-        description="Showing up to the latest 400 log entries."
-        action={statusBadge}
-        contentClassName="flex flex-col gap-3"
+        action={
+          <>
+            <NativeSelect
+              size="sm"
+              aria-label="Minimum level"
+              value={minLevel}
+              onChange={(e) => setMinLevel(e.target.value)}
+              className="w-28"
+            >
+              {LEVELS.map((level) => (
+                <NativeSelectOption key={level} value={level}>{level}</NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <Button variant="ghost" size="sm" onClick={() => setEntries([])}>
+              Clear
+            </Button>
+          </>
+        }
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <NativeSelect
-            value={minLevel}
-            onChange={(e) => setMinLevel(e.target.value)}
-            className="w-[180px]"
-          >
-            {LEVELS.map((level) => (
-              <NativeSelectOption key={level} value={level}>{level}</NativeSelectOption>
-            ))}
-          </NativeSelect>
-          <Button variant="outline" size="sm" onClick={() => setEntries([])}>
-            <Trash2 data-icon="inline-start" />
-            Clear
-          </Button>
-        </div>
+        {streamError && <Notice variant="critical">{streamError.message || String(streamError)}</Notice>}
 
-        {streamError && (
-          <Alert variant="destructive">
-            <CircleAlert />
-            <AlertDescription>{streamError.message || String(streamError)}</AlertDescription>
-          </Alert>
-        )}
-
-        <div ref={listRef} className="h-[60vh] overflow-auto rounded-md border bg-muted/20 p-2 font-mono text-xs">
+        <div
+          ref={listRef}
+          data-slot="log-stream"
+          className="h-[60vh] overflow-auto rounded-lg bg-muted px-3 py-2 font-mono text-code leading-relaxed"
+        >
           {entries.length === 0 ? (
-            <p className="px-2 py-1 text-muted-foreground">Waiting for log entries...</p>
+            <p className="text-faint">Waiting for log entries…</p>
           ) : (
-            <ul className="flex flex-col gap-1">
+            <ul className="flex flex-col">
               {entries.map((entry, idx) => (
-                <li key={`${entry.time}-${idx}`} className="rounded border bg-background px-2 py-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-muted-foreground">{entry.time}</span>
-                    <Badge variant={levelVariant(entry.level)} className="font-mono">{entry.level}</Badge>
-                    <span className="break-all">{entry.message}</span>
-                  </div>
-                  {formatAttrs(entry.attrs) && (
-                    <div className="mt-1 text-muted-foreground break-all">{formatAttrs(entry.attrs)}</div>
-                  )}
+                <li
+                  key={`${entry.time}-${idx}`}
+                  data-level={entry.level}
+                  className="grid grid-cols-[auto_5ch_minmax(0,1fr)] gap-x-3 py-0.5 max-sm:grid-cols-[5ch_minmax(0,1fr)]"
+                >
+                  <span className="whitespace-nowrap text-faint max-sm:col-span-2">{entry.time}</span>
+                  <span className={LEVEL_CLASS[entry.level] ?? "text-muted-foreground"}>{entry.level}</span>
+                  <span className="break-all">
+                    {entry.message}
+                    {formatAttrs(entry.attrs) && (
+                      <span className="text-faint"> {formatAttrs(entry.attrs)}</span>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
           )}
         </div>
-      </PageCard>
+        <p className="text-control text-faint">Keeps the latest 400 entries. The stream closes when you leave this page.</p>
+      </Section>
     </Page>
   );
 }

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -50,31 +49,33 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>float</CardTitle>
-          <CardDescription>Enter the passphrase to continue.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="passphrase">Passphrase</Label>
-              <Input
-                id="passphrase"
-                type="password"
-                autoFocus
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-              />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={submitting || !passphrase}>
-              {submitting ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
+      <div className="flex w-full max-w-xs flex-col items-center gap-8">
+        <h1 className="inline-flex items-center gap-2 text-[34px] leading-none font-semibold tracking-[-0.04em] text-primary">
+          float
+          <i aria-hidden="true" className="inline-block size-2.5 translate-y-1 rounded-full bg-primary" />
+        </h1>
+        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="passphrase" className="text-control">Passphrase</Label>
+            <Input
+              id="passphrase"
+              type="password"
+              autoFocus
+              autoComplete="current-password"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "login-error" : undefined}
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              className="h-9"
+            />
+          </div>
+          {error && <p id="login-error" role="alert" className="text-control text-below">{error}</p>}
+          <Button type="submit" size="lg" disabled={submitting || !passphrase}>
+            {submitting ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
+      </div>
+    </main>
   );
 }
