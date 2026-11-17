@@ -38,7 +38,9 @@ test("accounts tree shows market value and collapses long amount lists", async (
   await expect(row.locator('[data-slot="amount"]')).toHaveCount(1);
 });
 
-test("prices page lists stale commodities first", async ({ page }) => {
+const holding = (symbol, account = "assets:brokerage") => ({ account, symbol, quantity: "1" });
+
+test("prices page lists stale held commodities first", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-03-20T12:00:00"));
   await mockLedgerApi(page, {
     prices: [
@@ -47,18 +49,56 @@ test("prices page lists stale commodities first", async ({ page }) => {
       { pid: "p0000003", date: "2026-02-03", commodity: "VTI", price: { commodity: "USD", quantity: "290.00" } },
       { pid: "p0000004", date: "2025-11-01", commodity: "BTC", price: { commodity: "USD", quantity: "68000" } },
       { pid: "p0000005", date: "2026-03-17", commodity: "MSFT", price: { commodity: "USD", quantity: "402.30" } },
+      // Sold long ago: old, but not worth updating.
+      { pid: "p0000006", date: "2024-06-03", commodity: "GE", price: { commodity: "USD", quantity: "160.00" } },
     ],
+    portfolioHoldings: {
+      holdings: [
+        holding("AAPL"), holding("AAPL", "assets:ira"), holding("VTI"), holding("BTC"), holding("MSFT"),
+        // Held but never priced.
+        holding("FXAIX", "assets:401k"),
+      ],
+    },
   });
   await page.goto("/#/prices");
 
   const rows = page.locator('[data-slot="latest-price"]');
-  await expect(rows).toHaveCount(4);
-  await expect(rows.locator("td:first-child")).toHaveText(["BTC", "VTI", "MSFT", "AAPL"]);
-  await expect(page.locator('[data-slot="latest-price"][data-stale]')).toHaveCount(2);
-  await expect(page.getByText("2 of 4 older than 7 days")).toBeVisible();
+  await expect(rows.locator("td:first-child")).toHaveText(["FXAIX", "BTC", "VTI", "MSFT", "AAPL", /^GE/]);
+  await expect(page.locator('[data-slot="latest-price"][data-stale]')).toHaveCount(3);
+  await expect(rows.first()).toContainText("no price");
+  await expect(rows.last()).toContainText("not held");
+  await expect(page.getByText("3 of 5 held need a price")).toBeVisible();
   await page.screenshot({ path: "test-results/prices-latest.png", fullPage: true });
 
   await page.getByRole("button", { name: "Backfill stale" }).click();
-  await expect(page.locator("#backfill-commodities")).toHaveValue("BTC, VTI");
-  await expect(page.locator("#backfill-start")).toHaveValue("2025-11-02");
+  await expect(page.locator("#backfill-commodities")).toHaveValue("FXAIX, BTC, VTI");
+  await expect(page.locator("#backfill-start")).toHaveValue("2025-03-20");
+});
+
+test("prices page collapses many commodities to the stale ones first", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-03-20T12:00:00"));
+  const symbols = Array.from({ length: 24 }, (_, i) => `SYM${String(i).padStart(2, "0")}`);
+  await mockLedgerApi(page, {
+    // Even-numbered symbols are fresh, odd ones a month old.
+    prices: symbols.map((commodity, i) => ({
+      pid: `q${String(i).padStart(7, "0")}`,
+      date: i % 2 ? "2026-02-15" : "2026-03-19",
+      commodity,
+      price: { commodity: "USD", quantity: String(10 + i) },
+    })),
+    portfolioHoldings: { holdings: symbols.map((s) => holding(s)) },
+  });
+  await page.goto("/#/prices");
+
+  const rows = page.locator('[data-slot="latest-price"]');
+  await expect(rows).toHaveCount(10);
+  await expect(page.locator('[data-slot="latest-price"][data-stale]')).toHaveCount(10);
+  await expect(page.getByText("12 of 24 held need a price")).toBeVisible();
+  await page.screenshot({ path: "test-results/prices-latest-many.png", fullPage: true });
+
+  await page.getByRole("button", { name: "Show all 24 commodities" }).click();
+  await expect(rows).toHaveCount(24);
+  await expect(page.locator('[data-slot="latest-price"][data-stale]')).toHaveCount(12);
+  await page.getByRole("button", { name: "Show fewer" }).click();
+  await expect(rows).toHaveCount(10);
 });
