@@ -1,0 +1,955 @@
+<title>Waterline for float</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one flat "paper" surface. Hierarchy comes from type, spacing and hairlines;
+   borders/fills are reserved for objects (dialogs, notices, the active thing). */
+:root {
+  --paper: oklch(0.985 0.004 235);
+  --raised: oklch(1 0 0);
+  --sunken: oklch(0.963 0.007 235);
+  --ink: oklch(0.23 0.025 250);
+  --ink-2: oklch(0.48 0.022 250);
+  --ink-3: oklch(0.64 0.016 250);
+  --rule: oklch(0.915 0.008 240);
+  --rule-strong: oklch(0.86 0.012 240);
+  --accent: oklch(0.50 0.14 248);
+  --accent-ink: oklch(0.99 0 0);
+  --accent-soft: oklch(0.95 0.028 248);
+  --inflow: oklch(0.53 0.10 170);
+  --inflow-soft: oklch(0.95 0.03 170);
+  --below: oklch(0.55 0.14 32);
+  --below-soft: oklch(0.955 0.025 32);
+  --warn: oklch(0.58 0.13 65);
+  --warn-soft: oklch(0.96 0.045 85);
+  --t-asset: var(--accent);
+  --t-liab: var(--below);
+  --t-income: var(--inflow);
+  --t-expense: oklch(0.66 0.025 250);
+  --t-equity: oklch(0.58 0.12 300);
+  --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: oklch(0.175 0.012 250);
+    --raised: oklch(0.225 0.014 250);
+    --sunken: oklch(0.205 0.013 250);
+    --ink: oklch(0.94 0.007 240);
+    --ink-2: oklch(0.73 0.014 245);
+    --ink-3: oklch(0.57 0.014 245);
+    --rule: oklch(0.275 0.014 250);
+    --rule-strong: oklch(0.35 0.016 250);
+    --accent: oklch(0.72 0.12 245);
+    --accent-ink: oklch(0.18 0.02 250);
+    --accent-soft: oklch(0.28 0.05 248);
+    --inflow: oklch(0.77 0.11 170);
+    --inflow-soft: oklch(0.27 0.04 170);
+    --below: oklch(0.73 0.13 32);
+    --below-soft: oklch(0.27 0.045 32);
+    --warn: oklch(0.81 0.13 80);
+    --warn-soft: oklch(0.28 0.05 80);
+    --t-expense: oklch(0.62 0.02 250);
+    --t-equity: oklch(0.73 0.11 300);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: oklch(0.175 0.012 250);
+  --raised: oklch(0.225 0.014 250);
+  --sunken: oklch(0.205 0.013 250);
+  --ink: oklch(0.94 0.007 240);
+  --ink-2: oklch(0.73 0.014 245);
+  --ink-3: oklch(0.57 0.014 245);
+  --rule: oklch(0.275 0.014 250);
+  --rule-strong: oklch(0.35 0.016 250);
+  --accent: oklch(0.72 0.12 245);
+  --accent-ink: oklch(0.18 0.02 250);
+  --accent-soft: oklch(0.28 0.05 248);
+  --inflow: oklch(0.77 0.11 170);
+  --inflow-soft: oklch(0.27 0.04 170);
+  --below: oklch(0.73 0.13 32);
+  --below-soft: oklch(0.27 0.045 32);
+  --warn: oklch(0.81 0.13 80);
+  --warn-soft: oklch(0.28 0.05 80);
+  --t-expense: oklch(0.62 0.02 250);
+  --t-equity: oklch(0.73 0.11 300);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font); font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.doc {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 48px 96px;
+  display: flex; flex-direction: column; gap: 72px;
+}
+h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; }
+p { margin: 0; }
+.prose { max-width: 66ch; color: var(--ink-2); }
+.prose strong { color: var(--ink); font-weight: 500; }
+.eyebrow { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Doc header */
+.hero { display: flex; flex-direction: column; gap: 20px; }
+.hero-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.hero h1 { font-size: clamp(40px, 7vw, 64px); letter-spacing: -0.035em; line-height: 1; }
+.hero h1 .wl { display: inline-block; position: relative; }
+.hero h1 .wl::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0.18em; height: 2px; background: var(--accent);
+}
+.lede { font-size: 18px; line-height: 1.55; max-width: 60ch; color: var(--ink-2); }
+.lede strong { color: var(--ink); font-weight: 500; }
+
+.seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 7px; padding: 2px; gap: 2px; background: var(--paper); }
+.seg button {
+  font: inherit; font-size: 12.5px; border: 0; background: transparent; color: var(--ink-2);
+  padding: 4px 10px; border-radius: 5px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--sunken); color: var(--ink); font-weight: 500; box-shadow: inset 0 0 0 1px var(--rule); }
+
+section { display: flex; flex-direction: column; gap: 24px; }
+.sec-head { display: flex; flex-direction: column; gap: 8px; }
+.sec-head h2 { font-size: 26px; letter-spacing: -0.02em; }
+
+/* Diagnosis + principles */
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 32px; }
+@media (max-width: 760px) { .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); } }
+.issue { padding: 14px 0; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 4px; }
+.issue h3 { font-size: 14.5px; }
+.issue p { color: var(--ink-2); }
+.principle { display: flex; flex-direction: column; gap: 6px; }
+.principle h3 { font-size: 16px; letter-spacing: -0.01em; }
+.principle p { color: var(--ink-2); }
+.principle .k { width: 28px; height: 3px; background: var(--accent); border-radius: 2px; margin-bottom: 6px; }
+
+/* ---------- Mockup frames ---------- */
+.frame-wrap { overflow-x: auto; border-radius: 12px; }
+.caption { font-size: 13px; color: var(--ink-3); max-width: 72ch; }
+.app {
+  min-width: 980px; display: grid; grid-template-columns: 212px minmax(0, 1fr);
+  border: 1px solid var(--rule-strong); border-radius: 12px; overflow: hidden; background: var(--paper);
+  font-size: 13.5px;
+}
+.side { background: var(--sunken); border-right: 1px solid var(--rule); padding: 16px 10px; display: flex; flex-direction: column; gap: 14px; }
+.wordmark { font-weight: 600; font-size: 21px; letter-spacing: -0.04em; color: var(--accent); padding: 0 8px; display: flex; align-items: center; gap: 6px; }
+.wordmark i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; transform: translateY(3px); }
+.side .newtx { justify-content: space-between; }
+.searchbox {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+  border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink-3); font-size: 12.5px;
+}
+.searchbox .ic { width: 14px; height: 14px; }
+.kbd { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); border: 1px solid var(--rule-strong); border-radius: 4px; padding: 0 4px; line-height: 16px; }
+.nav { display: flex; flex-direction: column; gap: 1px; }
+.nav-label { font-size: 10.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding: 6px 8px 4px; }
+.nav a {
+  display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 6px;
+  color: var(--ink-2); text-decoration: none; font-size: 13px;
+}
+.nav a.on { background: var(--raised); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--rule); }
+.nav a.on .ic { color: var(--accent); }
+.nav .count { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--accent-ink); background: var(--accent); border-radius: 9px; padding: 0 6px; line-height: 17px; }
+.side .foot { margin-top: auto; }
+
+.ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.main { padding: 22px 32px 32px; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.pagehead { display: flex; align-items: center; gap: 12px; }
+.pagehead h1 { font-size: 22px; letter-spacing: -0.02em; }
+.pagehead .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.btn {
+  font: inherit; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border-radius: 6px; border: 1px solid var(--rule-strong); background: var(--raised); color: var(--ink);
+  cursor: default; white-space: nowrap;
+}
+.btn .ic { width: 14px; height: 14px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+.btn.primary .kbd { color: var(--accent-ink); border-color: color-mix(in oklch, var(--accent-ink) 40%, transparent); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--ink-2);
+  border: 1px solid var(--rule-strong); border-radius: 999px; padding: 3px 10px; background: var(--paper); white-space: nowrap;
+}
+.chip .ic { width: 12px; height: 12px; }
+.chip.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 500; }
+
+.notice {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; font-size: 13px;
+  background: var(--accent-soft); color: var(--ink);
+}
+.notice .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.notice a { margin-left: auto; color: var(--accent); font-weight: 500; text-decoration: none; display: inline-flex; gap: 4px; align-items: center; }
+.notice a .ic { width: 13px; height: 13px; }
+.notice.warn { background: var(--warn-soft); }
+.notice.warn .dot { background: var(--warn); }
+.notice.warn a { color: var(--ink); }
+.notice.crit { background: var(--below-soft); }
+.notice.crit .dot { background: var(--below); }
+.notice.crit a { color: var(--below); }
+
+/* Amounts */
+.amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.amt.in { color: var(--inflow); }
+.amt.neg { color: var(--below); }
+.amt.display { font-size: 44px; font-weight: 500; letter-spacing: -0.035em; line-height: 1; }
+.amt.display .cents, .amt.mid .cents { font-size: .5em; color: var(--ink-3); letter-spacing: 0; vertical-align: .62em; margin-left: 1px; }
+.amt.mid { font-size: 26px; font-weight: 500; letter-spacing: -0.03em; line-height: 1; }
+.delta { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--inflow); background: var(--inflow-soft); border-radius: 999px; padding: 2px 8px; }
+.sub { color: var(--ink-3); font-size: 12.5px; }
+
+/* Account glyphs */
+.g { width: 7px; height: 7px; border-radius: 2px; display: inline-block; flex: none; background: var(--t-asset); }
+.g.l { background: var(--t-liab); }
+.g.r { background: var(--t-income); }
+.g.x { background: var(--t-expense); }
+.g.e { background: var(--t-equity); }
+.acct { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.acct .par { color: var(--ink-3); }
+.flow { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); white-space: nowrap; }
+.flow .arr { color: var(--ink-3); }
+
+/* Overview */
+.ov-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 24px 48px; align-items: end; }
+.ov-hero .nw { display: flex; flex-direction: column; gap: 10px; }
+.ov-hero .spark { display: flex; flex-direction: column; gap: 4px; }
+.spark svg { width: 100%; height: 72px; display: block; overflow: visible; }
+.spark .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); }
+.waterline { display: grid; grid-template-columns: 84px minmax(0, 1fr) 96px; align-items: center; gap: 6px 12px; font-size: 12.5px; }
+.waterline .lbl { color: var(--ink-2); }
+.waterline .bar { height: 10px; border-radius: 2px; }
+.waterline .bar.a { background: var(--t-asset); }
+.waterline .bar.l { background: var(--t-liab); }
+.waterline .line { grid-column: 1 / -1; height: 0; border-top: 1px dashed var(--rule-strong); position: relative; }
+.waterline .line span { position: absolute; right: 0; top: -9px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); background: var(--paper); padding-left: 6px; }
+.waterline .v { text-align: right; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; }
+.block { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.block-h { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+.block-h h2 { font-size: 14px; }
+.block-h .r { margin-left: auto; }
+.rows { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.row .v { margin-left: auto; }
+.row.grp { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); padding-top: 12px; }
+.row.grp:first-child { padding-top: 2px; }
+.row.grp .v { color: var(--ink-2); letter-spacing: 0; font-size: 12.5px; }
+.row.child { padding-left: 15px; color: var(--ink-2); }
+.row.child .v { color: var(--ink-2); }
+.row .hold { color: var(--ink-3); font-size: 12px; }
+.summary-line { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
+.summary-line b { color: var(--ink); font-weight: 500; }
+.bars { display: grid; grid-template-columns: 96px minmax(0, 1fr) 84px 36px; gap: 7px 12px; align-items: center; font-size: 13px; }
+.bars .n { color: var(--ink-2); text-align: right; }
+.bars .track { height: 8px; }
+.bars .fill { height: 100%; background: var(--accent); border-radius: 2px; }
+.bars .p { color: var(--ink-3); font-size: 12px; text-align: right; }
+.bars .v { text-align: right; }
+
+/* Transactions */
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.query {
+  flex: 1 1 320px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 7px;
+  border: 1px solid var(--rule-strong); background: var(--raised); color: var(--ink-3);
+}
+.query code { color: var(--ink-2); background: var(--sunken); border-radius: 4px; padding: 0 4px; }
+.ledger { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ledger td.desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ledger td { padding: 7px 8px; border-top: 1px solid var(--rule); vertical-align: middle; }
+.ledger tr.day td { border-top: 0; padding: 18px 8px 6px; font-size: 12px; color: var(--ink-3); }
+.ledger tr.day td b { color: var(--ink); font-weight: 600; font-size: 12.5px; margin-right: 6px; }
+.ledger tr.day + tr td { border-top: 1px solid var(--rule-strong); }
+.ledger .st { width: 22px; padding-right: 0; }
+.ledger .amt-c { text-align: right; }
+.ledger .fl { white-space: nowrap; }
+.ledger .payee { font-weight: 500; }
+.ledger .note { color: var(--ink-3); margin-left: 6px; }
+.ledger .tags { display: inline-flex; gap: 6px; margin-left: 8px; }
+.tag { font-size: 11.5px; color: var(--ink-2); background: var(--sunken); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+.ledger tr.hover td { background: var(--sunken); }
+.ledger .rowact { display: inline-flex; gap: 2px; margin-left: 10px; vertical-align: middle; }
+.ledger .rowact span { font-size: 12px; color: var(--ink-2); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--rule-strong); background: var(--raised); }
+.ledger .lotline { display: block; font-size: 11.5px; color: var(--ink-3); font-family: var(--mono); }
+.st-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.st-dot.review { background: var(--accent); }
+.st-dot.pending { border: 1.5px solid var(--warn); }
+.cb { width: 14px; height: 14px; border: 1.5px solid var(--rule-strong); border-radius: 3.5px; display: inline-block; vertical-align: middle; background: var(--raised); }
+.tx-sum { font-size: 12.5px; color: var(--ink-3); display: flex; gap: 16px; }
+.tx-sum b { color: var(--ink-2); font-weight: 500; }
+
+/* Reports */
+.tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--rule); }
+.tabs span { padding: 0 0 9px; color: var(--ink-3); font-weight: 500; font-size: 13.5px; }
+.tabs span.on { color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
+.matrix { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.matrix th { font-size: 11px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); text-align: right; padding: 6px 10px; }
+.matrix th:first-child { text-align: left; }
+.matrix td { padding: 6px 10px; text-align: right; border-top: 1px solid var(--rule); }
+.matrix td:first-child { text-align: left; }
+.matrix tr.sect td { border-top: 0; padding-top: 18px; font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.matrix tr.total td { font-weight: 600; border-top: 1px solid var(--rule-strong); }
+.matrix tr.net td { font-weight: 600; border-top: 2px solid var(--ink); }
+.matrix td.avg, .matrix th.avg { color: var(--ink-3); border-left: 1px solid var(--rule); }
+
+/* Phones */
+.phones { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; }
+.phone {
+  width: 300px; max-width: 100%; height: 600px; border: 1px solid var(--rule-strong); border-radius: 30px;
+  overflow: hidden; display: flex; flex-direction: column; background: var(--paper); font-size: 13px;
+}
+.phone .scroll { flex: 1; overflow: hidden; padding: 18px 16px 0; display: flex; flex-direction: column; gap: 16px; }
+.phone .top { display: flex; align-items: center; justify-content: space-between; }
+.phone .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--rule); background: var(--sunken); padding: 8px 4px 16px; }
+.phone .tabbar span { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--ink-3); }
+.phone .tabbar span.on { color: var(--accent); font-weight: 500; }
+.phone .tabbar .plus { width: 38px; height: 38px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; margin-top: -4px; }
+.phone .tabbar .plus .ic { width: 18px; height: 18px; stroke-width: 2.2; }
+.phone .waterline { grid-template-columns: 64px minmax(0, 1fr) 72px; font-size: 11.5px; }
+.m-tx { display: flex; flex-direction: column; }
+.m-tx .day { font-size: 11.5px; color: var(--ink-3); padding: 10px 0 4px; display: flex; justify-content: space-between; }
+.m-tx .day b { color: var(--ink); font-weight: 600; }
+.m-tx .it { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; padding: 9px 0; border-top: 1px solid var(--rule); }
+.m-tx .it .p { font-weight: 500; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.m-tx .it .p span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-tx .it .f { grid-column: 1; font-size: 11.5px; color: var(--ink-3); }
+.m-tx .it .amt { grid-row: 1; grid-column: 2; text-align: right; }
+.chiprow { display: flex; gap: 6px; overflow: hidden; }
+
+/* Tokens */
+.palettes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 760px) { .palettes { grid-template-columns: minmax(0, 1fr); } }
+.pal { border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--rule-strong); }
+.pal.light { background: #f9fbfc; color: #1f2733; }
+.pal.dark { background: #12161c; color: #e9edf1; }
+.pal h3 { font-size: 13px; }
+.sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+.sw { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; }
+.sw i { height: 36px; border-radius: 6px; display: block; box-shadow: inset 0 0 0 1px rgba(128,128,128,.25); }
+.sw small { opacity: .62; font-family: var(--mono); font-size: 10.5px; }
+
+.typescale { display: flex; flex-direction: column; border-top: 1px solid var(--rule); }
+.ts { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.ts .meta { font-size: 12px; color: var(--ink-3); display: flex; flex-direction: column; }
+.ts .meta b { color: var(--ink-2); font-weight: 500; }
+.ts .sample { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) { .ts { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+
+.specs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+@media (max-width: 760px) { .specs { grid-template-columns: minmax(0, 1fr); } }
+.spec { display: flex; flex-direction: column; gap: 8px; }
+.spec h3 { font-size: 14px; }
+.spec dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px; }
+.spec dt { color: var(--ink-3); }
+.spec dd { margin: 0; color: var(--ink-2); }
+
+/* Components */
+.comp { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 20px; padding: 20px 0; border-top: 1px solid var(--rule); }
+.comp:last-child { border-bottom: 1px solid var(--rule); }
+.comp .what { display: flex; flex-direction: column; gap: 4px; }
+.comp .what h3 { font-size: 14px; }
+.comp .what p { font-size: 12.5px; color: var(--ink-3); }
+.comp .show { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; min-width: 0; }
+.comp .show .stack { display: flex; flex-direction: column; gap: 6px; }
+.comp .show .stack .sub { font-size: 11.5px; }
+@media (max-width: 640px) { .comp { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+
+/* Navigation compare */
+.navcmp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+@media (max-width: 640px) { .navcmp { grid-template-columns: minmax(0, 1fr); } }
+.navcol h3 { font-size: 14px; margin-bottom: 10px; }
+.navcol ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.navcol li { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--rule); }
+.navcol li .grp { color: var(--ink-3); width: 96px; flex: none; }
+.navcol li .its { color: var(--ink-2); }
+.navcol li .its b { color: var(--ink); font-weight: 500; }
+
+/* Rollout */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; display: flex; flex-direction: column; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 12px; padding: 16px 0; border-top: 1px solid var(--rule); }
+.steps li::before { content: counter(s); font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent); font-size: 15px; }
+.steps h3 { font-size: 15px; }
+.steps .body { display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); min-width: 0; }
+.steps .body ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.steps code { color: var(--ink); overflow-wrap: anywhere; }
+
+.dodont { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+@media (max-width: 640px) { .dodont { grid-template-columns: minmax(0, 1fr); } }
+.dodont ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); }
+.dodont h3 { font-size: 13px; margin-bottom: 8px; }
+.dodont .do h3 { color: var(--inflow); }
+.dodont .dont h3 { color: var(--below); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .seg button { transition: background-color .15s, color .15s; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18M7 15l4-5 3 3 5-7"/></symbol>
+  <symbol id="i-case" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2 2 2 0 0 0 2 2h14"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M10 18h4"/></symbol>
+  <symbol id="i-tpl" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 12V3h9l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 3v18M6 21h12M4 7h16M7 7l-3 7a3 3 0 0 0 6 0zM17 7l-3 7a3 3 0 0 0 6 0z"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+</svg>
+
+<div class="doc">
+
+  <header class="hero">
+    <div class="hero-top">
+      <span class="eyebrow">float · web UI design language · proposal</span>
+      <div class="seg" role="group" aria-label="Preview theme">
+        <button type="button" id="th-sys" data-t="">System</button>
+        <button type="button" id="th-light" data-t="light">Light</button>
+        <button type="button" id="th-dark" data-t="dark">Dark</button>
+      </div>
+    </div>
+    <h1><span class="wl">Waterline</span></h1>
+    <p class="lede">A quieter, denser, more legible float. Everything you own sits above the line, everything you owe sits below it, and the screen spends its emphasis on <strong>what changed and what needs you</strong>. Features stay exactly as they are. This replaces the visual layer: tokens, type, a handful of primitives, and the shell.</p>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>What’s in the way today</h2>
+      <p class="prose">From the current screenshots (Home, Transactions, Monthly, Portfolio, Rules, Trends).</p>
+    </div>
+    <div class="grid-2">
+      <div class="issue"><h3>Everything is a card</h3><p>Every block is a bordered box on a blue-tinted background. With 41 <code>&lt;Card&gt;</code>s, nothing stands out, and the stat tiles on Home use three boxes to say one thing.</p></div>
+      <div class="issue"><h3>Numbers read like code</h3><p>Amounts are set in JetBrains Mono (121 <code>font-mono</code> uses). They line up, but $12,450.00 looks like a log line, and mono gets mixed with prose mid-row.</p></div>
+      <div class="issue"><h3>Color doesn’t mean anything specific</h3><p>Net worth is green because it’s net worth, and every Monthly “Net Income” cell is green too. Portfolio warnings use full-width pink and beige slabs that outweigh the data.</p></div>
+      <div class="issue"><h3>Account paths are the loudest text</h3><p><code>liabilities:creditcard → expenses:groceries</code> repeats on every row. The leaf is what you scan for, and the type (asset, expense…) is what you need to know.</p></div>
+      <div class="issue"><h3>Nineteen nav items, flat</h3><p>Debug tools (Query, Logs, Snapshots) carry the same weight as Transactions. Adding a transaction, the most common action, has no permanent home.</p></div>
+      <div class="issue"><h3>Review state is hidden</h3><p>Unreviewed imports show as a faint checkmark. Nothing on Home tells you there’s work waiting.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Principles</h2></div>
+    <div class="grid-3">
+      <div class="principle"><span class="k"></span><h3>One surface</h3><p>The page is paper. Separate things with space and hairlines. Fill or border only marks an object you can act on: a dialog, a notice, the selected row.</p></div>
+      <div class="principle"><span class="k"></span><h3>Numbers are typography</h3><p>Proportional Geist with tabular figures. Big figures shrink their cents. Mono is reserved for what is literally hledger syntax: queries, regexes, raw account paths in editors.</p></div>
+      <div class="principle"><span class="k"></span><h3>Color carries a fact</h3><p>Blue is action and assets. Teal is income arriving; transfers between your own accounts stay ink. Brick is owed or below zero. Amber is “look at this.” A number stays ink unless one of those is true.</p></div>
+      <div class="principle"><span class="k"></span><h3>Leaf first, type always</h3><p>Show the last account segment in ink with its parents muted, plus a small glyph colored by account type, so a row can be read at a glance.</p></div>
+      <div class="principle"><span class="k"></span><h3>Attention is earned</h3><p>Reviewed transactions carry no mark. Items that need review get a blue dot and a count in the nav. Warnings are one line, not a slab.</p></div>
+      <div class="principle"><span class="k"></span><h3>Dense by default</h3><p>A ledger is a list. 34px desktop rows, single-line transactions, day groups instead of a date column. Room comes from removing chrome, not from padding.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== OVERVIEW ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>Overview</h2>
+      <p class="prose">Home becomes Overview. One net-worth figure with its trend, a waterline bar that shows assets against liabilities at true scale, then accounts and the month’s spending as plain lists.</p>
+    </div>
+    <div class="frame-wrap">
+      <div class="app">
+        <aside class="side" id="side-ov"></aside>
+        <div class="main">
+          <div class="pagehead">
+            <h1>Overview</h1>
+            <div class="actions">
+              <span class="chip"><svg class="ic"><use href="#i-cal"/></svg>November 2026<svg class="ic"><use href="#i-chev"/></svg></span>
+            </div>
+          </div>
+
+          <div class="notice"><span class="dot"></span><span><b>6 imported transactions</b> need review, from Chase checking and Amex.</span><a href="#overview">Review<svg class="ic"><use href="#i-arrow"/></svg></a></div>
+
+          <div class="ov-hero">
+            <div class="nw">
+              <span class="eyebrow">Net worth</span>
+              <span class="amt display">$11,220<span class="cents">.00</span></span>
+              <span><span class="delta">+$650.00 vs October</span> <span class="sub">&nbsp;+$950.00 this year</span></span>
+            </div>
+            <div class="spark">
+              <svg viewBox="0 0 248 72" preserveAspectRatio="none" aria-label="Net worth, Dec 2025 to Nov 2026">
+                <defs><linearGradient id="nwfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".18"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+                <line x1="0" x2="240" y1="68" y2="68" stroke="var(--rule)" stroke-width="1"/>
+                <path d="M0 56.7 L21.8 53.4 L43.6 49.6 L65.5 51.5 L87.3 43 L109.1 40.6 L130.9 36.4 L152.7 38.7 L174.5 30.7 L196.4 26.9 L218.2 42.5 L240 11.8 L240 68 L0 68 Z" fill="url(#nwfill)"/>
+                <path d="M0 56.7 L21.8 53.4 L43.6 49.6 L65.5 51.5 L87.3 43 L109.1 40.6 L130.9 36.4 L152.7 38.7 L174.5 30.7 L196.4 26.9 L218.2 42.5 L240 11.8" fill="none" stroke="var(--accent)" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+              </svg>
+              <div class="axis"><span>Dec ’25</span><span>Nov ’26</span></div>
+            </div>
+          </div>
+
+          <div class="waterline" aria-label="Assets versus liabilities">
+            <span class="lbl">Assets</span><span class="bar a" style="width:100%"></span><span class="v amt">$12,450.00</span>
+            <span class="line"><span>Waterline</span></span>
+            <span class="lbl">Liabilities</span><span class="bar l" style="width:9.9%"></span><span class="v amt">$1,230.00</span>
+          </div>
+
+          <div class="cols">
+            <div class="block">
+              <div class="block-h"><h2>Accounts</h2><span class="sub r">Balances today</span></div>
+              <div class="rows">
+                <div class="row grp">Assets<span class="v amt">$12,450.00</span></div>
+                <div class="row"><span class="g"></span>checking<span class="v amt">$6,700.00</span></div>
+                <div class="row"><span class="g"></span>savings<span class="v amt">$4,000.00</span></div>
+                <div class="row"><span class="g"></span>investments<span class="v amt">$1,750.00</span></div>
+                <div class="row child">aapl <span class="hold mono">10 AAPL</span><span class="v amt">$1,750.00</span></div>
+                <div class="row grp">Liabilities<span class="v amt">$1,230.00</span></div>
+                <div class="row"><span class="g l"></span>creditcard<span class="v amt">$1,230.00</span></div>
+              </div>
+            </div>
+            <div class="block">
+              <div class="block-h"><h2>November spending</h2><span class="sub r">7 categories</span></div>
+              <div class="summary-line"><span>In <b class="amt in">+$5,200.00</b></span><span>Out <b class="amt">$2,484.87</b></span><span>Kept <b>52%</b></span></div>
+              <div class="bars" id="bars"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">The three stat cards collapse into one hero. Cents shrink at display size only. Green appears once, on the change, because the change is the good news.</p>
+  </section>
+
+  <!-- ===================== TRANSACTIONS ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>Transactions</h2>
+      <p class="prose">One line per transaction, grouped by day with a day total. The flow column shows leaf accounts with type glyphs, and full paths appear on hover and in the editor. One search field accepts plain words or an hledger query, and filters become chips.</p>
+    </div>
+    <div class="frame-wrap">
+      <div class="app">
+        <aside class="side" id="side-tx"></aside>
+        <div class="main">
+          <div class="pagehead">
+            <h1>Transactions</h1>
+            <div class="actions">
+              <span class="btn ghost"><svg class="ic"><use href="#i-up"/></svg>Import CSV</span>
+            </div>
+          </div>
+          <div class="toolbar">
+            <div class="query"><svg class="ic"><use href="#i-search"/></svg><span>Search payees and notes, or type a query like <code>acct:dining amt:&gt;50</code></span></div>
+          </div>
+          <div class="toolbar">
+            <span class="chip"><svg class="ic"><use href="#i-cal"/></svg>March 2026<svg class="ic"><use href="#i-chev"/></svg></span>
+            <span class="chip">Any account<svg class="ic"><use href="#i-chev"/></svg></span>
+            <span class="chip on">Needs review · 6</span>
+            <span class="chip">Tags<svg class="ic"><use href="#i-chev"/></svg></span>
+            <span class="tx-sum" style="margin-left:auto"><span><b>24</b> transactions</span><span>In <b class="amt">$5,200.00</b></span><span>Out <b class="amt">$2,692.38</b></span></span>
+          </div>
+          <table class="ledger" id="ledger"></table>
+        </div>
+      </div>
+    </div>
+    <p class="caption">The status column only shows something when there is something to do. Day totals count income and spending and ignore transfers between your own accounts. The hovered row reveals its checkbox and actions. Selecting any row turns the toolbar into the existing bulk-edit bar.</p>
+  </section>
+
+  <!-- ===================== REPORTS ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>Reports</h2>
+      <p class="prose">Trends and Monthly merge under one Reports entry with tabs. The monthly matrix drops cents, adds an average column, and shades each cell by its size within its row, so spikes show up without a chart. The figures below are illustrative.</p>
+    </div>
+    <div class="frame-wrap">
+      <div class="app">
+        <aside class="side" id="side-rp"></aside>
+        <div class="main">
+          <div class="pagehead">
+            <h1>Reports</h1>
+            <div class="actions">
+              <span class="chip"><svg class="ic"><use href="#i-cal"/></svg>Last 6 months<svg class="ic"><use href="#i-chev"/></svg></span>
+              <div class="seg" role="group" aria-label="Precision"><button type="button" aria-pressed="true">$1,234</button><button type="button" aria-pressed="false">$1,234.56</button></div>
+            </div>
+          </div>
+          <div class="tabs"><span>Net worth</span><span class="on">Income &amp; spending</span><span>Categories</span></div>
+          <div style="overflow-x:auto"><table class="matrix" id="matrix"></table></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PHONE ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>On a phone</h2>
+      <p class="prose">The sidebar becomes a bottom bar with the four destinations people use most and a center button for a new transaction. Everything else lives under More. Transaction rows stack the flow under the payee.</p>
+    </div>
+    <div class="phones">
+      <div class="phone">
+        <div class="scroll">
+          <div class="top"><span class="wordmark" style="padding:0">float<i></i></span><span class="chip"><svg class="ic"><use href="#i-cal"/></svg>Nov</span></div>
+          <div class="nw" style="display:flex;flex-direction:column;gap:8px">
+            <span class="eyebrow">Net worth</span>
+            <span class="amt display" style="font-size:38px">$11,220<span class="cents">.00</span></span>
+            <span><span class="delta">+$650.00 vs Oct</span></span>
+          </div>
+          <div class="waterline">
+            <span class="lbl">Assets</span><span class="bar a" style="width:100%"></span><span class="v amt">$12,450</span>
+            <span class="line"></span>
+            <span class="lbl">Owed</span><span class="bar l" style="width:9.9%"></span><span class="v amt">$1,230</span>
+          </div>
+          <div class="notice" style="font-size:12.5px"><span class="dot"></span><span>6 to review</span><a href="#on-a-phone">Review<svg class="ic"><use href="#i-arrow"/></svg></a></div>
+          <div class="rows">
+            <div class="row grp">Assets<span class="v amt">$12,450.00</span></div>
+            <div class="row"><span class="g"></span>checking<span class="v amt">$6,700.00</span></div>
+            <div class="row"><span class="g"></span>savings<span class="v amt">$4,000.00</span></div>
+            <div class="row"><span class="g"></span>investments<span class="v amt">$1,750.00</span></div>
+            <div class="row grp">Liabilities<span class="v amt">$1,230.00</span></div>
+            <div class="row"><span class="g l"></span>creditcard<span class="v amt">$1,230.00</span></div>
+          </div>
+        </div>
+        <div class="tabbar" id="tb1"></div>
+      </div>
+      <div class="phone">
+        <div class="scroll">
+          <div class="top"><h1 style="font-size:20px;letter-spacing:-0.02em">Transactions</h1><svg class="ic" style="color:var(--ink-2)"><use href="#i-filter"/></svg></div>
+          <div class="query" style="flex:none;font-size:12.5px"><svg class="ic"><use href="#i-search"/></svg><span>Search or query</span></div>
+          <div class="chiprow"><span class="chip">March 2026</span><span class="chip on">Needs review · 6</span><span class="chip">Tags</span></div>
+          <div class="m-tx" id="mtx"></div>
+        </div>
+        <div class="tabbar" id="tb2"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TOKENS ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>Color</h2>
+      <p class="prose">Cool near-white paper and a deep harbor blue taken from the logo, with lower chroma than today’s primary so it reads as ink, not as a highlight. Three semantic hues, each tied to a fact. Dark mode is a deep blue-black, not an inversion. The accent lightens and softens so it doesn’t glow.</p>
+    </div>
+    <div class="palettes" id="palettes"></div>
+    <p class="caption">Account-type glyphs reuse the semantic hues: assets blue, liabilities brick, income teal, expenses slate, equity violet. The existing 8-color categorical chart palette stays as is (it’s already CVD-validated). Only its use changes: categories get it, while assets, liabilities and net worth use the semantic hues.</p>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Type</h2>
+      <p class="prose">One family. Geist stays (it’s already bundled), and Geist Mono replaces JetBrains Mono so code and UI share the same metrics. Every number gets <code>tabular-nums</code>.</p>
+    </div>
+    <div class="typescale">
+      <div class="ts"><div class="meta"><b>Display</b>44 / 500 / −3.5%</div><div class="sample amt display">$11,220<span class="cents">.00</span></div></div>
+      <div class="ts"><div class="meta"><b>Figure</b>26 / 500 / −3%</div><div class="sample amt mid">$4,000<span class="cents">.00</span></div></div>
+      <div class="ts"><div class="meta"><b>Page title</b>22 / 600 / −2%</div><div class="sample" style="font-size:22px;font-weight:600;letter-spacing:-0.02em">Transactions</div></div>
+      <div class="ts"><div class="meta"><b>Section</b>14 / 600</div><div class="sample" style="font-size:14px;font-weight:600">November spending</div></div>
+      <div class="ts"><div class="meta"><b>Body / row</b>13.5 / 400</div><div class="sample"><b style="font-weight:500">Whole Foods Market</b> <span style="color:var(--ink-3)">weekly groceries</span></div></div>
+      <div class="ts"><div class="meta"><b>Label</b>11 / 500 / +8% caps</div><div class="sample eyebrow">Liabilities</div></div>
+      <div class="ts"><div class="meta"><b>Code</b>Geist Mono 12.5</div><div class="sample mono" style="color:var(--ink-2)">^(WHOLE FOODS|Whole Foods) → expenses:groceries</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Shape and space</h2></div>
+    <div class="specs">
+      <div class="spec"><h3>Spacing</h3><dl><dt>Base</dt><dd>4px</dd><dt>Page gutter</dt><dd>32px desktop, 16px phone</dd><dt>Between blocks</dt><dd>22–48px</dd><dt>Table row</dt><dd>34px desktop, 48px phone</dd></dl></div>
+      <div class="spec"><h3>Radius</h3><dl><dt>Chips, tags</dt><dd>4px or pill</dd><dt>Controls</dt><dd>6px</dd><dt>Notices, popovers</dt><dd>8px</dd><dt>Dialogs, sheets</dt><dd>12px</dd></dl></div>
+      <div class="spec"><h3>Elevation</h3><dl><dt>Page content</dt><dd>None. Hairlines only.</dd><dt>Selected / active</dt><dd>1px ring</dd><dt>Popover, dialog</dt><dd>One soft shadow</dd><dt>Sidebar</dt><dd>Sunken tone, no shadow</dd></dl></div>
+    </div>
+  </section>
+
+  <!-- ===================== COMPONENTS ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>Primitives</h2>
+      <p class="prose">Four small components carry most of the change. Pages adopt them instead of styling numbers and accounts by hand.</p>
+    </div>
+    <div>
+      <div class="comp">
+        <div class="what"><h3>&lt;Amount&gt;</h3><p>sign, size, commodity, cost. Replaces ad-hoc <code>font-mono</code> + <code>text-success</code>.</p></div>
+        <div class="show">
+          <div class="stack"><span class="amt mid">$12,450<span class="cents">.00</span></span><span class="sub">size="figure"</span></div>
+          <div class="stack"><span class="amt">$1,500.00</span><span class="sub">default · outflow</span></div>
+          <div class="stack"><span class="amt in">+$5,200.00</span><span class="sub">inflow</span></div>
+          <div class="stack"><span class="amt neg">−$230.00</span><span class="sub">below zero</span></div>
+          <div class="stack"><span><span class="amt">$1,750.00</span> <span class="mono sub">10 AAPL @ $175.00</span></span><span class="sub">commodity + cost</span></div>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="what"><h3>&lt;Account&gt;</h3><p>Leaf in ink, parents muted, type glyph. <code>variant="leaf"</code> in dense rows, full path in <code>title</code>.</p></div>
+        <div class="show">
+          <span class="acct"><span class="g x"></span><span class="par">expenses:dining:</span>coffee</span>
+          <span class="acct"><span class="g"></span><span class="par">assets:investments:</span>aapl</span>
+          <span class="flow"><span class="acct"><span class="g l"></span>creditcard</span><span class="arr">→</span><span class="acct"><span class="g x"></span>groceries</span></span>
+          <span class="flow"><span class="acct"><span class="g r"></span>salary</span><span class="arr">→</span><span class="acct"><span class="g"></span>checking</span></span>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="what"><h3>&lt;Status&gt;</h3><p>Maps hledger <code>*</code> / <code>!</code> / unmarked. Click to cycle, as today.</p></div>
+        <div class="show">
+          <span class="acct"><span class="st-dot review"></span>Needs review</span>
+          <span class="acct"><span class="st-dot pending"></span>Pending</span>
+          <span class="acct" style="color:var(--ink-3)"><span style="width:8px;display:inline-block"></span>Reviewed (no mark)</span>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="what"><h3>&lt;Notice&gt;</h3><p>One line, one action. Replaces the tinted Card slabs on Portfolio, Import and Settings.</p></div>
+        <div class="show" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div class="notice warn"><span class="dot"></span><span>2 holdings have prices older than 30 days.</span><a href="#primitives">Update prices<svg class="ic"><use href="#i-arrow"/></svg></a></div>
+          <div class="notice crit"><span class="dot"></span><span>VOO has no price data.</span><a href="#primitives">Generate from purchases<svg class="ic"><use href="#i-arrow"/></svg></a></div>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="what"><h3>Controls</h3><p>shadcn variants retuned. Filters are chips. Period and range pickers are segmented.</p></div>
+        <div class="show">
+          <span class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>New transaction</span>
+          <span class="btn">Preview changes</span>
+          <span class="btn ghost">Cancel</span>
+          <span class="chip on">Needs review · 6</span>
+          <span class="chip">Any account<svg class="ic"><use href="#i-chev"/></svg></span>
+          <span class="tag">#reimbursable</span>
+          <div class="seg" role="group" aria-label="Range example"><button type="button" aria-pressed="true">1Y</button><button type="button" aria-pressed="false">2Y</button><button type="button" aria-pressed="false">5Y</button><button type="button" aria-pressed="false">All</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="dodont">
+      <div class="do"><h3>Do</h3><ul><li>Color a number only when it is inflow, below zero, or a change.</li><li>Use <code>&lt;Account variant="leaf"&gt;</code> in tables and the full path in forms.</li><li>Let one figure lead each page.</li><li>Use a <code>Notice</code> for anything that has a fix.</li></ul></div>
+      <div class="dont"><h3>Don’t</h3><ul><li>Wrap a section in a Card just to give it a title.</li><li>Set amounts in mono or color static balances green.</li><li>Nest a card inside a card.</li><li>Add a page subtitle that repeats the title.</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ===================== NAV ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>Navigation</h2>
+      <p class="prose">Every route survives. Related pages become tabs, system pages move under one entry, and ⌘K (the existing <code>command.jsx</code>) jumps to any page, account or payee.</p>
+    </div>
+    <div class="navcmp">
+      <div class="navcol"><h3>Today · 19 items</h3><ul>
+        <li><span class="grp">Finances</span><span class="its">Home, Trends, Monthly, Transactions, Portfolio, Lots</span></li>
+        <li><span class="grp">Manage</span><span class="its">Accounts, Payees, Rules, Templates</span></li>
+        <li><span class="grp">Data sources</span><span class="its">Connections, Import, Prices, Assertions</span></li>
+        <li><span class="grp">History</span><span class="its">Import History, Snapshots</span></li>
+        <li><span class="grp">Settings</span><span class="its">Settings, Query, Logs</span></li>
+      </ul></div>
+      <div class="navcol"><h3>Proposed · 11 items</h3><ul>
+        <li><span class="grp">Top</span><span class="its"><b>New transaction</b> button, ⌘K search</span></li>
+        <li><span class="grp">(main)</span><span class="its">Overview, Transactions <span class="nav"><span class="count" style="display:inline">6</span></span>, Reports <span style="color:var(--ink-3)">(Net worth · Income &amp; spending)</span>, Investments <span style="color:var(--ink-3)">(Holdings · Lots · Prices)</span></span></li>
+        <li><span class="grp">Organize</span><span class="its">Accounts, Payees, Rules, Templates</span></li>
+        <li><span class="grp">Bring in</span><span class="its">Connections, Import <span style="color:var(--ink-3)">(Import · History)</span></span></li>
+        <li><span class="grp">Footer</span><span class="its">Settings <span style="color:var(--ink-3)">(General · Assertions · Snapshots · Query · Logs · Theme)</span></span></li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ===================== ROLLOUT ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>Rollout</h2>
+      <p class="prose">Ordered so each step ships on its own and the Playwright screenshots stay a useful diff at every stage.</p>
+    </div>
+    <ol class="steps">
+      <li><div class="body"><h3>Tokens and type</h3>
+        <ul><li>Rewrite <code>:root</code> / <code>.dark</code> in <code>src/style.css</code>: map shadcn vars (<code>--background</code>→paper, <code>--card</code>→paper, <code>--popover</code>→raised, <code>--primary</code>→accent, <code>--border</code>→rule) and add <code>--inflow</code>, <code>--below</code>, <code>--acct-*</code>.</li>
+        <li>Swap <code>@fontsource-variable/jetbrains-mono</code> for <code>geist-mono</code>, and add <code>font-variant-numeric: tabular-nums</code> to <code>body</code>.</li>
+        <li>This alone flattens the blue tint and shifts the palette on all 19 pages.</li></ul></div></li>
+      <li><div class="body"><h3>Primitives</h3>
+        <ul><li>Add <code>components/amount.jsx</code> (wrapping <code>formatCurrency</code>/<code>formatCostBasis</code>), <code>account.jsx</code>, <code>status.jsx</code> (out of <code>StatusButton</code> in <code>transaction-table.jsx</code>), and a <code>notice</code> variant in <code>ui/alert.jsx</code>.</li>
+        <li>Codemod the 121 <code>font-mono</code> and 71 <code>text-success/destructive</code> call sites onto them. Keep mono where the content is hledger syntax.</li></ul></div></li>
+      <li><div class="body"><h3>Shell</h3>
+        <ul><li><code>app-shell.jsx</code>: regrouped nav, New transaction button (opens the existing <code>AddTransactionModal</code>), review count from a cheap <code>status:</code> query, ⌘K palette, and a mobile bottom bar.</li>
+        <li><code>page-header.jsx</code>: drop the breadcrumb that repeats the title, and add an actions slot on the title row.</li></ul></div></li>
+      <li><div class="body"><h3>Card audit</h3>
+        <ul><li>Give <code>ui/card.jsx</code> a <code>variant</code> (<code>section</code> by default: no border or fill, just a heading and a rule). Keep <code>raised</code> for genuine objects.</li>
+        <li>Collapse the stat-card rows on Home, Trends and Portfolio into one hero figure each.</li></ul></div></li>
+      <li><div class="body"><h3>Signature screens</h3>
+        <ul><li>Overview hero and waterline, Transactions day grouping and leaf flow, and the Reports matrix with heat shading and tabs (Trends + Monthly), with Investments tabs (Portfolio + Lots + Prices). Routes stay put, and the tabs link to the existing paths.</li></ul></div></li>
+      <li><div class="body"><h3>Charts</h3>
+        <ul><li>Thin 1.8px lines, an area fill on the primary series, an endpoint dot with a direct label instead of a legend where there are 3 or fewer series, and axis text in <code>--ink-3</code>. The Allocation half-donut becomes a single stacked bar.</li></ul></div></li>
+    </ol>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  // Theme preview toggle
+  var root = document.documentElement;
+  var btns = document.querySelectorAll('.hero .seg button');
+  function apply(t) {
+    if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+    btns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.t === (t || ''))); });
+    try { localStorage.setItem('wl-theme', t || ''); } catch (e) {}
+  }
+  var saved = '';
+  try { saved = localStorage.getItem('wl-theme') || ''; } catch (e) {}
+  apply(saved);
+  btns.forEach(function (b) { b.addEventListener('click', function () { apply(b.dataset.t); }); });
+
+  function ic(id) { return '<svg class="ic"><use href="#i-' + id + '"/></svg>'; }
+
+  // Sidebar
+  var NAV = [
+    [null, [['home', 'Overview', 'ov'], ['list', 'Transactions', 'tx', 6], ['chart', 'Reports', 'rp'], ['case', 'Investments']]],
+    ['Organize', [['book', 'Accounts'], ['users', 'Payees'], ['filter', 'Rules'], ['tpl', 'Templates']]],
+    ['Bring in', [['link', 'Connections'], ['up', 'Import']]]
+  ];
+  function side(active) {
+    var h = '<div class="wordmark">float<i></i></div>' +
+      '<span class="btn primary newtx">' + ic('plus') + 'New transaction<span class="kbd">N</span></span>' +
+      '<div class="searchbox">' + ic('search') + 'Jump to…<span class="kbd">⌘K</span></div>';
+    NAV.forEach(function (g) {
+      h += '<nav class="nav">' + (g[0] ? '<div class="nav-label">' + g[0] + '</div>' : '');
+      g[1].forEach(function (it) {
+        h += '<a class="' + (it[2] === active ? 'on' : '') + '">' + ic(it[0]) + it[1] + (it[3] ? '<span class="count">' + it[3] + '</span>' : '') + '</a>';
+      });
+      h += '</nav>';
+    });
+    h += '<nav class="nav foot"><a>' + ic('gear') + 'Settings</a></nav>';
+    return h;
+  }
+  document.getElementById('side-ov').innerHTML = side('ov');
+  document.getElementById('side-tx').innerHTML = side('tx');
+  document.getElementById('side-rp').innerHTML = side('rp');
+
+  function money(n, cents) {
+    var s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: cents === false ? 0 : 2, maximumFractionDigits: cents === false ? 0 : 2 });
+    return (n < 0 ? '−' : '') + '$' + s;
+  }
+
+  // Spending bars
+  var spend = [['rent', 1500], ['groceries', 450], ['dining', 210], ['utilities', 175], ['transport', 57.45], ['subscriptions', 57.43], ['shopping', 34.99]];
+  var total = spend.reduce(function (a, b) { return a + b[1]; }, 0);
+  var bh = '';
+  spend.forEach(function (s) {
+    bh += '<span class="n">' + s[0] + '</span><span class="track"><span class="fill" style="display:block;width:' + (s[1] / 1500 * 100).toFixed(1) + '%"></span></span>' +
+      '<span class="v amt">' + money(s[1]) + '</span><span class="p">' + Math.round(s[1] / total * 100) + '%</span>';
+  });
+  document.getElementById('bars').innerHTML = bh;
+
+  // Ledger
+  // [status, payee, note, tags[], from[type,name], to[type,name] | 'n accounts', amount, inflow?, lotline, hover]
+  var DAYS = [
+    ['Wed', '25 Mar', [
+      ['', 'Amazon', 'desk lamp', ['#reimbursable', '#project:home-office'], ['l', 'creditcard'], ['x', 'shopping'], 34.99],
+      ['', 'Costco', 'mixed run', [], ['l', 'creditcard'], '3 accounts', 62.40],
+      ['review', 'Whole Foods Market', 'weekly groceries', ['#reimbursable'], ['l', 'creditcard'], ['x', 'groceries'], 87.43, false, null, true]
+    ]],
+    ['Tue', '24 Mar', [
+      ['', 'Acme Corp', 'March salary', [], ['r', 'salary'], ['', 'checking'], 5200, true]
+    ]],
+    ['Sun', '22 Mar', [
+      ['review', 'Metro Transit', '', [], ['', 'checking'], ['x', 'transport'], 3.25],
+      ['', 'Starbucks', 'morning coffee', [], ['l', 'creditcard'], ['x', 'dining'], 6.50],
+      ['pending', 'Chipotle', 'lunch', [], ['l', 'creditcard'], ['x', 'dining'], 14.75]
+    ]],
+    ['Fri', '20 Mar', [
+      ['', 'Sell AAPL', '', [], ['', 'aapl'], ['', 'checking'], 760, false, null, false, true],
+      ['review', 'Electric Bill', '', [], ['', 'checking'], ['x', 'utilities'], 95]
+    ]],
+    ['Thu', '19 Mar', [
+      ['', 'Fidelity', 'buy AAPL', [], ['', 'checking'], ['', 'aapl'], 1750, false, '10 AAPL @ $175.00', false, true]
+    ]]
+  ];
+  function acct(a) { return '<span class="acct"><span class="g ' + a[0] + '"></span>' + a[1] + '</span>'; }
+  var lh = '<colgroup><col style="width:22px"><col><col style="width:250px"><col style="width:130px"></colgroup>';
+  DAYS.forEach(function (d) {
+    var net = d[2].reduce(function (a, t) { return t[10] ? a : a + (t[7] ? t[6] : -t[6]); }, 0);
+    lh += '<tr class="day"><td colspan="3"><b>' + d[1] + '</b>' + d[0] + '</td><td class="amt-c amt">' + (net ? (net > 0 ? '+' : '') + money(net) : 'transfer') + '</td></tr>';
+    d[2].forEach(function (t) {
+      var st = t[9] ? '<span class="cb"></span>' : (t[0] ? '<span class="st-dot ' + t[0] + '"></span>' : '');
+      var tags = t[3].length ? '<span class="tags">' + t[3].map(function (x) { return '<span class="tag">' + x + '</span>'; }).join('') + '</span>' : '';
+      var to = typeof t[5] === 'string' ? '<span style="color:var(--ink-3)">' + t[5] + '</span>' : acct(t[5]);
+      var act = t[9] ? '<span class="rowact"><span>Edit</span><span>' + ic('more').replace('class="ic"', 'class="ic" style="width:12px;height:12px;vertical-align:-2px"') + '</span></span>' : '';
+      lh += '<tr class="' + (t[9] ? 'hover' : '') + '"><td class="st">' + st + '</td>' +
+        '<td class="desc"><span class="payee">' + t[1] + '</span>' + (t[2] ? '<span class="note">' + t[2] + '</span>' : '') + tags + act + '</td>' +
+        '<td class="fl"><span class="flow">' + acct(t[4]) + '<span class="arr">→</span>' + to + '</span></td>' +
+        '<td class="amt-c"><span class="amt' + (t[7] ? ' in' : '') + '">' + (t[7] ? '+' : '') + money(t[6]) + '</span>' + (t[8] ? '<span class="lotline">' + t[8] + '</span>' : '') + '</td></tr>';
+    });
+  });
+  document.getElementById('ledger').innerHTML = lh;
+
+  // Mobile ledger
+  var mh = '';
+  DAYS.slice(0, 3).forEach(function (d) {
+    mh += '<div class="day"><span><b>' + d[1] + '</b> ' + d[0] + '</span></div>';
+    d[2].forEach(function (t) {
+      if (t[2] === 'mixed run') return;
+      var to = typeof t[5] === 'string' ? t[5] : t[5][1];
+      mh += '<div class="it"><span class="p">' + (t[0] === 'review' ? '<span class="st-dot review"></span>' : t[0] === 'pending' ? '<span class="st-dot pending"></span>' : '') + '<span>' + t[1] + '</span></span>' +
+        '<span class="amt' + (t[7] ? ' in' : '') + '">' + (t[7] ? '+' : '') + money(t[6]) + '</span>' +
+        '<span class="f">' + t[4][1] + ' → ' + to + '</span></div>';
+    });
+  });
+  document.getElementById('mtx').innerHTML = mh;
+
+  function tabbar(active) {
+    var items = [['home', 'Overview'], ['list', 'Activity'], null, ['chart', 'Reports'], ['more', 'More']];
+    return items.map(function (it, i) {
+      if (!it) return '<span><span class="plus">' + ic('plus') + '</span></span>';
+      return '<span class="' + (i === active ? 'on' : '') + '">' + ic(it[0]) + it[1] + '</span>';
+    }).join('');
+  }
+  document.getElementById('tb1').innerHTML = tabbar(0);
+  document.getElementById('tb2').innerHTML = tabbar(1);
+
+  // Monthly matrix (illustrative)
+  var months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+  var inc = [['salary', [5200, 5200, 5200, 5200, 5200, 5200]], ['freelance', [0, 800, 0, 0, 1200, 0]]];
+  var exp = [
+    ['rent', [1500, 1500, 1500, 1500, 1500, 1500]],
+    ['groceries', [412, 468, 431, 502, 445, 450]],
+    ['dining', [180, 240, 196, 265, 210, 210]],
+    ['utilities', [140, 168, 182, 121, 98, 175]],
+    ['shopping', [120, 35, 260, 88, 410, 35]],
+    ['transport', [42, 61, 28, 55, 49, 57]],
+    ['subscriptions', [57, 57, 57, 57, 57, 57]]
+  ];
+  function sum(rows, i) { return rows.reduce(function (a, r) { return a + r[1][i]; }, 0); }
+  function avg(a) { return a.reduce(function (x, y) { return x + y; }, 0) / a.length; }
+  function heat(v, row, hue) {
+    var mx = Math.max.apply(null, row), mn = Math.min.apply(null, row);
+    if (mx === mn || v === 0) return '';
+    var k = (v - mn) / (mx - mn);
+    return ' style="background:color-mix(in oklch, var(' + hue + ') ' + Math.round(4 + k * 20) + '%, transparent)"';
+  }
+  var th = '<thead><tr><th>Account</th>' + months.map(function (m) { return '<th>' + m + '</th>'; }).join('') + '<th class="avg">Avg</th></tr></thead><tbody>';
+  function section(label, rows, glyph, hue) {
+    var h = '<tr class="sect"><td colspan="8">' + label + '</td></tr>';
+    rows.forEach(function (r) {
+      h += '<tr><td><span class="acct"><span class="g ' + glyph + '"></span>' + r[0] + '</span></td>' +
+        r[1].map(function (v) { return '<td' + heat(v, r[1], hue) + '>' + (v ? money(v, false) : '<span style="color:var(--ink-3)">–</span>') + '</td>'; }).join('') +
+        '<td class="avg">' + money(avg(r[1]), false) + '</td></tr>';
+    });
+    var tots = months.map(function (_, i) { return sum(rows, i); });
+    h += '<tr class="total"><td>Total ' + label.toLowerCase() + '</td>' + tots.map(function (v) { return '<td>' + money(v, false) + '</td>'; }).join('') + '<td class="avg">' + money(avg(tots), false) + '</td></tr>';
+    return { h: h, t: tots };
+  }
+  var a = section('Income', inc, 'r', '--inflow');
+  var b = section('Expenses', exp, 'x', '--accent');
+  var net = a.t.map(function (v, i) { return v - b.t[i]; });
+  th += a.h + b.h + '<tr class="net"><td>Kept</td>' + net.map(function (v) { return '<td><span class="amt ' + (v >= 0 ? 'in' : 'neg') + '">' + (v >= 0 ? '+' : '') + money(v, false) + '</span></td>'; }).join('') +
+    '<td class="avg"><span class="amt in">+' + money(avg(net), false) + '</span></td></tr></tbody>';
+  document.getElementById('matrix').innerHTML = th;
+
+  // Palettes (fixed swatches so both themes are visible side by side)
+  var P = {
+    light: [['paper', '#f9fbfc'], ['raised', '#ffffff'], ['sunken', '#f1f4f7'], ['ink', '#1f2733'], ['ink-2', '#5a6575'], ['ink-3', '#8691a0'], ['rule', '#e2e7ec'], ['accent', '#2c5f9e'], ['inflow', '#16806e'], ['below', '#b5513a'], ['warn', '#a8741b'], ['equity', '#7d58b3']],
+    dark: [['paper', '#12161c'], ['raised', '#1b2129'], ['sunken', '#181d24'], ['ink', '#e9edf1'], ['ink-2', '#a7b0bb'], ['ink-3', '#79838f'], ['rule', '#2a313b'], ['accent', '#7fa9dc'], ['inflow', '#5fc6ad'], ['below', '#e48c75'], ['warn', '#e7bc5e'], ['equity', '#b49ae6']]
+  };
+  var ph = '';
+  ['light', 'dark'].forEach(function (k) {
+    ph += '<div class="pal ' + k + '"><h3>' + (k === 'light' ? 'Light' : 'Dark') + '</h3><div class="sw-grid">' +
+      P[k].map(function (s) { return '<div class="sw"><i style="background:' + s[1] + '"></i>' + s[0] + '<small>' + s[1] + '</small></div>'; }).join('') + '</div></div>';
+  });
+  document.getElementById('palettes').innerHTML = ph;
+})();
+</script>
