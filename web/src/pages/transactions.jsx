@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { useSearch, useRouter, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, X, ArrowLeft, Trash2 } from "lucide-react";
+import { Check, X, ArrowLeft, Trash2, Upload } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { dateRangeQuery, escapeRegex, exactRegex } from "../lib/hledger-query.js";
 import { SearchControls } from "../components/search-controls.jsx";
 import { DATE_PRESETS, PAYEE_NONE } from "../components/search-presets.js";
 import { TransactionTable } from "../components/transaction-table.jsx";
+import { TransactionSummary } from "../components/transaction-summary.jsx";
+import { PageHeader } from "../components/page-header.jsx";
+import { UNREVIEWED_QUERY, useReviewCount } from "../hooks/use-review-count.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { inlineEditKeyHandler } from "../components/inline-edit.jsx";
@@ -119,7 +122,7 @@ function BulkActionBar({ selectedFids, transactions, accounts, focusedAccount, o
   }
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm">
+    <div data-slot="bulk-action-bar" className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 text-control">
       <span className="shrink-0 font-medium text-foreground/80">
         {count} selected
       </span>
@@ -312,19 +315,39 @@ export function TransactionsPage() {
   const importBatchId = routeSearch.importBatchId || "";
   const account = routeSearch.account || "";
   const payee = routeSearch.payee || "";
-  const search = routeSearch.search || "";
+  const routeSearchText = routeSearch.search || "";
 
-  const initialRange = importBatchId ? { from: "", to: "" } : DATE_PRESETS[0].fn(); // skip date filter when viewing import
+  // The review links (sidebar count, Overview notice) open this page with
+  // search=not:status:*. That is the "Needs review" chip over all dates, so
+  // the count they show matches the list: it's turned into the chip (and
+  // "All time") rather than a search under the default "This month".
+  const reviewLink = routeSearchText.trim() === UNREVIEWED_QUERY;
+  const search = reviewLink ? "" : routeSearchText;
+
+  // Skip the date filter when viewing an import or arriving to review.
+  const initialRange = importBatchId || reviewLink ? { from: "", to: "" } : DATE_PRESETS[0].fn();
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
   const [tag, setTag] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(reviewLink ? "unreviewed" : "");
   const [selectedFids, setSelectedFids] = useState(new Set());
+  const reviewCount = useReviewCount();
 
   // A filter change from either the controls or a link clears the selection.
   useEffect(() => {
     setSelectedFids(new Set());
   }, [account, payee, search]);
+
+  // Following a review link (also while already on this page) switches to
+  // the chip and drops the search param, so clearing the chip clears it all.
+  useEffect(() => {
+    if (!reviewLink) return;
+    setStatus("unreviewed");
+    setDateFrom("");
+    setDateTo("");
+    setSelectedFids(new Set());
+    navigate({ search: (prev) => ({ ...prev, search: "" }), replace: true });
+  }, [reviewLink, navigate]);
 
   function setRouteFilter(key) {
     return (value) => navigate({ search: (prev) => ({ ...prev, [key]: value }), replace: true });
@@ -332,7 +355,17 @@ export function TransactionsPage() {
 
   const isAccountMode = !!account;
 
-  const query = buildQuery({ dateFrom, dateTo, tag, status, payee, importBatchId, search });
+  // Until the effect above settles, read a review link as its end state so
+  // the first fetch already uses the final query.
+  const query = buildQuery({
+    dateFrom: reviewLink ? "" : dateFrom,
+    dateTo: reviewLink ? "" : dateTo,
+    tag,
+    status: reviewLink ? "unreviewed" : status,
+    payee,
+    importBatchId,
+    search,
+  });
   const txParams = { query, limit: 0, offset: 0 };
   const aregParams = { account, query, limit: 0, offset: 0 };
 
@@ -389,26 +422,36 @@ export function TransactionsPage() {
   const bulkActionTransactions = isAccountMode ? (registerRows || []) : transactions;
 
   return (
-    <Page>
+    <Page className="gap-4">
+      <PageHeader
+        title="Transactions"
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => router.navigate({ to: "/import" })}>
+            <Upload data-icon="inline-start" />
+            Import CSV
+          </Button>
+        }
+      />
       {importBatchId && (
-        <div className="mb-3 flex items-center gap-2">
+        <div className="-mt-2 flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
+            className="-ml-2"
             onClick={() => router.navigate({ to: "/imports" })}
           >
             <ArrowLeft data-icon="inline-start" />
             Import History
           </Button>
-          <span className="text-sm text-muted-foreground font-mono">{importBatchId}</span>
+          <span className="font-mono text-code text-muted-foreground">{importBatchId}</span>
         </div>
       )}
       <SearchControls
-        dateFrom={dateFrom}
-        dateTo={dateTo}
+        dateFrom={reviewLink ? "" : dateFrom}
+        dateTo={reviewLink ? "" : dateTo}
         account={account}
         tag={tag}
-        status={status}
+        status={reviewLink ? "unreviewed" : status}
         payee={payee}
         search={search}
         onDateRangeChange={onDateRangeChange}
@@ -419,11 +462,13 @@ export function TransactionsPage() {
         onStatusChange={onFilterChange(setStatus)}
         accounts={accountsData?.accounts || []}
         tags={tagsData?.tags || []}
+        reviewCount={reviewCount}
+        summary={data && <TransactionSummary transactions={transactions} registerRows={registerRows} />}
       />
       {isLoading && <Loading />}
       {error && <ErrorBanner error={error} />}
       {data && (
-        <>
+        <div>
           {selectedFids.size > 0 && (
             <BulkActionBar
               selectedFids={selectedFids}
@@ -445,7 +490,7 @@ export function TransactionsPage() {
             selectedFids={selectedFids}
             onSelectionChange={setSelectedFids}
           />
-        </>
+        </div>
       )}
     </Page>
   );

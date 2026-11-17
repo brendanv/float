@@ -24,8 +24,8 @@ test("transactions page - delete confirmation", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  // Click the date cell (a stable target that won't intercept with the inline tag editor)
-  await page.click("tbody tr:first-child td:nth-child(2)");
+  // Open the first row's editor with its Edit button
+  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: "Edit" }).click();
   await page.waitForTimeout(200);
   await page.click("button:has-text('Delete')");
   await page.waitForTimeout(300);
@@ -36,7 +36,7 @@ test("transactions page - expanded edit row", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  await page.click("tbody tr:first-child td:nth-child(2)");
+  await page.locator("tbody tr[data-slot=transaction-row]").first().getByRole("button", { name: "Edit" }).click();
   await page.waitForTimeout(200);
   await page.screenshot({ path: "test-results/transactions-expanded-edit.png", fullPage: true });
 });
@@ -62,12 +62,12 @@ test("transactions page - from cell inline edit", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Activate the inline "From" cell on the first row (a normal 2-posting
-  // transaction). The From column is the 5th cell: select, date, status,
-  // description (with tags), from.
-  await page.click("tbody tr:first-child td:nth-child(5) > span");
+  // transaction). Grouped by day, the From column is the 4th cell: select,
+  // status, description (with tags), from.
+  await page.click("tbody tr[data-slot=transaction-row] >> nth=0 >> td:nth-child(4) > span");
   await page.waitForTimeout(200);
   // Open the typeahead popover
-  await page.click("tbody tr:first-child td:nth-child(5) button[role='combobox']");
+  await page.click("tbody tr[data-slot=transaction-row] >> nth=0 >> td:nth-child(4) button[role='combobox']");
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-from-edit.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 600 } });
 });
@@ -174,14 +174,14 @@ test("accounts page - rename dialog confirm", async ({ page }) => {
   await page.screenshot({ path: "test-results/accounts-rename-confirm.png", fullPage: false });
 });
 
-test("transactions page - status filter select", async ({ page }) => {
+test("transactions page - needs review chip", async ({ page }) => {
   await page.goto("/#/transactions");
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  const statusSelect = page.locator('select').filter({ has: page.locator('option', { hasText: 'Reviewed' }) }).first();
-  await expect(statusSelect).toHaveValue("all");
-  await statusSelect.selectOption("unreviewed");
-  await expect(statusSelect).toHaveValue("unreviewed");
+  const chip = page.getByRole("button", { name: /Needs review/ });
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
+  await chip.click();
+  await expect(chip).toHaveAttribute("aria-pressed", "true");
   await page.waitForTimeout(150);
   await page.screenshot({ path: "test-results/transactions-filter-open.png", fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 300 } });
 });
@@ -189,7 +189,7 @@ test("transactions page - status filter select", async ({ page }) => {
 test("transactions page - mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-mobile.png", fullPage: true });
 });
@@ -249,7 +249,7 @@ test("transactions page - account register edit account dropdown open", async ({
 test("transactions page - account register mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions?account=assets%3Achecking");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/transactions-account-register-mobile.png", fullPage: true });
 });
@@ -257,7 +257,7 @@ test("transactions page - account register mobile", async ({ page }) => {
 test("transactions page - account register mobile edit account", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions?account=assets%3Achecking");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Target visible elements only — the desktop table is display:none on mobile viewports
   await page.locator('[title$="— click to change"]:visible').first().click();
@@ -269,9 +269,10 @@ test("transactions page - account register mobile edit account", async ({ page }
 test("transactions page - mobile bulk edit toolbar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/transactions");
-  await page.waitForSelector(".card", { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector("[data-slot=transaction-card]", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
-  const checkboxes = await page.locator(".card input[type=checkbox]").all();
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const checkboxes = await page.locator("[data-slot=transaction-card] [data-slot=checkbox]").all();
   for (const cb of checkboxes.slice(0, 3)) {
     await cb.click();
   }

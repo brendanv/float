@@ -27,7 +27,7 @@ test("transactions page - duplicate button", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(300);
   // Click first transaction row to expand it
-  await page.locator("tbody tr").first().click();
+  await page.locator("tbody tr[data-slot=transaction-row]").first().click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/transactions-duplicate.png", fullPage: true });
 });
@@ -54,7 +54,7 @@ test("transactions page - lot disposal expanded", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.evaluate(() => document.querySelector("vite-error-overlay")?.remove());
   await page.waitForTimeout(300);
-  await page.locator("tbody tr", { hasText: "Sell AAPL" }).first().getByText("2026-03-20").click();
+  await page.locator("tbody tr", { hasText: "Sell AAPL" }).first().getByRole("button", { name: "Edit" }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/transactions-lot-disposal.png", fullPage: true });
 });

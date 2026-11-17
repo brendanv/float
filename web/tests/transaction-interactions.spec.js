@@ -88,7 +88,7 @@ test("removing the last tag in the detail editor clears tags", async ({ page }) 
   const updates = captureRpc(page, "UpdateTransaction");
   await page.goto("/#/transactions");
 
-  await rowFor(page, "Coffee Shop").locator("td").nth(1).click();
+  await rowFor(page, "Coffee Shop").getByRole("button", { name: "Edit" }).click();
   const form = page.locator("tbody form");
   await form.getByTitle('Remove tag "trip"').click();
   await form.getByRole("button", { name: "Save" }).click();
@@ -109,7 +109,7 @@ test("clicking a payee on the transactions page filters to that payee", async ({
   await page.locator("tbody strong", { hasText: "Coffee Shop" }).click();
 
   await expect.poll(() => lists.at(-1)?.query).toContain("payee:^Coffee Shop$");
-  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.locator("tbody tr[data-slot=transaction-row]")).toHaveCount(1);
   await expect(page.getByText("payee: Coffee Shop")).toBeVisible();
 });
 
@@ -138,6 +138,38 @@ test("a From-only custom range filters by an open-ended date", async ({ page }) 
   await expect(page.getByRole("button", { name: /Since Mar 10, 2026/ })).toBeVisible();
 });
 
+test("the review link opens Needs review over all dates", async ({ page }) => {
+  await mockLedgerApi(page, { transactions: [...transactions, { ...simple("cl000001", "2026-03-16", "Cleared Co", "1.00"), status: "Cleared" }] });
+  const lists = captureRpc(page, "ListTransactions");
+  await page.goto(`/#/transactions?search=${encodeURIComponent("not:status:*")}`);
+
+  // The list query is the chip's token alone: no date range, no search.
+  const listQueries = () => lists.filter((b) => !b.limit).map((b) => b.query ?? []);
+  await expect.poll(() => listQueries().at(-1)).toEqual(["not:status:*"]);
+  await expect(page.getByRole("button", { name: /Needs review/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /All time/ })).toBeVisible();
+  await expect(page.locator("tbody tr[data-slot=transaction-row]")).toHaveCount(4);
+  await expect(page.getByLabel("Search transactions")).toHaveValue("");
+  await expect.poll(() => new URL(page.url()).hash).not.toContain("status");
+
+  // Turning the chip off lists everything (still all dates).
+  await page.getByRole("button", { name: /Needs review/ }).click();
+  await expect.poll(() => listQueries().at(-1)).toEqual([]);
+  await expect(page.locator("tbody tr[data-slot=transaction-row]")).toHaveCount(5);
+});
+
+test("rows group by day unless sorted by another column", async ({ page }) => {
+  await mockLedgerApi(page, { transactions });
+  await page.goto("/#/transactions");
+  await expect(rowFor(page, "Grocer")).toBeVisible();
+  await expect(page.locator("tbody tr[data-slot=day-header]")).toHaveCount(4);
+  await expect(page.locator("tbody tr[data-slot=day-header]").first()).toContainText("20 Mar");
+
+  await page.getByRole("button", { name: "Amount" }).click();
+  await expect(page.locator("tbody tr[data-slot=day-header]")).toHaveCount(0);
+  await expect(rowFor(page, "Grocer")).toContainText("2026-03-17");
+});
+
 test("description edit in account-register mode fetches postings first", async ({ page }) => {
   await mockLedgerApi(page);
   const lists = captureRpc(page, "ListTransactions");
@@ -145,7 +177,7 @@ test("description edit in account-register mode fetches postings first", async (
   await page.goto("/#/transactions?account=assets:checking");
 
   const fid = mockAccountRegisterRows[0].fid;
-  await page.locator("tbody tr").first().getByTitle("Click to edit description").click();
+  await page.locator("tbody tr[data-slot=transaction-row]").first().getByTitle("Click to edit description").click();
   await inlineInput(page).fill("Renamed | in register");
   await inlineInput(page).press("Enter");
 
@@ -164,7 +196,7 @@ test("a transaction edit refreshes balances shown elsewhere", async ({ page }) =
   await page.goto("/#/transactions");
   await expect(rowFor(page, "Grocer")).toBeVisible();
   const before = balances.length;
-  await rowFor(page, "Grocer").locator("button.rounded-full").click();
+  await rowFor(page, "Grocer").locator("button[data-slot=status-mark]").click();
 
   await page.goto("/#/");
   await expect.poll(() => balances.length).toBeGreaterThan(before);
@@ -190,10 +222,10 @@ test("editing a row keeps the current page", async ({ page }) => {
 
   await page.getByRole("button", { name: "Go to next page" }).click();
   await expect(page.getByText("26–30 of 30")).toBeVisible();
-  await page.locator("tbody tr").first().locator("button.rounded-full").click();
+  await page.locator("tbody tr[data-slot=transaction-row]").first().locator("button[data-slot=status-mark]").click();
 
   await expect.poll(() => statusCalls.length).toBe(1);
-  await expect(page.locator("tbody tr").first().locator("button.rounded-full svg")).toHaveClass(/text-success/);
+  await expect(page.locator("tbody tr[data-slot=transaction-row]").first().locator("button[data-slot=status-mark]")).toHaveAttribute("data-status", "Cleared");
   await expect(page.getByText("26–30 of 30")).toBeVisible();
 });
 
@@ -201,7 +233,7 @@ test.describe("mobile", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   function card(page, text) {
-    return page.locator("[data-slot=card]").filter({ hasText: text }).locator("visible=true").first();
+    return page.locator("[data-slot=transaction-card]").filter({ hasText: text }).locator("visible=true").first();
   }
 
   test("tapping a card opens the editor with readable accounts and saves the description", async ({ page }) => {
@@ -244,7 +276,7 @@ test.describe("mobile", () => {
     const statusCalls = captureRpc(page, "UpdateTransactionStatus");
     await page.goto("/#/transactions");
 
-    const toggle = card(page, "Grocer").locator("button.rounded-full");
+    const toggle = card(page, "Grocer").locator("button[data-slot=status-mark]");
     expect((await toggle.boundingBox()).width).toBeGreaterThanOrEqual(40);
     await toggle.click();
     await expect.poll(() => statusCalls.length).toBe(1);
