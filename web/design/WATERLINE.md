@@ -100,3 +100,12 @@ Each step is one subagent. "Verify" always includes `cd web && bun run build` an
   - `ui/card.jsx`: `variant="raised|section"` (+ `size`). `PageCard` defaults to `section`.
   - `components/page.jsx`: `Section`, `Eyebrow`, `DeltaChip`, `Sparkline`, `MetricHero`. `MetricCard` is flat and takes `amount`/`tone`.
   - Type classes in `style.css`: `text-label`, `text-control`, `text-body`, `text-figure`, `text-display`, … (registered in `lib/utils.js` so `cn` keeps them). Body 13.5px, controls 13px, table heads 11px uppercase.
+- **Step 3 (shell and navigation):**
+  - `components/nav-items.js`: `NAV_GROUPS`, `SETTINGS_ITEM`, `SECTION_TABS` (single source for sidebar, tabs and palette), `navItemFor(path)` (an item is active for every route in its `routes`/`tabs`), `PAGE_ENTRIES`.
+  - `components/section-tabs.jsx`: `<SectionTabs items={[{to,label}]} currentPath label? />` (a labelled `<nav>`, `aria-current` on the current tab). The shell renders it above the page for grouped routes, so pages don't.
+  - `components/command-palette.jsx`: `<CommandPalette open onOpenChange onNewTransaction />` (pages, accounts via `ListAccounts`, payees via `ListPayees`; loads only while open).
+  - `hooks/use-review-count.js`: `useReviewCount()` (`ListTransactions` with `not:status:*`, `limit: 1`, reads `total`; key `queryKeys.unreviewedCount()`), plus `UNREVIEWED_QUERY` and `UNREVIEWED_SEARCH` (`{ search: "not:status:*" }` for `/transactions`). Note: the Transactions page still applies its default "This month" range, so the filtered list can show fewer than the all-time count.
+  - `app-shell.jsx`: sunken sidebar (13.5rem) with a text wordmark, "New transaction" (`N`), "Jump to…" (`Ctrl/⌘K`), review-count pill linking to the unreviewed list, Settings + theme toggle in the footer; content on paper with no header/breadcrumb. Phone: sticky bottom tab bar (`data-slot="mobile-tab-bar"`: Overview, Activity, + New, Reports, More → sidebar sheet).
+  - `PageHeader`: `<PageHeader title description? actions? />` (children also work as actions), `h1` at `text-title`, actions right-aligned.
+  - `ui/sidebar.jsx`: menu buttons are ink-2; active = raised fill, 1px ring, accent icon.
+  - `tests/mock-api.js`: `ListTransactions` handles `status:` tokens and `limit`/`offset` with `total`. New `tests/shell.spec.js`.

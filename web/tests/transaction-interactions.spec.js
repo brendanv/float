@@ -251,12 +251,12 @@ test.describe("mobile", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
-  test("sidebar Add Transaction closes the sidebar", async ({ page }) => {
+  test("sidebar New transaction closes the sidebar", async ({ page }) => {
     await mockLedgerApi(page, { transactions });
     await page.goto("/#/transactions");
 
-    await page.locator("[data-sidebar=trigger]").click();
-    await page.locator('[data-slot="sidebar-menu-button"]:has-text("Add Transaction")').click();
+    await page.getByRole("button", { name: "More" }).click();
+    await page.locator('[data-mobile="true"][data-sidebar="sidebar"]').getByRole("button", { name: "New transaction" }).click();
     await expect(page.getByRole("dialog").getByText("Add Transaction").first()).toBeVisible();
     await expect(page.locator('[data-mobile="true"][data-sidebar="sidebar"]')).toHaveCount(0);
   });

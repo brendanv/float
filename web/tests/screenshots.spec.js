@@ -82,7 +82,7 @@ test("add transaction page", async ({ page }) => {
 test("add transaction modal", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  await page.click('button:has-text("Add Transaction")');
+  await page.click('button:has-text("New transaction")');
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/add-transaction-modal.png", fullPage: true });
@@ -91,7 +91,7 @@ test("add transaction modal", async ({ page }) => {
 test("add transaction modal with template selected", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  await page.click('button:has-text("Add Transaction")');
+  await page.click('button:has-text("New transaction")');
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(400);
   await page.click('[role="dialog"] button:has-text("Mortgage Payment")');
@@ -600,27 +600,26 @@ test("payees page - mobile", async ({ page }) => {
   await page.screenshot({ path: "test-results/payees-mobile.png", fullPage: true });
 });
 
-test("hamburger icon - closed state", async ({ page }) => {
+test("mobile tab bar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
+  const tabBar = page.locator('[data-slot="mobile-tab-bar"]');
+  await expect(tabBar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
   await page.waitForTimeout(400);
-  await page.screenshot({ path: "test-results/hamburger-closed.png", clip: { x: 0, y: 0, width: 390, height: 80 } });
+  await page.screenshot({ path: "test-results/mobile-tab-bar.png", clip: { x: 0, y: 764, width: 390, height: 80 } });
 });
 
-test("hamburger icon - open state", async ({ page }) => {
+test("mobile More opens the sidebar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#/");
-  await page.waitForTimeout(400);
-  // Dismiss any Vite error overlay
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(200);
-  // Check the swap checkbox directly to toggle to open state
-  await page.evaluate(() => {
-    const cb = document.querySelector("label.swap-rotate input[type=checkbox]");
-    if (cb) { cb.checked = true; cb.dispatchEvent(new Event("change")); }
-  });
+  await page.getByRole("button", { name: "More" }).click();
+  const sheet = page.locator('[data-mobile="true"][data-sidebar="sidebar"]');
+  await expect(sheet.getByRole("link", { name: "Accounts" })).toBeVisible();
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "test-results/hamburger-open.png", clip: { x: 0, y: 0, width: 390, height: 80 } });
+  await page.screenshot({ path: "test-results/mobile-more-open.png" });
+  await sheet.getByRole("link", { name: "Accounts" }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/accounts$/);
 });
 
 test("snapshots page", async ({ page }) => {

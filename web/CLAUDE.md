@@ -97,7 +97,7 @@ Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `paye
 
 1. Create `src/pages/my-page.jsx`.
 2. Add a lazy route and route entry in `src/router.jsx`.
-3. Add a navigation item in `src/components/app-shell.jsx` if the page should be globally reachable.
+3. Make it reachable: add a sidebar item to `NAV_GROUPS` or a tab to `SECTION_TABS` in `src/components/nav-items.js` (the command palette lists both).
 4. Add or extend mocked data in `tests/mock-api.js` and screenshot specs if the page is visual/user-facing.
 
 ## shadcn Components

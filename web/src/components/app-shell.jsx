@@ -1,31 +1,8 @@
-import { useState } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  House,
-  List,
-  TrendingUp,
-  BarChart2,
-  Briefcase,
-  Layers,
-  Tag,
-  PlusCircle,
-  History,
-  Upload,
-  ListFilter,
-  Sun,
-  Moon,
-  ClockArrowUp,
-  BookOpen,
-  Users,
-  Settings,
-  Terminal,
-  Link2,
-  Logs,
-  Scale,
-  TableProperties,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { BarChart2, House, List, Menu, Moon, Plus, Search, Sun } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
@@ -42,172 +19,311 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { UNREVIEWED_SEARCH, useReviewCount } from "@/hooks/use-review-count.js";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
+import { CommandPalette } from "./command-palette.jsx";
+import { NAV_GROUPS, SETTINGS_ITEM, navItemFor } from "./nav-items.js";
+import { SectionTabs } from "./section-tabs.jsx";
 
-const NAV_FINANCES = [
-  { href: "/", label: "Home", icon: House },
-  { href: "/trends", label: "Trends", icon: TrendingUp },
-  { href: "/monthly", label: "Monthly", icon: BarChart2 },
-  { href: "/transactions", label: "Transactions", icon: List },
-  { href: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { href: "/lots", label: "Lots", icon: Layers },
-];
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? "");
 
-const NAV_MANAGE = [
-  { href: "/accounts", label: "Accounts", icon: BookOpen },
-  { href: "/payees", label: "Payees", icon: Users },
-  { href: "/rules", label: "Rules", icon: ListFilter },
-  { href: "/templates", label: "Templates", icon: TableProperties },
-];
+function Kbd({ className, children }) {
+  return (
+    <kbd
+      className={cn(
+        "ml-auto rounded-sm border border-input px-1 font-mono text-[10.5px] leading-4 font-normal text-faint",
+        className,
+      )}
+    >
+      {children}
+    </kbd>
+  );
+}
 
-const NAV_DATA_SOURCES = [
-  { href: "/connections", label: "Connections", icon: Link2 },
-  { href: "/import", label: "Import", icon: Upload },
-  { href: "/prices", label: "Prices", icon: Tag },
-  { href: "/assertions", label: "Assertions", icon: Scale },
-];
+// isTypingTarget is true when a keystroke belongs to a field, not a shortcut.
+function isTypingTarget(el) {
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  return ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
+}
 
-const NAV_HISTORY = [
-  { href: "/imports", label: "Import History", icon: ClockArrowUp },
-  { href: "/snapshots", label: "Snapshots", icon: History },
-];
+// N opens a new transaction (outside fields and dialogs); Ctrl/⌘+K toggles
+// the command palette. Both callbacks must be stable (state setters).
+function useShellShortcuts(setAddOpen, setJumpOpen) {
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.defaultPrevented || event.isComposing) return;
+      const key = event.key.toLowerCase();
+      if (key === "k" && (event.metaKey || event.ctrlKey) && !event.altKey) {
+        event.preventDefault();
+        setJumpOpen((open) => !open);
+        return;
+      }
+      if (key !== "n" || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isTypingTarget(document.activeElement)) return;
+      // Leave N alone while a dialog, sheet or menu is open.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return;
+      event.preventDefault();
+      setAddOpen(true);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [setAddOpen, setJumpOpen]);
+}
 
-const NAV_SETTINGS = [
-  { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/hledger-query", label: "Query", icon: Terminal },
-  { href: "/logs", label: "Logs", icon: Logs },
-];
-
-const ALL_NAV = [
-  ...NAV_FINANCES,
-  ...NAV_MANAGE,
-  ...NAV_DATA_SOURCES,
-  ...NAV_HISTORY,
-  ...NAV_SETTINGS,
-];
-
-function ThemeSwitcher() {
+function useTheme() {
   const [isDark, setIsDark] = useState(
     () => localStorage.getItem("float-theme") === "dark"
   );
-
   function toggle() {
     const next = !isDark;
     setIsDark(next);
-    if (next) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("float-theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("float-theme", "light");
-    }
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("float-theme", next ? "dark" : "light");
   }
+  return [isDark, toggle];
+}
 
+function ThemeToggle() {
+  const [isDark, toggle] = useTheme();
+  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="icon-sm"
       onClick={toggle}
-      className="w-full justify-start gap-2"
+      aria-label={label}
+      title={label}
+      className="shrink-0 text-muted-foreground"
     >
-      {isDark ? <Moon data-icon="inline-start" /> : <Sun data-icon="inline-start" />}
-      {isDark ? "Dark mode" : "Light mode"}
+      {isDark ? <Moon /> : <Sun />}
     </Button>
   );
 }
 
-function NavGroup({ label, items, currentPath }) {
-  const { isMobile, setOpenMobile } = useSidebar();
+function Wordmark({ className }) {
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                isActive={currentPath === item.href}
-                tooltip={item.label}
-                render={<Link to={item.href} onClick={() => isMobile && setOpenMobile(false)} />}
-              >
-                <item.icon />
-                <span>{item.label}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 text-[21px] leading-none font-semibold tracking-[-0.04em] text-primary",
+        className,
+      )}
+    >
+      float
+      <i aria-hidden="true" className="inline-block size-[7px] translate-y-[3px] rounded-full bg-primary" />
+    </span>
   );
 }
 
-function AppSidebar({ currentPath, onAddTransaction }) {
-  const { isMobile, setOpenMobile } = useSidebar();
-  const closeMobile = () => isMobile && setOpenMobile(false);
+function ReviewCount({ count, onNavigate }) {
+  if (!count) return null;
+  const label = `${count} ${count === 1 ? "transaction needs" : "transactions need"} review`;
   return (
-    <Sidebar variant="inset">
-      <SidebarHeader>
+    <Link
+      to="/transactions"
+      search={UNREVIEWED_SEARCH}
+      onClick={onNavigate}
+      aria-label={label}
+      title={label}
+      data-slot="review-count"
+      data-sidebar="menu-action"
+      className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full bg-primary px-1.5 text-[11px] leading-[17px] font-medium text-primary-foreground tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+    >
+      {count > 999 ? "999+" : count}
+    </Link>
+  );
+}
+
+function NavItem({ item, active, onNavigate, badge }) {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        isActive={active}
+        render={<Link to={item.href} onClick={onNavigate} />}
+      >
+        <item.icon />
+        <span>{item.label}</span>
+      </SidebarMenuButton>
+      {badge}
+    </SidebarMenuItem>
+  );
+}
+
+function AppSidebar({ activeId, onAddTransaction, onJump }) {
+  const { isMobile, setOpenMobile } = useSidebar();
+  const reviewCount = useReviewCount();
+  const closeMobile = () => isMobile && setOpenMobile(false);
+
+  return (
+    <Sidebar>
+      <SidebarHeader className="gap-3 px-2.5 pt-4">
+        <Link
+          to="/"
+          onClick={closeMobile}
+          aria-label="float home"
+          className="self-start rounded-md px-2 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Wordmark />
+        </Link>
+        <Button
+          className="w-full justify-between"
+          onClick={() => { closeMobile(); onAddTransaction(); }}
+        >
+          <span className="flex items-center gap-1.5">
+            <Plus data-icon="inline-start" />
+            New transaction
+          </span>
+          {!isMobile && (
+            <Kbd className="ml-0 border-primary-foreground/40 text-primary-foreground">N</Kbd>
+          )}
+        </Button>
+        <button
+          type="button"
+          onClick={() => { closeMobile(); onJump(); }}
+          className="flex h-8 w-full items-center gap-2 rounded-md border border-input bg-background px-2 text-[12.5px] text-faint outline-none hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-3.5"
+        >
+          <Search />
+          Jump to…
+          {!isMobile && <Kbd>{IS_MAC ? "⌘K" : "Ctrl K"}</Kbd>}
+        </button>
+      </SidebarHeader>
+      <SidebarContent className="gap-0 px-0.5">
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label ?? "main"} className="py-1">
+            {group.label && <SidebarGroupLabel className="h-7">{group.label}</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-px">
+                {group.items.map((item) => (
+                  <NavItem
+                    key={item.id}
+                    item={item}
+                    active={item.id === activeId}
+                    onNavigate={closeMobile}
+                    badge={item.id === "transactions"
+                      ? <ReviewCount count={reviewCount} onNavigate={closeMobile} />
+                      : null}
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter className="px-2.5 pb-3">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" onClick={closeMobile} />}>
-              <img src="/text_logo.png" alt="float" className="h-8 w-auto" />
+          <SidebarMenuItem className="flex items-center gap-1">
+            <SidebarMenuButton
+              isActive={activeId === SETTINGS_ITEM.id}
+              render={<Link to={SETTINGS_ITEM.href} onClick={closeMobile} />}
+            >
+              <SETTINGS_ITEM.icon />
+              <span>{SETTINGS_ITEM.label}</span>
             </SidebarMenuButton>
+            <ThemeToggle />
           </SidebarMenuItem>
         </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        <NavGroup label="Finances" items={NAV_FINANCES} currentPath={currentPath} />
-        <NavGroup label="Manage" items={NAV_MANAGE} currentPath={currentPath} />
-        <NavGroup label="Data sources" items={NAV_DATA_SOURCES} currentPath={currentPath} />
-        <NavGroup label="History" items={NAV_HISTORY} currentPath={currentPath} />
-        <NavGroup label="Settings" items={NAV_SETTINGS} currentPath={currentPath} />
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  tooltip="Add Transaction"
-                  onClick={() => { closeMobile(); onAddTransaction(); }}
-                >
-                  <PlusCircle />
-                  <span>Add Transaction</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter>
-        <ThemeSwitcher />
       </SidebarFooter>
     </Sidebar>
   );
 }
 
+function TabBarLink({ to, icon: Icon, label, active }) {
+  return (
+    <Link
+      to={to}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex flex-col items-center gap-0.5 rounded-md py-1 text-[10.5px] text-faint outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5",
+        active && "font-medium text-primary",
+      )}
+    >
+      <Icon />
+      {label}
+    </Link>
+  );
+}
+
+// MobileTabBar is the phone's bottom navigation, sticky at the end of the
+// main column. "More" opens the sidebar sheet.
+function MobileTabBar({ activeId, onAddTransaction }) {
+  const { openMobile, setOpenMobile } = useSidebar();
+  return (
+    <nav
+      aria-label="Primary"
+      data-slot="mobile-tab-bar"
+      className="sticky bottom-0 z-30 mt-auto grid grid-cols-5 items-center border-t border-border bg-sidebar px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+    >
+      <TabBarLink to="/" icon={House} label="Overview" active={activeId === "overview"} />
+      <TabBarLink to="/transactions" icon={List} label="Activity" active={activeId === "transactions"} />
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={onAddTransaction}
+          aria-label="New transaction"
+          className="-mt-1 grid size-10 place-items-center rounded-full bg-primary text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&_svg]:size-5"
+        >
+          <Plus strokeWidth={2.2} />
+        </button>
+      </div>
+      <TabBarLink to="/trends" icon={BarChart2} label="Reports" active={activeId === "reports"} />
+      <button
+        type="button"
+        onClick={() => setOpenMobile(!openMobile)}
+        aria-expanded={openMobile}
+        className={cn(
+          "flex flex-col items-center gap-0.5 rounded-md py-1 text-[10.5px] text-faint outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5",
+          openMobile && "font-medium text-primary",
+        )}
+      >
+        <Menu />
+        More
+      </button>
+    </nav>
+  );
+}
+
+// DesktopReopen shows a sidebar trigger only while the desktop sidebar is
+// collapsed (Ctrl/⌘+B), so it can always be brought back.
+function DesktopReopen() {
+  const { state, isMobile } = useSidebar();
+  if (isMobile || state !== "collapsed") return null;
+  return <SidebarTrigger className="fixed top-3 left-3 z-20" />;
+}
+
 export function AppShell({ children, currentPath }) {
   const [addTxnOpen, setAddTxnOpen] = useState(false);
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const navItem = navItemFor(currentPath);
+
+  useShellShortcuts(setAddTxnOpen, setJumpOpen);
 
   return (
-    <SidebarProvider>
-      <AppSidebar currentPath={currentPath} onAddTransaction={() => setAddTxnOpen(true)} />
+    <SidebarProvider style={{ "--sidebar-width": "13.5rem" }}>
+      <AppSidebar
+        activeId={navItem?.id}
+        onAddTransaction={() => setAddTxnOpen(true)}
+        onJump={() => setJumpOpen(true)}
+      />
       <SidebarInset className="min-w-0">
-        <header className="flex h-12 shrink-0 items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator
-            orientation="vertical"
-            className="mr-2 data-vertical:h-4 data-vertical:self-auto"
-          />
-          <span className="text-sm font-medium text-muted-foreground">
-            {ALL_NAV.find((i) => i.href === currentPath)?.label ?? "float"}
-          </span>
-        </header>
-        <div className="flex flex-1 flex-col p-4 pt-0">
-          <div className="container mx-auto max-w-7xl flex-1">
-            {children}
-          </div>
+        <DesktopReopen />
+        <div className="container mx-auto flex max-w-7xl flex-1 flex-col gap-6 px-4 pt-5 pb-8 md:px-8 md:pt-6">
+          {navItem?.tabs && (
+            <SectionTabs items={navItem.tabs} currentPath={currentPath} label={navItem.label} />
+          )}
+          <div className="flex-1">{children}</div>
         </div>
+        {isMobile && (
+          <MobileTabBar activeId={navItem?.id} onAddTransaction={() => setAddTxnOpen(true)} />
+        )}
       </SidebarInset>
       <AddTransactionModal open={addTxnOpen} onOpenChange={setAddTxnOpen} />
+      <CommandPalette
+        open={jumpOpen}
+        onOpenChange={setJumpOpen}
+        onNewTransaction={() => setAddTxnOpen(true)}
+      />
     </SidebarProvider>
   );
 }

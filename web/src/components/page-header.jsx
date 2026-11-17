@@ -1,22 +1,25 @@
 import { cn } from "@/lib/utils";
 
-export function PageHeader({ title, description, children, className }) {
+// PageHeader is the page title (22px) with a right-aligned actions slot.
+// Pass actions as `actions` or as children. `description` is a muted line
+// under the title; leave it out when it would only repeat the title.
+export function PageHeader({ title, description, actions, children, className }) {
+  const slot = actions ?? children;
   return (
     <div
       data-slot="page-header"
-      className={cn(
-        "flex flex-wrap items-start justify-between gap-3",
-        className,
-      )}
+      className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", className)}
     >
-      <div className="flex min-w-0 flex-col gap-1">
-        <h2 className="text-2xl font-bold leading-tight">{title}</h2>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <h1 className="text-title font-semibold">{title}</h1>
         {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-control text-muted-foreground">{description}</p>
         )}
       </div>
-      {children && (
-        <div className="flex flex-wrap items-center gap-2">{children}</div>
+      {slot && (
+        <div data-slot="page-header-actions" className="ml-auto flex flex-wrap items-center gap-2">
+          {slot}
+        </div>
       )}
     </div>
   );

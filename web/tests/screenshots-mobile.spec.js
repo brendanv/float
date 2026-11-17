@@ -61,10 +61,8 @@ test("import page paste CSV mode mobile", async ({ page }) => {
 test("add transaction modal mobile (drawer)", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  // Open sidebar via the sidebar trigger button, then click Add Transaction
-  await page.locator('[data-slot="sidebar-trigger"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('[data-slot="sidebar-menu-button"]:has-text("Add Transaction")').click();
+  // The bottom tab bar's + button opens the new-transaction drawer.
+  await page.getByRole("button", { name: "New transaction" }).click();
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/mobile-add-transaction-modal.png", fullPage: true });
@@ -73,9 +71,7 @@ test("add transaction modal mobile (drawer)", async ({ page }) => {
 test("add transaction modal mobile with template selected", async ({ page }) => {
   await page.goto("/#/");
   await page.waitForTimeout(400);
-  await page.locator('[data-slot="sidebar-trigger"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('[data-slot="sidebar-menu-button"]:has-text("Add Transaction")').click();
+  await page.getByRole("button", { name: "New transaction" }).click();
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
   await page.waitForTimeout(500);
   await page.locator('[role="dialog"] button:has-text("Mortgage Payment")').click();

@@ -1751,8 +1751,21 @@ export async function mockLedgerApi(
                 ),
             );
           }
+          // hledger status: tokens ("status:*" Cleared, "status:!" Pending,
+          // "status:" Unmarked), optionally negated with "not:".
+          const statusMatch = token.match(/^(not:)?status:([*!]?)$/);
+          if (statusMatch) {
+            const want = { "*": "Cleared", "!": "Pending", "": "" }[statusMatch[2]];
+            const negate = !!statusMatch[1];
+            txs = txs.filter((tx) => ((tx.status || "") === want) !== negate);
+          }
         }
-        body = { transactions: txs };
+        // Like the server: total counts every match, then limit/offset page.
+        const total = txs.length;
+        const offset = reqBody.offset || 0;
+        const limit = reqBody.limit || 0;
+        txs = txs.slice(offset, limit > 0 ? offset + limit : undefined);
+        body = { transactions: txs, total, hasNext: limit > 0 && offset + limit < total };
         break;
       }
       case "ListLots":
