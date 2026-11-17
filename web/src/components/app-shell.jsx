@@ -49,21 +49,24 @@ function isTypingTarget(el) {
 }
 
 // N opens a new transaction (outside fields and dialogs); Ctrl/⌘+K toggles
-// the command palette. Both callbacks must be stable (state setters).
+// the command palette (it won't open over another dialog). Both callbacks must be stable (state setters).
 function useShellShortcuts(setAddOpen, setJumpOpen) {
   useEffect(() => {
     function onKeyDown(event) {
       if (event.defaultPrevented || event.isComposing) return;
       const key = event.key.toLowerCase();
+      // A dialog, sheet or menu is open (the palette itself counts).
+      const overlayOpen = !!document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]');
       if (key === "k" && (event.metaKey || event.ctrlKey) && !event.altKey) {
         event.preventDefault();
-        setJumpOpen((open) => !open);
+        // ⌘K closes the palette, but doesn't open it over another dialog:
+        // jumping to a page would leave that dialog open on the new page.
+        setJumpOpen((open) => (open || !overlayOpen ? !open : open));
         return;
       }
       if (key !== "n" || event.metaKey || event.ctrlKey || event.altKey) return;
       if (isTypingTarget(document.activeElement)) return;
-      // Leave N alone while a dialog, sheet or menu is open.
-      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return;
+      if (overlayOpen) return;
       event.preventDefault();
       setAddOpen(true);
     }
@@ -140,7 +143,7 @@ function NavItem({ item, active, onNavigate, badge }) {
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={active}
-        render={<Link to={item.href} onClick={onNavigate} />}
+        render={<Link to={item.href} onClick={onNavigate} aria-current={active ? "page" : undefined} />}
       >
         <item.icon />
         <span>{item.label}</span>
@@ -215,7 +218,13 @@ function AppSidebar({ activeId, onAddTransaction, onJump }) {
           <SidebarMenuItem className="flex items-center gap-1">
             <SidebarMenuButton
               isActive={activeId === SETTINGS_ITEM.id}
-              render={<Link to={SETTINGS_ITEM.href} onClick={closeMobile} />}
+              render={
+                <Link
+                  to={SETTINGS_ITEM.href}
+                  onClick={closeMobile}
+                  aria-current={activeId === SETTINGS_ITEM.id ? "page" : undefined}
+                />
+              }
             >
               <SETTINGS_ITEM.icon />
               <span>{SETTINGS_ITEM.label}</span>
