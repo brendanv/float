@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
-import { ROW_ACTION } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -42,6 +42,152 @@ function oneYearAgo() {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+// A price older than this many days is stale: worth a backfill.
+const STALE_DAYS = 7;
+
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// daysBetween counts whole days between two "YYYY-MM-DD" dates.
+function daysBetween(from, to) {
+  return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+}
+
+function dayAfter(date) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
+function formatAge(days) {
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day";
+  if (days < 60) return `${days} days`;
+  if (days < 730) return `${Math.round(days / 30.44)} months`;
+  return `${Math.round(days / 365.25)} years`;
+}
+
+// Rows shown before "Show all": stale held commodities sort first, so the
+// collapsed table is the to-do list even with dozens of commodities.
+const COLLAPSED_ROWS = 10;
+
+// latestByCommodity joins each commodity's most recent P directive with the
+// set of commodities currently held (null while unknown: then every priced
+// commodity counts as held). Order: held commodities with no price, then
+// held ones oldest price first, then priced commodities no longer held.
+// Only held commodities can be stale; a sold position needs no new prices.
+function latestByCommodity(prices, held, today) {
+  const latest = new Map();
+  for (const p of prices) {
+    const cur = latest.get(p.commodity);
+    if (!cur || p.date > cur.date) latest.set(p.commodity, p);
+  }
+  const names = new Set([...latest.keys(), ...(held ?? [])]);
+  const rank = (r) => (!r.held ? 2 : r.date ? 1 : 0);
+  return [...names]
+    .map((commodity) => {
+      const p = latest.get(commodity);
+      const isHeld = held ? held.has(commodity) : true;
+      const age = p ? daysBetween(p.date, today) : null;
+      return {
+        commodity,
+        date: p?.date ?? "",
+        price: p?.price,
+        age,
+        held: isHeld,
+        stale: isHeld && (age === null || age > STALE_DAYS),
+      };
+    })
+    .sort((a, b) => rank(a) - rank(b)
+      || (a.held ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
+      || a.commodity.localeCompare(b.commodity));
+}
+
+// backfillStart is where a backfill for these rows should begin: the day
+// after the oldest price, or a year back for a commodity with none.
+function backfillStart(rows) {
+  const dates = rows.map((r) => (r.date ? dayAfter(r.date) : oneYearAgo()));
+  return dates.reduce((min, d) => (d < min ? d : min));
+}
+
+function latestSummary(rows, holdingsKnown) {
+  const stale = rows.filter((r) => r.stale).length;
+  if (!holdingsKnown) {
+    return stale > 0 ? `${stale} of ${rows.length} older than ${STALE_DAYS} days` : `All ${rows.length} up to date`;
+  }
+  const held = rows.filter((r) => r.held).length;
+  if (held === 0) return "Nothing held";
+  return stale > 0
+    ? `${stale} of ${held} held ${stale === 1 ? "needs" : "need"} a price`
+    : `All ${held} held up to date`;
+}
+
+function LatestPricesTable({ rows, onBackfill }) {
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? rows : rows.slice(0, COLLAPSED_ROWS);
+  return (
+    <div className="flex flex-col gap-2">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Commodity</TableHead>
+            <TableHead className="text-right">Latest price</TableHead>
+            <TableHead className="max-sm:hidden">As of</TableHead>
+            <TableHead>Age</TableHead>
+            <TableHead className="w-px" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {shown.map((r) => (
+            <TableRow
+              key={r.commodity}
+              className="group/row"
+              data-slot="latest-price"
+              data-stale={r.stale || undefined}
+              data-held={r.held || undefined}
+            >
+              <TableCell>
+                <span className={cn("font-mono text-code font-medium", !r.held && "text-muted-foreground")}>
+                  {r.commodity}
+                </span>
+                {!r.held && <span className="ml-2 text-[12px] text-faint">not held</span>}
+              </TableCell>
+              <TableCell className="text-right">
+                {r.price
+                  ? <Amount value={{ quantity: r.price.quantity, commodity: r.price.commodity }} />
+                  : <span className="text-faint">—</span>}
+              </TableCell>
+              <TableCell className="text-muted-foreground max-sm:hidden">{r.date || "—"}</TableCell>
+              <TableCell className={r.stale ? "text-warning" : "text-muted-foreground"}>
+                {r.age === null ? "no price" : formatAge(r.age)}
+                {r.stale && <span className="sr-only"> (stale)</span>}
+              </TableCell>
+              <TableCell className="w-px text-right">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className={cn("text-muted-foreground", !r.stale && ROW_ACTION)}
+                  aria-label={`Backfill ${r.commodity}`}
+                  onClick={() => onBackfill([r.commodity], backfillStart([r]))}
+                >
+                  Backfill
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {rows.length > COLLAPSED_ROWS && (
+        <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show fewer" : `Show all ${rows.length} commodities`}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 const colHelper = createColumnHelper();
@@ -228,6 +374,14 @@ export function PricesPage() {
     queryFn: () => ledgerClient.listPrices({}),
   });
 
+  // Held commodities (lots aggregated, currencies and zero positions
+  // dropped by floatd), so sold positions don't read as stale. Same query as
+  // Investments › Holdings with no account filter.
+  const { data: holdingsData } = useQuery({
+    queryKey: queryKeys.portfolioHoldings(""),
+    queryFn: () => ledgerClient.getPortfolioHoldings({ accountPrefix: "" }),
+  });
+
   const [date, setDate] = useState(today);
   const [commodity, setCommodity] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -308,6 +462,20 @@ export function PricesPage() {
     invalidateLedgerQueries(queryClient);
   }
 
+  // prefillBackfill fills the backfill form and brings it into view.
+  function prefillBackfill(commodities, startDate) {
+    setBackfillCommodities(commodities.join(", "));
+    setBackfillStartDate(startDate);
+    setBackfillEndDate(today());
+    const input = document.getElementById("backfill-commodities");
+    input?.scrollIntoView({ block: "center", behavior: "smooth" });
+    input?.focus({ preventScroll: true });
+  }
+
+  const heldSymbols = holdingsData ? new Set(holdingsData.holdings.map((h) => h.symbol)) : null;
+  const latest = latestByCommodity(pricesData?.prices ?? [], heldSymbols, localToday());
+  const stale = latest.filter((r) => r.stale);
+
   function handlePrefill() {
     const prices = pricesData?.prices;
     if (!prices?.length) return;
@@ -324,6 +492,24 @@ export function PricesPage() {
 
   return (
     <Page>
+      {latest.length > 0 && (
+        <Section
+          title="Latest by commodity"
+          description={latestSummary(latest, !!heldSymbols)}
+          action={stale.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => prefillBackfill(stale.map((r) => r.commodity), backfillStart(stale))}
+            >
+              Backfill stale
+            </Button>
+          )}
+        >
+          <LatestPricesTable rows={latest} onBackfill={prefillBackfill} />
+        </Section>
+      )}
+
       <Section title="Add price">
         <Form onSubmit={handleSubmit}>
           {formError && <ErrorBanner error={formError} />}

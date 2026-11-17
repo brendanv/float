@@ -20,7 +20,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { UNREVIEWED_SEARCH, useReviewCount } from "@/hooks/use-review-count.js";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 import { CommandPalette } from "./command-palette.jsx";
 import { NAV_GROUPS, SETTINGS_ITEM, navItemFor } from "./nav-items.js";
@@ -119,26 +118,7 @@ function Wordmark({ className }) {
   );
 }
 
-function ReviewCount({ count, onNavigate }) {
-  if (!count) return null;
-  const label = `${count} ${count === 1 ? "transaction needs" : "transactions need"} review`;
-  return (
-    <Link
-      to="/transactions"
-      search={UNREVIEWED_SEARCH}
-      onClick={onNavigate}
-      aria-label={label}
-      title={label}
-      data-slot="review-count"
-      data-sidebar="menu-action"
-      className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full bg-primary px-1.5 text-[11px] leading-[17px] font-medium text-primary-foreground tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-    >
-      {count > 999 ? "999+" : count}
-    </Link>
-  );
-}
-
-function NavItem({ item, active, onNavigate, badge }) {
+function NavItem({ item, active, onNavigate }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -148,14 +128,12 @@ function NavItem({ item, active, onNavigate, badge }) {
         <item.icon />
         <span>{item.label}</span>
       </SidebarMenuButton>
-      {badge}
     </SidebarMenuItem>
   );
 }
 
 function AppSidebar({ activeId, onAddTransaction, onJump }) {
   const { isMobile, setOpenMobile } = useSidebar();
-  const reviewCount = useReviewCount();
   const closeMobile = () => isMobile && setOpenMobile(false);
 
   return (
@@ -203,9 +181,6 @@ function AppSidebar({ activeId, onAddTransaction, onJump }) {
                     item={item}
                     active={item.id === activeId}
                     onNavigate={closeMobile}
-                    badge={item.id === "transactions"
-                      ? <ReviewCount count={reviewCount} onNavigate={closeMobile} />
-                      : null}
                   />
                 ))}
               </SidebarMenu>

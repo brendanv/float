@@ -158,23 +158,6 @@ test("the review link opens Needs review over all dates", async ({ page }) => {
   await expect(page.locator("tbody tr[data-slot=transaction-row]")).toHaveCount(5);
 });
 
-test("the review link also clears a tag filter", async ({ page }) => {
-  await mockLedgerApi(page, { transactions });
-  const lists = captureRpc(page, "ListTransactions");
-  await page.goto("/#/transactions");
-  const listQueries = () => lists.filter((b) => !b.limit).map((b) => b.query ?? []);
-
-  await page.getByRole("combobox").filter({ hasText: "Tags" }).click();
-  await page.getByRole("option", { name: "#reimbursable" }).click();
-  await expect.poll(() => listQueries().at(-1)).toContain("tag:^reimbursable$");
-
-  // The sidebar count is all transactions needing review, so the list drops
-  // the tag (and the month) to match it.
-  await page.locator("[data-slot=review-count]").first().click();
-  await expect.poll(() => listQueries().at(-1)).toEqual(["not:status:*"]);
-  await expect(page.getByRole("button", { name: /Needs review/ })).toHaveAttribute("aria-pressed", "true");
-});
-
 test("typing the review query turns on the chip and clears the box", async ({ page }) => {
   await mockLedgerApi(page, { transactions });
   await page.goto("/#/transactions");
