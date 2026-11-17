@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <script>(function(){var t=localStorage.getItem('float-theme');if(t==='dark')document.documentElement.classList.add('dark');})()</script>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#1a1a2e" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!-- theme-color matches --background; the script below and setThemeColor (src/lib/pwa.js) keep it in sync with the theme. -->
+    <meta name="theme-color" content="#f8fbfc" />
+    <script>(function(){var t=localStorage.getItem('float-theme');if(t==='dark'){document.documentElement.classList.add('dark');document.querySelector('meta[name="theme-color"]').setAttribute('content','#0d1116');}})()</script>
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="float" />
+    <meta name="application-name" content="float" />
     <title>float</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" href="/square_logo_200.png" />
-    <link rel="apple-touch-icon" href="/square_logo_200.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
