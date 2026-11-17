@@ -251,7 +251,7 @@ export function BalanceAssertionsPage() {
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead className="hidden sm:table-cell">Last assertion</TableHead>
                   <TableHead className="hidden text-right sm:table-cell">Since</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead><span className="max-sm:sr-only">Status</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -15,3 +15,9 @@ const twMerge = extendTailwindMerge({
 export function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
+
+// ROW_ACTION hides a table row's secondary actions (Edit, Delete, …) until
+// the row (`group/row`) is hovered or focused, on devices that can hover;
+// touch devices always show them.
+export const ROW_ACTION =
+  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:group-focus-within/row:opacity-100 focus-visible:opacity-100 transition-opacity";

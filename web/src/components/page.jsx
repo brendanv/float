@@ -67,7 +67,9 @@ export function Section({ title, description, action, children, className, heade
         <div className={cn("flex min-h-8 flex-wrap items-end gap-x-3 gap-y-1 border-b border-border pb-2", headerClassName)}>
           {title && <h2 id={id} className="text-heading font-semibold">{title}</h2>}
           {description && <span className="text-control text-muted-foreground">{description}</span>}
-          {action && <div className="ml-auto flex items-center gap-2">{action}</div>}
+          {/* The action slot overhangs upward so controls up to 32px keep every
+              section header the same height (side-by-side hairlines align). */}
+          {action && <div className="ml-auto flex items-center gap-2 sm:-mt-2">{action}</div>}
         </div>
       )}
       {children}

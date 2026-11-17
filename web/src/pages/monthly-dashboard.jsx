@@ -58,8 +58,9 @@ const STICKY = "sticky left-0 z-10 bg-background shadow-[inset_-1px_0_0_var(--bo
 // between the account column and the totals. Sticky cells lose
 // border-collapse borders, so their left rule is an inset shadow; Total has
 // a fixed width so Avg can sit right next to it.
-const PIN_TOTAL = "sticky right-0 z-10 w-28 min-w-28 bg-background shadow-[inset_1px_0_0_var(--border)]";
-const PIN_AVG = "sticky right-28 z-10 bg-background shadow-[inset_1px_0_0_var(--border)]";
+// On phones there's no room to pin them; they scroll with the months.
+const PIN_TOTAL = "md:sticky md:right-0 md:z-10 md:w-28 md:min-w-28 bg-background shadow-[inset_1px_0_0_var(--border)]";
+const PIN_AVG = "md:sticky md:right-28 md:z-10 bg-background shadow-[inset_1px_0_0_var(--border)]";
 const AVG = cn(PIN_AVG, "text-faint");
 
 function average(values, count) {

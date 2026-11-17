@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
-import { History } from "lucide-react";
+import { FileDiff, History, RotateCcw } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { Page, Section } from "../components/page.jsx";
@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 
 const CHANGE_TONE = {
   added: "text-inflow",
@@ -165,7 +165,7 @@ export function SnapshotsPage() {
               </TableHeader>
               <TableBody>
                 {snapshots.map((s) => (
-                  <TableRow key={s.hash} data-slot="snapshot-row">
+                  <TableRow key={s.hash} data-slot="snapshot-row" className="group/row">
                     <TableCell className="py-1 whitespace-nowrap text-muted-foreground">
                       <Timestamp value={s.timestamp} absolute />
                     </TableCell>
@@ -176,23 +176,27 @@ export function SnapshotsPage() {
                       <span className="font-mono text-[12px] text-faint">{s.hash.slice(0, 8)}</span>
                     </TableCell>
                     <TableCell className="py-1 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className={cn("flex items-center justify-end gap-1", restoring !== s.hash && ROW_ACTION)}>
                         <Button
                           variant="ghost"
                           size="xs"
                           onClick={() => setViewingHash(s.hash)}
+                          aria-label="View diff"
                         >
-                          View diff
+                          <FileDiff data-icon="inline-start" className="sm:hidden" />
+                          <span className="max-sm:hidden">View diff</span>
                         </Button>
                         <Button
                           variant="ghost"
                           size="xs"
-                          className="text-warning hover:text-warning"
+                          className="text-muted-foreground"
                           isLoading={restoring === s.hash}
                           loadingText="Restoring…"
                           onClick={() => handleRestore(s.hash)}
+                          aria-label="Restore"
                         >
-                          Restore
+                          <RotateCcw data-icon="inline-start" className="sm:hidden" />
+                          <span className="max-sm:hidden">Restore</span>
                         </Button>
                       </div>
                     </TableCell>

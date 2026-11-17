@@ -121,7 +121,7 @@ test("snapshots diff dialog mobile (dialog)", async ({ page }) => {
   await page.goto("/#/snapshots");
   await page.waitForSelector("table, .loading", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
-  await page.locator("button", { hasText: "View diff" }).first().click();
+  await page.getByRole("button", { name: "View diff" }).first().click();
   await page.waitForSelector('[role="dialog"]', { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(500);
   await page.screenshot({ path: "test-results/mobile-snapshots-diff.png", fullPage: true });

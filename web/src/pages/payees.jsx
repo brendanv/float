@@ -10,7 +10,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { ArrowUpRight, Sparkles, ChevronDown, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -35,11 +35,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { dayLabel } from "@/lib/transactions.js";
-
-// Row actions show on row hover or keyboard focus on devices that can
-// hover; touch devices always show them.
-const ROW_ACTION =
-  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:group-focus-within/row:opacity-100 focus-visible:opacity-100 transition-opacity";
 
 // SectionToggle is a collapsible section heading: the title plus a chevron.
 function SectionToggle({ open, children }) {

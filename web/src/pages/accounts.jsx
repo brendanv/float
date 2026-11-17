@@ -146,12 +146,12 @@ function AccountRow({ name, depth, tree }) {
         </button>
         <AccountGlyph type={type} />
         <span
-          className={cn("min-w-0 truncate", closed && "text-faint")}
+          className={cn("min-w-[5ch] truncate", closed && "text-faint")}
           title={closed === "inherited" ? `${name} (closed via parent account)` : name}
         >
           {label}
         </span>
-        {closed === "closed" && <TagChip className="font-normal">closed</TagChip>}
+        {closed === "closed" && <TagChip className="shrink-0 font-normal">closed</TagChip>}
         <Button
           variant="ghost"
           size="icon-xs"

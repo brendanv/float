@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
+import { ROW_ACTION } from "@/lib/utils";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -93,7 +94,7 @@ const priceColumns = [
         <Button
           variant="destructive-ghost"
           size="xs"
-          className="opacity-60 group-hover/row:opacity-100 focus-visible:opacity-100"
+          className={ROW_ACTION}
           aria-label={`Delete ${p.commodity} price on ${p.date}`}
           onClick={() => onDelete(p.pid)}
         >
@@ -387,7 +388,7 @@ export function PricesPage() {
           {backfillError && <ErrorBanner error={backfillError} />}
           {backfillResults && <BackfillResults results={backfillResults} />}
           <FormRow cols={4} className="sm:grid-cols-2 lg:grid-cols-4">
-            <FormField label="Commodity / Commodities" htmlFor="backfill-commodities">
+            <FormField label="Commodities" htmlFor="backfill-commodities">
               <Input
                 id="backfill-commodities"
                 type="text"
@@ -397,7 +398,7 @@ export function PricesPage() {
                 required
               />
             </FormField>
-            <FormField label="Start Date" htmlFor="backfill-start">
+            <FormField label="Start date" htmlFor="backfill-start">
               <Input
                 id="backfill-start"
                 type="date"
@@ -406,7 +407,7 @@ export function PricesPage() {
                 required
               />
             </FormField>
-            <FormField label="End Date" htmlFor="backfill-end">
+            <FormField label="End date" htmlFor="backfill-end">
               <Input
                 id="backfill-end"
                 type="date"

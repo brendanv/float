@@ -48,7 +48,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { cn } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 
 function emptyForm() {
   return { pattern: "", payee: "", account: "", matchAccount: "", priority: "0", tags: "", autoReviewed: true };
@@ -87,11 +87,6 @@ function Change({ from, children }) {
     </span>
   );
 }
-
-// Row actions show on row hover or keyboard focus on devices that can
-// hover; touch devices always show them.
-const ROW_ACTION =
-  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:group-focus-within/row:opacity-100 focus-visible:opacity-100 transition-opacity";
 
 const rulesColumns = [
   columnHelper.accessor("priority", {

@@ -454,7 +454,7 @@ test("import history page - file viewer dialog", async ({ page }) => {
   await page.goto("/#/imports");
   await page.waitForSelector("table", { timeout: 5000 });
   await page.waitForTimeout(400);
-  await page.locator("button", { hasText: "View file" }).first().click();
+  await page.getByRole("button", { name: "View file" }).first().click();
   await page.waitForSelector("pre", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/import-history-file-viewer.png", fullPage: true });
@@ -660,7 +660,7 @@ test("snapshots page - diff dialog (modified)", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   // Click the first "View diff" button (most recent snapshot — modified file)
-  await page.locator("button:has-text('View diff')").first().click();
+  await page.getByRole("button", { name: "View diff" }).first().click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/snapshots-diff.png", fullPage: true });
@@ -671,7 +671,7 @@ test("snapshots page - diff dialog (added + modified)", async ({ page }) => {
   await page.waitForSelector("table", { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   // Click the third "View diff" button — the import snapshot has both an added file and a modified file
-  await page.locator("button:has-text('View diff')").nth(2).click();
+  await page.getByRole("button", { name: "View diff" }).nth(2).click();
   await page.waitForSelector("[role='dialog']", { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: "test-results/snapshots-diff-multi.png", fullPage: true });

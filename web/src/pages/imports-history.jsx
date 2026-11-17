@@ -148,16 +148,17 @@ const importColumns = [
                 e.stopPropagation();
                 onViewFile(imp.importBatchId);
               }}
+              aria-label="View file"
             >
               <FileText data-icon="inline-start" />
-              View file
+              <span className="hidden sm:inline">View file</span>
             </Button>
           )}
           <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
         </div>
       );
     },
-    meta: { headerClass: "w-28" },
+    meta: { headerClass: "w-14 sm:w-28" },
   }),
 ];
 
