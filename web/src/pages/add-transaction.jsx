@@ -118,7 +118,6 @@ export function AddTransactionPage() {
                 postings={postings}
                 onChange={setPostings}
                 accounts={accountsData?.accounts || []}
-                showBalance
               />
             </FormField>
             <FormActions>

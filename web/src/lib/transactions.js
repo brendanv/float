@@ -1,7 +1,7 @@
 // Display helpers for transaction lists: which accounts a row shows as its
-// flow, which posting's amount it shows, and per-day / per-list totals.
-// They only pick and add up amounts hledger already returned; they never
-// re-derive balances.
+// flow and which posting's amount it shows. They only pick amounts hledger
+// already returned; list and day totals come from hledger reports, not from
+// adding up postings here.
 import { accountType } from "./accounts.js";
 import { editablePostings } from "../components/posting-fields.jsx";
 
@@ -90,45 +90,6 @@ export function addAmounts(amounts, sign = 1) {
 
 function round(q) {
   return Math.round(q * 1e8) / 1e8;
-}
-
-function nonZero(amounts) {
-  return amounts.filter((a) => parseFloat(a.quantity) !== 0);
-}
-
-function flowPostings(txs, type) {
-  return txs.flatMap((tx) => (tx.postings || []).filter((p) => accountType(p.account) === type));
-}
-
-// flowTotals returns what came in (income postings, sign flipped so income
-// is positive) and went out (expense postings) across transactions, per
-// commodity. Transfers between your own accounts touch neither.
-export function flowTotals(txs) {
-  const inflow = addAmounts(flowPostings(txs, "income").flatMap((p) => p.amounts || []), -1);
-  const outflow = addAmounts(flowPostings(txs, "expense").flatMap((p) => p.amounts || []));
-  return { inflow: nonZero(inflow), outflow: nonZero(outflow) };
-}
-
-// dayNet is a day's income minus expenses per commodity (non-zero only).
-// An empty result means the day only moved money between your accounts.
-export function dayNet(txs) {
-  const amounts = [...flowPostings(txs, "income"), ...flowPostings(txs, "expense")]
-    .flatMap((p) => p.amounts || []);
-  return nonZero(addAmounts(amounts, -1));
-}
-
-// registerTotals sums an account register's signed changes: increases are
-// "in", decreases "out" (as positive amounts).
-export function registerTotals(rows) {
-  const changes = rows.flatMap((r) => r.change || []);
-  const inflow = addAmounts(changes.filter((a) => parseFloat(a.quantity) > 0));
-  const outflow = addAmounts(changes.filter((a) => parseFloat(a.quantity) < 0), -1);
-  return { inflow: nonZero(inflow), outflow: nonZero(outflow) };
-}
-
-// registerDayNet is the focused account's net change over a day's rows.
-export function registerDayNet(rows) {
-  return nonZero(addAmounts(rows.flatMap((r) => r.change || [])));
 }
 
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

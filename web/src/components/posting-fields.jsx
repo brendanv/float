@@ -5,7 +5,6 @@ import { Combobox } from "@/components/ui/combobox";
 import { filterAndSortAccountNames } from "@/lib/accounts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Amount } from "./amount.jsx";
 
 // Literal hledger syntax chips (@, { }, =) in front of a posting's extra
 // fields.
@@ -240,9 +239,9 @@ function AssertionFields({ assertion, onChange, onRemove }) {
   );
 }
 
-// PostingFields edits a transaction's posting rows. `showBalance` adds the
-// balance hint (inferred amount / off by) next to "Add posting".
-export function PostingFields({ postings, onChange, accounts, showBalance = false }) {
+// PostingFields edits a transaction's posting rows. Balancing and amount
+// inference are left to hledger on save.
+export function PostingFields({ postings, onChange, accounts }) {
   function update(index, patch) {
     const next = postings.map((p, i) => (i === index ? { ...p, ...patch } : p));
     onChange(next);
@@ -425,63 +424,12 @@ export function PostingFields({ postings, onChange, accounts, showBalance = fals
           </div>
         );
       })}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <div>
         <Button variant="ghost" size="sm" onClick={addRow} type="button" className="-ml-2 text-muted-foreground">
           <Plus data-icon="inline-start" /> Add posting
         </Button>
-        {showBalance && <BalanceLine balance={postingBalance(postings)} />}
       </div>
     </div>
-  );
-}
-
-// postingBalance is a display hint read from the typed amounts: the amount
-// hledger will infer for the one posting left blank, or how far the typed
-// amounts are off. It returns null when there is nothing useful to say
-// (more than one blank, prices, lots or several commodities): hledger does
-// the real balancing and validation on save.
-export function postingBalance(postings) {
-  if (postings.some((p) => p.cost || p.lot)) return null;
-  const blank = postings.filter((p) => String(p.quantity ?? "").trim() === "");
-  const filled = postings.filter((p) => String(p.quantity ?? "").trim() !== "");
-  if (filled.length === 0 || blank.length > 1) return null;
-  const commodities = new Set(filled.map((p) => (p.commodity || "").trim()).filter(Boolean));
-  if (commodities.size > 1) return null;
-  let sum = 0;
-  for (const p of filled) {
-    const v = parseFloat(p.quantity);
-    if (isNaN(v)) return null;
-    sum += v;
-  }
-  const commodity = [...commodities][0] ?? (blank[0]?.commodity || "").trim();
-  const rest = Math.round(-sum * 1e8) / 1e8;
-  if (rest === 0) return { kind: "balanced" };
-  if (blank.length === 1) {
-    return { kind: "inferred", account: (blank[0].account || "").trim(), quantity: String(rest), commodity };
-  }
-  return { kind: "off", quantity: String(-rest), commodity };
-}
-
-function BalanceLine({ balance }) {
-  if (!balance) return null;
-  return (
-    <p data-slot="posting-balance" className="flex items-baseline gap-2 text-control text-muted-foreground" aria-live="polite">
-      {balance.kind === "balanced" && <span>Balanced</span>}
-      {balance.kind === "inferred" && (
-        <>
-          <span className="min-w-0 truncate">
-            {balance.account ? <>Inferred for <span className="font-mono text-code">{balance.account}</span></> : "Inferred"}
-          </span>
-          <Amount value={balance.quantity} commodity={balance.commodity} className="font-medium text-foreground" />
-        </>
-      )}
-      {balance.kind === "off" && (
-        <>
-          <span>Off by</span>
-          <Amount value={balance.quantity} commodity={balance.commodity} tone="below" className="font-medium" />
-        </>
-      )}
-    </p>
   );
 }
 

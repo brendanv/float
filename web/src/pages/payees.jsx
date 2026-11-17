@@ -19,7 +19,6 @@ import { SuggestRulesWizard } from "../components/suggest-rules-wizard.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { Page, Section } from "../components/page.jsx";
-import { Amount } from "../components/amount.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -35,7 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { addAmounts, dayLabel, displayAmounts } from "@/lib/transactions.js";
+import { dayLabel } from "@/lib/transactions.js";
 
 // Row actions show on row hover or keyboard focus on devices that can
 // hover; touch devices always show them.
@@ -182,22 +181,20 @@ export function PayeesPage() {
     const map = new Map();
     for (const tx of txData?.transactions ?? []) {
       if (!map.has(tx.description)) {
-        map.set(tx.description, { fids: [], hasUncategorized: false, lastSeen: "", amounts: [] });
+        map.set(tx.description, { fids: [], hasUncategorized: false, lastSeen: "" });
       }
       const entry = map.get(tx.description);
       entry.fids.push(tx.fid);
       if (tx.date > entry.lastSeen) entry.lastSeen = tx.date;
-      entry.amounts.push(...displayAmounts(tx));
       if (!entry.hasUncategorized) {
         entry.hasUncategorized = (tx.postings ?? []).some((p) => p.account === "expenses:unknown");
       }
     }
-    return [...map.entries()].map(([description, { fids, hasUncategorized, lastSeen, amounts }]) => ({
+    return [...map.entries()].map(([description, { fids, hasUncategorized, lastSeen }]) => ({
       description,
       fids,
       count: fids.length,
       lastSeen,
-      total: addAmounts(amounts),
       hasUncategorized,
     }));
   }, [txData]);
@@ -277,15 +274,6 @@ export function PayeesPage() {
           </span>
         ),
         meta: { headerClass: "hidden text-right sm:table-cell", cellClass: "hidden sm:table-cell" },
-      },
-      {
-        id: "total",
-        accessorFn: (row) => parseFloat(row.total[0]?.quantity) || 0,
-        header: ({ column }) => <TableSortHeader column={column} align="right">Total</TableSortHeader>,
-        cell: ({ row }) => (
-          <span className="block text-right"><Amount value={row.original.total} /></span>
-        ),
-        meta: { headerClass: "text-right" },
       },
       {
         id: "actions",

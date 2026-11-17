@@ -223,8 +223,7 @@ function TemplateForm({ initial, onSave, onCancel, accounts }) {
 // templateShape reads a template's postings as a flow: postings with a
 // negative default quantity are the "from" side, positive ones the "to"
 // side, and a blank (auto-balancing) posting takes the side opposite the
-// filled ones. `amount` is the total moved when the filled postings share
-// one commodity.
+// filled ones.
 function templateShape(postings) {
   const list = postings ?? [];
   const sign = (p) => Math.sign(parseFloat(p.defaultQuantity) || 0);
@@ -244,15 +243,12 @@ function templateShape(postings) {
   }
   const end = (names) => (names.length === 1 ? names[0] : names.length > 1 ? `${names.length} accounts` : "");
 
-  const filled = list.filter((p) => sign(p) !== 0);
-  const commodities = new Set(filled.map((p) => p.commodity));
-  const moved = filled.filter((p) => sign(p) === (hasTo ? 1 : -1));
-  const amount = commodities.size === 1 && moved.length > 0
-    ? {
-        commodity: moved[0].commodity,
-        quantity: String(Math.abs(moved.reduce((sum, p) => sum + parseFloat(p.defaultQuantity), 0))),
-      }
-    : null;
+  // The amount is the one moved posting's own default quantity (sign
+  // dropped for display); several moved postings show none rather than a
+  // client-side sum.
+  const moved = list.filter((p) => sign(p) !== 0 && sign(p) === (hasTo ? 1 : -1));
+  const q = moved.length === 1 ? String(moved[0].defaultQuantity).trim() : "";
+  const amount = q ? { commodity: moved[0].commodity, quantity: q.replace(/^-/, "") } : null;
 
   return { from: end(from), to: end(to), amount };
 }
@@ -356,9 +352,10 @@ export function TemplatesPage() {
       header: () => <span className="block text-right">Amount</span>,
       cell: ({ row }) => {
         const { amount } = templateShape(row.original.postings);
+        const allAuto = (row.original.postings ?? []).every((p) => !String(p.defaultQuantity ?? "").trim());
         return (
           <span className="block text-right">
-            {amount ? <Amount value={amount} /> : <span className="text-faint">auto</span>}
+            {amount ? <Amount value={amount} /> : <span className="text-faint">{allAuto ? "auto" : "—"}</span>}
           </span>
         );
       },

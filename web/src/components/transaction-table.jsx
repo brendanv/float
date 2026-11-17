@@ -12,11 +12,9 @@ import { splitAccount } from "@/lib/accounts.js";
 import {
   accountSplit,
   dayLabel,
-  dayNet,
   displayAmounts,
   focusedAmounts,
   isIncome,
-  registerDayNet,
 } from "@/lib/transactions.js";
 import { Amount } from "./amount.jsx";
 import { StatusMark } from "./status.jsx";
@@ -47,37 +45,6 @@ import {
 import { cn } from "@/lib/utils";
 
 // ── day grouping ───────────────────────────────────────────────────────────
-
-// useDayTotals maps each date to the day's net over every loaded row (not
-// just the current page): income minus expenses for the general list, the
-// focused account's change for a register.
-function useDayTotals(rows, isRegisterMode) {
-  return useMemo(() => {
-    const byDate = new Map();
-    for (const r of rows) {
-      if (!byDate.has(r.date)) byDate.set(r.date, []);
-      byDate.get(r.date).push(r);
-    }
-    const totals = new Map();
-    for (const [date, items] of byDate) {
-      totals.set(date, isRegisterMode ? registerDayNet(items) : dayNet(items));
-    }
-    return totals;
-  }, [rows, isRegisterMode]);
-}
-
-// DayNet shows a day's net: signed amounts, or "transfer" when the day only
-// moved money between your own accounts.
-function DayNet({ amounts, isRegisterMode }) {
-  if (!amounts || amounts.length === 0) {
-    return <span>{isRegisterMode ? "" : "transfer"}</span>;
-  }
-  return (
-    <span className="inline-flex flex-wrap justify-end gap-x-2">
-      {amounts.map((a) => <Amount key={a.commodity} value={a} signed />)}
-    </span>
-  );
-}
 
 function DayTitle({ date }) {
   const { day, weekday } = dayLabel(date);
@@ -114,7 +81,6 @@ export function TransactionTable({
   const grouped = sorting[0]?.id === "date";
 
   const rows = isRegisterMode ? (registerRows || []) : (transactions || []);
-  const dayTotals = useDayTotals(rows, isRegisterMode);
 
   const allFids = useMemo(() => rows.filter((r) => r.fid).map((r) => r.fid), [rows]);
   const allSelected = selectable && allFids.length > 0 && allFids.every((fid) => selectedFids.has(fid));
@@ -185,8 +151,6 @@ export function TransactionTable({
 
   const pageRows = table.getRowModel().rows;
   const visibleColumnCount = table.getVisibleLeafColumns().length;
-  // The day's net sits under the amount (or change) column.
-  const trailingCols = isRegisterMode ? 2 : 1;
   const startsDay = (i) => grouped && (i === 0 || pageRows[i - 1].original.date !== pageRows[i].original.date);
 
   return (
@@ -215,13 +179,9 @@ export function TransactionTable({
               <Fragment key={row.id}>
                 {startsDay(i) && (
                   <tr data-slot="day-header" className="sticky top-0 z-[1] bg-background text-[12px] text-faint shadow-[inset_0_-1px_0_var(--input)]">
-                    <td colSpan={visibleColumnCount - trailingCols} className="px-2 pt-5 pb-1.5">
+                    <td colSpan={visibleColumnCount} className="px-2 pt-5 pb-1.5">
                       <DayTitle date={row.original.date} />
                     </td>
-                    <td className="px-2 pt-5 pb-1.5 text-right">
-                      <DayNet amounts={dayTotals.get(row.original.date)} isRegisterMode={isRegisterMode} />
-                    </td>
-                    {isRegisterMode && <td />}
                   </tr>
                 )}
                 <TransactionRow
@@ -243,7 +203,6 @@ export function TransactionTable({
       <MobileList
         pageRows={pageRows}
         grouped={grouped}
-        dayTotals={dayTotals}
         isRegisterMode={isRegisterMode}
         focusedAccount={focusedAccount}
         selectable={selectable}
@@ -306,7 +265,7 @@ function TransactionRow({ row, isRegisterMode, selectable, selectedFids, account
 
 // ── mobile: stacked rows grouped by day ───────────────────────────────────
 
-function MobileList({ pageRows, grouped, dayTotals, isRegisterMode, focusedAccount, selectable, someSelected, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
+function MobileList({ pageRows, grouped, isRegisterMode, focusedAccount, selectable, someSelected, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
   // Checkboxes would crowd 48px rows, so phones pick rows in a select mode
   // (also on whenever something is selected, e.g. from a wider window).
   const [selecting, setSelecting] = useState(false);
@@ -336,9 +295,8 @@ function MobileList({ pageRows, grouped, dayTotals, isRegisterMode, focusedAccou
         return (
           <Fragment key={row.id}>
             {startsDay && (
-              <div data-slot="day-header" className="flex items-baseline justify-between gap-2 pt-3 pb-1 text-[11.5px] text-faint">
-                <span><DayTitle date={date} /></span>
-                <DayNet amounts={dayTotals.get(date)} isRegisterMode={isRegisterMode} />
+              <div data-slot="day-header" className="pt-3 pb-1 text-[11.5px] text-faint">
+                <DayTitle date={date} />
               </div>
             )}
             <MobileRow

@@ -175,7 +175,6 @@ export function AddTransactionForm({ onSuccess, initialValues }) {
           postings={postings}
           onChange={setPostings}
           accounts={accountsData?.accounts || []}
-          showBalance
         />
       </FormField>
       <FormField label="Tags">

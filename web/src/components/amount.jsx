@@ -24,16 +24,6 @@ function flipSign(quantity) {
   return q.startsWith("-") ? q.slice(1) : `-${q}`;
 }
 
-// costTotal is the amount at cost: @@ is already the total, @ is per unit.
-// It keeps the sign of the units.
-function costTotal(quantity, cost) {
-  const units = parseFloat(quantity);
-  const price = parseFloat(cost.quantity);
-  if (isNaN(units) || isNaN(price)) return null;
-  const total = cost.isTotal ? Math.abs(price) : Math.abs(units * price);
-  return units < 0 ? -total : total;
-}
-
 function Figure({ text, split }) {
   const m = split ? CENTS.exec(text) : null;
   if (!m) return text;
@@ -55,20 +45,13 @@ function SingleAmount({ value, commodity, cost, costBasis, size, tone, signed, n
   }
   if (negate) quantity = flipSign(quantity);
 
-  const hasCost = !!cost?.quantity;
-  const hasLot = hasCost || !!formatCostBasis(costBasis);
-  // Without an @ price, a lot cost basis ({$175.00}, per unit) still gives
-  // the value at cost.
-  const valuation = hasCost ? cost : costBasis?.cost?.quantity ? { ...costBasis.cost, isTotal: false } : null;
-  const total = valuation ? costTotal(quantity, valuation) : null;
-  const primary = total !== null
-    ? formatCurrency(total, valuation.commodity, { whole })
-    : formatCurrency(quantity, commodity, { whole });
-  const shownQuantity = total !== null ? total : parseFloat(quantity);
-  const text = signed && shownQuantity > 0 && /[1-9]/.test(primary) ? `+${primary}` : primary;
-  const detail = hasLot
-    ? formatCurrency(quantity, commodity) + formatCostBasis(costBasis) + formatCost(cost)
-    : null;
+  // The primary line is the amount as hledger gave it; a cost (@/@@) or lot
+  // basis ({…}) goes on a mono second line, as written. Converting to cost
+  // is hledger's job (-B), so it isn't multiplied out here.
+  const primary = formatCurrency(quantity, commodity, { whole });
+  const text = signed && parseFloat(quantity) > 0 && /[1-9]/.test(primary) ? `+${primary}` : primary;
+  const annotation = (formatCostBasis(costBasis) + formatCost(cost)).trim();
+  const detail = annotation || null;
   const split = size === "figure" || size === "display";
 
   return (
@@ -105,10 +88,9 @@ function SingleAmount({ value, commodity, cost, costBasis, size, tone, signed, n
 //   ({ quantity, commodity, cost?, costBasis? }), or an array of amount
 //   objects (multi-commodity balances render one per line; zeros are dropped
 //   unless all are zero; an empty array renders "—").
-// - commodity, cost, costBasis: used with a bare quantity. With a cost (or a
-//   lot cost basis with a per-unit cost) the primary line is the value at
-//   cost and a mono second line shows the lot ("10 AAPL @ $175.00",
-//   "10 AAPL {$175.00}").
+// - commodity, cost, costBasis: used with a bare quantity. With a cost or a
+//   lot cost basis, the primary line stays the amount itself ("10 AAPL") and
+//   a mono second line shows the annotation ("@ $175.00", "{$175.00}").
 // - size: "default" (inherits the surrounding size) | "figure" (26px) |
 //   "display" (44px). Cents shrink at figure/display.
 // - tone: "auto" | "ink" leave the amount ink; "inflow" for income arriving;
