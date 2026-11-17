@@ -1,6 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import { Scale } from "lucide-react";
-import { amountSortValue, accountSplit, displayAmounts, focusedAmounts, isIncome } from "@/lib/transactions.js";
+import { amountSortValue, accountSplit, displayAmounts, isIncome, registerDisplay } from "@/lib/transactions.js";
 import { Amount } from "./amount.jsx";
 import { StatusMark } from "./status.jsx";
 import { TagChip, TagEditor, tagLabel } from "./tag-editor.jsx";
@@ -196,11 +196,10 @@ const toColumn = col.accessor((tx) => accountSplit(tx).to || "", {
 const amountColumn = col.accessor(amountSortValue, {
   id: "amount",
   header: ({ column }) => <TableSortHeader column={column} align="right">Amount</TableSortHeader>,
-  cell: ({ row, table }) => {
-    const { focusedAccount } = table.options.meta;
+  cell: ({ row }) => {
     const tx = row.original;
-    const income = !focusedAccount && isIncome(tx);
-    const amounts = focusedAccount ? focusedAmounts(tx, focusedAccount) : displayAmounts(tx);
+    const income = isIncome(tx);
+    const amounts = displayAmounts(tx);
     const hasAssertion = (tx.postings || []).some((p) => p.balanceAssertion);
     return (
       <span className="inline-flex items-center justify-end gap-1">
@@ -244,10 +243,10 @@ function firstChange(amounts) {
 const changeColumn = col.accessor((row) => firstChange(row.change), {
   id: "change",
   header: ({ column }) => <TableSortHeader column={column} align="right">Change</TableSortHeader>,
-  cell: ({ row }) => {
+  cell: ({ row, table }) => {
+    const { negate, changeTone } = registerDisplay(table.options.meta.registerAccount);
     const change = row.original.change || [];
-    const increase = firstChange(change) > 0;
-    return <Amount value={change} tone={increase ? "inflow" : "auto"} signed />;
+    return <Amount value={change} tone={changeTone(firstChange(change))} negate={negate} signed />;
   },
   meta: { headerClass: "w-32 text-right", cellClass: "text-right" },
 });
@@ -255,10 +254,11 @@ const changeColumn = col.accessor((row) => firstChange(row.change), {
 const balanceColumn = col.accessor((row) => firstChange(row.runningTotal), {
   id: "balance",
   header: ({ column }) => <TableSortHeader column={column} align="right">Balance</TableSortHeader>,
-  cell: ({ row }) => {
+  cell: ({ row, table }) => {
+    const { negate, balanceTone } = registerDisplay(table.options.meta.registerAccount);
     const total = row.original.runningTotal || [];
-    const negative = firstChange(total) < 0;
-    return <Amount value={total} tone={negative ? "below" : "auto"} className={negative ? undefined : "text-muted-foreground"} />;
+    const tone = balanceTone(firstChange(total));
+    return <Amount value={total} tone={tone} negate={negate} className={tone === "below" ? undefined : "text-muted-foreground"} />;
   },
   meta: { headerClass: "w-32 text-right", cellClass: "text-right" },
 });

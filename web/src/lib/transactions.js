@@ -2,7 +2,7 @@
 // flow and which posting's amount it shows. They only pick amounts hledger
 // already returned; list and day totals come from hledger reports, not from
 // adding up postings here.
-import { accountType } from "./accounts.js";
+import { accountType, NEGATE_TYPES } from "./accounts.js";
 import { editablePostings } from "../components/posting-fields.jsx";
 
 export function firstQuantity(posting) {
@@ -60,14 +60,21 @@ export function amountSortValue(tx) {
   return pos ? firstQuantity(pos) : firstQuantity(postings[0]);
 }
 
-// focusedAmounts sums the postings to `focusedAccount` (or its subaccounts)
-// per commodity, for a general list filtered to one account.
-export function focusedAmounts(tx, focusedAccount) {
-  const postings = tx.postings || [];
-  const focused = postings.filter((p) => p.account === focusedAccount || p.account.startsWith(focusedAccount + ":"));
-  if (focused.length === 0) return postings[0]?.amounts || [];
-  if (focused.length === 1) return focused[0].amounts || [];
-  return addAmounts(focused.flatMap((p) => p.amounts || []));
+// registerDisplay says how an account register shows its Change and Balance
+// amounts for `account`. Credit-normal accounts (liabilities, income,
+// equity) flip the sign, as on the Accounts page, so a card's balance reads
+// as the amount owed and income reads as earned. Tones follow the account
+// type, from hledger's raw (unflipped) quantity:
+// - change is `inflow` when an asset grows or income arrives;
+// - balance is `below` when an asset is overdrawn or a liability is owed.
+// Everything else stays ink.
+export function registerDisplay(account) {
+  const type = accountType(account);
+  return {
+    negate: NEGATE_TYPES.has(type),
+    changeTone: (q) => ((type === "asset" && q > 0) || (type === "income" && q < 0) ? "inflow" : "auto"),
+    balanceTone: (q) => ((type === "asset" || type === "liability") && q < 0 ? "below" : "auto"),
+  };
 }
 
 // isIncome reports whether a transaction is income arriving: every posting
@@ -76,20 +83,6 @@ export function focusedAmounts(tx, focusedAccount) {
 export function isIncome(tx) {
   const from = (tx.postings || []).filter((p) => firstQuantity(p) < 0);
   return from.length > 0 && from.every((p) => accountType(p.account) === "income");
-}
-
-// addAmounts sums amounts per commodity, keeping first-seen order.
-export function addAmounts(amounts, sign = 1) {
-  const sums = new Map();
-  for (const a of amounts) {
-    const q = (parseFloat(a.quantity) || 0) * sign;
-    sums.set(a.commodity, (sums.get(a.commodity) ?? 0) + q);
-  }
-  return [...sums].map(([commodity, quantity]) => ({ commodity, quantity: String(round(quantity)) }));
-}
-
-function round(q) {
-  return Math.round(q * 1e8) / 1e8;
 }
 
 const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

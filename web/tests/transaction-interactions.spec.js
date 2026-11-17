@@ -158,6 +158,36 @@ test("the review link opens Needs review over all dates", async ({ page }) => {
   await expect(page.locator("tbody tr[data-slot=transaction-row]")).toHaveCount(5);
 });
 
+test("the review link also clears a tag filter", async ({ page }) => {
+  await mockLedgerApi(page, { transactions });
+  const lists = captureRpc(page, "ListTransactions");
+  await page.goto("/#/transactions");
+  const listQueries = () => lists.filter((b) => !b.limit).map((b) => b.query ?? []);
+
+  await page.getByRole("combobox").filter({ hasText: "Tags" }).click();
+  await page.getByRole("option", { name: "#reimbursable" }).click();
+  await expect.poll(() => listQueries().at(-1)).toContain("tag:^reimbursable$");
+
+  // The sidebar count is all transactions needing review, so the list drops
+  // the tag (and the month) to match it.
+  await page.locator("[data-slot=review-count]").first().click();
+  await expect.poll(() => listQueries().at(-1)).toEqual(["not:status:*"]);
+  await expect(page.getByRole("button", { name: /Needs review/ })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("turning on Needs review shows all dates", async ({ page }) => {
+  await mockLedgerApi(page, { transactions });
+  const lists = captureRpc(page, "ListTransactions");
+  await page.goto("/#/transactions");
+  const listQueries = () => lists.filter((b) => !b.limit).map((b) => b.query ?? []);
+
+  // The default view is this month.
+  await expect.poll(() => listQueries().at(-1)?.some((t) => t.startsWith("date:"))).toBe(true);
+  await page.getByRole("button", { name: /Needs review/ }).click();
+  await expect.poll(() => listQueries().at(-1)).toEqual(["not:status:*"]);
+  await expect(page.getByRole("button", { name: /All time/ })).toBeVisible();
+});
+
 test("rows group by day unless sorted by another column", async ({ page }) => {
   await mockLedgerApi(page, { transactions });
   await page.goto("/#/transactions");
@@ -168,6 +198,36 @@ test("rows group by day unless sorted by another column", async ({ page }) => {
   await page.getByRole("button", { name: "Amount" }).click();
   await expect(page.locator("tbody tr[data-slot=day-header]")).toHaveCount(0);
   await expect(rowFor(page, "Grocer")).toContainText("2026-03-17");
+});
+
+test("register tones and signs follow the account type", async ({ page }) => {
+  const row = (fid, date, change, total, other) => ({
+    fid, date, description: `${other} | item`, status: "Cleared",
+    otherAccounts: [other], change: usd(change), runningTotal: usd(total), tags: {},
+  });
+  const cells = (tr) => tr.locator("td [data-slot=amount]");
+
+  // A credit card is credit-normal: a charge adds to the owed balance, shown
+  // positive; only the owed balance is coral, the charge itself stays ink.
+  await mockLedgerApi(page, {
+    accountRegisterRows: [row("cc000001", "2026-03-10", "-50.00", "-50.00", "expenses:dining")],
+  });
+  await page.goto("/#/transactions?account=liabilities:credit-card");
+  let tr = page.locator("tbody tr[data-slot=transaction-row]").first();
+  await expect(cells(tr).nth(0)).toHaveText("+$50.00");
+  await expect(cells(tr).nth(0)).not.toHaveClass(/text-inflow/);
+  await expect(cells(tr).nth(1)).toHaveText("$50.00");
+  await expect(cells(tr).nth(1)).toHaveClass(/text-below/);
+
+  // An expense register: spending is neither income nor owed.
+  await mockLedgerApi(page, {
+    accountRegisterRows: [row("ex000001", "2026-03-10", "12.00", "12.00", "assets:checking")],
+  });
+  await page.goto("/#/transactions?account=expenses:dining");
+  tr = page.locator("tbody tr[data-slot=transaction-row]").first();
+  await expect(cells(tr).nth(0)).toHaveText("+$12.00");
+  await expect(cells(tr).nth(0)).not.toHaveClass(/text-inflow/);
+  await expect(cells(tr).nth(1)).not.toHaveClass(/text-below/);
 });
 
 test("description edit in account-register mode fetches postings first", async ({ page }) => {

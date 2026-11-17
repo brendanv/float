@@ -420,7 +420,10 @@ export function SearchControls({
       onStatusChange("");
       return;
     }
+    // The chip's count is over all dates, so turning it on shows all time
+    // too and the list matches the count.
     onStatusChange("unreviewed");
+    onDateRangeChange("", "");
     if (payee === PAYEE_NONE) onPayeeChange("");
   }
 

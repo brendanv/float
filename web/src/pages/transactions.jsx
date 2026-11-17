@@ -339,12 +339,14 @@ export function TransactionsPage() {
   }, [account, payee, search]);
 
   // Following a review link (also while already on this page) switches to
-  // the chip and drops the search param, so clearing the chip clears it all.
+  // the chip over all dates and no tag, and drops the search param, so the
+  // list matches the count and clearing the chip clears it all.
   useEffect(() => {
     if (!reviewLink) return;
     setStatus("unreviewed");
     setDateFrom("");
     setDateTo("");
+    setTag("");
     setSelectedFids(new Set());
     navigate({ search: (prev) => ({ ...prev, search: "" }), replace: true });
   }, [reviewLink, navigate]);
@@ -360,7 +362,7 @@ export function TransactionsPage() {
   const query = buildQuery({
     dateFrom: reviewLink ? "" : dateFrom,
     dateTo: reviewLink ? "" : dateTo,
-    tag,
+    tag: reviewLink ? "" : tag,
     status: reviewLink ? "unreviewed" : status,
     payee,
     importBatchId,
@@ -483,7 +485,7 @@ export function TransactionsPage() {
             key={`${account}\u0000${query.join("\u0000")}`}
             transactions={transactions}
             registerRows={registerRows}
-            focusedAccount={!isAccountMode ? account : undefined}
+            registerAccount={isAccountMode ? account : undefined}
             onStatusChange={onStatusChange}
             onDeleted={onBulkActionComplete}
             accounts={accountsData?.accounts || []}

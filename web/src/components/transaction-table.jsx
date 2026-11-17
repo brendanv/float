@@ -13,8 +13,8 @@ import {
   accountSplit,
   dayLabel,
   displayAmounts,
-  focusedAmounts,
   isIncome,
+  registerDisplay,
 } from "@/lib/transactions.js";
 import { Amount } from "./amount.jsx";
 import { StatusMark } from "./status.jsx";
@@ -61,17 +61,15 @@ function DayTitle({ date }) {
 export function TransactionTable({
   transactions,
   registerRows,
-  focusedAccount,
+  registerAccount,
   onStatusChange,
   onDeleted,
   accounts = [],
   selectedFids,
   onSelectionChange,
-  pageSize = 25,
-  hiddenColumns = [],
 }) {
   const [expanded, setExpanded] = useState({});
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize });
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 25 });
   const [sorting, setSorting] = useState([{ id: "date", desc: true }]);
 
   const selectable = selectedFids !== undefined && onSelectionChange !== undefined;
@@ -96,11 +94,7 @@ export function TransactionTable({
     onSelectionChange(next);
   }
 
-  const columnVisibility = useMemo(() => {
-    const vis = { select: selectable, date: !grouped };
-    for (const col of hiddenColumns) vis[col] = false;
-    return vis;
-  }, [selectable, grouped, hiddenColumns]);
+  const columnVisibility = useMemo(() => ({ select: selectable, date: !grouped }), [selectable, grouped]);
 
   const columns = isRegisterMode ? registerColumns : transactionColumns;
 
@@ -128,7 +122,7 @@ export function TransactionTable({
       onStatusChange,
       onDeleted,
       accounts,
-      focusedAccount,
+      registerAccount,
       isRegisterMode,
       allSelected,
       someSelected,
@@ -204,7 +198,7 @@ export function TransactionTable({
         pageRows={pageRows}
         grouped={grouped}
         isRegisterMode={isRegisterMode}
-        focusedAccount={focusedAccount}
+        registerAccount={registerAccount}
         selectable={selectable}
         someSelected={someSelected}
         selectedFids={selectedFids}
@@ -265,7 +259,7 @@ function TransactionRow({ row, isRegisterMode, selectable, selectedFids, account
 
 // ── mobile: stacked rows grouped by day ───────────────────────────────────
 
-function MobileList({ pageRows, grouped, isRegisterMode, focusedAccount, selectable, someSelected, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
+function MobileList({ pageRows, grouped, isRegisterMode, registerAccount, selectable, someSelected, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
   // Checkboxes would crowd 48px rows, so phones pick rows in a select mode
   // (also on whenever something is selected, e.g. from a wider window).
   const [selecting, setSelecting] = useState(false);
@@ -302,7 +296,7 @@ function MobileList({ pageRows, grouped, isRegisterMode, focusedAccount, selecta
             <MobileRow
               row={row}
               isRegisterMode={isRegisterMode}
-              focusedAccount={focusedAccount}
+              registerAccount={registerAccount}
               showDate={!grouped}
               showCheck={showChecks}
               selectedFids={selectedFids}
@@ -322,7 +316,7 @@ function leaf(name) {
   return /^\d+ accounts$/.test(name) ? name : splitAccount(name).leaf;
 }
 
-function MobileRow({ row, isRegisterMode, focusedAccount, showDate, showCheck, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
+function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, selectedFids, onSelectionChange, onStatusChange, accounts, onDeleted }) {
   const tx = row.original;
   const isSelected = !!tx.fid && !!selectedFids?.has(tx.fid);
   // Outside register mode the whole row is one tap target that opens the
@@ -333,11 +327,10 @@ function MobileRow({ row, isRegisterMode, focusedAccount, showDate, showCheck, s
 
   let amount;
   if (isRegisterMode) {
+    const { negate, changeTone } = registerDisplay(registerAccount);
     const change = tx.change || [];
-    const increase = change.length > 0 && parseFloat(change[0].quantity) > 0;
-    amount = <Amount value={change} tone={increase ? "inflow" : "auto"} signed />;
-  } else if (focusedAccount) {
-    amount = <Amount value={focusedAmounts(tx, focusedAccount)} />;
+    const q = change.length > 0 ? parseFloat(change[0].quantity) || 0 : 0;
+    amount = <Amount value={change} tone={changeTone(q)} negate={negate} signed />;
   } else {
     const income = isIncome(tx);
     amount = <Amount value={displayAmounts(tx)} tone={income ? "inflow" : "auto"} signed={income} />;

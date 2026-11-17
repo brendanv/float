@@ -15,7 +15,7 @@ import { TagChip } from "../components/tag-editor.jsx";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormField } from "@/components/ui/form";
-import { accountType } from "@/lib/accounts.js";
+import { accountType, NEGATE_TYPES } from "@/lib/accounts.js";
 import { cn, ROW_ACTION } from "@/lib/utils";
 import {
   ResponsiveDialog,
@@ -71,9 +71,6 @@ function closedState(name, byName) {
 
 // Raw (unvalued) inclusive balances for every account, as an hledger tree.
 const BALANCE_TREE_PARAMS = { tree: true };
-
-// Credit-normal accounts read as positive amounts owed / earned.
-const NEGATE_TYPES = new Set(["liability", "income", "equity"]);
 
 // balancesByName maps each account to its `hledger bal --tree` amounts.
 // hledger elides a parent with a single child and no postings of its own
