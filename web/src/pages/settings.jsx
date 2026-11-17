@@ -655,14 +655,14 @@ function SettingGroup({ title, description, children }) {
   );
 }
 
-// ConfigState is the quiet state line of a setting: an inflow dot when it is
+// ConfigState is the quiet state line of a setting: an accent dot when it is
 // set, a hollow ink-3 dot when it is not.
 function ConfigState({ on = false, children }) {
   return (
     <p className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 text-control", !on && "text-muted-foreground")}>
       <span
         aria-hidden="true"
-        className={cn("size-2 shrink-0 rounded-full", on ? "bg-inflow" : "border border-faint")}
+        className={cn("size-2 shrink-0 rounded-full", on ? "bg-primary" : "border border-faint")}
       />
       {children}
     </p>
@@ -676,7 +676,7 @@ function EnabledState({ on }) {
     <span className="inline-flex items-center gap-1.5">
       <span
         aria-hidden="true"
-        className={cn("size-2 rounded-full", on ? "bg-inflow" : "border border-faint")}
+        className={cn("size-2 rounded-full", on ? "bg-primary" : "border border-faint")}
       />
       {on ? "Enabled" : "Not configured"}
     </span>
@@ -689,7 +689,7 @@ function Code({ children }) {
 }
 
 function Saved({ children }) {
-  return <p role="status" className="text-control text-inflow">{children}</p>;
+  return <p role="status" className="text-control text-foreground">{children}</p>;
 }
 
 // ClearButton is a destructive "Clear …" action: a ghost button in below tone.

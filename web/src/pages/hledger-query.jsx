@@ -51,11 +51,11 @@ function Output({ children, tone = "ink" }) {
   );
 }
 
-// RunState is the result's status: an inflow or below dot and a label.
+// RunState is the result's status: an accent or below dot and a label.
 function RunState({ ok }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className={cn("size-2 rounded-full", ok ? "bg-inflow" : "bg-below")} />
+      <span aria-hidden="true" className={cn("size-2 rounded-full", ok ? "bg-primary" : "bg-below")} />
       {ok ? "Success" : "Error"}
     </span>
   );

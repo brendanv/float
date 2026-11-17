@@ -24,7 +24,7 @@ const LEVEL_CLASS = {
 };
 
 const STATUS = {
-  connected: { label: "Live", dot: "bg-inflow" },
+  connected: { label: "Live", dot: "bg-primary" },
   connecting: { label: "Connecting…", dot: "border border-faint" },
   error: { label: "Disconnected", dot: "bg-below" },
 };

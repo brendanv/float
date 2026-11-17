@@ -217,7 +217,7 @@ export function AddTransactionModal({ open, onOpenChange, initialValues }) {
         </ResponsiveDialogHeader>
         {success ? (
           <p role="status" className="flex items-center gap-2 py-6 text-body font-medium">
-            <span className="inline-flex size-5 items-center justify-center rounded-full bg-inflow-soft text-inflow">
+            <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent text-primary">
               <Check className="size-3.5" />
             </span>
             Transaction added
