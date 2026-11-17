@@ -51,8 +51,16 @@ const PRECISION_OPTIONS = [
 ];
 
 const CELL = "whitespace-nowrap px-2.5 py-[7px] text-right";
-const STICKY = "sticky left-0 z-10 bg-background";
-const AVG = "border-l border-border text-faint";
+// The account column keeps a hairline on its right edge, like the pinned
+// totals, so scrolled months slide under a visible edge.
+const STICKY = "sticky left-0 z-10 bg-background shadow-[inset_-1px_0_0_var(--border)]";
+// Avg and Total stay pinned on the right so a year of months scrolls
+// between the account column and the totals. Sticky cells lose
+// border-collapse borders, so their left rule is an inset shadow; Total has
+// a fixed width so Avg can sit right next to it.
+const PIN_TOTAL = "sticky right-0 z-10 w-28 min-w-28 bg-background shadow-[inset_1px_0_0_var(--border)]";
+const PIN_AVG = "sticky right-28 z-10 bg-background shadow-[inset_1px_0_0_var(--border)]";
+const AVG = cn(PIN_AVG, "text-faint");
 
 function average(values, count) {
   if (!count || values.every((v) => v === null)) return null;
@@ -94,7 +102,9 @@ function SectionHeaderRow({ section, colCount }) {
       <td className={cn(STICKY, "px-2.5 pt-[18px] pb-1.5 text-label text-faint uppercase")}>
         {SECTION_LABELS[section] ?? section}
       </td>
-      <td colSpan={colCount + 2} />
+      <td colSpan={colCount} />
+      <td className={PIN_AVG} />
+      <td className={PIN_TOTAL} />
     </tr>
   );
 }
@@ -140,8 +150,8 @@ function AccountRow({ row, periods, whole }) {
           className="group-hover:bg-muted"
         />
       ))}
-      <MoneyCell value={average(values, periods.length)} whole={whole} className={AVG} />
-      <MoneyCell value={rowTotal} whole={whole} className={cn("border-l border-border", !row.isTotal && "font-medium")} />
+      <MoneyCell value={average(values, periods.length)} whole={whole} className={cn(AVG, "group-hover:bg-muted")} />
+      <MoneyCell value={rowTotal} whole={whole} className={cn(PIN_TOTAL, "group-hover:bg-muted", !row.isTotal && "font-medium")} />
     </tr>
   );
 }
@@ -161,7 +171,7 @@ function KeptRow({ periods, netAmounts, whole }) {
         <MoneyCell key={i} value={v} whole={whole} tone={toneOf(v)} signed className="py-2" />
       ))}
       <MoneyCell value={avg} whole={whole} tone={toneOf(avg)} signed className={cn(AVG, "py-2")} />
-      <MoneyCell value={sum} whole={whole} tone={toneOf(sum)} signed className="border-l border-border py-2" />
+      <MoneyCell value={sum} whole={whole} tone={toneOf(sum)} signed className={cn(PIN_TOTAL, "py-2")} />
     </tr>
   );
 }
@@ -209,7 +219,7 @@ export function MonthlyDashboardPage() {
       {error && <ErrorBanner error={error} />}
 
       {data && (
-        <div className="-mx-1 overflow-x-auto px-1">
+        <div className="overflow-x-auto">
           <table data-slot="report-matrix" className="w-full border-collapse text-body tabular-nums">
             <thead>
               <tr>
@@ -217,8 +227,8 @@ export function MonthlyDashboardPage() {
                 {periods.map((p, i) => (
                   <th key={i} className={HEAD}>{formatPeriodHeader(p)}</th>
                 ))}
-                <th className={cn(HEAD, "border-l border-border")}>Avg</th>
-                <th className={cn(HEAD, "border-l border-border")}>Total</th>
+                <th className={cn(HEAD, PIN_AVG)}>Avg</th>
+                <th className={cn(HEAD, PIN_TOTAL)}>Total</th>
               </tr>
             </thead>
             <tbody>
