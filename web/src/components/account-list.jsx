@@ -1,30 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "../format.js";
+import { accountTypeFromCode } from "@/lib/accounts.js";
+import { Amount } from "./amount.jsx";
+import { AccountGlyph } from "./account.jsx";
 
 const SECTION_LABELS = { A: "Assets", L: "Liabilities" };
-
-// negate flips an amount's sign for display (liabilities are stored negative
-// in hledger but read as "amount owed").
-function negate(a) {
-  const q = String(a.quantity ?? "").trim();
-  return { ...a, quantity: q.startsWith("-") ? q.slice(1) : `-${q}` };
-}
-
-function Amounts({ amounts, flip, className }) {
-  const shown = (amounts || []).filter((a) => parseFloat(a.quantity) !== 0);
-  if (shown.length === 0) {
-    return <span className={cn("text-muted-foreground/60", className)}>—</span>;
-  }
-  return (
-    <span className={cn("flex flex-col items-end font-mono tabular-nums", className)}>
-      {shown.map((a, i) => {
-        const v = flip ? negate(a) : a;
-        return <span key={i}>{formatCurrency(v.quantity, v.commodity)}</span>;
-      })}
-    </span>
-  );
-}
 
 // groupTreeRows splits `hledger bal --tree` rows into one section per
 // top-level account. hledger emits exactly one indent-0 row per top-level
@@ -73,41 +53,49 @@ export function AccountList({ rows, accounts }) {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {sections.map((section) => {
+        // Liabilities are stored negative but read as "amount owed".
         const flip = section.type === "L";
+        const sectionType = section.type === "L" ? "liability" : "asset";
         return (
           <section key={section.root} className="flex flex-col">
-            <div className="flex items-baseline justify-between gap-3 border-b pb-1.5">
+            <div className="flex items-baseline justify-between gap-3 pb-1">
               <Link
                 to="/transactions"
                 search={{ account: section.root }}
-                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                className="text-label uppercase text-faint hover:text-foreground"
               >
                 {SECTION_LABELS[section.type]}
-                {flip && <span className="ml-1.5 font-normal normal-case tracking-normal">(owed)</span>}
+                {flip && <span className="ml-1.5 normal-case tracking-normal">(owed)</span>}
               </Link>
-              <Amounts amounts={section.total} flip={flip} className="text-sm font-semibold" />
+              <Amount value={section.total} negate={flip} className="shrink-0 text-[12.5px] text-muted-foreground" />
             </div>
             <ul className="flex flex-col">
               {section.rows.map((row) => (
                 <li
                   key={row.fullName}
-                  className="flex items-baseline justify-between gap-3 border-b border-border/50 py-1.5 last:border-0"
+                  className="flex items-baseline justify-between gap-3 py-1.5"
                 >
                   <Link
                     to="/transactions"
                     search={{ account: row.fullName }}
                     title={row.fullName}
-                    className="min-w-0 truncate text-sm hover:underline"
-                    style={{ paddingLeft: `${row.level * 1}rem` }}
+                    className={cn(
+                      "flex min-w-0 items-center gap-1.5 hover:underline",
+                      row.level > 0 && "text-muted-foreground",
+                    )}
+                    style={{ paddingLeft: `${row.level * 0.9375}rem` }}
                   >
-                    {row.label}
+                    {row.level === 0 && (
+                      <AccountGlyph type={accountTypeFromCode(typeOf(row.fullName)) ?? sectionType} />
+                    )}
+                    <span className="min-w-0 truncate">{row.label}</span>
                   </Link>
-                  <Amounts
-                    amounts={row.amounts}
-                    flip={flip}
-                    className={cn("shrink-0 text-sm", row.level > 0 && "text-muted-foreground")}
+                  <Amount
+                    value={row.amounts}
+                    negate={flip}
+                    className={cn("shrink-0", row.level > 0 && "text-muted-foreground")}
                   />
                 </li>
               ))}

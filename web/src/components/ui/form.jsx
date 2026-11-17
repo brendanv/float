@@ -45,7 +45,7 @@ function FormField({
     >
       {label && (
         <div className="flex items-baseline justify-between gap-2 min-w-0">
-          <Label htmlFor={htmlFor} className="text-xs">
+          <Label htmlFor={htmlFor} className="text-control">
             {label}
           </Label>
           {hint && (

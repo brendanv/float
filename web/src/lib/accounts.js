@@ -41,3 +41,41 @@ export function filterAndSortAccountNames(accounts, { includePrefixes = [], excl
 
   return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
+
+// Account types used for Waterline glyphs and tones.
+export const ACCOUNT_TYPES = ["asset", "liability", "income", "expense", "equity", "other"];
+
+const TYPE_BY_ROOT = {
+  assets: "asset", asset: "asset",
+  liabilities: "liability", liability: "liability",
+  income: "income", revenue: "income", revenues: "income",
+  expenses: "expense", expense: "expense",
+  equity: "equity",
+};
+
+// accountType maps an account's top-level segment to its type
+// ("assets:bank:checking" → "asset"). Unknown roots are "other".
+export function accountType(name) {
+  const root = accountName(name).split(":")[0].trim().toLowerCase();
+  return TYPE_BY_ROOT[root] ?? "other";
+}
+
+// hledger's account type codes (ListAccounts `type`): A asset, C cash,
+// L liability, R revenue, X expense, E equity, V conversion.
+const TYPE_BY_CODE = { A: "asset", C: "asset", L: "liability", R: "income", X: "expense", E: "equity", V: "equity" };
+
+// accountTypeFromCode maps a declared hledger type code to an account type,
+// or undefined when the code is missing or unknown.
+export function accountTypeFromCode(code) {
+  return TYPE_BY_CODE[String(code ?? "").toUpperCase()];
+}
+
+// splitAccount splits a full account path into its parents (with the
+// trailing colon) and its leaf: "expenses:dining:coffee" →
+// { parents: "expenses:dining:", leaf: "coffee" }.
+export function splitAccount(name) {
+  const full = accountName(name);
+  const i = full.lastIndexOf(":");
+  if (i === -1) return { parents: "", leaf: full };
+  return { parents: full.slice(0, i + 1), leaf: full.slice(i + 1) };
+}

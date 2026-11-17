@@ -79,6 +79,30 @@
   --tracking-wide: calc(var(--tracking-normal) + 0.025em);
   --tracking-wider: calc(var(--tracking-normal) + 0.05em);
   --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+  /* Waterline type scale. Registered in lib/utils.js (cn) so tailwind-merge
+     treats these as font sizes, not colors. Labels also need `uppercase
+     text-faint`. */
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.08em;
+  --text-label--font-weight: 500;
+  --text-code: 0.78125rem;
+  --text-code--line-height: 1.25rem;
+  --text-control: 0.8125rem;
+  --text-control--line-height: 1.25rem;
+  --text-body: 0.84375rem;
+  --text-body--line-height: 1.25rem;
+  --text-heading: 0.875rem;
+  --text-heading--line-height: 1.25rem;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.02em;
+  --text-figure: 1.625rem;
+  --text-figure--line-height: 1;
+  --text-figure--letter-spacing: -0.03em;
+  --text-display: 2.75rem;
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -0.035em;
   --spacing: var(--spacing);
   --letter-spacing: var(--letter-spacing);
   /* Elevation: none on page content, one soft shadow for popovers and dialogs. */
@@ -239,7 +263,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-body text-foreground antialiased;
     letter-spacing: var(--tracking-normal);
     font-variant-numeric: tabular-nums;
   }

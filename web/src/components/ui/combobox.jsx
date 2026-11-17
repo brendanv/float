@@ -76,7 +76,7 @@ export function Combobox({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              "flex h-8 w-full min-w-0 items-center justify-between rounded-md border border-input bg-background px-2.5 text-xs outline-offset-0 outline-none transition-colors hover:bg-background focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+              "flex h-8 w-full min-w-0 items-center justify-between rounded-md border border-input bg-background px-2.5 text-control outline-offset-0 outline-none transition-colors hover:bg-background focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
               !value && "text-muted-foreground",
               className
             )}
@@ -103,7 +103,7 @@ export function Combobox({
               {allowCustomValue && search ? (
                 <button
                   type="button"
-                  className="w-full px-2 py-1.5 text-left text-xs hover:bg-accent hover:text-accent-foreground"
+                  className="w-full px-2 py-1.5 text-left text-control hover:bg-accent hover:text-accent-foreground"
                   onClick={pickCustom}
                 >
                   Use "<span className="font-medium">{search}</span>"

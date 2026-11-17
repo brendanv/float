@@ -1,10 +1,9 @@
 import { MetricCard } from "./page.jsx";
 import { cn } from "@/lib/utils";
-import { formatAmounts } from "../format.js";
 
 // BalanceSummary shows assets, liabilities and net worth. Liabilities are
-// negative in hledger; they are shown as a positive "owed" amount. Only net
-// worth is colored, since its sign is the one that carries meaning.
+// negative in hledger; they are shown as a positive "owed" amount. Amounts
+// are ink; only a net worth below zero takes the "below" tone.
 export function BalanceSummary({ balanceRows, className }) {
   if (!balanceRows || balanceRows.length === 0) return null;
 
@@ -21,7 +20,7 @@ export function BalanceSummary({ balanceRows, className }) {
       {assets && (
         <MetricCard
           title="Assets"
-          value={formatAmounts(assets.amounts)}
+          amount={assets.amounts}
           description="Current value"
           className="min-w-0"
         />
@@ -29,7 +28,7 @@ export function BalanceSummary({ balanceRows, className }) {
       {liabilities && (
         <MetricCard
           title="Liabilities"
-          value={formatAmounts(liabilities.amounts.map((a) => ({ ...a, quantity: String(-parseFloat(a.quantity)) })))}
+          amount={liabilities.amounts.map((a) => ({ ...a, quantity: String(-parseFloat(a.quantity)) }))}
           description="Owed"
           className="min-w-0"
         />
@@ -37,8 +36,8 @@ export function BalanceSummary({ balanceRows, className }) {
       {(assets || liabilities) && (
         <MetricCard
           title="Net Worth"
-          value={formatAmounts([{ commodity, quantity: String(netWorth) }])}
-          valueClassName={netWorth >= 0 ? "text-success" : "text-destructive"}
+          amount={{ commodity, quantity: String(netWorth) }}
+          tone={netWorth < 0 ? "below" : "ink"}
           description="Assets minus liabilities"
           className="min-w-0"
         />

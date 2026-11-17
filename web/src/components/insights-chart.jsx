@@ -2,17 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { cn } from "@/lib/utils";
-import { formatAmounts } from "../format.js";
+import { Amount } from "./amount.jsx";
+import { Account } from "./account.jsx";
 
 function parseAmount(amounts) {
   if (!amounts || amounts.length === 0) return 0;
   return Math.abs(parseFloat(amounts[0].quantity) || 0);
-}
-
-// leafLabel drops the top-level segment ("expenses:groceries" → "groceries").
-function leafLabel(fullName) {
-  const i = fullName.indexOf(":");
-  return i === -1 ? fullName : fullName.slice(i + 1);
 }
 
 // BarChart draws one bar per account. `flip` negates the displayed amounts
@@ -24,27 +19,29 @@ function BarChart({ rows, colorClass, flip }) {
   const maxVal = Math.max(...rows.map((r) => parseAmount(r.amounts)), 1);
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {rows.map((row) => {
         const val = parseAmount(row.amounts);
         const pct = (val / maxVal) * 100;
         return (
           <div key={row.fullName} className="flex items-center gap-2">
-            <span
-              className="w-2/5 flex-none truncate pr-1 text-right text-xs text-muted-foreground"
-              title={row.fullName}
-            >
-              {leafLabel(row.fullName)}
-            </span>
-            <div className="h-4 flex-1 overflow-hidden rounded-sm bg-muted">
+            <Account
+              name={row.fullName}
+              variant="leaf"
+              glyph={false}
+              className="flex w-2/5 flex-none justify-end pr-1 text-muted-foreground"
+            />
+            <div className="h-2 flex-1 overflow-hidden rounded-[2px]">
               <div
-                className={cn("h-full rounded-sm transition-all duration-300", colorClass)}
+                className={cn("h-full rounded-[2px] transition-all duration-300", colorClass)}
                 style={{ width: pct + "%" }}
               />
             </div>
-            <span className="w-20 flex-none text-right font-mono text-xs tabular-nums sm:w-24">
-              {formatAmounts(flip ? row.amounts.map((a) => ({ ...a, quantity: String(-parseFloat(a.quantity)) })) : row.amounts)}
-            </span>
+            <Amount
+              value={row.amounts}
+              negate={flip}
+              className="w-24 flex-none text-right sm:w-28"
+            />
           </div>
         );
       })}
@@ -73,22 +70,18 @@ export function InsightsChart({ periodQuery }) {
     <div>
       {expenseRows.length > 0 && (
         <div className="mb-6">
-          <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Expenses
-          </h5>
-          <BarChart rows={expenseRows} colorClass="bg-chart-1" />
+          <h3 className="mb-2 text-label uppercase text-faint">Expenses</h3>
+          <BarChart rows={expenseRows} colorClass="bg-primary" />
         </div>
       )}
       {revenueRows.length > 0 && (
         <div className="mb-6">
-          <h5 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Revenue
-          </h5>
-          <BarChart rows={revenueRows} colorClass="bg-chart-3" flip />
+          <h3 className="mb-2 text-label uppercase text-faint">Revenue</h3>
+          <BarChart rows={revenueRows} colorClass="bg-inflow" flip />
         </div>
       )}
       {expenseRows.length === 0 && revenueRows.length === 0 && !expensesLoading && !revenueLoading && (
-        <p className="text-sm text-muted-foreground">No expense or revenue data for this period.</p>
+        <p className="text-body text-muted-foreground">No expense or revenue data for this period.</p>
       )}
     </div>
   );
