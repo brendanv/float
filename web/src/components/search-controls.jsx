@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { filterAndSortAccountNames, splitAccount } from "@/lib/accounts";
+import { isHledgerQuery } from "@/lib/hledger-query";
 import { DATE_PRESETS, PAYEE_NONE } from "./search-presets.js";
 
 function pad2(n) {
@@ -337,8 +338,6 @@ function ChipSelect({ value, onChange, options, placeholder, allLabel, searchPla
   );
 }
 
-const QUERY_HINT = /(^|\s)(not:)?[a-z0-9]+:/;
-
 // SearchField is the one wide search box. Plain words search descriptions;
 // text with an hledger query keyword is sent as a query (and set in mono).
 function SearchField({ value, onChange }) {
@@ -368,7 +367,7 @@ function SearchField({ value, onChange }) {
         placeholder={isMobile ? "Search or query" : "Search descriptions, or type an hledger query like acct:dining amt:>50"}
         value={local}
         onInput={handleInput}
-        className={cn("h-8 bg-popover pl-8 dark:bg-popover", QUERY_HINT.test(local) && "font-mono text-code")}
+        className={cn("h-8 bg-popover pl-8 dark:bg-popover", isHledgerQuery(local) && "font-mono text-code")}
       />
     </div>
   );

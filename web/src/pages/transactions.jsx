@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X, ArrowLeft, Trash2, Upload } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
-import { dateRangeQuery, escapeRegex, exactRegex } from "../lib/hledger-query.js";
+import { dateRangeQuery, escapeRegex, exactRegex, isHledgerQuery } from "../lib/hledger-query.js";
 import { SearchControls } from "../components/search-controls.jsx";
 import { DATE_PRESETS, PAYEE_NONE } from "../components/search-presets.js";
 import { TransactionTable } from "../components/transaction-table.jsx";
@@ -498,16 +498,11 @@ export function TransactionsPage() {
   );
 }
 
-const HLEDGER_KEYWORD_RE = /^(not:)?(acct|code|cur|desc|date|date2|tag|payee|note|status|real|depth|amt|type|sym|commodity|inacct|inaccteq):/;
-
 // Free text searches descriptions literally; text that already contains an
 // hledger query keyword is passed through as raw query tokens.
 function searchTokens(search) {
   if (!search) return [];
-  const parts = search.trim().split(/\s+/);
-  if (parts.some((p) => HLEDGER_KEYWORD_RE.test(p))) {
-    return parts;
-  }
+  if (isHledgerQuery(search)) return search.trim().split(/\s+/);
   return [`desc:${escapeRegex(search.trim())}`];
 }
 
