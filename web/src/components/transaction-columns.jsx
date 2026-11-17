@@ -14,18 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 
 // Column definitions shared by the general transactions table and the
 // account register. Cell renderers read mutable state from
 // table.options.meta to avoid stale closures when useMemo deps are unchanged
 // between renders.
-
-// Revealed on row hover (or keyboard focus) on devices that can hover, so
-// rows don't each carry checkboxes, "+ Tag" and "Edit" buttons. Touch
-// devices always show them.
-export const HOVER_REVEAL =
-  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 focus-visible:opacity-100";
 
 const col = createColumnHelper();
 
@@ -55,7 +49,7 @@ const selectColumn = col.display({
         <Checkbox
           checked={checked}
           aria-label="Select transaction"
-          className={cn(!someSelected && !checked && HOVER_REVEAL)}
+          className={cn(!someSelected && !checked && ROW_ACTION)}
           onCheckedChange={() => {
             if (!row.original.fid) return;
             const next = new Set(selectedFids);
@@ -103,7 +97,7 @@ function RowTags({ tx, onChanged }) {
   if (tx.fid) {
     return (
       <span className="min-w-0 max-w-[55%] shrink-0 overflow-hidden has-[input]:max-w-none" onClick={(e) => e.stopPropagation()}>
-        <TagEditor quiet fid={tx.fid} tags={tags} onChanged={onChanged} addButtonClassName={HOVER_REVEAL} />
+        <TagEditor quiet fid={tx.fid} tags={tags} onChanged={onChanged} addButtonClassName={ROW_ACTION} />
       </span>
     );
   }
@@ -154,7 +148,7 @@ const descriptionColumn = col.accessor((tx) => tx.description, {
           <Button
             variant="outline"
             size="xs"
-            className={cn("h-5 shrink-0 px-1.5 text-[12px] font-normal text-muted-foreground aria-expanded:opacity-100", HOVER_REVEAL)}
+            className={cn("h-5 shrink-0 px-1.5 text-[12px] font-normal text-muted-foreground aria-expanded:opacity-100", ROW_ACTION)}
             aria-expanded={row.getIsExpanded()}
             onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
           >

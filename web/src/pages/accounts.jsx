@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormField } from "@/components/ui/form";
 import { accountType } from "@/lib/accounts.js";
-import { cn } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -104,11 +104,6 @@ function visibleRows(roots, children, collapsed) {
   return out;
 }
 
-// Row actions show on row hover or keyboard focus on devices that can
-// hover; touch devices always show them.
-const ROW_ACTION =
-  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity";
-
 function AccountRow({ name, depth, tree }) {
   const { byName, children, declaredNames, balances, collapsed, pendingName, onToggle, onDelete, onRename, onSetClosed } = tree;
   const hasKids = (children.get(name) ?? []).length > 0;
@@ -124,7 +119,7 @@ function AccountRow({ name, depth, tree }) {
     <div
       data-slot="account-row"
       className={cn(
-        "group grid min-h-[34px] grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 border-b border-border px-1 hover:bg-muted/50",
+        "group/row grid min-h-[34px] grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 border-b border-border px-1 hover:bg-muted/50",
         isRoot && "font-semibold",
         isRoot && "[&:not(:first-child)]:mt-4",
       )}

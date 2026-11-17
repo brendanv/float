@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 import {
   STALE_PRICE_DAYS,
   VERY_STALE_PRICE_DAYS,
@@ -238,7 +238,7 @@ const columns = [
         <Button
           variant="ghost"
           size="xs"
-          className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-below"
+          className={cn("text-muted-foreground hover:text-below", ROW_ACTION)}
           title={`Exclude ${symbol} from portfolio`}
           onClick={() => onExcludeSymbol(symbol)}
         >
