@@ -314,7 +314,8 @@ export function PostingFields({ postings, onChange, accounts, showBalance = fals
                 value={p.account}
                 onChange={(v) => update(i, { account: v })}
                 accounts={accounts}
-                className="basis-[calc(100%-2.5rem)] font-mono text-code sm:flex-1"
+                // The raw account path is mono once there is one.
+                className={cn("basis-[calc(100%-2.5rem)] sm:flex-1", p.account && "font-mono text-code")}
               />
               <Input
                 type="text"
