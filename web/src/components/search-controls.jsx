@@ -389,6 +389,7 @@ export function SearchControls({
   status,
   payee,
   search,
+  searchKey,
   onDateRangeChange,
   onAccountChange,
   onTagChange,
@@ -431,7 +432,7 @@ export function SearchControls({
 
   return (
     <div data-slot="transaction-toolbar" className="flex flex-col gap-2.5">
-      {onSearchChange && <SearchField value={search} onChange={onSearchChange} />}
+      {onSearchChange && <SearchField key={searchKey} value={search} onChange={onSearchChange} />}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Phones scroll the chip row sideways rather than wrapping it. */}
         <div className="-mx-4 flex w-[calc(100%+2rem)] min-w-0 items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] pointer-coarse:-my-1.5 pointer-coarse:py-1.5 sm:mx-0 sm:w-auto sm:flex-1 sm:flex-wrap sm:overflow-visible sm:px-0">

@@ -331,6 +331,9 @@ export function TransactionsPage() {
   const [tag, setTag] = useState("");
   const [status, setStatus] = useState(reviewLink ? "unreviewed" : "");
   const [selectedFids, setSelectedFids] = useState(new Set());
+  // Bumped by a review link to reset the search field: its value prop is ""
+  // before and after, so typed text would otherwise stay in the box.
+  const [searchKey, setSearchKey] = useState(0);
   const reviewCount = useReviewCount();
 
   // A filter change from either the controls or a link clears the selection.
@@ -348,6 +351,7 @@ export function TransactionsPage() {
     setDateTo("");
     setTag("");
     setSelectedFids(new Set());
+    setSearchKey((k) => k + 1);
     navigate({ search: (prev) => ({ ...prev, search: "" }), replace: true });
   }, [reviewLink, navigate]);
 
@@ -456,6 +460,7 @@ export function TransactionsPage() {
         status={reviewLink ? "unreviewed" : status}
         payee={payee}
         search={search}
+        searchKey={searchKey}
         onDateRangeChange={onDateRangeChange}
         onAccountChange={setRouteFilter("account")}
         onTagChange={onFilterChange(setTag)}

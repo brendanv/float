@@ -51,12 +51,11 @@ const TYPE_BY_ROOT = {
   equity: "equity",
 };
 
-// accountType maps an account's top-level segment to its type
-// ("assets:bank:checking" → "asset"). Unknown roots are "other".
-// Credit-normal account types: shown with the sign flipped so balances
-// read as positive amounts owed / earned.
+// Credit-normal types, shown sign-flipped so balances read as owed/earned.
 export const NEGATE_TYPES = new Set(["liability", "income", "equity"]);
 
+// accountType maps an account's top-level segment to its type
+// ("assets:bank:checking" → "asset"). Unknown roots are "other".
 export function accountType(name) {
   const root = accountName(name).split(":")[0].trim().toLowerCase();
   return TYPE_BY_ROOT[root] ?? "other";

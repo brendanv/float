@@ -175,6 +175,17 @@ test("the review link also clears a tag filter", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Needs review/ })).toHaveAttribute("aria-pressed", "true");
 });
 
+test("typing the review query turns on the chip and clears the box", async ({ page }) => {
+  await mockLedgerApi(page, { transactions });
+  await page.goto("/#/transactions");
+
+  const box = page.getByRole("searchbox", { name: "Search transactions" });
+  await box.fill("not:status:*");
+  await box.press("Enter");
+  await expect(page.getByRole("button", { name: /Needs review/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(box).toHaveValue("");
+});
+
 test("turning on Needs review shows all dates", async ({ page }) => {
   await mockLedgerApi(page, { transactions });
   const lists = captureRpc(page, "ListTransactions");
