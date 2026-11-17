@@ -20,7 +20,7 @@ import {
 } from "../components/connections/fetch.jsx";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/alert";
-import { cn } from "@/lib/utils";
+import { cn, ROW_ACTION } from "@/lib/utils";
 
 const DOT_CLASS = {
   accent: "bg-primary",
@@ -80,7 +80,7 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
         : {};
 
   return (
-    <li data-slot="linked-account" className="border-b border-border last:border-0">
+    <li data-slot="linked-account" className="group/row border-b border-border last:border-0">
       <div className={ROW}>
         <span className="flex min-w-0 flex-1 basis-64 items-center gap-1.5">
           <StatusDot {...dot} />
@@ -127,6 +127,7 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
           <Button
             variant="destructive-ghost"
             size="sm"
+            className={unlinking ? undefined : ROW_ACTION}
             isLoading={unlinking}
             loadingText="Unlink"
             onClick={() => onUnlink(account.stripeAccountId)}

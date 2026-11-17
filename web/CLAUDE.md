@@ -48,29 +48,62 @@ src/
 
 ## Pages / Routes
 
-| Route | Component | Description |
-|-------|-----------|-------------|
-| `/` | `HomePage` | Balance summary, open asset/liability account tree (`GetBalances` with `tree`), and period insights |
-| `/trends` | `TrendsPage` | Net worth chart |
-| `/monthly` | `MonthlyDashboardPage` | Income statement / revenue and expense dashboard |
-| `/transactions` | `TransactionsPage` | Searchable, pageable transaction list |
-| `/portfolio` | `PortfolioPage` | Holdings, allocation, market value, cost basis/gain |
-| `/accounts` | `AccountsPage` | Account tree (declared + used accounts): declare, rename, delete, close/reopen |
-| `/payees` | `PayeesPage` | Payee list and filtering entry point |
-| `/rules` | `RulesPage` | Categorization rules editor, AI rule suggestions, and AI duplicate/contradiction detection |
-| `/connections` | `ConnectionsPage` | Stripe Financial Connections linking, refresh, fetch, import |
-| `/import` | `ImportPage` | CSV import wizard and bank profile rules content |
-| `/lots` | `LotsPage` | Open lots with acquisition date, units, and cost basis |
-| `/prices` | `PricesPage` | Commodity prices and Alpha Vantage backfill |
-| `/assertions` | `BalanceAssertionsPage` | Balance assertion drift status |
-| `/imports` | `ImportsHistoryPage` | Import batches and original CSV retrieval |
-| `/snapshots` | `SnapshotsPage` | Git snapshots and diffs/restores |
-| `/settings` | `SettingsPage` | General timezone, AI, Alpha Vantage, Stripe settings |
-| `/hledger-query` | `HledgerQueryPage` | Raw hledger query/debug UI and AI query helpers |
-| `/logs` | `LogsPage` | Live server log stream |
-| `/login` | `LoginPage` | Passphrase login (rendered without the app shell) |
+The sidebar groups routes (`src/components/nav-items.js` is the single source for the sidebar, section tabs and the ⌘K palette). Grouped routes share the group title as the page `h1` with section tabs under it.
+
+| Route | Component | Nav (group › tab) | Description |
+|-------|-----------|-------------------|-------------|
+| `/` | `HomePage` | Overview | Net worth hero + sparkline, assets/liabilities waterline, accounts list, month spending, review notice |
+| `/transactions` | `TransactionsPage` | Transactions | Day-grouped transaction list / account register, search + filter chips, bulk edit |
+| `/add` | `AddTransactionPage` | Transactions | Full-page add transaction form |
+| `/trends` | `TrendsPage` | Reports › Net worth | Net worth hero, chart and spending by category |
+| `/monthly` | `MonthlyDashboardPage` | Reports › Income & spending | Income statement matrix (sticky account column, pinned Avg/Total) |
+| `/portfolio` | `PortfolioPage` | Investments › Holdings | Portfolio value hero, value chart, returns, allocation, holdings |
+| `/lots` | `LotsPage` | Investments › Lots | Open lots with acquisition date, units, and cost basis |
+| `/prices` | `PricesPage` | Investments › Prices | Commodity prices and Alpha Vantage backfill |
+| `/accounts` | `AccountsPage` | Organize › Accounts | Account tree (declared + used): declare, rename, delete, close/reopen |
+| `/payees` | `PayeesPage` | Organize › Payees | Payee list and descriptions without a payee |
+| `/rules` | `RulesPage` | Organize › Rules | Categorization rules, AI suggestions, issue detection, preview/apply |
+| `/templates` | `TemplatesPage` | Organize › Templates | Saved transaction templates |
+| `/connections` | `ConnectionsPage` | Bring in › Connections | Stripe Financial Connections linking, refresh, fetch, import |
+| `/import` | `ImportPage` | Bring in › Import › Import | CSV import wizard and bank profiles |
+| `/imports` | `ImportsHistoryPage` | Bring in › Import › History | Import batches (a row opens `/transactions?importBatchId=`) and original CSVs |
+| `/settings` | `SettingsPage` | Settings › General | Timezone, export, Alpha Vantage, Stripe, AI |
+| `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status |
+| `/snapshots` | `SnapshotsPage` | Settings › Snapshots | Git snapshots, diffs and restores |
+| `/hledger-query` | `HledgerQueryPage` | Settings › Query | Raw hledger query and AI query helpers |
+| `/logs` | `LogsPage` | Settings › Logs | Live server log stream |
+| `/login` | `LoginPage` | — | Passphrase login (rendered without the app shell) |
 
 `TransactionsPage` accepts search params: `account`, `payee`, `importBatchId`, and `search`.
+
+## Design language (Waterline)
+
+The UI follows the Waterline language; the plan, tokens and per-step notes are in [`design/WATERLINE.md`](design/WATERLINE.md) (visual reference: `design/waterline-mockup.html`). Prefer these primitives over one-off styling:
+
+| Primitive | Use it for |
+|-----------|------------|
+| `Amount` (`components/amount.jsx`) | Every money/commodity amount: sans `tabular-nums`, `size="figure\|display"` shrinks cents, `tone="inflow\|below"`, `signed`, `negate`, `whole`. Cost/lot annotations go on its mono second line. |
+| `Account`, `AccountGlyph`, `Flow` (`components/account.jsx`) | Account names: `leaf`/`path` in dense views with the type glyph, `full` (mono) in editors. `accountType()` lives in `lib/accounts.js`. |
+| `StatusMark` (`components/status.jsx`) | Transaction status: nothing for Cleared, accent dot for unreviewed, amber ring for Pending. |
+| `Notice` (`ui/alert.jsx`, `variant="info\|warning\|critical"`) | One-line messages with an optional action. `ErrorBanner` is the critical Notice for RPC errors. |
+| `PageHeader`, `Section`, `MetricHero`, `DeltaChip`, `Sparkline`, `Eyebrow` (`page-header.jsx`, `page.jsx`) | Page title + actions slot; flat sections (heading, hairline, action slot); hero figures. |
+| `Segmented`, `SectionTabs`, `FilterChip`/`ChipSelect`, `TagChip` | Small option toggles, group tabs (rendered by the shell), toolbar filters, quiet `#tag` chips. |
+| `ui/chart.jsx` helpers | `CHART_STROKE`, `CHART_X_AXIS`/`CHART_Y_AXIS`, `ChartAreaFill`, `chartEndLabel`, `ChartTooltipRow`; animations off. |
+| `ROW_ACTION` (`lib/utils.js`) | Hover/focus-revealed row actions (rows carry `group/row`; touch always shows them). |
+
+Do:
+
+- Put content straight on the page: `Section` heading + hairline, spacing between sections. Borders, fills and shadows only for objects (dialogs, popovers, notices, form fields, the selected item).
+- Use color only for a fact: accent = action/assets, `inflow` = income arriving, `below` = owed/negative, `warning` = needs a look. Static balances, net worth and transfers stay ink. `--chart-*` only for categories.
+- Keep tables dense (~34px rows desktop, ~48px phone), sentence-case labels and headings, `text-label` uppercase table heads.
+- Check new UI in light and dark at 1280px and 390px (no horizontal page overflow; the phone tab bar covers the bottom).
+
+Don't:
+
+- Don't use `font-mono` for amounts; mono is for hledger syntax only (queries, regexes, raw account paths in inputs, codes, CSV rules, logs, commodity symbols).
+- Don't add up postings or balances in JS. Totals, balancing, cost conversion and valuation come from hledger reports; the UI may pick values out of a report, flip a sign for display, or derive a label from a report's own totals.
+- Don't wrap sections in `Card`s or nest cards; use `Card variant="raised"` only for genuine objects.
+- Don't use `text-success`/`text-destructive` (or red/green) as decoration, show destructive row actions permanently, or add subtitles/breadcrumbs that repeat the title.
 
 ## API Access
 
