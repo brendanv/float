@@ -1,525 +1,51 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-  flexRender,
-} from "@tanstack/react-table";
-import { Plus, CircleCheck, Pencil, Trash2, Tag, Upload, ClipboardPaste } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Plus, Pencil, Trash2, Upload, ClipboardPaste } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
-import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { PageHeader } from "../components/page-header.jsx";
-import { TableSortHeader } from "../components/table-sort-header.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Page, Section } from "../components/page.jsx";
+import { Segmented } from "../components/segmented.jsx";
+import { CandidateTable } from "../components/import/candidate-table.jsx";
+import {
+  CreateProfileModal,
+  DeleteProfileDialog,
+  EditProfileModal,
+} from "../components/import/profile-dialogs.jsx";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
-import { Combobox } from "@/components/ui/combobox";
+import { Notice } from "@/components/ui/alert";
+import { Form, FormField, FormActions } from "@/components/ui/form";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  ResponsiveDialog,
-  ResponsiveDialogContent,
-  ResponsiveDialogFooter,
-  ResponsiveDialogHeader,
-  ResponsiveDialogTitle,
-} from "@/components/ui/responsive-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-const COLUMN_TYPES = [
-  { value: "date", label: "Date" },
-  { value: "description", label: "Description" },
-  { value: "amount", label: "Amount" },
-  { value: "debit", label: "Debit (money out)" },
-  { value: "credit", label: "Credit (money in)" },
-  { value: "balance", label: "Balance" },
-  { value: "ignore", label: "Ignore" },
+const RULE_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "matched", label: "Rule matched" },
+  { value: "unmatched", label: "No rule" },
 ];
 
-function slugifyProfileName(name) {
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  return slug ? `rules/${slug}.rules` : "";
+function plural(n, one, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
 }
 
-function parseCsvRows(text) {
-  const lines = text.trim().split(/\r?\n/).filter(Boolean);
-  return lines.map((line) => {
-    const row = [];
-    let field = "";
-    let inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQuote && line[i + 1] === '"') { field += '"'; i++; }
-        else inQuote = !inQuote;
-      } else if (ch === "," && !inQuote) {
-        row.push(field.trim());
-        field = "";
-      } else {
-        field += ch;
-      }
-    }
-    row.push(field.trim());
-    return row;
-  });
-}
-
-function guessColumnType(header) {
-  const h = header.toLowerCase();
-  if (/date|posted|trans.*date/.test(h)) return "date";
-  if (/desc|narr|memo|detail|merchant|payee|ref/.test(h)) return "description";
-  if (/^amount$|^amt$|^value$|transaction amount/.test(h)) return "amount";
-  if (/debit|withdrawal/.test(h)) return "debit";
-  if (/credit|deposit/.test(h)) return "credit";
-  if (/balance|bal\.?$/.test(h)) return "balance";
-  return "ignore";
-}
-
-function detectDateFormat(sample) {
-  const s = sample.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return "%Y-%m-%d";
-  if (/^\d{4}\/\d{2}\/\d{2}$/.test(s)) return "%Y/%m/%d";
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return "%m/%d/%Y";
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return "%m/%d/%Y";
-  if (/^\d{2}-\d{2}-\d{4}$/.test(s)) return "%m-%d-%Y";
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return "%d.%m.%Y";
-  if (/^\d{8}$/.test(s)) return "%Y%m%d";
-  return "%Y-%m-%d";
-}
-
-function buildRulesContent({ account, columnMappings, dateFormat }) {
-  let fieldsLine;
-  if (columnMappings && columnMappings.length > 0) {
-    const fieldNames = columnMappings.map((t) => {
-      if (t === "date") return "date";
-      if (t === "description") return "description";
-      if (t === "amount") return "amount";
-      if (t === "debit") return "amount-out";
-      if (t === "credit") return "amount-in";
-      if (t === "balance") return "balance";
-      return "_";
-    });
-    fieldsLine = `fields ${fieldNames.join(", ")}`;
-  } else {
-    fieldsLine = "fields date, description, amount";
-  }
-  return [
-    "skip 1",
-    fieldsLine,
-    `date-format ${dateFormat || "%Y-%m-%d"}`,
-    `account1 ${account || "assets:checking"}`,
-    "currency USD",
-    "",
-    "# Add conditional rules to categorize transactions:",
-    "# if AMAZON",
-    "#   account2 expenses:shopping",
-    "#",
-    "# if PAYROLL",
-    "#   account2 income:salary",
-  ].join("\n");
-}
-
-function CreateProfileModal({ open, onCreated, onClose }) {
-  const [name, setName] = useState("");
-  const [account, setAccount] = useState("");
-  const [sampleCsv, setSampleCsv] = useState("");
-  const [parsedRows, setParsedRows] = useState([]);
-  const [columnMappings, setColumnMappings] = useState([]);
-  const [dateFormat, setDateFormat] = useState("%Y-%m-%d");
-  const [rulesContent, setRulesContent] = useState(buildRulesContent({}));
-  const [skipRules, setSkipRules] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  const { data: declarationsData } = useQuery({
-    queryKey: queryKeys.accountDeclarations(),
-    queryFn: () => ledgerClient.listAccountDeclarations({}),
-    enabled: open,
-  });
-
-  useEffect(() => {
-    if (!open) return;
-    setName("");
-    setAccount("");
-    setSampleCsv("");
-    setParsedRows([]);
-    setColumnMappings([]);
-    setDateFormat("%Y-%m-%d");
-    setRulesContent(buildRulesContent({}));
-    setError(null);
-  }, [open]);
-
-  useEffect(() => {
-    if (!sampleCsv.trim()) {
-      setParsedRows([]);
-      setColumnMappings([]);
-      return;
-    }
-    const rows = parseCsvRows(sampleCsv);
-    if (rows.length === 0) return;
-    setParsedRows(rows);
-    const mappings = rows[0].map(guessColumnType);
-    setColumnMappings(mappings);
-    if (rows.length > 1) {
-      const dateIdx = mappings.findIndex((m) => m === "date");
-      if (dateIdx >= 0 && rows[1][dateIdx]) {
-        setDateFormat(detectDateFormat(rows[1][dateIdx]));
-      }
-    }
-  }, [sampleCsv]);
-
-  function handleGenerateRules() {
-    setRulesContent(buildRulesContent({ account, columnMappings, dateFormat }));
-  }
-
-  const rulesFilePath = slugifyProfileName(name);
-  const hasCsvColumns = parsedRows.length > 0 && columnMappings.length > 0;
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await ledgerClient.createBankProfile({
-        name,
-        rulesFile: rulesFilePath,
-        rulesContent: new TextEncoder().encode(rulesContent),
-        skipRules,
-      });
-      onCreated(res.profile);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
+// ProfileIconButton is a ghost icon button with a tooltip, beside the
+// bank-profile select.
+function ProfileIconButton({ label, onClick, children }) {
   return (
-    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <ResponsiveDialogContent size="lg">
-        <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Create Bank Profile</ResponsiveDialogTitle>
-        </ResponsiveDialogHeader>
-        <Form onSubmit={handleSubmit}>
-          {error && <ErrorBanner error={error} />}
-          <FormRow cols={2}>
-            <FormField
-              label="Profile Name"
-              htmlFor="profile-name"
-              description={rulesFilePath ? `Saves to: ${rulesFilePath}` : null}
-            >
-              <Input
-                id="profile-name"
-                type="text"
-                placeholder="e.g. Chase Checking"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </FormField>
-            <FormField
-              label="Bank Account"
-              description="The hledger account that holds money from this bank"
-            >
-              <Combobox
-                id="account1"
-                value={account}
-                onChange={setAccount}
-                options={(declarationsData?.declarations ?? []).map((d) => d.name)}
-                placeholder="e.g. assets:checking"
-                searchPlaceholder="Search accounts…"
-                emptyMessage="No matching account."
-                allowCustomValue
-              />
-            </FormField>
-          </FormRow>
-
-          <div className="flex items-center gap-2">
-            <Checkbox id="skip-rules" checked={skipRules} onCheckedChange={setSkipRules} />
-            <Label htmlFor="skip-rules" className="text-sm cursor-pointer">
-              Skip float categorization rules on import
-            </Label>
-          </div>
-
-          {/* CSV column mapping */}
-          <FormField
-            label="CSV Column Mapping"
-            hint="paste 2–3 rows to auto-detect columns"
-          >
-            <Textarea
-              className="h-20 font-mono text-xs"
-              placeholder={"Date,Description,Amount\n2026-04-01,AMAZON,-45.00\n2026-04-02,PAYROLL,2000.00"}
-              value={sampleCsv}
-              onChange={(e) => setSampleCsv(e.target.value)}
-            />
-          </FormField>
-          {hasCsvColumns && (
-            <div className="flex flex-col gap-3 rounded-md border p-3">
-              <div className="flex flex-wrap gap-3">
-                {parsedRows[0].map((header, idx) => (
-                  <div key={idx} className="flex flex-col gap-1">
-                    <span
-                      className="text-xs font-mono text-muted-foreground truncate max-w-28"
-                      title={header || `Col ${idx + 1}`}
-                    >
-                      {header || `Col ${idx + 1}`}
-                    </span>
-                    <NativeSelect
-                      size="sm"
-                      value={columnMappings[idx]}
-                      onChange={(e) => {
-                        const next = [...columnMappings];
-                        next[idx] = e.target.value;
-                        setColumnMappings(next);
-                      }}
-                      className="w-36"
-                    >
-                      {COLUMN_TYPES.map((ct) => (
-                        <NativeSelectOption key={ct.value} value={ct.value}>{ct.label}</NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                ))}
-              </div>
-              <FormRow cols={2}>
-                <FormField label="Date Format">
-                  <Input
-                    className="font-mono"
-                    value={dateFormat}
-                    onChange={(e) => setDateFormat(e.target.value)}
-                    placeholder="%Y-%m-%d"
-                  />
-                </FormField>
-                <div className="flex items-end">
-                  <Button type="button" size="sm" variant="secondary" onClick={handleGenerateRules}>
-                    Generate Rules
-                  </Button>
-                </div>
-              </FormRow>
-            </div>
-          )}
-          {!hasCsvColumns && account && (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="self-start"
-              onClick={handleGenerateRules}
-            >
-              Generate Rules from Account
-            </Button>
-          )}
-
-          <FormField
-            label="Rules File"
-            htmlFor="rules-content"
-            hint={
-              <a
-                href="https://hledger.org/hledger.html#csv-rules-files"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                hledger CSV rules docs
-              </a>
-            }
-          >
-            <Textarea
-              id="rules-content"
-              className="h-48 font-mono text-xs"
-              value={rulesContent}
-              onChange={(e) => setRulesContent(e.target.value)}
-            />
-          </FormField>
-
-          <ResponsiveDialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button
-              type="submit"
-              disabled={!rulesFilePath}
-              isLoading={saving}
-              loadingText="Creating…"
-            >
-              Create Profile
-            </Button>
-          </ResponsiveDialogFooter>
-        </Form>
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
-  );
-}
-
-function EditProfileModal({ profile, open, onUpdated, onClose }) {
-  const [name, setName] = useState(profile?.name ?? "");
-  const [rulesContent, setRulesContent] = useState("");
-  const [skipRules, setSkipRules] = useState(profile?.skipRules ?? false);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!open || !profile) return;
-    setName(profile.name);
-    setSkipRules(profile.skipRules ?? false);
-    setError(null);
-    setLoading(true);
-    ledgerClient.getBankProfileContent({ name: profile.name })
-      .then((res) => setRulesContent(new TextDecoder().decode(res.rulesContent)))
-      .catch((err) => setError(err))
-      .finally(() => setLoading(false));
-  }, [open, profile]);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await ledgerClient.updateBankProfile({
-        name: profile.name,
-        newName: name !== profile.name ? name : "",
-        rulesContent: new TextEncoder().encode(rulesContent),
-        skipRules,
-      });
-      onUpdated(res.profile);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <ResponsiveDialogContent size="lg">
-        <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Edit Bank Profile</ResponsiveDialogTitle>
-        </ResponsiveDialogHeader>
-        {loading ? (
-          <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
-        ) : (
-          <Form onSubmit={handleSubmit}>
-            {error && <ErrorBanner error={error} />}
-            <FormField label="Profile Name" htmlFor="edit-profile-name">
-              <Input
-                id="edit-profile-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </FormField>
-            <FormField
-              label="Rules File Content"
-              htmlFor="edit-rules-content"
-              hint={profile?.rulesFile}
-            >
-              <Textarea
-                id="edit-rules-content"
-                className="h-64 font-mono text-xs"
-                value={rulesContent}
-                onChange={(e) => setRulesContent(e.target.value)}
-              />
-            </FormField>
-            <div className="flex items-center gap-2">
-              <Checkbox id="edit-skip-rules" checked={skipRules} onCheckedChange={setSkipRules} />
-              <Label htmlFor="edit-skip-rules" className="text-sm cursor-pointer">
-                Skip float categorization rules on import
-              </Label>
-            </div>
-            <ResponsiveDialogFooter>
-              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="submit" isLoading={saving} loadingText="Saving…">
-                Save Changes
-              </Button>
-            </ResponsiveDialogFooter>
-          </Form>
-        )}
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
-  );
-}
-
-function DeleteProfileDialog({ profile, open, onDeleted, onClose }) {
-  const [deleteFile, setDeleteFile] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (open) { setDeleteFile(false); setError(null); }
-  }, [open]);
-
-  async function handleDelete() {
-    setDeleting(true);
-    setError(null);
-    try {
-      await ledgerClient.deleteBankProfile({ name: profile.name, deleteRulesFile: deleteFile });
-      onDeleted(profile.name);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Delete Bank Profile</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <p className="text-sm">
-            Are you sure you want to delete <strong>{profile?.name}</strong>?
-          </p>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="delete-rules-file"
-              checked={deleteFile}
-              onCheckedChange={setDeleteFile}
-            />
-            <Label htmlFor="delete-rules-file" className="text-sm cursor-pointer">
-              Also delete rules file ({profile?.rulesFile})
-            </Label>
-          </div>
-          {error && <ErrorBanner error={error} />}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button
-            variant="destructive"
-            onClick={handleDelete}
-            isLoading={deleting}
-            loadingText="Deleting…"
-          >
-            Delete Profile
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button type="button" variant="ghost" size="icon-sm" onClick={onClick} aria-label={label}>
+            {children}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -609,7 +135,7 @@ export function ImportPage() {
     }
   }
 
-  function toggleCandidate(idx) {
+  const toggleCandidate = useCallback((idx) => {
     setSelectedIndices((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) {
@@ -619,7 +145,7 @@ export function ImportPage() {
       }
       return next;
     });
-  }
+  }, []);
 
   function toggleAll() {
     if (!candidates) return;
@@ -671,71 +197,6 @@ export function ImportPage() {
 
   const newCount = candidates ? candidates.filter((c) => !c.isDuplicate).length : 0;
 
-  const columns = useMemo(() => [
-    {
-      id: "select",
-      header: () => null,
-      cell: ({ row }) => (
-        <Checkbox
-          checked={selectedIndices.has(row.original._originalIndex)}
-          disabled={row.original.isDuplicate}
-          onCheckedChange={() => toggleCandidate(row.original._originalIndex)}
-        />
-      ),
-      enableSorting: false,
-    },
-    {
-      id: "status",
-      header: "Status",
-      accessorFn: (row) => row.isDuplicate,
-      cell: ({ getValue }) => (
-        <Badge variant={getValue() ? "secondary" : "default"}>
-          {getValue() ? "DUP" : "NEW"}
-        </Badge>
-      ),
-      enableSorting: false,
-    },
-    {
-      id: "date",
-      header: "Date",
-      accessorFn: (row) => row.transaction?.date ?? "",
-      cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
-    },
-    {
-      id: "description",
-      header: "Description",
-      accessorFn: (row) => row.transaction?.description ?? "",
-    },
-    {
-      id: "postings",
-      header: "Postings",
-      cell: ({ row }) => (
-        <div className="text-xs">
-          {(row.original.transaction?.postings ?? []).map((p, j) => (
-            <div key={j}>
-              {p.account}
-              {p.amounts?.[0] && (
-                <span className="ml-1 text-muted-foreground">
-                  {p.amounts[0].commodity}{p.amounts[0].quantity}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      ),
-      enableSorting: false,
-    },
-    {
-      id: "matched",
-      header: "Matched",
-      accessorFn: (row) => row.matchedRuleId ?? "",
-      cell: ({ getValue }) => getValue()
-        ? <Tag className="size-3.5 text-primary" title="Matched a rule" />
-        : <span className="text-muted-foreground">—</span>,
-      enableSorting: false,
-    },
-  ], [selectedIndices, toggleCandidate]);
-
   const tableData = useMemo(() => {
     if (!candidates) return [];
     const withIndex = candidates.map((c, i) => ({ ...c, _originalIndex: i }));
@@ -744,284 +205,204 @@ export function ImportPage() {
     return withIndex;
   }, [candidates, ruleFilter]);
 
-  const table = useReactTable({
-    data: tableData,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-  });
+  const duplicateCount = candidates ? candidates.length - newCount : 0;
+  const isSelected = useCallback((row) => selectedIndices.has(row._originalIndex), [selectedIndices]);
+  const isDuplicate = useCallback((row) => row.isDuplicate, []);
+  const toggleRow = useCallback((row) => toggleCandidate(row._originalIndex), [toggleCandidate]);
+
+  const selectedProfileObj = sortedProfiles.find((p) => p.name === selectedProfile) ?? null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Import Transactions" />
+    <Page>
+      <PageHeader title="Import" />
 
-      {/* Upload form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload CSV</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form onSubmit={handlePreview}>
-            {previewError && <ErrorBanner error={previewError} />}
-            {profilesError && <ErrorBanner error={profilesError} />}
-            <FormField label="Bank Profile">
-                <div className="flex items-center gap-1">
-                  <NativeSelect
-                    size="sm"
-                    value={selectedProfile || ""}
-                    onChange={(e) => setSelectedProfile(e.target.value || undefined)}
-                    disabled={profilesLoading}
-                    className="flex-1"
-                  >
-                    <NativeSelectOption value="">{profilesLoading ? "Loading…" : "Select profile…"}</NativeSelectOption>
-                    {sortedProfiles.map((p) => (
-                      <NativeSelectOption key={p.name} value={p.name}>{p.name}</NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setShowCreateModal(true)}
-                          aria-label="Create new bank profile"
-                        >
-                          <Plus />
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>Create new bank profile</TooltipContent>
-                  </Tooltip>
-                  {selectedProfile && (
-                    <>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => setEditingProfile(
-                                sortedProfiles.find((p) => p.name === selectedProfile) ?? null
-                              )}
-                            >
-                              <Pencil />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Edit bank profile</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => setDeletingProfile(
-                                sortedProfiles.find((p) => p.name === selectedProfile) ?? null
-                              )}
-                            >
-                              <Trash2 />
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>Delete bank profile</TooltipContent>
-                      </Tooltip>
-                    </>
-                  )}
-                </div>
-              </FormField>
-            {!showPasteInput ? (
-              <div
-                className={cn(
-                  "mt-4 border-2 border-dashed rounded-md p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
-                  isDragging
-                    ? "border-primary bg-primary/5"
-                    : csvFile
-                    ? "border-primary/40 bg-muted/30"
-                    : "border-border hover:border-primary/50 hover:bg-muted/30"
-                )}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  const dropped = Array.from(e.dataTransfer.files).find(
-                    (f) => f.name.endsWith(".csv") || f.type === "text/csv"
-                  );
-                  if (dropped) setCsvFile(dropped);
-                }}
-              >
-                <div className="mb-3 bg-muted rounded-full p-3">
-                  <Upload className="size-5 text-muted-foreground" data-icon />
-                </div>
-                {csvFile ? (
-                  <>
-                    <p className="text-sm font-medium text-foreground truncate max-w-xs">{csvFile.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{Math.round(csvFile.size / 1024)} KB</p>
-                    <p className="text-xs text-primary mt-2">Click to change file</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-medium text-foreground">Drop your CSV file here</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      or <span className="text-primary font-medium">click to browse</span>
-                    </p>
-                  </>
-                )}
-                <input
-                  ref={fileInputRef}
-                  id="csv-file"
-                  type="file"
-                  accept=".csv,text/csv"
-                  className="hidden"
-                  onChange={(e) => setCsvFile(e.target.files[0] || null)}
-                />
-              </div>
-            ) : (
-              <div className="mt-4">
-                <Textarea
-                  placeholder="Paste CSV content here…"
-                  className="font-mono text-xs min-h-48 resize-y"
-                  value={csvPasteText}
-                  onChange={(e) => setCsvPasteText(e.target.value)}
-                />
-              </div>
-            )}
-            <FormActions align="between">
-              <Button
-                type="button"
-                variant="ghost"
+      <Section title="Upload CSV">
+        <Form onSubmit={handlePreview} className="max-w-2xl">
+          {previewError && <ErrorBanner error={previewError} />}
+          {profilesError && <ErrorBanner error={profilesError} />}
+          <FormField label="Bank profile">
+            <div className="flex items-center gap-1">
+              <NativeSelect
                 size="sm"
-                onClick={() => {
-                  setShowPasteInput((v) => !v);
-                  setCsvFile(null);
-                  setCsvPasteText("");
-                }}
-                className="text-muted-foreground gap-1.5"
+                value={selectedProfile || ""}
+                onChange={(e) => setSelectedProfile(e.target.value || undefined)}
+                disabled={profilesLoading}
+                className="flex-1"
               >
-                {showPasteInput ? (
-                  <><Upload className="size-3.5" /> Upload a file instead</>
-                ) : (
-                  <><ClipboardPaste className="size-3.5" /> Paste CSV instead</>
-                )}
-              </Button>
-              <Button
-                type="submit"
-                disabled={(!csvFile && !csvPasteText) || !selectedProfile}
-                isLoading={previewing}
-                loadingText="Previewing…"
-              >
-                Preview
-              </Button>
-            </FormActions>
-          </Form>
-        </CardContent>
-      </Card>
+                <NativeSelectOption value="">{profilesLoading ? "Loading…" : "Select profile…"}</NativeSelectOption>
+                {sortedProfiles.map((p) => (
+                  <NativeSelectOption key={p.name} value={p.name}>{p.name}</NativeSelectOption>
+                ))}
+              </NativeSelect>
+              <ProfileIconButton label="Create new bank profile" onClick={() => setShowCreateModal(true)}>
+                <Plus />
+              </ProfileIconButton>
+              {selectedProfile && (
+                <>
+                  <ProfileIconButton label="Edit bank profile" onClick={() => setEditingProfile(selectedProfileObj)}>
+                    <Pencil />
+                  </ProfileIconButton>
+                  <ProfileIconButton label="Delete bank profile" onClick={() => setDeletingProfile(selectedProfileObj)}>
+                    <Trash2 />
+                  </ProfileIconButton>
+                </>
+              )}
+            </div>
+          </FormField>
+          {!showPasteInput ? (
+            <div
+              data-slot="csv-dropzone"
+              className={cn(
+                "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-input px-6 py-8 text-center transition-colors",
+                isDragging
+                  ? "border-primary bg-accent"
+                  : csvFile
+                  ? "border-primary/50"
+                  : "hover:border-primary/50 hover:bg-muted/50"
+              )}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const dropped = Array.from(e.dataTransfer.files).find(
+                  (f) => f.name.endsWith(".csv") || f.type === "text/csv"
+                );
+                if (dropped) setCsvFile(dropped);
+              }}
+            >
+              <Upload className="mb-1 size-5 text-faint" aria-hidden="true" />
+              {csvFile ? (
+                <>
+                  <p className="max-w-xs truncate font-medium">{csvFile.name}</p>
+                  <p className="text-control text-muted-foreground">
+                    {Math.round(csvFile.size / 1024)} KB · <span className="text-primary">Choose another file</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Drop a CSV file here</p>
+                  <p className="text-control text-muted-foreground">
+                    or <span className="font-medium text-primary">browse</span>
+                  </p>
+                </>
+              )}
+              <input
+                ref={fileInputRef}
+                id="csv-file"
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => setCsvFile(e.target.files[0] || null)}
+              />
+            </div>
+          ) : (
+            <Textarea
+              aria-label="CSV content"
+              placeholder="Paste CSV content here…"
+              className="min-h-48 resize-y font-mono text-code"
+              value={csvPasteText}
+              onChange={(e) => setCsvPasteText(e.target.value)}
+            />
+          )}
+          <FormActions align="between">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowPasteInput((v) => !v);
+                setCsvFile(null);
+                setCsvPasteText("");
+              }}
+              className="text-muted-foreground"
+            >
+              {showPasteInput ? (
+                <><Upload data-icon="inline-start" /> Upload a file instead</>
+              ) : (
+                <><ClipboardPaste data-icon="inline-start" /> Paste CSV instead</>
+              )}
+            </Button>
+            <Button
+              type="submit"
+              disabled={(!csvFile && !csvPasteText) || !selectedProfile}
+              isLoading={previewing}
+              loadingText="Previewing…"
+            >
+              Preview
+            </Button>
+          </FormActions>
+        </Form>
+      </Section>
 
-      {/* Import result */}
       {importResult && (
-        <Alert>
-          <CircleCheck className="size-4 text-success" />
-          <AlertDescription>
-            Imported {importResult.importedCount} transaction(s) successfully.
-          </AlertDescription>
-        </Alert>
+        <Notice
+          variant="info"
+          action={importResult.importBatchId ? (
+            <Link
+              to="/transactions"
+              search={{ importBatchId: importResult.importBatchId, account: "", payee: "" }}
+            >
+              Review
+            </Link>
+          ) : null}
+        >
+          Imported {plural(importResult.importedCount, "transaction")}
+          {importResult.skippedDuplicateCount > 0 && `, skipped ${importResult.skippedDuplicateCount} already on disk`}.
+        </Notice>
       )}
       {importError && <ErrorBanner error={importError} />}
 
-      {/* Preview table */}
       {candidates && (
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <CardTitle>
-                Preview — {candidates.length} transaction(s), {newCount} new
-              </CardTitle>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex rounded-md border text-sm">
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "matched", label: "Rule matched" },
-                    { value: "unmatched", label: "No rule" },
-                  ].map(({ value, label }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setRuleFilter(value)}
-                      className={cn(
-                        "px-3 py-1 first:rounded-l-md last:rounded-r-md transition-colors",
-                        ruleFilter === value
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-muted",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <Button variant="ghost" size="sm" onClick={toggleAll}>
-                  {selectedIndices.size === newCount ? "Deselect All" : "Select All New"}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleImport}
-                  disabled={selectedIndices.size === 0}
-                  isLoading={importing}
-                  loadingText={
-                    importProgress && importProgress.total > 0
-                      ? `Importing ${importProgress.imported} of ${importProgress.total}…`
-                      : "Importing…"
-                  }
-                >
-                  Import {selectedIndices.size} Selected
-                </Button>
-              </div>
+        <Section
+          title="Preview"
+          description={`${plural(candidates.length, "transaction")} · ${newCount} new`}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <Segmented
+                label="Filter by rule match"
+                options={RULE_FILTERS}
+                value={ruleFilter}
+                onChange={setRuleFilter}
+              />
+              <Button variant="ghost" size="sm" onClick={toggleAll}>
+                {selectedIndices.size === newCount ? "Deselect all" : "Select all new"}
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleImport}
+                disabled={selectedIndices.size === 0}
+                isLoading={importing}
+                loadingText={
+                  importProgress && importProgress.total > 0
+                    ? `Importing ${importProgress.imported} of ${importProgress.total}…`
+                    : "Importing…"
+                }
+              >
+                Import {selectedIndices.size} selected
+              </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const canSort = header.column.getCanSort();
-                      return (
-                        <TableHead key={header.id}>
-                          {canSort ? (
-                            <TableSortHeader column={header.column}>
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                            </TableSortHeader>
-                          ) : (
-                            flexRender(header.column.columnDef.header, header.getContext())
-                          )}
-                        </TableHead>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className={cn(row.original.isDuplicate && "opacity-50")}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+          }
+        >
+          {duplicateCount > 0 && (
+            <Notice variant="info">
+              {plural(duplicateCount, "transaction")} {duplicateCount === 1 ? "is" : "are"} already in the journal and will be skipped.
+            </Notice>
+          )}
+          {tableData.length === 0 ? (
+            <p className="py-2 text-control text-muted-foreground">No transactions match this filter.</p>
+          ) : (
+            <CandidateTable
+              rows={tableData}
+              isSelected={isSelected}
+              isDisabled={isDuplicate}
+              onToggle={toggleRow}
+              sorting={sorting}
+              onSortingChange={setSorting}
+            />
+          )}
+        </Section>
       )}
 
       <CreateProfileModal
@@ -1045,6 +426,6 @@ export function ImportPage() {
           onClose={() => setDeletingProfile(null)}
         />
       )}
-    </div>
+    </Page>
   );
 }

@@ -1,768 +1,164 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  flexRender,
-} from "@tanstack/react-table";
-import {
-  Link2,
-  Link2Off,
-  CircleCheck,
-  Clock,
-  RefreshCw,
-  Tag,
-} from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Link2, Link2Off, RefreshCw } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
-import { filterAndSortAccountNames } from "../lib/accounts.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
+import { EmptyState } from "../components/empty-state.jsx";
 import { PageHeader } from "../components/page-header.jsx";
-import { TableSortHeader } from "../components/table-sort-header.jsx";
+import { Page, Section } from "../components/page.jsx";
+import { Account } from "../components/account.jsx";
 import { Timestamp } from "../components/timestamp.jsx";
+import { LinkMappingDialog } from "../components/connections/link-mapping-dialog.jsx";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+  FetchResults,
+  refreshLine,
+  useAccountFetch,
+  useFetchAll,
+} from "../components/connections/fetch.jsx";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Form, FormField } from "@/components/ui/form";
-import { Combobox } from "@/components/ui/combobox";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  ResponsiveDialog,
-  ResponsiveDialogContent,
-  ResponsiveDialogFooter,
-  ResponsiveDialogHeader,
-  ResponsiveDialogTitle,
-} from "@/components/ui/responsive-dialog";
+import { Notice } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
-function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, onClose }) {
-  const [mappings, setMappings] = useState(() =>
-    Object.fromEntries(
-      fcAccounts.map((a) => [
-        a.id,
-        { hledgerAccount: "", displayName: a.display_name ?? a.displayName ?? a.id },
-      ])
-    )
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+const DOT_CLASS = {
+  accent: "bg-primary",
+  warning: "bg-warning",
+  below: "bg-below",
+};
 
-  function setMapping(fcId, field, value) {
-    setMappings((prev) => ({ ...prev, [fcId]: { ...prev[fcId], [field]: value } }));
-  }
-
-  const allMapped = fcAccounts.every((a) => mappings[a.id]?.hledgerAccount);
-  const accountOptions = filterAndSortAccountNames(accountDeclarations, {
-    includePrefixes: ["assets", "liabilities"],
-  });
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      await onComplete(mappings);
-    } catch (err) {
-      setError(err);
-      setSaving(false);
-    }
-  }
-
+// StatusDot is the 8px status dot of a linked account. Healthy accounts get
+// none (attention is earned).
+function StatusDot({ tone, label }) {
   return (
-    <ResponsiveDialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <ResponsiveDialogContent className="sm:max-w-lg">
-        <ResponsiveDialogHeader>
-          <ResponsiveDialogTitle>Map Linked Accounts</ResponsiveDialogTitle>
-        </ResponsiveDialogHeader>
-        <Form onSubmit={handleSubmit}>
-          {error && <ErrorBanner error={error} />}
-          <p className="text-xs text-muted-foreground">
-            {fcAccounts.length === 1
-              ? "1 account was linked. Choose the hledger account for it."
-              : `${fcAccounts.length} accounts were linked. Choose the hledger account for each.`}
-          </p>
-          {fcAccounts.map((a) => (
-            <div key={a.id} className="flex flex-col gap-3 rounded-md border p-3">
-              <span className="text-[10px] text-muted-foreground font-mono">{a.id}</span>
-              <FormField label="Display Name">
-                <Input
-                  value={mappings[a.id]?.displayName ?? ""}
-                  onChange={(e) => setMapping(a.id, "displayName", e.target.value)}
-                  placeholder={a.display_name ?? a.displayName ?? a.id}
-                />
-              </FormField>
-              <FormField label="hledger Account">
-                <Combobox
-                  value={mappings[a.id]?.hledgerAccount || ""}
-                  onChange={(v) => setMapping(a.id, "hledgerAccount", v)}
-                  options={accountOptions}
-                  placeholder="Select account…"
-                  searchPlaceholder="Search accounts…"
-                  emptyMessage="No matching account."
-                  clearable
-                />
-              </FormField>
-            </div>
-          ))}
-          <ResponsiveDialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button
-              type="submit"
-              disabled={!allMapped}
-              isLoading={saving}
-              loadingText="Saving…"
-            >
-              Save
-            </Button>
-          </ResponsiveDialogFooter>
-        </Form>
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
+    <span className="inline-flex size-5 shrink-0 items-center justify-center">
+      {tone && (
+        <span
+          role="img"
+          aria-label={label}
+          title={label}
+          className={cn("size-2 rounded-full", DOT_CLASS[tone])}
+        />
+      )}
+    </span>
   );
 }
 
-function CandidatesTable({ candidates, selectedIds, onToggle, showAccount }) {
-  const [sorting, setSorting] = useState([]);
+const LINE_TONE = { ink: "text-muted-foreground", warning: "text-warning", below: "text-below" };
 
-  const columns = useMemo(
-    () => [
-      {
-        id: "select",
-        header: () => null,
-        cell: ({ row }) => (
-          <Checkbox
-            checked={selectedIds.has(row.original.sourceId)}
-            disabled={!row.original.sourceId}
-            onCheckedChange={() => onToggle(row.original.sourceId)}
-          />
-        ),
-        enableSorting: false,
-      },
-      ...(showAccount
-        ? [
-            {
-              id: "account",
-              header: "Account",
-              accessorFn: (row) => row._accountName ?? "",
-              cell: ({ getValue }) => (
-                <span className="text-xs text-muted-foreground whitespace-nowrap">{getValue()}</span>
-              ),
-            },
-          ]
-        : []),
-      {
-        id: "date",
-        header: "Date",
-        accessorFn: (row) => row.transaction?.date ?? "",
-        cell: ({ getValue }) => <span className="whitespace-nowrap">{getValue()}</span>,
-      },
-      {
-        id: "description",
-        header: "Description",
-        accessorFn: (row) => row.transaction?.description ?? "",
-      },
-      {
-        id: "postings",
-        header: "Postings",
-        cell: ({ row }) => (
-          <div className="text-xs">
-            {(row.original.transaction?.postings ?? []).map((p, j) => (
-              <div key={j}>
-                {p.account}
-                {p.amounts?.[0] && (
-                  <span className="ml-1 text-muted-foreground">
-                    {p.amounts[0].commodity}{p.amounts[0].quantity}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        ),
-        enableSorting: false,
-      },
-      {
-        id: "matched",
-        header: "Rule",
-        accessorFn: (row) => row.matchedRuleId ?? "",
-        cell: ({ getValue }) =>
-          getValue() ? (
-            <Tag className="size-3.5 text-primary" title="Matched a rule" />
+// AccountName is the row's leading cell: display name (500) with the
+// institution in ink-3.
+function AccountName({ account }) {
+  return (
+    <span className="flex min-w-0 items-baseline gap-2">
+      <span className="truncate font-medium">{account.displayName || account.stripeAccountId}</span>
+      {account.institutionName && (
+        <span className="shrink-0 truncate text-control text-faint">{account.institutionName}</span>
+      )}
+    </span>
+  );
+}
+
+const ROW = "flex flex-wrap items-center gap-x-4 gap-y-1 py-1.5 sm:min-h-[38px]";
+
+// LinkedAccountRow is one configured account: status dot, name +
+// institution, hledger account, last import (relative), and its fetch
+// actions. Fetched transactions open under the row.
+function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking }) {
+  const fetch = useAccountFetch(account, onImported);
+  const line = refreshAll ? refreshLine(refreshAll) : null;
+  const dot = line?.tone === "below"
+    ? { tone: "below", label: "Refresh failed" }
+    : line?.tone === "warning"
+      ? { tone: "warning", label: "Refresh throttled" }
+      : !account.lastFetchedAt
+        ? { tone: "accent", label: "Never imported" }
+        : {};
+
+  return (
+    <li data-slot="linked-account" className="border-b border-border last:border-0">
+      <div className={ROW}>
+        <span className="flex min-w-0 flex-1 basis-64 items-center gap-1.5">
+          <StatusDot {...dot} />
+          <AccountName account={account} />
+        </span>
+        <span className="min-w-0 basis-48 pl-[26px] sm:pl-0">
+          <Account name={account.hledgerAccount} variant="path" />
+        </span>
+        <span className="min-w-0 basis-40 pl-[26px] text-control sm:pl-0">
+          {line ? (
+            <span className={cn(LINE_TONE[line.tone])}>{line.text}</span>
+          ) : account.lastFetchedAt ? (
+            <span className="text-muted-foreground">Imported <Timestamp value={account.lastFetchedAt} /></span>
           ) : (
-            <span className="text-muted-foreground">—</span>
-          ),
-        enableSorting: false,
-      },
-    ],
-    [selectedIds, onToggle, showAccount]
-  );
-
-  const table = useReactTable({
-    data: candidates,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
-  return (
-    <Table>
-      <TableHeader>
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
-            {headerGroup.headers.map((header) => {
-              const canSort = header.column.getCanSort();
-              return (
-                <TableHead key={header.id}>
-                  {canSort ? (
-                    <TableSortHeader column={header.column}>
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableSortHeader>
-                  ) : (
-                    flexRender(header.column.columnDef.header, header.getContext())
-                  )}
-                </TableHead>
-              );
-            })}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id}>
-            {row.getVisibleCells().map((cell) => (
-              <TableCell key={cell.id}>
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function FetchAllPanel({ configuredAccounts, onImported }) {
-  const [accountCandidates, setAccountCandidates] = useState(null);
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState(null);
-  // selectedIds is a Set of sourceId strings (unique Stripe transaction IDs across all accounts)
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [importing, setImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState(null);
-  const [importError, setImportError] = useState(null);
-  const [importResult, setImportResult] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  // refreshAccountStatus: Map<stripeAccountId, {status, elapsedSeconds, attempt, message, succeeded?, error?}>
-  const [refreshAccountStatus, setRefreshAccountStatus] = useState(new Map());
-  const [refreshError, setRefreshError] = useState(null);
-
-  async function handleFetchAll() {
-    setFetching(true);
-    setFetchError(null);
-    setImportResult(null);
-    setAccountCandidates(null);
-    try {
-      const res = await ledgerClient.fetchAllStripeTransactions({});
-      setAccountCandidates(res.accountCandidates);
-      const autoSelected = new Set();
-      res.accountCandidates.forEach((ac) => {
-        ac.candidates.forEach((c) => {
-          if (c.sourceId) autoSelected.add(c.sourceId);
-        });
-      });
-      setSelectedIds(autoSelected);
-    } catch (err) {
-      setFetchError(err);
-    } finally {
-      setFetching(false);
-    }
-  }
-
-  async function handleRefreshAll() {
-    setRefreshing(true);
-    setRefreshError(null);
-    setRefreshAccountStatus(new Map());
-    let anySucceeded = false;
-    try {
-      for await (const res of ledgerClient.refreshAllStripeAccounts(
-        {},
-        { timeoutMs: 6 * 60 * 1000 },
-      )) {
-        if (res.payload.case === "progress") {
-          const p = res.payload.value;
-          setRefreshAccountStatus((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(p.stripeAccountId) ?? {};
-            next.set(p.stripeAccountId, {
-              ...existing,
-              status: p.status,
-              elapsedSeconds: Number(p.elapsedSeconds ?? 0),
-              attempt: p.attempt ?? 0,
-              message: p.message,
-            });
-            return next;
-          });
-        } else if (res.payload.case === "result") {
-          const r = res.payload.value;
-          if (r.succeeded) anySucceeded = true;
-          setRefreshAccountStatus((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(r.stripeAccountId) ?? {};
-            next.set(r.stripeAccountId, {
-              ...existing,
-              succeeded: r.succeeded,
-              throttled: r.throttled || false,
-              nextRefreshAvailableAt: Number(r.nextRefreshAvailableAt ?? 0),
-              error: r.succeeded ? null : r.errorMessage,
-            });
-            return next;
-          });
-        }
-      }
-    } catch (err) {
-      setRefreshError(err);
-    } finally {
-      setRefreshing(false);
-    }
-    if (anySucceeded) {
-      await handleFetchAll();
-    }
-  }
-
-  const accountNameById = useMemo(() => {
-    const m = new Map();
-    configuredAccounts.forEach((a) => {
-      m.set(a.stripeAccountId, a.displayName || a.stripeAccountId);
-    });
-    return m;
-  }, [configuredAccounts]);
-
-  function toggleCandidate(sourceId) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(sourceId)) next.delete(sourceId);
-      else next.add(sourceId);
-      return next;
-    });
-  }
-
-  const allCandidates = useMemo(() => {
-    if (!accountCandidates) return [];
-    return accountCandidates.flatMap((ac) =>
-      ac.candidates.map((c) => ({
-        ...c,
-        _accountId: ac.account?.stripeAccountId,
-        _accountName: ac.account?.displayName || ac.account?.stripeAccountId,
-      }))
-    );
-  }, [accountCandidates]);
-
-  function toggleAll() {
-    const allIds = allCandidates
-      .filter((c) => c.sourceId)
-      .map((c) => c.sourceId);
-    if (selectedIds.size === allIds.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(allIds));
-    }
-  }
-
-  async function handleImport() {
-    if (selectedIds.size === 0) return;
-    setImportError(null);
-    setImporting(true);
-    setImportProgress({ imported: 0, total: selectedIds.size });
-
-    const selectionsByAccount = new Map();
-    allCandidates.forEach((c) => {
-      if (selectedIds.has(c.sourceId)) {
-        if (!selectionsByAccount.has(c._accountId)) {
-          selectionsByAccount.set(c._accountId, []);
-        }
-        selectionsByAccount.get(c._accountId).push(c.sourceId);
-      }
-    });
-    const selections = Array.from(selectionsByAccount.entries()).map(
-      ([stripeAccountId, stripeTransactionIds]) => ({ stripeAccountId, stripeTransactionIds })
-    );
-
-    try {
-      for await (const res of ledgerClient.importAllStripeTransactions({ selections })) {
-        if (res.payload.case === "progress") {
-          setImportProgress({
-            imported: res.payload.value.imported,
-            total: res.payload.value.total,
-          });
-        } else if (res.payload.case === "result") {
-          setImportResult(res.payload.value);
-          setAccountCandidates(null);
-          if (onImported) onImported();
-        }
-      }
-    } catch (err) {
-      setImportError(err);
-    } finally {
-      setImporting(false);
-      setImportProgress(null);
-    }
-  }
-
-  const totalCount = allCandidates.length;
-
-  const refreshRows = Array.from(refreshAccountStatus.entries());
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-base">Fetch All Accounts</CardTitle>
-            <CardDescription>
-              Pull new transactions from all {configuredAccounts.length} linked account{configuredAccounts.length !== 1 ? "s" : ""} at once.
-            </CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={handleRefreshAll}
-              disabled={fetching}
-              isLoading={refreshing}
-              loadingText="Refreshing…"
-            >
-              <RefreshCw data-icon="inline-start" className="size-3.5" />
-              Refresh & Fetch All
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleFetchAll}
-              disabled={refreshing}
-              isLoading={fetching}
-              loadingText="Fetching…"
-            >
-              Fetch All
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      {(refreshError || refreshRows.length > 0 || fetchError || importResult || importError || accountCandidates) && (
-        <CardContent className="flex flex-col gap-3">
-          {refreshError && <ErrorBanner error={refreshError} />}
-          {refreshRows.length > 0 && (
-            <div className="flex flex-col gap-1 rounded-md border bg-muted/30 p-3 text-xs">
-              {refreshRows.map(([accountId, st]) => {
-                const name = accountNameById.get(accountId) ?? accountId;
-                let line;
-                if (st.throttled) {
-                  const next = st.nextRefreshAvailableAt
-                    ? new Date(st.nextRefreshAvailableAt * 1000).toLocaleString()
-                    : "later";
-                  line = `throttled — next refresh at ${next}`;
-                } else if (st.succeeded === true) {
-                  line = "succeeded";
-                } else if (st.succeeded === false) {
-                  line = `failed: ${st.error ?? "unknown error"}`;
-                } else if (st.status === "polling") {
-                  line = `polling (${st.elapsedSeconds}s, attempt ${st.attempt})`;
-                } else {
-                  line = st.message || st.status || "starting";
-                }
-                const tone = st.succeeded === false
-                  ? "text-destructive"
-                  : st.throttled
-                    ? "text-amber-600 dark:text-amber-500"
-                    : "text-muted-foreground";
-                return (
-                  <div key={accountId} className="flex justify-between gap-3 font-mono">
-                    <span>{name}</span>
-                    <span className={tone}>{line}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <span className="text-faint">Never imported</span>
           )}
-          {fetchError && <ErrorBanner error={fetchError} />}
-          {importResult && (
-            <Alert>
-              <CircleCheck className="size-4 text-success" />
-              <AlertDescription>
-                Imported {importResult.importedCount} transaction(s) across {configuredAccounts.length} account{configuredAccounts.length !== 1 ? "s" : ""}.
-              </AlertDescription>
-            </Alert>
-          )}
-          {importError && <ErrorBanner error={importError} />}
-          {accountCandidates && (
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {totalCount} new transaction(s)
-                </span>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={toggleAll}>
-                    {selectedIds.size === totalCount ? "Deselect All" : "Select All"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleImport}
-                    disabled={selectedIds.size === 0}
-                    isLoading={importing}
-                    loadingText={
-                      importProgress && importProgress.total > 0
-                        ? `Importing ${importProgress.imported} of ${importProgress.total}…`
-                        : "Importing…"
-                    }
-                  >
-                    Import {selectedIds.size} Selected
-                  </Button>
-                </div>
-              </div>
-              {allCandidates.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">No new transactions found.</p>
-              ) : (
-                <CandidatesTable
-                  candidates={allCandidates}
-                  selectedIds={selectedIds}
-                  onToggle={toggleCandidate}
-                  showAccount={true}
-                />
-              )}
-            </div>
-          )}
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
-function AccountFetchPanel({ account, onImported }) {
-  const [candidates, setCandidates] = useState(null);
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [importing, setImporting] = useState(false);
-  const [importProgress, setImportProgress] = useState(null);
-  const [importError, setImportError] = useState(null);
-  const [importResult, setImportResult] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshStatus, setRefreshStatus] = useState(null);
-  const [refreshError, setRefreshError] = useState(null);
-  const [refreshThrottledAt, setRefreshThrottledAt] = useState(null);
-
-  async function handleFetch() {
-    setFetching(true);
-    setFetchError(null);
-    setImportResult(null);
-    setCandidates(null);
-    try {
-      const res = await ledgerClient.fetchStripeTransactions({
-        stripeAccountId: account.stripeAccountId,
-      });
-      setCandidates(res.candidates);
-      const autoSelected = new Set();
-      res.candidates.forEach((c) => {
-        if (c.sourceId) autoSelected.add(c.sourceId);
-      });
-      setSelectedIds(autoSelected);
-    } catch (err) {
-      setFetchError(err);
-    } finally {
-      setFetching(false);
-    }
-  }
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    setRefreshError(null);
-    setRefreshThrottledAt(null);
-    setRefreshStatus({ status: "starting", elapsedSeconds: 0, attempt: 0 });
-    let succeeded = false;
-    try {
-      for await (const res of ledgerClient.refreshStripeAccount(
-        { stripeAccountId: account.stripeAccountId },
-        { timeoutMs: 6 * 60 * 1000 },
-      )) {
-        if (res.payload.case === "progress") {
-          const p = res.payload.value;
-          setRefreshStatus({
-            status: p.status,
-            elapsedSeconds: Number(p.elapsedSeconds ?? 0),
-            attempt: p.attempt ?? 0,
-            message: p.message,
-          });
-        } else if (res.payload.case === "result") {
-          const r = res.payload.value;
-          succeeded = r.succeeded;
-          if (r.throttled) {
-            setRefreshThrottledAt(Number(r.nextRefreshAvailableAt ?? 0));
-          }
-          if (!r.succeeded) {
-            setRefreshError(new Error(r.errorMessage || "refresh failed"));
-          }
-        }
-      }
-    } catch (err) {
-      setRefreshError(err);
-    } finally {
-      setRefreshing(false);
-      setRefreshStatus(null);
-    }
-    if (succeeded) {
-      await handleFetch();
-    }
-  }
-
-  function toggleCandidate(sourceId) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(sourceId)) next.delete(sourceId);
-      else next.add(sourceId);
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (!candidates) return;
-    const allIds = candidates
-      .filter((c) => c.sourceId)
-      .map((c) => c.sourceId);
-    if (selectedIds.size === allIds.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(allIds));
-    }
-  }
-
-  async function handleImport() {
-    if (selectedIds.size === 0) return;
-    setImportError(null);
-    setImporting(true);
-    setImportProgress({ imported: 0, total: selectedIds.size });
-    try {
-      for await (const res of ledgerClient.importStripeTransactions({
-        stripeAccountId: account.stripeAccountId,
-        stripeTransactionIds: Array.from(selectedIds),
-      })) {
-        if (res.payload.case === "progress") {
-          setImportProgress({
-            imported: res.payload.value.imported,
-            total: res.payload.value.total,
-          });
-        } else if (res.payload.case === "result") {
-          setImportResult(res.payload.value);
-          setCandidates(null);
-          if (onImported) onImported();
-        }
-      }
-    } catch (err) {
-      setImportError(err);
-    } finally {
-      setImporting(false);
-      setImportProgress(null);
-    }
-  }
-
-  const totalCount = candidates ? candidates.length : 0;
-
-  return (
-    <div className="flex flex-col gap-3 pt-3 border-t">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          onClick={handleRefresh}
-          disabled={fetching}
-          isLoading={refreshing}
-          loadingText={
-            refreshStatus
-              ? `Refreshing… (${refreshStatus.elapsedSeconds}s, attempt ${refreshStatus.attempt})`
-              : "Refreshing…"
-          }
-        >
-          <RefreshCw data-icon="inline-start" className="size-3.5" />
-          Refresh & Fetch
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={handleFetch}
-          disabled={refreshing}
-          isLoading={fetching}
-          loadingText="Fetching…"
-        >
-          Fetch Transactions
-        </Button>
+        </span>
+        <span className="ml-auto flex shrink-0 flex-wrap items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetch.handleRefresh}
+            disabled={fetch.fetching}
+            isLoading={fetch.refreshing}
+            loadingText={
+              fetch.refreshStatus
+                ? `Refreshing… (${fetch.refreshStatus.elapsedSeconds}s, attempt ${fetch.refreshStatus.attempt})`
+                : "Refreshing…"
+            }
+          >
+            <RefreshCw data-icon="inline-start" />
+            Refresh & Fetch
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetch.handleFetch}
+            disabled={fetch.refreshing}
+            isLoading={fetch.fetching}
+            loadingText="Fetching…"
+          >
+            Fetch Transactions
+          </Button>
+          <Button
+            variant="destructive-ghost"
+            size="sm"
+            isLoading={unlinking}
+            loadingText="Unlink"
+            onClick={() => onUnlink(account.stripeAccountId)}
+          >
+            <Link2Off data-icon="inline-start" />
+            Unlink
+          </Button>
+        </span>
       </div>
-      {refreshError && <ErrorBanner error={refreshError} />}
-      {refreshThrottledAt > 0 && (
-        <Alert>
-          <Clock className="size-4" />
-          <AlertDescription>
-            Stripe throttled this refresh. Next refresh available at{" "}
-            {new Date(refreshThrottledAt * 1000).toLocaleString()}. Showing existing transactions.
-          </AlertDescription>
-        </Alert>
-      )}
-      {fetchError && <ErrorBanner error={fetchError} />}
-      {importResult && (
-        <Alert>
-          <CircleCheck className="size-4 text-success" />
-          <AlertDescription>
-            Imported {importResult.importedCount} transaction(s).
-          </AlertDescription>
-        </Alert>
-      )}
-      {importError && <ErrorBanner error={importError} />}
-      {candidates && (
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm text-muted-foreground">
-              {totalCount} new transaction(s)
-            </span>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={toggleAll}>
-                {selectedIds.size === totalCount ? "Deselect All" : "Select All"}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleImport}
-                disabled={selectedIds.size === 0}
-                isLoading={importing}
-                loadingText={
-                  importProgress && importProgress.total > 0
-                    ? `Importing ${importProgress.imported} of ${importProgress.total}…`
-                    : "Importing…"
-                }
-              >
-                Import {selectedIds.size} Selected
-              </Button>
-            </div>
-          </div>
-          <CandidatesTable
-            candidates={candidates}
-            selectedIds={selectedIds}
-            onToggle={toggleCandidate}
-            showAccount={false}
-          />
-        </div>
-      )}
-    </div>
+      <FetchResults fetch={fetch} className="pb-4 sm:pl-[26px]" />
+    </li>
+  );
+}
+
+// UnmappedAccountRow is a linked Stripe account with no hledger account yet.
+function UnmappedAccountRow({ account, onConfigure, onDisconnect, disabled }) {
+  return (
+    <li data-slot="linked-account" data-unmapped="" className={cn(ROW, "border-b border-border last:border-0")}>
+      <span className="flex min-w-0 flex-1 basis-64 items-center gap-1.5">
+        <StatusDot tone="warning" label="Needs an hledger account" />
+        <AccountName account={account} />
+      </span>
+      <span className="min-w-0 basis-48 pl-[26px] text-control text-warning sm:pl-0">Needs an hledger account</span>
+      <span className="min-w-0 basis-40 truncate pl-[26px] font-mono text-[11.5px] text-faint sm:pl-0">
+        {account.stripeAccountId}
+      </span>
+      <span className="ml-auto flex shrink-0 items-center gap-1">
+        <Button variant="outline" size="sm" onClick={onConfigure}>
+          Configure
+        </Button>
+        <Button variant="destructive-ghost" size="sm" onClick={onDisconnect} disabled={disabled}>
+          Disconnect
+        </Button>
+      </span>
+    </li>
   );
 }
 
@@ -798,6 +194,12 @@ export function ConnectionsPage() {
     enabled: !!configData?.enabled,
   });
 
+  const accounts = linkedData?.accounts ?? [];
+  const configuredAccounts = accounts.filter((a) => a.hledgerAccount);
+  const unconfiguredAccounts = accounts.filter((a) => !a.hledgerAccount);
+  const onImported = () => invalidateLedgerQueries(queryClient);
+  const fetchAll = useFetchAll(configuredAccounts, onImported);
+
   async function handleLinkAccount() {
     setLinkError(null);
     setLinking(true);
@@ -827,7 +229,7 @@ export function ConnectionsPage() {
   }
 
   async function handleCompleteLinking(mappings) {
-    const accounts = pendingSession.accounts.map((a) => ({
+    const linked = pendingSession.accounts.map((a) => ({
       stripeAccountId: a.id,
       hledgerAccount: mappings[a.id].hledgerAccount,
       displayName:
@@ -836,7 +238,7 @@ export function ConnectionsPage() {
         a.displayName ||
         a.id,
     }));
-    await ledgerClient.completeStripeLinking({ accounts });
+    await ledgerClient.completeStripeLinking({ accounts: linked });
     setPendingSession(null);
     queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() });
     queryClient.invalidateQueries({ queryKey: queryKeys.stripeConfig() });
@@ -875,38 +277,22 @@ export function ConnectionsPage() {
 
   if (!configData?.enabled) {
     return (
-      <div className="flex flex-col gap-6">
+      <Page>
         <PageHeader title="Connections" />
-        <Card>
-          <CardHeader>
-            <CardTitle>Stripe Integration Not Enabled</CardTitle>
-            <CardDescription>
-              Set the following environment variables when starting floatd to enable bank
-              account linking via Stripe Financial Connections.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="rounded-md bg-muted p-3 font-mono text-sm leading-relaxed">
-              <div>STRIPE_SECRET_KEY=sk_live_…</div>
-              <div>STRIPE_PUBLISHABLE_KEY=pk_live_…</div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Restart floatd after setting the variables. Use test keys (
-              <code className="font-mono text-xs">sk_test_…</code> /{" "}
-              <code className="font-mono text-xs">pk_test_…</code>) for development.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+        <Notice variant="info" action={<Link to="/settings">Settings</Link>}>
+          Bank linking is off. Set{" "}
+          <code className="font-mono text-code">STRIPE_SECRET_KEY</code> and{" "}
+          <code className="font-mono text-code">STRIPE_PUBLISHABLE_KEY</code> for floatd (test keys work for
+          development), then restart it.
+        </Notice>
+      </Page>
     );
   }
 
-  const accounts = linkedData?.accounts ?? [];
-  const configuredAccounts = accounts.filter((a) => a.hledgerAccount);
-  const unconfiguredAccounts = accounts.filter((a) => !a.hledgerAccount);
+  const fetchAllAccounts = configuredAccounts.length;
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader title="Connections">
         <Button
           onClick={handleLinkAccount}
@@ -922,99 +308,80 @@ export function ConnectionsPage() {
       {unlinkMutation.error && <ErrorBanner error={unlinkMutation.error} />}
       {linkedError && <ErrorBanner error={linkedError} />}
 
-      {linkedLoading && <Loading />}
+      <Section
+        title="Linked accounts"
+        description={accounts.length > 0 ? accounts.length : null}
+        action={fetchAllAccounts > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAll.handleRefreshAll}
+              disabled={fetchAll.fetching}
+              isLoading={fetchAll.refreshing}
+              loadingText="Refreshing…"
+            >
+              <RefreshCw data-icon="inline-start" />
+              Refresh & Fetch All
+            </Button>
+            <Button
+              size="sm"
+              onClick={fetchAll.handleFetchAll}
+              disabled={fetchAll.refreshing}
+              isLoading={fetchAll.fetching}
+              loadingText="Fetching…"
+            >
+              Fetch All
+            </Button>
+          </div>
+        )}
+        className="gap-0"
+      >
+        {linkedLoading && <Loading />}
+        {!linkedLoading && accounts.length === 0 && (
+          <EmptyState
+            icon={Link2}
+            title="No linked accounts"
+            description="Link a bank account through Stripe Financial Connections to fetch its transactions."
+          />
+        )}
+        {accounts.length > 0 && (
+          <ul data-slot="linked-accounts">
+            {configuredAccounts.map((account) => (
+              <LinkedAccountRow
+                key={account.stripeAccountId}
+                account={account}
+                refreshAll={fetchAll.refreshAccountStatus.get(account.stripeAccountId)}
+                onImported={onImported}
+                onUnlink={handleUnlink}
+                unlinking={unlinkMutation.isPending && unlinkMutation.variables === account.stripeAccountId}
+              />
+            ))}
+            {unconfiguredAccounts.map((account) => (
+              <UnmappedAccountRow
+                key={account.stripeAccountId}
+                account={account}
+                onConfigure={() => setPendingConfigureAccount({ id: account.stripeAccountId, display_name: account.displayName })}
+                onDisconnect={() => handleUnlink(account.stripeAccountId)}
+                disabled={unlinkMutation.isPending}
+              />
+            ))}
+          </ul>
+        )}
+      </Section>
 
-      {!linkedLoading && accounts.length === 0 && (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            No linked accounts. Click <strong>Link Account</strong> to connect your bank.
-          </CardContent>
-        </Card>
+      {(fetchAll.refreshError || fetchAll.fetchError || fetchAll.importResult || fetchAll.importError || fetchAll.candidates) && (
+        <Section
+          title="All accounts"
+          description={`Fetched from ${fetchAllAccounts} linked account${fetchAllAccounts !== 1 ? "s" : ""}`}
+        >
+          <FetchResults
+            fetch={fetchAll}
+            showAccount
+            resultText={`across ${fetchAllAccounts} account${fetchAllAccounts !== 1 ? "s" : ""}`}
+          />
+        </Section>
       )}
-
-      {configuredAccounts.length > 0 && (
-        <FetchAllPanel
-          configuredAccounts={configuredAccounts}
-          onImported={() => invalidateLedgerQueries(queryClient)}
-        />
-      )}
-
-      {configuredAccounts.map((account) => (
-        <Card key={account.stripeAccountId}>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <CardTitle className="text-base">{account.displayName}</CardTitle>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  {account.institutionName && (
-                    <span>{account.institutionName}</span>
-                  )}
-                  {account.institutionName && <span>·</span>}
-                  <span className="font-mono">{account.hledgerAccount}</span>
-                  {account.lastFetchedAt && (
-                    <>
-                      <span>·</span>
-                      <span>Last imported <Timestamp value={account.lastFetchedAt} /></span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <Button
-                variant="destructive-ghost"
-                size="sm"
-                className="shrink-0"
-                isLoading={unlinkMutation.isPending && unlinkMutation.variables === account.stripeAccountId}
-                loadingText="Unlink"
-                onClick={() => handleUnlink(account.stripeAccountId)}
-              >
-                <Link2Off data-icon="inline-start" />
-                Unlink
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <AccountFetchPanel
-              account={account}
-              onImported={() => invalidateLedgerQueries(queryClient)}
-            />
-          </CardContent>
-        </Card>
-      ))}
-
-      {unconfiguredAccounts.map((account) => (
-        <Card key={account.stripeAccountId}>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <CardTitle className="text-base">
-                  {account.displayName || account.stripeAccountId}
-                </CardTitle>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  {account.institutionName && <span>{account.institutionName}</span>}
-                  <span className="font-mono text-xs">{account.stripeAccountId}</span>
-                </div>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setPendingConfigureAccount({ id: account.stripeAccountId, display_name: account.displayName })}
-                >
-                  Configure
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleUnlink(account.stripeAccountId)}
-                  disabled={unlinkMutation.isPending}
-                >
-                  Disconnect
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-      ))}
 
       {pendingSession && (
         <LinkMappingDialog
@@ -1036,6 +403,6 @@ export function ConnectionsPage() {
           onClose={() => setPendingConfigureAccount(null)}
         />
       )}
-    </div>
+    </Page>
   );
 }
