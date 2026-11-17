@@ -14,7 +14,6 @@ import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
@@ -325,8 +324,6 @@ export function PricesPage() {
 
   return (
     <Page>
-      <PageHeader title="Commodity Prices" />
-
       <PageCard title="Add price">
         <Form onSubmit={handleSubmit}>
           {formError && <ErrorBanner error={formError} />}

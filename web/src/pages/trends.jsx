@@ -223,7 +223,7 @@ export function TrendsPage() {
 
   return (
     <Page>
-      <PageHeader title="Trends">
+      <PageHeader>
         <Segmented
           label="Range"
           options={RANGES.map((r, i) => ({ value: i, label: r.label }))}

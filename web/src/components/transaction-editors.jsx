@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Copy, Trash2 } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { formatAmounts } from "../format.js";
-import { accountSplit, firstQuantity } from "@/lib/transactions.js";
+import { accountSplit, sideAccount } from "@/lib/transactions.js";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 import { Account } from "./account.jsx";
 import { AccountInput, PostingFields, editablePostings, fieldsFromPosting, toPostingInput } from "./posting-fields.jsx";
@@ -107,18 +107,16 @@ function FlowEnd({ name }) {
 
 export function EditableAccountSideCell({ tx, side, accounts, onSaved }) {
   const postings = editablePostings(tx.postings);
-  const matching = postings.filter((p) => side === "from" ? firstQuantity(p) < 0 : firstQuantity(p) > 0);
-  const account = matching.length === 1 ? matching[0].account : "";
+  const account = sideAccount(tx, side);
   const state = useInlineEditState(account);
-  const canEdit = !!tx.fid && matching.length === 1;
+  const canEdit = !!tx.fid && !!account;
 
   async function save() {
     if (!state.draft || state.draft === account) { state.cancel(); return; }
-    const oldAccount = matching[0].account;
     await state.run(async () => {
       const newPostings = postings.map((p) => {
         const f = fieldsFromPosting(p);
-        return toPostingInput(p.account === oldAccount ? { ...f, account: state.draft } : f);
+        return toPostingInput(p.account === account ? { ...f, account: state.draft } : f);
       });
       await ledgerClient.updateTransaction({
         fid: tx.fid,

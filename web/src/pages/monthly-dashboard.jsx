@@ -201,7 +201,7 @@ export function MonthlyDashboardPage() {
 
   return (
     <Page>
-      <PageHeader title="Monthly Dashboard">
+      <PageHeader>
         <DateRangePicker
           dateFrom={dateFrom}
           dateTo={dateTo}

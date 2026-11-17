@@ -178,7 +178,7 @@ export function PortfolioPage() {
         accountPrefix={accountPrefix}
         onAccountPrefixChange={setAccountPrefix}
       />
-      <PageHeader title="Investment Portfolio">
+      <PageHeader>
         <Button
           variant={activeFilterCount > 0 ? "secondary" : "outline"}
           size="sm"

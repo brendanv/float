@@ -43,9 +43,6 @@ export function filterAndSortAccountNames(accounts, { includePrefixes = [], excl
   return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
-// Account types used for Waterline glyphs and tones.
-export const ACCOUNT_TYPES = ["asset", "liability", "income", "expense", "equity", "other"];
-
 const TYPE_BY_ROOT = {
   assets: "asset", asset: "asset",
   liabilities: "liability", liability: "liability",

@@ -5,7 +5,6 @@ import { Plus, Pencil, Trash2, Upload, ClipboardPaste } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { PageHeader } from "../components/page-header.jsx";
 import { Page, Section } from "../components/page.jsx";
 import { Segmented } from "../components/segmented.jsx";
 import { CandidateTable } from "../components/import/candidate-table.jsx";
@@ -214,8 +213,6 @@ export function ImportPage() {
 
   return (
     <Page>
-      <PageHeader title="Import" />
-
       <Section title="Upload CSV">
         <Form onSubmit={handlePreview} className="max-w-2xl">
           {previewError && <ErrorBanner error={previewError} />}

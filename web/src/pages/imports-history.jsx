@@ -14,7 +14,6 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
@@ -246,8 +245,6 @@ export function ImportsHistoryPage() {
 
   return (
     <Page>
-      <PageHeader title="Import history" />
-
       <Section title="Past imports" description={imports.length > 0 ? imports.length : null}>
         {isLoading && <Loading />}
         {error && <ErrorBanner error={error} />}

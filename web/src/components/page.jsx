@@ -82,43 +82,6 @@ export function Eyebrow({ className, ...props }) {
   return <span data-slot="eyebrow" className={cn("text-label uppercase text-faint", className)} {...props} />;
 }
 
-export function DashboardGrid({ className, ...props }) {
-  return (
-    <div
-      data-slot="dashboard-grid"
-      className={cn("grid grid-cols-12 gap-6", className)}
-      {...props}
-    />
-  );
-}
-
-// MetricCard is a flat metric: label, figure-size value and a muted line.
-// Pass `amount` (anything <Amount value> accepts) with `tone`, or a
-// preformatted `value`.
-export function MetricCard({
-  title,
-  value,
-  amount,
-  tone,
-  description,
-  footer,
-  valueClassName,
-  className,
-}) {
-  return (
-    <div data-slot="metric" className={cn("flex h-full min-w-0 flex-col gap-2 border-t border-border pt-3", className)}>
-      <Eyebrow>{title}</Eyebrow>
-      <div className={cn("min-w-0 text-figure font-medium", valueClassName)}>
-        {amount !== undefined ? <Amount value={amount} size="figure" tone={tone} /> : value}
-      </div>
-      {description && (
-        <p className="text-control text-muted-foreground">{description}</p>
-      )}
-      {footer && <div className="text-control text-muted-foreground">{footer}</div>}
-    </div>
-  );
-}
-
 const DELTA_TONE = {
   inflow: "bg-inflow-soft text-inflow",
   below: "bg-below-soft text-below",

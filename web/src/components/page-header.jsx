@@ -38,8 +38,9 @@ export function GroupHeader({ item, currentPath, actionsRef }) {
 // PageHeader is the page title (22px) with a right-aligned actions slot.
 // Pass actions as `actions` or as children. `description` is a muted line
 // under the title; leave it out when it would only repeat the title.
-// Inside a group (see GroupHeader) the title is the group's, so `title` is
-// not drawn: actions go to the group header and the description stays here.
+// Inside a group (see GroupHeader) the title is the group's, so grouped
+// pages pass no `title`: actions go to the group header and the description
+// stays here. A grouped page with neither renders no PageHeader at all.
 export function PageHeader({ title, description, actions, children, className }) {
   const slot = actions ?? children;
   const group = useContext(GroupHeaderContext);

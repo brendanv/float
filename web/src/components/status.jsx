@@ -24,9 +24,8 @@ function statusLabel(status) {
 
 // StatusMark shows a transaction's hledger status ("Cleared", "Pending" or
 // "" for unmarked). Without `fid` it is a static mark. With `fid` it is a
-// button that cycles the status as StatusButton in transaction-table.jsx
-// does (Cleared → Pending, anything else → Cleared) through
-// UpdateTransactionStatus, then calls `onStatusChange`. The reviewed state
+// button that cycles the status (Cleared → Pending, anything else →
+// Cleared) through UpdateTransactionStatus, then calls `onStatusChange`. The reviewed state
 // stays blank until hover/focus, when a faint check shows the action.
 export function StatusMark({ status, fid, onStatusChange, className }) {
   const [updating, setUpdating] = useState(false);

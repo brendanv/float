@@ -14,7 +14,6 @@ import { queryKeys } from "../query-keys.js";
 import { formatDate } from "../format.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { FilterInput } from "../components/filter-input.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
@@ -204,8 +203,6 @@ export function LotsPage() {
 
   return (
     <Page>
-      <PageHeader title="Lots" />
-
       <PageCard
         title="Open lots"
         description={data ? `${lots.length} ${lots.length === 1 ? "lot" : "lots"}` : undefined}
