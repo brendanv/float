@@ -135,7 +135,8 @@
   --secondary-foreground: oklch(0.23 0.025 250);
   --muted: oklch(0.963 0.007 235);
   --muted-foreground: oklch(0.48 0.022 250);
-  --faint: oklch(0.64 0.016 250);
+  /* ≥4.5:1 on paper (4.9) and sunken (4.6); still a step lighter than ink-2. */
+  --faint: oklch(0.535 0.016 250);
   --accent: oklch(0.95 0.028 248);
   --accent-foreground: oklch(0.23 0.025 250);
   --border: oklch(0.915 0.008 240);
@@ -160,7 +161,8 @@
   --acct-income: var(--inflow);
   --acct-expense: oklch(0.66 0.025 250);
   --acct-equity: oklch(0.58 0.12 300);
-  --acct-other: var(--faint);
+  /* Glyph only (non-text, 3:1 suffices): kept quieter than the faint text. */
+  --acct-other: oklch(0.64 0.016 250);
 
   /* Categorical series colors, assigned in this fixed order (never cycled).
      Validated for CVD separation against the light and dark card surfaces. */
@@ -216,7 +218,8 @@
   --secondary-foreground: oklch(0.94 0.007 240);
   --muted: oklch(0.205 0.013 250);
   --muted-foreground: oklch(0.73 0.014 245);
-  --faint: oklch(0.57 0.014 245);
+  /* ≥4.5:1 on paper (5.0) and sunken (4.7); still a step dimmer than ink-2. */
+  --faint: oklch(0.61 0.014 245);
   --accent: oklch(0.28 0.05 248);
   --accent-foreground: oklch(0.94 0.007 240);
   --border: oklch(0.275 0.014 250);
@@ -235,6 +238,7 @@
 
   --acct-expense: oklch(0.62 0.02 250);
   --acct-equity: oklch(0.73 0.11 300);
+  --acct-other: oklch(0.57 0.014 245);
 
   --chart-1: #3987e5;
   --chart-2: #d95926;
