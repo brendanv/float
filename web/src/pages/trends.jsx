@@ -14,6 +14,8 @@ import {
   deltaTone,
   firstQuantity as parseAmount,
   netWorthChanges,
+  netWorthSummary,
+  netWorthSummaryQuery,
   netWorthTimeseriesQuery,
   shortMonthLabel,
   timeseriesBegin,
@@ -199,10 +201,7 @@ export function TrendsPage() {
 
   const { data: timeseriesData, isLoading, error } = useQuery(netWorthTimeseriesQuery(begin));
 
-  const { data: balancesData } = useQuery({
-    queryKey: queryKeys.balances({ depth: 1, value: "now,USD" }),
-    queryFn: () => ledgerClient.getBalances({ depth: 1, value: "now,USD" }),
-  });
+  const { data: balancesData } = useQuery(netWorthSummaryQuery());
 
   const expenseQueryParams = useMemo(() => ({
     query: begin ? ["type:X", `date:${begin}..`] : ["type:X"],
@@ -216,12 +215,7 @@ export function TrendsPage() {
 
   const snapshots = timeseriesData?.snapshots || [];
 
-  const balanceRows = balancesData?.report?.rows || [];
-  const assetsRow = balanceRows.find((r) => r.fullName === "assets");
-  const liabilitiesRow = balanceRows.find((r) => r.fullName === "liabilities");
-  const currentNetWorth = assetsRow
-    ? parseFloat(assetsRow?.amounts?.[0]?.quantity || 0) + parseFloat(liabilitiesRow?.amounts?.[0]?.quantity || 0)
-    : null;
+  const { netWorth: currentNetWorth, commodity } = netWorthSummary(balancesData?.report);
 
   const { monthChange, prevMonth, ytdChange } = netWorthChanges(snapshots, currentNetWorth);
 
@@ -246,17 +240,17 @@ export function TrendsPage() {
           <MetricHero
             label="Net worth"
             value={currentNetWorth === null ? <span className="text-faint">—</span> : undefined}
-            amount={currentNetWorth !== null ? { commodity: "USD", quantity: String(currentNetWorth) } : undefined}
+            amount={currentNetWorth !== null ? { commodity, quantity: String(currentNetWorth) } : undefined}
             tone={currentNetWorth !== null && currentNetWorth < 0 ? "below" : "ink"}
             delta={monthChange !== null && (
               <>
-                <Amount value={monthChange} commodity="USD" signed />
+                <Amount value={monthChange} commodity={commodity} signed />
                 {prevMonth && ` vs ${prevMonth}`}
               </>
             )}
             deltaTone={deltaTone(monthChange)}
             sub={ytdChange !== null && (
-              <><Amount value={ytdChange} commodity="USD" signed /> this year</>
+              <><Amount value={ytdChange} commodity={commodity} signed /> this year</>
             )}
           />
 

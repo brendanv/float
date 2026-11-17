@@ -1,6 +1,7 @@
 // hledger query excluding postings to closed accounts (the float-closed
 // account tag, which hledger inherits to sub-accounts). Keep in sync with
-// openAccountsQuery in internal/server/ledger/warm.go (it is pre-warmed).
+// openAccountsQuery in internal/server/ledger/warm.go (pre-warmed reports
+// build on it).
 export const OPEN_ACCOUNTS_QUERY = ["not:tag:float-closed"];
 
 function normalizePrefix(prefix) {

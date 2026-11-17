@@ -1,9 +1,44 @@
 import { ledgerClient } from "@/client.js";
 import { queryKeys } from "@/query-keys.js";
 import { monthName } from "@/format.js";
+import { OPEN_ACCOUNTS_QUERY } from "@/lib/accounts";
 
 // Shared by Overview and Reports › Net worth so both read the same
-// GetNetWorthTimeseries query (and cache entry) for the default 12 months.
+// net-worth summary and GetNetWorthTimeseries query (and cache entries).
+
+// NET_WORTH_SUMMARY_PARAMS is the current net worth as one hledger report:
+// top-level asset and liability balances of open accounts, valued today.
+// The report total is hledger's net worth. floatd pre-warms exactly this
+// query (openAssetLiabilityQuery in internal/server/ledger/warm.go); keep in sync.
+export const NET_WORTH_SUMMARY_PARAMS = {
+  depth: 1,
+  value: "now,USD",
+  query: [...OPEN_ACCOUNTS_QUERY, "type:AL"],
+};
+
+// netWorthSummaryQuery is the React Query options object for the summary.
+export function netWorthSummaryQuery() {
+  return {
+    queryKey: queryKeys.balances(NET_WORTH_SUMMARY_PARAMS),
+    queryFn: () => ledgerClient.getBalances(NET_WORTH_SUMMARY_PARAMS),
+  };
+}
+
+// netWorthSummary picks the assets and liabilities rows and hledger's total
+// out of the summary report. `netWorth` is null until the report has rows.
+export function netWorthSummary(report) {
+  const rows = report?.rows || [];
+  const assets = rows.find((r) => r.fullName === "assets")?.amounts;
+  const liabilities = rows.find((r) => r.fullName === "liabilities")?.amounts;
+  const total = report?.total?.[0];
+  const known = rows.length > 0;
+  return {
+    assets,
+    liabilities,
+    netWorth: known ? parseFloat(total?.quantity) || 0 : null,
+    commodity: total?.commodity ?? assets?.[0]?.commodity ?? liabilities?.[0]?.commodity ?? "USD",
+  };
+}
 
 // timeseriesBegin returns the begin date for the last `months` months, or ""
 // for all history.

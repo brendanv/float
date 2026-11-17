@@ -1699,12 +1699,16 @@ export async function mockLedgerApi(
         }
         else if (isExpense) rows = mockExpenseBalanceRows;
         else if (isRevenue) rows = mockRevenueBalanceRows;
+        else if (reqBody.depth === 1 && query.includes("type:AL"))
+          // The net-worth summary (lib/net-worth.js): its total is net worth.
+          rows = mockBalanceRows.filter((r) => r.fullName === "assets" || r.fullName === "liabilities");
         else
           rows = reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows;
-        // hledger's report total; only the flat expense/revenue reports
-        // (leaf rows that don't overlap) are summed here.
+        // hledger's report total; only the flat reports (expense/revenue
+        // leaves, depth-1 assets/liabilities) whose rows don't overlap are
+        // summed here.
         const total =
-          isExpense || isRevenue
+          isExpense || isRevenue || (!reqBody.tree && reqBody.depth === 1 && query.includes("type:AL"))
             ? [{
                 commodity: "USD",
                 quantity: rows

@@ -9,15 +9,16 @@ import (
 	"github.com/brendanv/float/internal/warm"
 )
 
-// openAccountsQuery excludes postings to closed accounts. The web UI home page
-// requests depth-1 valued balances with exactly this query for its totals, so
-// it is warmed alongside the unfiltered depth-1 fetch.
+// openAccountsQuery excludes postings to closed accounts.
 var openAccountsQuery = []string{"not:tag:" + hledger.ClosedAccountTag}
 
-// homeAccountTreeQuery is the web UI home page's account list: a valued
-// --tree report of open asset and liability accounts. Keep in sync with
-// ACCOUNT_TREE_PARAMS in web/src/pages/home.jsx.
-var homeAccountTreeQuery = append(append([]string(nil), openAccountsQuery...), "type:AL")
+// openAssetLiabilityQuery limits a report to open asset and liability
+// accounts. The web UI reads two valued reports with it: the net-worth
+// summary at depth 1, whose total is net worth (NET_WORTH_SUMMARY_PARAMS in
+// web/src/lib/net-worth.js, used by Overview and Trends), and the Overview
+// account list as a --tree report (ACCOUNT_TREE_PARAMS in
+// web/src/pages/home.jsx). Keep them in sync.
+var openAssetLiabilityQuery = append(append([]string(nil), openAccountsQuery...), "type:AL")
 
 // recentAccountsCap bounds the in-memory LRU of account names touched this
 // process lifetime, warmed alongside the fixed dataset set.
@@ -109,12 +110,12 @@ func (h *Handler) WarmEntries() []warm.Entry {
 			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Depth: 1}, nil)
 			return err
 		}},
-		{Name: "balancesvalued depth 1 open", Load: func(ctx context.Context) error {
-			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Depth: 1}, openAccountsQuery)
+		{Name: "balancesvalued depth 1 open asset/liability", Load: func(ctx context.Context) error {
+			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Depth: 1}, openAssetLiabilityQuery)
 			return err
 		}},
 		{Name: "balancesvalued tree open asset/liability", Load: func(ctx context.Context) error {
-			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Tree: true}, homeAccountTreeQuery)
+			_, err := cachedBalancesValued(ctx, h.cache, h.hl, "now,USD", hledger.BalanceOpts{Tree: true}, openAssetLiabilityQuery)
 			return err
 		}},
 		{Name: "networth", Load: func(ctx context.Context) error {

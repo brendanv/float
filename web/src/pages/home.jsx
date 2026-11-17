@@ -22,12 +22,13 @@ import {
   deltaTone,
   firstQuantity,
   netWorthChanges,
+  netWorthSummary,
+  netWorthSummaryQuery,
   netWorthTimeseriesQuery,
   shortMonthLabel,
   timeseriesBegin,
 } from "@/lib/net-worth.js";
 
-const SUMMARY_PARAMS = { depth: 1, value: "now,USD", query: OPEN_ACCOUNTS_QUERY };
 // Asset and liability balances of open accounts as an hledger tree, so
 // parent rows carry hledger's inclusive totals.
 const ACCOUNT_TREE_PARAMS = { value: "now,USD", tree: true, query: [...OPEN_ACCOUNTS_QUERY, "type:AL"] };
@@ -109,10 +110,7 @@ export function HomePage() {
     queryFn: () => ledgerClient.listAccounts({}),
   });
 
-  const { data: balancesData } = useQuery({
-    queryKey: queryKeys.balances(SUMMARY_PARAMS),
-    queryFn: () => ledgerClient.getBalances(SUMMARY_PARAMS),
-  });
+  const { data: balancesData } = useQuery(netWorthSummaryQuery());
 
   const { data: treeData, isLoading: treeLoading, error: treeError } = useQuery({
     queryKey: queryKeys.balances(ACCOUNT_TREE_PARAMS),
@@ -120,17 +118,15 @@ export function HomePage() {
   });
 
   // Same query (and cache entry) as Reports › Net worth's default range.
+  // GetNetWorthTimeseries takes no query, so unlike the hero figure its
+  // history still includes closed accounts.
   const { data: timeseriesData } = useQuery(netWorthTimeseriesQuery(timeseriesBegin(SPARK_MONTHS)));
 
-  const summaryRows = balancesData?.report?.rows || [];
-  const assets = summaryRows.find((r) => r.fullName === "assets");
-  const liabilities = summaryRows.find((r) => r.fullName === "liabilities");
-  const hasSummary = !!(assets || liabilities);
-  const netWorth = firstQuantity(assets?.amounts) + firstQuantity(liabilities?.amounts);
-  const commodity = assets?.amounts?.[0]?.commodity ?? liabilities?.amounts?.[0]?.commodity ?? "USD";
+  const { assets, liabilities, netWorth, commodity } = netWorthSummary(balancesData?.report);
+  const hasSummary = netWorth !== null;
 
   const snapshots = (timeseriesData?.snapshots || []).slice(-SPARK_MONTHS);
-  const { monthChange, prevMonth, ytdChange } = netWorthChanges(snapshots, hasSummary ? netWorth : null);
+  const { monthChange, prevMonth, ytdChange } = netWorthChanges(snapshots, netWorth);
 
   return (
     <Page className="gap-7">
@@ -162,7 +158,7 @@ export function HomePage() {
               axis: [shortMonthLabel(snapshots[0].date), shortMonthLabel(snapshots.at(-1).date)],
             } : undefined}
           />
-          <Waterline assets={assets?.amounts} liabilities={liabilities?.amounts} />
+          <Waterline assets={assets} liabilities={liabilities} />
         </div>
       )}
 
