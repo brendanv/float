@@ -4,9 +4,10 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { ErrorBanner } from "./error-banner.jsx";
 import { AccountInput } from "./posting-fields.jsx";
+import { Account } from "./account.jsx";
+import { TagChip, tagLabel } from "./tag-editor.jsx";
 import { FormField } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ResponsiveDialog,
@@ -126,7 +127,7 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
         {step === "source" && (
           <>
             <ResponsiveDialogHeader>
-              <ResponsiveDialogTitle>Suggest Rules</ResponsiveDialogTitle>
+              <ResponsiveDialogTitle>Suggest rules</ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
                 Choose which transactions to analyze for rule suggestions.
               </ResponsiveDialogDescription>
@@ -175,7 +176,7 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
         {step === "suggestions" && (
           <>
             <ResponsiveDialogHeader>
-              <ResponsiveDialogTitle>Suggested Rules</ResponsiveDialogTitle>
+              <ResponsiveDialogTitle>Suggested rules</ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
                 {suggestions.length === 0
                   ? "No rules could be suggested for the selected transactions."
@@ -183,59 +184,56 @@ export function SuggestRulesWizard({ open, onOpenChange, accounts, onRulesAdded,
               </ResponsiveDialogDescription>
             </ResponsiveDialogHeader>
             {suggestions.length > 0 && (
-              <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
-                <div className="flex items-center gap-2 border-b pb-1">
+              <div data-slot="rule-suggestions" className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto p-px">
+                <label className="flex items-center gap-2 border-b border-border px-3 pb-2 text-control text-muted-foreground">
                   <Checkbox
                     checked={selected.size === suggestions.length}
                     onCheckedChange={toggleAll}
                   />
-                  <span className="text-xs text-muted-foreground">Select all</span>
-                </div>
+                  Select all
+                </label>
                 {suggestions.map((s, i) => (
                   <div
                     key={i}
                     className={cn(
-                      "flex gap-3 rounded border p-3",
-                      selected.has(i) ? "border-primary/30 bg-primary/5" : "border-transparent bg-muted/30"
+                      "flex gap-3 rounded-lg p-3 ring-1",
+                      selected.has(i) ? "bg-accent ring-primary/25" : "ring-border",
                     )}
                   >
                     <Checkbox
+                      aria-label={`Select rule ${s.pattern}`}
                       checked={selected.has(i)}
                       onCheckedChange={() => toggleOne(i)}
                       className="mt-0.5 shrink-0"
                     />
-                    <div className="flex min-w-0 flex-col gap-2">
+                    <div className="flex min-w-0 flex-col gap-1.5">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{s.pattern}</code>
-                        {s.tags && Object.keys(s.tags).length > 0 &&
-                          Object.entries(s.tags).map(([k, v]) => (
-                            <Badge key={k} variant="outline" className="font-mono text-xs">
-                              {v ? `${k}=${v}` : k}
-                            </Badge>
-                          ))
-                        }
+                        <code className="font-mono text-code break-all">{s.pattern}</code>
+                        {s.tags && Object.entries(s.tags).map(([k, v]) => (
+                          <TagChip key={k}>{tagLabel(k, v)}</TagChip>
+                        ))}
                       </div>
                       {(s.payee || s.account) && (
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-control">
                           {s.payee && (
                             <span>
-                              <span className="text-muted-foreground">Payee: </span>
+                              <span className="text-muted-foreground">Payee </span>
                               <span className="font-medium">{s.payee}</span>
                             </span>
                           )}
                           {s.account && (
-                            <span>
-                              <span className="text-muted-foreground">Category: </span>
-                              <span className="font-mono">{s.account}</span>
+                            <span className="inline-flex min-w-0 items-center gap-1.5">
+                              <span className="text-muted-foreground">Category</span>
+                              <Account name={s.account} variant="path" />
                             </span>
                           )}
                         </div>
                       )}
                       {s.reasoning && (
-                        <p className="text-xs text-muted-foreground">{s.reasoning}</p>
+                        <p className="text-control text-muted-foreground">{s.reasoning}</p>
                       )}
                       {s.exampleFids && s.exampleFids.length > 0 && (
-                        <p className="text-xs text-muted-foreground/50">
+                        <p className="text-[12px] text-faint">
                           {s.exampleFids.length} example transaction{s.exampleFids.length !== 1 ? "s" : ""}
                         </p>
                       )}

@@ -19,11 +19,13 @@ import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { TableSortHeader } from "../components/table-sort-header.jsx";
 import { TablePagination } from "../components/table-pagination.jsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Page, Section } from "../components/page.jsx";
+import { Amount } from "../components/amount.jsx";
+import { Flow } from "../components/account.jsx";
+import { TagChip, tagLabel } from "../components/tag-editor.jsx";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormRow, FormActions } from "@/components/ui/form";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -80,8 +82,9 @@ function TemplatePostingRow({ posting, index, onChange, onRemove, canRemove, acc
           variant="ghost"
           size="icon-xs"
           onClick={onRemove}
-          className="mt-1 shrink-0 text-muted-foreground hover:text-destructive"
+          className="mt-1 shrink-0 text-muted-foreground hover:text-below"
           title="Remove posting"
+          aria-label="Remove posting"
         >
           <X className="size-3.5" />
         </Button>
@@ -174,7 +177,7 @@ function TemplateForm({ initial, onSave, onCancel, accounts }) {
         />
       </FormField>
       <FormField label="Postings">
-        <p className="mb-2 text-xs text-muted-foreground">
+        <p className="mb-1 text-[12.5px] text-muted-foreground">
           Leave &ldquo;Default qty&rdquo; blank on one posting to let hledger auto-balance it.
         </p>
         <div className="flex flex-col gap-2">
@@ -217,10 +220,47 @@ function TemplateForm({ initial, onSave, onCancel, accounts }) {
   );
 }
 
-function postingSummary(postings) {
-  if (!postings || postings.length === 0) return "—";
-  return postings.map((p) => p.account).join(" · ");
+// templateShape reads a template's postings as a flow: postings with a
+// negative default quantity are the "from" side, positive ones the "to"
+// side, and a blank (auto-balancing) posting takes the side opposite the
+// filled ones. `amount` is the total moved when the filled postings share
+// one commodity.
+function templateShape(postings) {
+  const list = postings ?? [];
+  const sign = (p) => Math.sign(parseFloat(p.defaultQuantity) || 0);
+  const hasTo = list.some((p) => sign(p) > 0);
+  const hasFrom = list.some((p) => sign(p) < 0);
+  const side = (p) => {
+    const s = sign(p);
+    if (s !== 0) return s > 0 ? "to" : "from";
+    return hasTo && !hasFrom ? "from" : hasFrom && !hasTo ? "to" : null;
+  };
+  let from = list.filter((p) => side(p) === "from").map((p) => p.account);
+  let to = list.filter((p) => side(p) === "to").map((p) => p.account);
+  if (from.length === 0 && to.length === 0) {
+    // No amounts at all: hledger convention lists the destination first.
+    to = list.slice(0, 1).map((p) => p.account);
+    from = list.slice(1).map((p) => p.account);
+  }
+  const end = (names) => (names.length === 1 ? names[0] : names.length > 1 ? `${names.length} accounts` : "");
+
+  const filled = list.filter((p) => sign(p) !== 0);
+  const commodities = new Set(filled.map((p) => p.commodity));
+  const moved = filled.filter((p) => sign(p) === (hasTo ? 1 : -1));
+  const amount = commodities.size === 1 && moved.length > 0
+    ? {
+        commodity: moved[0].commodity,
+        quantity: String(Math.abs(moved.reduce((sum, p) => sum + parseFloat(p.defaultQuantity), 0))),
+      }
+    : null;
+
+  return { from: end(from), to: end(to), amount };
 }
+
+// Row actions show on row hover or keyboard focus on devices that can
+// hover; touch devices always show them.
+const ROW_ACTION =
+  "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 [@media(hover:hover)]:group-focus-within/row:opacity-100 focus-visible:opacity-100 transition-opacity";
 
 export function TemplatesPage() {
   const queryClient = useQueryClient();
@@ -277,62 +317,80 @@ export function TemplatesPage() {
   const columns = [
     columnHelper.accessor("name", {
       header: ({ column }) => <TableSortHeader column={column}>Name</TableSortHeader>,
-      cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
-    }),
-    columnHelper.accessor("payee", {
-      header: "Payee",
-      cell: ({ getValue }) => getValue() || <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => (
+        <span className="flex min-w-0 flex-col">
+          <span className="font-medium">{row.original.name}</span>
+          {(row.original.payee || row.original.note) && (
+            <span className="text-[12.5px] text-faint">
+              {[row.original.payee, row.original.note].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </span>
+      ),
     }),
     columnHelper.accessor("postings", {
-      header: "Accounts",
-      cell: ({ getValue }) => (
-        <span className="font-mono text-xs text-muted-foreground">{postingSummary(getValue())}</span>
-      ),
+      id: "flow",
+      header: "Flow",
+      cell: ({ getValue }) => {
+        const { from, to } = templateShape(getValue());
+        const title = (getValue() ?? []).map((p) => p.account).join(", ");
+        return from || to ? <Flow from={from} to={to} title={title} /> : <span className="text-faint">—</span>;
+      },
       enableSorting: false,
     }),
     columnHelper.accessor("tags", {
       header: "Tags",
       cell: ({ getValue }) => {
-        const tags = getValue() || {};
-        const entries = Object.entries(tags);
-        if (entries.length === 0) return <span className="text-muted-foreground">—</span>;
+        const entries = Object.entries(getValue() || {});
+        if (entries.length === 0) return <span className="text-faint">—</span>;
         return (
-          <div className="flex flex-wrap gap-1">
-            {entries.map(([k, v]) => (
-              <Badge key={k} variant="secondary" className="text-xs">
-                {v ? `${k}:${v}` : k}
-              </Badge>
-            ))}
-          </div>
+          <span className="flex flex-wrap gap-1">
+            {entries.map(([k, v]) => <TagChip key={k}>{tagLabel(k, v)}</TagChip>)}
+          </span>
         );
       },
       enableSorting: false,
     }),
     columnHelper.display({
+      id: "amount",
+      header: () => <span className="block text-right">Amount</span>,
+      cell: ({ row }) => {
+        const { amount } = templateShape(row.original.postings);
+        return (
+          <span className="block text-right">
+            {amount ? <Amount value={amount} /> : <span className="text-faint">auto</span>}
+          </span>
+        );
+      },
+    }),
+    columnHelper.display({
       id: "actions",
       header: "",
       cell: ({ row }) => (
-        <div className="flex justify-end gap-1">
+        <div className={cn("flex justify-end gap-1", ROW_ACTION)}>
           <Button
             variant="ghost"
             size="icon-xs"
             title="Edit template"
+            aria-label={`Edit template ${row.original.name}`}
+            className="text-muted-foreground"
             onClick={() => setEditingTemplate(row.original)}
           >
-            <Pencil className="size-3.5" />
+            <Pencil />
           </Button>
           <Button
             variant="ghost"
             size="icon-xs"
             title="Delete template"
-            className="text-muted-foreground hover:text-destructive"
+            aria-label={`Delete template ${row.original.name}`}
+            className="text-muted-foreground hover:text-below"
             onClick={() => setDeleteTarget(row.original)}
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 />
           </Button>
         </div>
       ),
-      meta: { headerClass: "w-24" },
+      meta: { headerClass: "w-16" },
     }),
   ];
 
@@ -348,90 +406,90 @@ export function TemplatesPage() {
   if (isLoading) return <Loading />;
   if (error) return <ErrorBanner error={error} />;
 
+  const formOpen = showForm || !!editingTemplate;
+
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <PageHeader
-        title="Transaction Templates"
-        description="Save recurring transaction shapes for bulk entry."
+        title="Templates"
+        actions={
+          !formOpen && (
+            <Button onClick={() => setShowForm(true)}>
+              <Plus data-icon="inline-start" /> New Template
+            </Button>
+          )
+        }
       />
 
       {/* Create / edit form */}
-      {(showForm || editingTemplate) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{editingTemplate ? "Edit Template" : "New Template"}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TemplateForm
-              initial={editingTemplate ?? undefined}
-              accounts={accounts}
-              onSave={async (data) => {
-                if (editingTemplate) {
-                  await updateMutation.mutateAsync({ id: editingTemplate.id, ...data });
-                } else {
-                  await addMutation.mutateAsync(data);
-                }
-              }}
-              onCancel={() => {
-                setShowForm(false);
-                setEditingTemplate(null);
-              }}
-            />
-          </CardContent>
-        </Card>
+      {formOpen && (
+        <Section title={editingTemplate ? "Edit template" : "New template"}>
+          <TemplateForm
+            initial={editingTemplate ?? undefined}
+            accounts={accounts}
+            onSave={async (data) => {
+              if (editingTemplate) {
+                await updateMutation.mutateAsync({ id: editingTemplate.id, ...data });
+              } else {
+                await addMutation.mutateAsync(data);
+              }
+            }}
+            onCancel={() => {
+              setShowForm(false);
+              setEditingTemplate(null);
+            }}
+          />
+        </Section>
       )}
 
       {/* Templates list */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Templates</CardTitle>
-          {!showForm && !editingTemplate && (
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus data-icon="inline-start" /> New Template
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {templatesList.length === 0 ? (
-            <EmptyState
-              icon={LayoutGrid}
-              title="No templates yet"
-              description="Create a template to save a transaction shape for quick entry."
-            />
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  {table.getHeaderGroups().map((hg) => (
-                    <TableRow key={hg.id}>
-                      {hg.headers.map((h) => (
-                        <TableHead
-                          key={h.id}
-                          className={cn(h.column.columnDef.meta?.headerClass)}
-                        >
-                          {flexRender(h.column.columnDef.header, h.getContext())}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <TablePagination table={table} />
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <Section
+        title="Saved templates"
+        description={templatesList.length > 0 ? templatesList.length : null}
+      >
+        {templatesList.length === 0 ? (
+          <EmptyState
+            icon={LayoutGrid}
+            title="No templates yet"
+            description="Create a template to save a transaction shape for quick entry."
+          />
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((hg) => (
+                  <TableRow key={hg.id} className="hover:bg-transparent">
+                    {hg.headers.map((h) => (
+                      <TableHead
+                        key={h.id}
+                        className={cn(h.column.columnDef.meta?.headerClass)}
+                      >
+                        {flexRender(h.column.columnDef.header, h.getContext())}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={editingTemplate?.id === row.original.id ? "selected" : undefined}
+                    className="group/row data-[state=selected]:bg-accent"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} className="py-1">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <TablePagination table={table} />
+          </>
+        )}
+      </Section>
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
@@ -453,6 +511,6 @@ export function TemplatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Page>
   );
 }
