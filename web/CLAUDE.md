@@ -78,7 +78,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 
 ## Design language (Waterline)
 
-The UI follows the Waterline language (tokens in `src/style.css`; visual reference: `design/waterline-mockup.html`). Prefer these primitives over one-off styling:
+The UI follows the Waterline language (tokens in `src/style.css`). Prefer these primitives over one-off styling:
 
 | Primitive | Use it for |
 |-----------|------------|
