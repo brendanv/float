@@ -84,6 +84,7 @@ const priceColumns = [
   colHelper.display({
     id: "actions",
     header: "",
+    meta: { headerClass: "w-px", cellClass: "w-px text-right" },
     cell: ({ row, table }) => {
       const { onDelete } = table.options.meta;
       const p = row.original;
