@@ -24,7 +24,7 @@ import { UNREVIEWED_SEARCH, useReviewCount } from "@/hooks/use-review-count.js";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
 import { CommandPalette } from "./command-palette.jsx";
 import { NAV_GROUPS, SETTINGS_ITEM, navItemFor } from "./nav-items.js";
-import { SectionTabs } from "./section-tabs.jsx";
+import { GroupHeader, GroupHeaderProvider } from "./page-header.jsx";
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform ?? "");
 
@@ -296,6 +296,7 @@ export function AppShell({ children, currentPath }) {
   const [jumpOpen, setJumpOpen] = useState(false);
   const isMobile = useIsMobile();
   const navItem = navItemFor(currentPath);
+  const [groupActionsEl, setGroupActionsEl] = useState(null);
 
   useShellShortcuts(setAddTxnOpen, setJumpOpen);
 
@@ -309,10 +310,16 @@ export function AppShell({ children, currentPath }) {
       <SidebarInset className="min-w-0">
         <DesktopReopen />
         <div className="container mx-auto flex max-w-7xl flex-1 flex-col gap-6 px-4 pt-5 pb-8 md:px-8 md:pt-6">
-          {navItem?.tabs && (
-            <SectionTabs items={navItem.tabs} currentPath={currentPath} label={navItem.label} />
+          {navItem?.tabs ? (
+            <>
+              <GroupHeader item={navItem} currentPath={currentPath} actionsRef={setGroupActionsEl} />
+              <GroupHeaderProvider actionsEl={groupActionsEl}>
+                <div className="flex-1">{children}</div>
+              </GroupHeaderProvider>
+            </>
+          ) : (
+            <div className="flex-1">{children}</div>
           )}
-          <div className="flex-1">{children}</div>
         </div>
         {isMobile && (
           <MobileTabBar activeId={navItem?.id} onAddTransaction={() => setAddTxnOpen(true)} />

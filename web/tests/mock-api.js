@@ -1713,7 +1713,18 @@ export async function mockLedgerApi(
         else if (isRevenue) rows = mockRevenueBalanceRows;
         else
           rows = reqBody.depth === 1 ? mockBalanceRows : mockAccountBalanceRows;
-        body = { report: { rows } };
+        // hledger's report total; only the flat expense/revenue reports
+        // (leaf rows that don't overlap) are summed here.
+        const total =
+          isExpense || isRevenue
+            ? [{
+                commodity: "USD",
+                quantity: rows
+                  .reduce((sum, r) => sum + parseFloat(r.amounts?.[0]?.quantity || 0), 0)
+                  .toFixed(2),
+              }]
+            : [];
+        body = { report: { rows, total } };
         break;
       }
       case "ListPayees": {
