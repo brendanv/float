@@ -10,36 +10,31 @@ function captureRpc(page, method) {
 }
 
 // An account holding a commodity hledger can't value keeps one amount per lot.
-const lotRows = [
-  ...mockFullAccountTreeRows,
-  {
-    fullName: "assets:brokerage",
-    displayName: "brokerage",
-    indent: 1,
-    amounts: [
-      { commodity: "USD", quantity: "5210.00" },
-      ...[100, 110, 120, 130].map((cost, i) => ({
-        commodity: "VTI",
-        quantity: String(i + 1),
-        costBasis: { cost: { commodity: "USD", quantity: String(cost) } },
-      })),
-    ],
-  },
-];
+const lotRows = mockFullAccountTreeRows.map((r) => (r.fullName !== "assets:investments:aapl" ? r : {
+  ...r,
+  amounts: [
+    { commodity: "USD", quantity: "1750.00" },
+    ...[100, 110, 120, 130].map((cost, i) => ({
+      commodity: "VTI",
+      quantity: String(i + 1),
+      costBasis: { cost: { commodity: "USD", quantity: String(cost) } },
+    })),
+  ],
+}));
 
 test("accounts tree shows market value and collapses long amount lists", async ({ page }) => {
   await mockLedgerApi(page, { balanceTreeRows: lotRows });
   const balances = captureRpc(page, "GetBalances");
   await page.goto("/#/accounts");
 
-  const row = page.locator('[data-slot="account-row"]').filter({ hasText: "brokerage" });
+  const row = page.locator('[data-slot="account-row"]').filter({ hasText: /^aapl/ });
   await expect(row.locator('[data-slot="amount"]')).toHaveCount(1);
   await expect.poll(() => balances.find((b) => b.tree)?.value).toBe("now,USD");
 
-  await row.getByRole("button", { name: "Show 4 more amounts for assets:brokerage" }).click();
+  await row.getByRole("button", { name: "Show 4 more amounts for assets:investments:aapl" }).click();
   await expect(row.locator('[data-slot="amount"]')).toHaveCount(5);
   await page.screenshot({ path: "test-results/accounts-collapsed-lots.png", fullPage: true });
-  await row.getByRole("button", { name: "Show fewer amounts for assets:brokerage" }).click();
+  await row.getByRole("button", { name: "Show fewer amounts for assets:investments:aapl" }).click();
   await expect(row.locator('[data-slot="amount"]')).toHaveCount(1);
 });
 
