@@ -7,8 +7,8 @@ float is a self-hostable personal finance manager built on top of [hledger](http
 # Features
 
 - Backed by [hledger](https://hledger.org/). All of your data is stored as plain-text journals, and hledger handles all of the accounting math, validation, and reporting, so your files are always valid hledger and work with any other hledger tool.
-- Automatic snapshots of your data after every change. Browse, diff, and restore old versions right from the UI.
-- Import CSVs from your bank with reusable per-bank profiles, preview everything before it hits your journal, and skip duplicates automatically. Imported something by mistake? Undo the whole batch in one click.
+- Automatic snapshots of your data after every change, stored as commits in a git repository inside your data directory. Browse, diff, and restore old versions right from the UI.
+- Import CSVs from your bank with reusable per-bank profiles, preview everything before it hits your journal, and skip duplicates automatically.
   - Plus, optionally connect your bank accounts via Stripe Financial Connections and have new transactions pulled in daily.
 - Categorization rules automatically clean up payees and assign accounts and tags as transactions come in, or retroactively across your whole history.
 - Reports for net worth over time and monthly income and spending.
