@@ -1,0 +1,19 @@
+services:
+  float:
+    image: ghcr.io/brendanv/float:latest
+    container_name: float
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Your journals, config.toml, and snapshot history live here.
+      - ./data:/data
+    environment:
+      # Required to enable auth. Without it, anyone who can reach the server has full access.
+      FLOAT_AUTH_PASSPHRASE: change-me
+      # Optional: bank connections via Stripe Financial Connections.
+      # STRIPE_SECRET_KEY: sk_live_...
+      # STRIPE_PUBLISHABLE_KEY: pk_live_...
+      # Optional: AI features via OpenRouter.
+      # OPENROUTER_API_KEY: sk-or-...
+      # OPENROUTER_MODEL: ...
