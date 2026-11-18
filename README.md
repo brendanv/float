@@ -1,24 +1,18 @@
 # float
 
-float is a self-hostable personal finance manager built on top of [hledger](https://hledger.org/). Track your spending, net worth, and investments from a nice web UI, while all of your data lives in plain-text journal files that you own forever. No proprietary database, no lock-in, and no worrying about what happens to your financial history when some budgeting app shuts down.
+float is a self-hostable personal finance manager built on top of [hledger](https://hledger.org/). Track your spending, net worth, and investments from a nice web UI, while all of your data lives in plain-text journal files that you own forever.
 
 ![Overview](docs/screenshots/overview.png)
 
 # Features
 
-- Everything is stored as plain-text [hledger](https://hledger.org/) journals, organized into one file per month. Read them, grep them, edit them by hand, or point any other hledger tool at them.
-  - Plus, float never does its own accounting math. hledger handles all of the parsing, validation, and reporting, so your journal is always valid hledger.
-- Every change is validated with `hledger check` before it's saved, and automatically rolled back if it would break anything.
-- Automatic snapshots of your data directory after every change. Browse, diff, and restore old versions right from the UI.
+- Backed by [hledger](https://hledger.org/). All of your data is stored as plain-text journals, and hledger handles all of the accounting math, validation, and reporting, so your files are always valid hledger and work with any other hledger tool.
+- Automatic snapshots of your data after every change. Browse, diff, and restore old versions right from the UI.
 - Import CSVs from your bank with reusable per-bank profiles, preview everything before it hits your journal, and skip duplicates automatically. Imported something by mistake? Undo the whole batch in one click.
   - Plus, optionally connect your bank accounts via Stripe Financial Connections and have new transactions pulled in daily.
 - Categorization rules automatically clean up payees and assign accounts and tags as transactions come in, or retroactively across your whole history.
-- Reports for net worth over time and monthly income and spending, plus account registers and balance assertions.
-- Investment tracking with holdings, lots, cost basis, returns, and allocation. Enter prices by hand or backfill them from Alpha Vantage.
-- Fast, keyboard-friendly transaction entry, saved templates for recurring transactions, and bulk editing.
-- Bring your own OpenRouter API key to get rule suggestions, find conflicting rules, and ask questions about your finances in plain English.
-- Everything the web UI can do is also available via a gRPC/Connect API, so it's easy to script against (or hand to an agent).
-- Responsive design that works well on your phone, plus light and dark mode.
+- Reports for net worth over time and monthly income and spending.
+- Investment tracking with lots, cost basis, returns, and allocation.
 
 <p align="center">
   <img src="docs/screenshots/overview-mobile.png" width="30%">
@@ -35,21 +29,34 @@ float is a self-hostable personal finance manager built on top of [hledger](http
 
 # Installation
 
-The easiest way to run float is with Docker. The image bundles hledger, so there's nothing else to install.
+The easiest way to run float is with Docker. The image bundles hledger, so there's nothing else to install. To get up and running quickly:
 
-```bash
-mkdir -p data && touch data/config.toml
-docker run -d --name float \
-  -p 8080:8080 \
-  -v "$PWD/data:/data" \
-  -e FLOAT_AUTH_PASSPHRASE=change-me \
-  ghcr.io/brendanv/float:latest
+- Download a copy of the [docker-compose.yml](docker-compose.yml) file from this repository
+- Change `FLOAT_AUTH_PASSPHRASE` to something secret, and optionally uncomment the Stripe and OpenRouter variables to enable those integrations
+- Create an empty config file with `mkdir -p data && touch data/config.toml`
+- Run `docker compose up -d` and you should be able to access float at `your-server.com:8080`
+
+```yaml
+services:
+  float:
+    image: ghcr.io/brendanv/float:latest
+    container_name: float
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Your journals, config.toml, and snapshot history live here.
+      - ./data:/data
+    environment:
+      # Required to enable auth. Without it, anyone who can reach the server has full access.
+      FLOAT_AUTH_PASSPHRASE: change-me
+      # Optional: bank connections via Stripe Financial Connections.
+      # STRIPE_SECRET_KEY: sk_live_...
+      # STRIPE_PUBLISHABLE_KEY: pk_live_...
+      # Optional: AI features via OpenRouter.
+      # OPENROUTER_API_KEY: sk-or-...
+      # OPENROUTER_MODEL: ...
 ```
-
-Then head to `your-server.com:8080` and log in with your passphrase.
-
-> [!WARNING]
-> If `FLOAT_AUTH_PASSPHRASE` isn't set, auth is disabled entirely and anyone who can reach the server can see and edit your finances. There's a single shared passphrase and no per-user accounts, so it's best to keep float on your home network or behind a VPN.
 
 If you'd rather build it yourself, install [mise](https://mise.jdx.dev/) and run:
 
@@ -67,11 +74,21 @@ Already using hledger? Just add an `include` for your existing journal in `data/
 
 `config.toml` can start out empty, and most settings (bank profiles, API keys, timezone) can be managed from the Settings and Import pages. A few things are configured via environment variables instead:
 
-- `FLOAT_AUTH_PASSPHRASE`: the passphrase for the web UI and API.
 - `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY`: enables bank connections via Stripe.
 - `OPENROUTER_API_KEY` (and optionally `OPENROUTER_MODEL`): enables the AI features.
 
 You'll probably want to set `timezone = "America/New_York"` (or wherever you are) at the top of `config.toml` so that "today" means the same thing to float as it does to you.
+
+## Authentication
+
+float uses a single shared passphrase, set via the `FLOAT_AUTH_PASSPHRASE` environment variable. There are no per-user accounts: anyone with the passphrase gets full access.
+
+- In the web UI, you log in with the passphrase once and get a long-lived session cookie.
+- API clients send it as a bearer token: `Authorization: Bearer <passphrase>`.
+- Changing the passphrase immediately logs out every existing session.
+
+> [!WARNING]
+> If `FLOAT_AUTH_PASSPHRASE` isn't set, auth is disabled entirely and anyone who can reach the server can see and edit your finances. Since there's only one passphrase, it's best to keep float on your home network or behind a VPN.
 
 # Scripting and the API
 
@@ -92,4 +109,4 @@ There's also `floatctl`, an admin CLI that operates on the data directory direct
 
 Contributions are welcome but no guarantees that they'll be accepted - I mostly built float for myself so I'm somewhat opinionated on how it should evolve :)
 
-To get a dev environment going, run `mise run floatd` and `mise run web-dev` side by side. `mise run check-all` runs lint and tests, and `mise run ci` runs everything CI does. The screenshots above are generated from mocked data via Playwright (`cd web && bash capture-screenshots.sh`), so you don't need real financial data to work on the UI. Architecture notes live in [CLAUDE.md](CLAUDE.md).
+To get a dev environment going, run `mise run floatd` and `mise run web-dev` side by side. `mise run check-all` runs lint and tests, and `mise run ci` runs everything CI does.
