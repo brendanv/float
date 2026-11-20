@@ -1,0 +1,8 @@
+# Fixture data directory for the real-backend e2e suite (web/e2e). Each test
+# copies it to a temp dir and starts its own floatd against the copy.
+[server]
+port = 0
+
+[[bank_profiles]]
+name = "E2E Checking"
+rules_file = "rules/e2e-checking.rules"

@@ -1,0 +1,19 @@
+2026-02-02 * Employer | Paycheck
+    assets:checking               3000.00 USD
+    income:salary
+
+2026-02-05 * Landlord | February rent
+    expenses:housing:rent         1500.00 USD
+    assets:checking
+
+2026-02-12 ! Coffee Shop | Latte
+    expenses:food:restaurants        5.75 USD
+    liabilities:credit-card
+
+2026-02-20 Mystery Merchant
+    expenses:misc                   42.00 USD
+    liabilities:credit-card
+
+2026-02-25 * CORNER GROCER #1234
+    expenses:unknown                64.10 USD
+    assets:checking

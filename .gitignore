@@ -23,6 +23,7 @@ web/package-lock.json
 
 # Playwright
 web/test-results/
+web/e2e/.bin/
 web/playwright-report/
 test-results/
 

@@ -86,6 +86,10 @@ jobs:
       - name: Playwright
         run: mise run web-test
 
+      # Real floatd + hledger per test (web/e2e); mise installs Go and hledger.
+      - name: Playwright e2e (real backend)
+        run: mise run web-e2e
+
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4

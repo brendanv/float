@@ -74,9 +74,17 @@ description = "Run Playwright tests (fail on console/page errors, unmocked RPCs)
 depends = ["web-gen"]
 run = "cd web && bun run test"
 
+[tasks.web-e2e]
+description = "Run the real-backend Playwright suite (web/e2e): builds the web UI and floatd, one floatd per test"
+depends = ["web-build"]
+run = """
+go build -tags webui -o web/e2e/.bin/floatd ./cmd/floatd
+cd web && FLOAT_E2E_BIN=e2e/.bin/floatd bunx playwright test -c playwright.e2e.config.js
+"""
+
 [tasks.ci]
-description = "Everything CI runs: Go lint/vet/race tests, proto checks, web build and Playwright"
-depends = ["lint", "vet", "test-race", "proto-lint", "proto-breaking", "proto-check", "web-build", "web-test"]
+description = "Everything CI runs: Go lint/vet/race tests, proto checks, web build, mocked and real-backend Playwright"
+depends = ["lint", "vet", "test-race", "proto-lint", "proto-breaking", "proto-check", "web-build", "web-test", "web-e2e"]
 
 [tasks.build]
 description = "Regenerate protobuf code, build web UI, and compile floatd"

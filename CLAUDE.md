@@ -14,7 +14,9 @@ mise run test        # go test ./...
 mise run lint        # golangci-lint run ./...
 mise run check       # lint + test
 mise run check-all   # lint + vet + test (fast pre-commit gate)
-mise run ci          # everything CI runs: lint, vet, race tests, proto lint/breaking/codegen drift, web build, Playwright
+mise run ci          # everything CI runs: lint, vet, race tests, proto lint/breaking/codegen drift, web build, Playwright (mocked + real-backend)
+mise run web-test    # mocked Playwright suite (web/tests), incl. visual baselines
+mise run web-e2e     # real-backend Playwright suite (web/e2e): real floatd + hledger per test
 mise run proto-gen   # buf generate for Go + JS (after editing .proto files)
 mise run web-gen     # generate JS protobuf code only
 mise run web-build   # build web UI → internal/webui/dist/
@@ -112,7 +114,14 @@ The web UI is React + Vite + TanStack + shadcn/ui under `web/` and is embedded i
 
 ## CI and Verification
 
-CI (`.github/workflows/ci.yml`) runs the same mise tasks as `mise run ci`; keep the two in sync. Before reporting a change as done, run `mise run check-all`, plus `mise run web-test` for web changes and `mise run proto-check` for `.proto` changes.
+CI (`.github/workflows/ci.yml`) runs the same mise tasks as `mise run ci`; keep the two in sync. Before reporting a change as done, run `mise run check-all`, plus `mise run web-test` and `mise run web-e2e` for web or RPC-behavior changes and `mise run proto-check` for `.proto` changes.
+
+Test layers, from fastest to most realistic:
+
+- Go unit/integration tests per package (real hledger against `testdata/`).
+- `cmd/floatd/main_test.go`: starts the whole server through `run()` (config, startup migrations, txlock + gitsnap, auth, interceptors, reflection) and checks auth, a write round-trip and startup failure.
+- `web/tests` (mocked RPCs): UI behavior and screenshots. Every mocked response is decoded with the generated proto schema, so mocks can't drift from the protos. `tests/visual.spec.js` compares key pages against committed baselines in `web/test-snapshots/`; after an intended UI change run `cd web && bun run test:update-snapshots` and commit the new images.
+- `web/e2e` (real backend): each test gets its own `floatd` on a copy of `web/e2e/data` and asserts on journal files and RPC results as well as the screen. Use it to verify any change that crosses the UI/server boundary — see `web/CLAUDE.md`.
 
 - `.golangci.yml` enforces the architecture rules below with depguard/forbidigo: `os/exec` only in `internal/hledger`; no `gen/`, `internal/server` or connect imports from core packages; no direct data-dir file writes outside the owning packages; no `context.Background()` in tests; gofmt. Don't widen a rule to get green; use a targeted `//nolint:<linter> // <reason>` only when the code is genuinely correct (e.g. a write already inside a `txlock` callback).
 - `protoc-gen-go`/`protoc-gen-connect-go` are pinned as `tool` deps in `go.mod` and run via `go tool`, so `buf generate` is reproducible.
@@ -129,4 +138,4 @@ CI (`.github/workflows/ci.yml`) runs the same mise tasks as `mise run ci`; keep 
 
 ## Web UI Screenshots
 
-Playwright in `web/` captures screenshots with mocked API data, so no live `floatd` is required. Use the `web-screenshots` skill or `cd web && bun run screenshots`. Config: `web/playwright.config.js`, `web/tests/*.spec.js`, `web/tests/mock-api.js`. `@playwright/test` is pinned to **1.56.1** — do not upgrade without matching the system Chromium.
+Playwright in `web/` captures screenshots with mocked API data, so no live `floatd` is required. Use the `web-screenshots` skill or `cd web && bun run screenshots`. Config: `web/playwright.config.js`, `web/tests/*.spec.js`, `web/tests/mock-api.js`. To see a change against real data instead, write or run a spec in `web/e2e/` (`playwright.e2e.config.js`). `@playwright/test` is pinned to **1.56.1** — do not upgrade without matching the system Chromium.
