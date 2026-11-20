@@ -611,6 +611,52 @@ export const mockTransactions = [
   },
 ];
 
+// Transfer sides through equity:transfers with no matching other side
+// (FindUnmatchedTransfers). Not returned by default; pass
+// `unmatchedTransfers: mockUnmatchedTransfers` to mockLedgerApi.
+export const mockUnmatchedTransfers = [
+  {
+    status: "recent",
+    amount: { commodity: "USD", quantity: "250.00" },
+    transaction: {
+      fid: "f1e2d3c4",
+      date: "2026-03-27",
+      description: "Online transfer to savings",
+      postings: [
+        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-250.00" }] },
+        { account: "equity:transfers", amounts: [{ commodity: "USD", quantity: "250.00" }] },
+      ],
+    },
+  },
+  {
+    status: "missing",
+    amount: { commodity: "USD", quantity: "-842.18" },
+    transaction: {
+      fid: "f1e2d3c5",
+      date: "2026-03-04",
+      description: "Payment thank you",
+      importBatchId: "stripe/2026-03-05-a1b2c3d4",
+      postings: [
+        { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "842.18" }] },
+        { account: "equity:transfers", amounts: [{ commodity: "USD", quantity: "-842.18" }] },
+      ],
+    },
+  },
+  {
+    status: "missing",
+    amount: { commodity: "USD", quantity: "100.00" },
+    transaction: {
+      fid: "f1e2d3c6",
+      date: "2026-02-14",
+      description: "Transfer to Venmo",
+      postings: [
+        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-100.00" }] },
+        { account: "equity:transfers", amounts: [{ commodity: "USD", quantity: "100.00" }] },
+      ],
+    },
+  },
+];
+
 export const mockLots = [
   {
     account: "assets:investments:aapl",
@@ -1661,6 +1707,7 @@ export async function mockLedgerApi(
     balanceTreeRows,
     stripeEnabled = true,
     aiEnabled = true,
+    unmatchedTransfers = [],
   } = {},
 ) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
@@ -1680,6 +1727,9 @@ export async function mockLedgerApi(
         break;
       case "ListTags":
         body = { tags: ["category", "memo", "reimbursable"] };
+        break;
+      case "FindUnmatchedTransfers":
+        body = { transfers: unmatchedTransfers, account: "equity:transfers", windowDays: 5 };
         break;
       case "GetBalanceAssertionStatus":
         body = {

@@ -14,6 +14,7 @@ import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
 import { MetricHero, Page, Section } from "../components/page.jsx";
 import { PageHeader } from "../components/page-header.jsx";
+import { MissingTransfersNotice } from "../components/unmatched-transfers.jsx";
 import { Notice } from "@/components/ui/alert";
 import { UNREVIEWED_SEARCH, useReviewCount } from "@/hooks/use-review-count.js";
 import { OPEN_ACCOUNTS_QUERY } from "@/lib/accounts";
@@ -135,6 +136,7 @@ export function HomePage() {
       </PageHeader>
 
       <ReviewNotice />
+      <MissingTransfersNotice />
 
       {summaryError && <ErrorBanner error={summaryError} />}
       {hasSummary && (

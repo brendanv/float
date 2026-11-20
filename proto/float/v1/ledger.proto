@@ -1136,6 +1136,26 @@ message GetBalanceAssertionStatusResponse {
   repeated AccountAssertionStatus accounts = 1; // sorted by transactions since last assertion, highest first
 }
 
+// UnmatchedTransfer is one side of a transfer through the transfers clearing
+// account (config `transfers.account`, default "equity:transfers") with no
+// matching other side: no transaction with the equal and opposite clearing
+// amount, from a different account, dated within the match window.
+message UnmatchedTransfer {
+  Transaction transaction = 1;
+  Amount amount = 2;  // amount posted to the clearing account
+  string status = 3;  // "missing" (older than the window: the other side is probably missing) or "recent" (within the window of today: may not be imported yet)
+}
+
+message FindUnmatchedTransfersRequest {
+  string from_date = 1; // optional "YYYY-MM-DD": only report sides dated on or after it (matching still uses all history); empty = all
+}
+
+message FindUnmatchedTransfersResponse {
+  repeated UnmatchedTransfer transfers = 1; // newest first
+  string account = 2;     // clearing account checked
+  int32 window_days = 3;  // max days between matching sides
+}
+
 message LogEntry {
   string time = 1;               // RFC3339Nano timestamp
   string level = 2;              // "DEBUG", "INFO", "WARN", "ERROR"
@@ -1157,6 +1177,7 @@ service LedgerService {
   rpc GetBalances(GetBalancesRequest) returns (GetBalancesResponse);
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
   rpc GetBalanceAssertionStatus(GetBalanceAssertionStatusRequest) returns (GetBalanceAssertionStatusResponse);
+  rpc FindUnmatchedTransfers(FindUnmatchedTransfersRequest) returns (FindUnmatchedTransfersResponse);
   rpc ListTags(ListTagsRequest) returns (ListTagsResponse);
   rpc ListPayees(ListPayeesRequest) returns (ListPayeesResponse);
   rpc DeleteTransaction(DeleteTransactionRequest) returns (DeleteTransactionResponse);

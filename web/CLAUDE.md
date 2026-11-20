@@ -55,7 +55,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 
 | Route | Component | Nav (group › tab) | Description |
 |-------|-----------|-------------------|-------------|
-| `/` | `HomePage` | Overview | Net worth hero + sparkline, assets/liabilities waterline, accounts list, month spending, review notice |
+| `/` | `HomePage` | Overview | Net worth hero + sparkline, assets/liabilities waterline, accounts list, month spending, review and missing-transfer notices |
 | `/transactions` | `TransactionsPage` | Transactions | Day-grouped transaction list / account register, search + filter chips, bulk edit |
 | `/add` | `AddTransactionPage` | Transactions | Full-page add transaction form |
 | `/trends` | `TrendsPage` | Reports › Net worth | Net worth hero, chart and spending by category |
@@ -71,7 +71,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 | `/import` | `ImportPage` | Bring in › Import › Import | CSV import wizard and bank profiles |
 | `/imports` | `ImportsHistoryPage` | Bring in › Import › History | Import batches (a row, or its Source link, opens `/transactions?importBatchId=`) and original CSVs |
 | `/settings` | `SettingsPage` | Settings › General | Timezone, export, Alpha Vantage, Stripe, AI |
-| `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status |
+| `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status; unmatched transfers (`FindUnmatchedTransfers`, shown only when non-empty) |
 | `/snapshots` | `SnapshotsPage` | Settings › Snapshots | Git snapshots, diffs and restores |
 | `/hledger-query` | `HledgerQueryPage` | Settings › Query | Raw hledger query and AI query helpers |
 | `/logs` | `LogsPage` | Settings › Logs | Live server log stream |

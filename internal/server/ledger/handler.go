@@ -2332,8 +2332,8 @@ func renameAccountInTemplates(dataDir, oldName, newName string) error {
 }
 
 // renameAccountInConfig returns a copy of cfg with Stripe linked accounts'
-// HledgerAccount and portfolio excluded account prefixes renamed where they
-// are oldName or one of its sub-accounts. cfg itself is never modified (it is
+// HledgerAccount, portfolio excluded account prefixes and the transfers
+// clearing account renamed where they are oldName or one of its sub-accounts. cfg itself is never modified (it is
 // shared, copy-on-write state). Returns (cfg, false) when nothing matches.
 func renameAccountInConfig(cfg *config.Config, oldName, newName string) (*config.Config, bool) {
 	if cfg == nil {
@@ -2357,12 +2357,21 @@ func renameAccountInConfig(cfg *config.Config, oldName, newName string) (*config
 		}
 	}
 
+	// Rename the effective clearing account, so renaming the default
+	// equity:transfers while config leaves it unset keeps the check on it.
+	transfersAccount := cfg.Transfers.Account
+	if a, ok := journal.RenameAccountName(transfersAccountOf(cfg), oldName, newName); ok {
+		transfersAccount = a
+		changed = true
+	}
+
 	if !changed {
 		return cfg, false
 	}
 	out := *cfg
 	out.Stripe.LinkedAccounts = linked
 	out.Portfolio.ExcludedAccountPrefixes = excluded
+	out.Transfers.Account = transfersAccount
 	return &out, true
 }
 

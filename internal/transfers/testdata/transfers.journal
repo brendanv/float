@@ -1,0 +1,43 @@
+; Transfer sides through equity:transfers, as two imports would record them.
+
+account assets:checking
+account assets:savings
+account liabilities:card
+account equity:transfers
+account expenses:food
+
+; Matched pair: card payment seen by both accounts, one day apart.
+2026-01-05 (aa000001) ONLINE PMT CARD
+    assets:checking          -500.00 USD
+    equity:transfers
+
+2026-01-06 (aa000002) PAYMENT THANK YOU
+    liabilities:card          500.00 USD
+    equity:transfers
+
+; Two identical savings transfers; only one savings side arrived.
+2026-01-10 (aa000003) XFER TO SAVINGS
+    assets:checking          -100 USD
+    equity:transfers
+
+2026-01-11 (aa000004) XFER FROM CHECKING
+    assets:savings            100.0 USD
+    equity:transfers
+
+2026-01-24 (aa000005) XFER TO SAVINGS
+    assets:checking          -100.00 USD
+    equity:transfers
+
+; Ordinary spending: never a transfer side.
+2026-01-12 (aa000006) Grocer
+    expenses:food              42.00 USD
+    assets:checking
+
+; Matching amount but outside the window.
+2026-02-01 (aa000007) XFER TO SAVINGS
+    assets:checking          -250.00 USD
+    equity:transfers
+
+2026-02-20 (aa000008) XFER FROM CHECKING
+    assets:savings            250.00 USD
+    equity:transfers
