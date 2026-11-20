@@ -87,6 +87,13 @@ func TestDraftFormatBalanceAssertion(t *testing.T) {
 			},
 			want: "    assets:checking = 500.00 $  ; balance check\n",
 		},
+		{
+			// An editor that blanks the amount but keeps the commodity means
+			// auto-balance; "assets:checking  $" would not parse.
+			name:    "commodity without quantity is auto-balance",
+			posting: PostingInput{Account: "assets:checking", Commodity: "$"},
+			want:    "    assets:checking\n",
+		},
 	}
 
 	for _, tt := range tests {

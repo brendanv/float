@@ -8,3 +8,4 @@ test("connections page with fetch date controls", async ({ page }) => {
   await page.waitForTimeout(600);
   await page.screenshot({ path: "test-results/connections-fetch-date.png", fullPage: true });
 });
+

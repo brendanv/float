@@ -1,0 +1,21 @@
+2026-01-01 * Opening balances
+    assets:checking               5000.00 USD
+    assets:savings               10000.00 USD
+    liabilities:credit-card      -500.00 USD
+    equity:opening-balances
+
+2026-01-02 * Employer | Paycheck
+    assets:checking               3000.00 USD
+    income:salary
+
+2026-01-05 * Landlord | January rent
+    expenses:housing:rent         1500.00 USD
+    assets:checking
+
+2026-01-10 * Corner Grocer | Weekly groceries
+    expenses:food:groceries        123.45 USD
+    liabilities:credit-card
+
+2026-01-15 * Brokerage | Buy AAPL
+    assets:brokerage                 10 AAPL {180.00 USD}
+    assets:checking

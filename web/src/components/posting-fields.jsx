@@ -11,6 +11,13 @@ import { cn } from "@/lib/utils";
 const SYNTAX_CHIP =
   "inline-flex h-8 pointer-coarse:min-h-10 shrink-0 select-none items-center rounded-md border border-input px-2 font-mono text-code text-muted-foreground";
 
+// DEFAULT_COMMODITY is what an empty commodity field means: the fields show it
+// as their placeholder, and toPostingInput fills it in for any amount that has
+// a quantity, so a blank field never writes a commodity-less amount (which
+// hledger reports as a separate, unvalued balance). It matches the commodity
+// floatd values reports in.
+export const DEFAULT_COMMODITY = "USD";
+
 // Quiet icon buttons on a posting row: ink-3 until hovered.
 const ROW_ICON = "shrink-0 text-faint hover:text-foreground";
 
@@ -28,6 +35,7 @@ export function AccountInput({
   includeClosed = false,
   clearable = false,
   clearLabel,
+  ariaLabel,
 }) {
   const options = filterAndSortAccountNames(accounts, {
     includePrefixes: includeAccountPrefixes,
@@ -47,6 +55,7 @@ export function AccountInput({
       clearable={clearable}
       clearLabel={clearLabel}
       className={className}
+      ariaLabel={ariaLabel}
     />
   );
 }
@@ -85,7 +94,7 @@ export function fieldsFromPosting(p) {
   };
 }
 
-function CostFields({ cost, onChange, onRemove }) {
+function CostFields({ cost, onChange, onRemove, label }) {
   const c = cost || { commodity: "", quantity: "", isTotal: false };
   return (
     <div className="ml-3 flex items-center gap-2 border-l border-border pl-3">
@@ -101,13 +110,15 @@ function CostFields({ cost, onChange, onRemove }) {
         type="number"
         step="any"
         placeholder="0.00"
+        aria-label={`${label} price`}
         value={c.quantity}
         onInput={(e) => onChange({ ...c, quantity: e.target.value })}
         className="w-20 shrink-0 text-right sm:w-24"
       />
       <Input
         type="text"
-        placeholder="USD"
+        placeholder={DEFAULT_COMMODITY}
+        aria-label={`${label} price commodity`}
         value={c.commodity}
         onInput={(e) => onChange({ ...c, commodity: e.target.value })}
         className="w-16 shrink-0"
@@ -133,7 +144,7 @@ function CostFields({ cost, onChange, onRemove }) {
   );
 }
 
-function LotFields({ lot, onChange, onRemove }) {
+function LotFields({ lot, onChange, onRemove, label }) {
   const l = lot || { date: "", label: "", costQuantity: "", costCommodity: "" };
   return (
     <div className="ml-3 flex flex-wrap items-center gap-2 border-l border-border pl-3">
@@ -149,6 +160,7 @@ function LotFields({ lot, onChange, onRemove }) {
       </Tooltip>
       <Input
         type="date"
+        aria-label={`${label} lot date`}
         value={l.date}
         onChange={(e) => onChange({ ...l, date: e.target.value })}
         className="w-36 shrink-0"
@@ -156,6 +168,7 @@ function LotFields({ lot, onChange, onRemove }) {
       <Input
         type="text"
         placeholder="Label"
+        aria-label={`${label} lot label`}
         value={l.label}
         onInput={(e) => onChange({ ...l, label: e.target.value })}
         className="w-24 shrink-0"
@@ -164,13 +177,15 @@ function LotFields({ lot, onChange, onRemove }) {
         type="number"
         step="any"
         placeholder="Cost"
+        aria-label={`${label} lot cost`}
         value={l.costQuantity}
         onInput={(e) => onChange({ ...l, costQuantity: e.target.value })}
         className="w-20 shrink-0 text-right sm:w-24"
       />
       <Input
         type="text"
-        placeholder="USD"
+        placeholder={DEFAULT_COMMODITY}
+        aria-label={`${label} lot cost commodity`}
         value={l.costCommodity}
         onInput={(e) => onChange({ ...l, costCommodity: e.target.value })}
         className="w-16 shrink-0"
@@ -196,7 +211,7 @@ function LotFields({ lot, onChange, onRemove }) {
   );
 }
 
-function AssertionFields({ assertion, onChange, onRemove }) {
+function AssertionFields({ assertion, onChange, onRemove, label }) {
   const a = assertion || { commodity: "", quantity: "" };
   return (
     <div className="ml-3 flex items-center gap-2 border-l border-border pl-3">
@@ -207,13 +222,15 @@ function AssertionFields({ assertion, onChange, onRemove }) {
         type="number"
         step="any"
         placeholder="0.00"
+        aria-label={`${label} balance assertion`}
         value={a.quantity}
         onInput={(e) => onChange({ ...a, quantity: e.target.value })}
         className="w-20 shrink-0 text-right sm:w-24"
       />
       <Input
         type="text"
-        placeholder="USD"
+        placeholder={DEFAULT_COMMODITY}
+        aria-label={`${label} balance assertion commodity`}
         value={a.commodity}
         onInput={(e) => onChange({ ...a, commodity: e.target.value })}
         className="w-16 shrink-0"
@@ -313,12 +330,14 @@ export function PostingFields({ postings, onChange, accounts }) {
                 value={p.account}
                 onChange={(v) => update(i, { account: v })}
                 accounts={accounts}
+                ariaLabel={`Posting ${i + 1} account`}
                 // The raw account path is mono once there is one.
                 className={cn("basis-[calc(100%-2.5rem)] sm:flex-1", p.account && "font-mono text-code")}
               />
               <Input
                 type="text"
-                placeholder="USD"
+                placeholder={DEFAULT_COMMODITY}
+                aria-label={`Posting ${i + 1} commodity`}
                 value={p.commodity}
                 onInput={(e) => update(i, { commodity: e.target.value })}
                 className="order-3 w-16 shrink-0 sm:order-none"
@@ -327,6 +346,7 @@ export function PostingFields({ postings, onChange, accounts }) {
                 type="number"
                 step="any"
                 placeholder={isLast(i) ? "Auto" : "0.00"}
+                aria-label={`Posting ${i + 1} amount`}
                 value={p.quantity}
                 onInput={(e) => update(i, { quantity: e.target.value })}
                 className="order-3 w-auto min-w-0 flex-1 text-right sm:order-none sm:w-28 sm:flex-none sm:shrink-0"
@@ -403,6 +423,7 @@ export function PostingFields({ postings, onChange, accounts }) {
             {hasCost && (
               <CostFields
                 cost={p.cost}
+                label={`Posting ${i + 1}`}
                 onChange={(c) => updateCost(i, c)}
                 onRemove={() => removeCost(i)}
               />
@@ -410,6 +431,7 @@ export function PostingFields({ postings, onChange, accounts }) {
             {hasLot && (
               <LotFields
                 lot={p.lot}
+                label={`Posting ${i + 1}`}
                 onChange={(l) => updateLot(i, l)}
                 onRemove={() => removeLot(i)}
               />
@@ -417,6 +439,7 @@ export function PostingFields({ postings, onChange, accounts }) {
             {hasAssertion && (
               <AssertionFields
                 assertion={p.balanceAssertion}
+                label={`Posting ${i + 1}`}
                 onChange={(a) => updateAssertion(i, a)}
                 onRemove={() => removeAssertion(i)}
               />
@@ -433,22 +456,35 @@ export function PostingFields({ postings, onChange, accounts }) {
   );
 }
 
+// commodityOr returns the commodity for an amount: none when there is no
+// quantity (an auto-balanced posting, even if the editor kept the commodity
+// of the amount that was blanked), else the trimmed commodity or
+// DEFAULT_COMMODITY when it is blank.
+function commodityOr(commodity, quantity) {
+  if (!quantity) return "";
+  return (commodity || "").trim() || DEFAULT_COMMODITY;
+}
+
 // toPostingInput normalizes a UI posting row to a PostingInput proto payload:
-// trims whitespace and drops the cost field if it has no quantity, so the
-// backend doesn't try to write an `@` annotation with an empty price. The
+// trims whitespace, fills a blank commodity with DEFAULT_COMMODITY when the
+// amount has a quantity (an auto-balanced posting sends none), and drops the
+// cost field if it has no quantity, so the backend doesn't try to write an `@`
+// annotation with an empty price. The
 // posting comment is passed through untouched: UpdateTransaction replaces all
 // postings, so omitting it would delete it.
 export function toPostingInput(p) {
+  const quantity = String(p.quantity ?? "").trim();
   const out = {
     account: (p.account || "").trim(),
-    commodity: (p.commodity || "").trim(),
-    quantity: (p.quantity || "").trim(),
+    commodity: commodityOr(p.commodity, quantity),
+    quantity,
   };
   if (p.comment) out.comment = p.comment;
   if (p.cost && p.cost.quantity && String(p.cost.quantity).trim()) {
+    const costQuantity = String(p.cost.quantity).trim();
     out.cost = {
-      commodity: (p.cost.commodity || "").trim(),
-      quantity: String(p.cost.quantity).trim(),
+      commodity: commodityOr(p.cost.commodity, costQuantity),
+      quantity: costQuantity,
       isTotal: !!p.cost.isTotal,
     };
   }
@@ -460,7 +496,7 @@ export function toPostingInput(p) {
       const costBasis = { date, label };
       if (costQuantity) {
         costBasis.cost = {
-          commodity: (p.lot.costCommodity || "").trim(),
+          commodity: commodityOr(p.lot.costCommodity, costQuantity),
           quantity: costQuantity,
         };
       }
@@ -468,10 +504,11 @@ export function toPostingInput(p) {
     }
   }
   if (p.balanceAssertion?.quantity && String(p.balanceAssertion.quantity).trim()) {
+    const baQuantity = String(p.balanceAssertion.quantity).trim();
     out.balanceAssertion = {
       amount: {
-        commodity: (p.balanceAssertion.commodity || "").trim(),
-        quantity: String(p.balanceAssertion.quantity).trim(),
+        commodity: commodityOr(p.balanceAssertion.commodity, baQuantity),
+        quantity: baQuantity,
       },
     };
   }

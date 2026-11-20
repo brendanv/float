@@ -29,6 +29,10 @@ import { cn } from "@/lib/utils";
 //   clearLabel      — label for the clear item. Defaults to "Clear".
 //   className       — extra classes on the trigger
 //   id              — id attached to the trigger (for label htmlFor)
+//   ariaLabel       — accessible name for the trigger. Defaults to the
+//                     placeholder when there is no id (a combobox doesn't take
+//                     its name from its text, so without a <label htmlFor> or
+//                     this it has none).
 export function Combobox({
   value,
   onChange,
@@ -42,6 +46,7 @@ export function Combobox({
   disabled = false,
   className,
   id,
+  ariaLabel,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -73,6 +78,7 @@ export function Combobox({
             id={id}
             type="button"
             role="combobox"
+            aria-label={ariaLabel ?? (id ? undefined : placeholder)}
             aria-expanded={open}
             disabled={disabled}
             className={cn(

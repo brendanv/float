@@ -28,7 +28,7 @@ Text-level journal file manipulation: month files, transaction append/update/del
 ## Formatting Types
 
 - `TransactionInput` — date, status, payee/description/comment, tags, postings, import batch, and Stripe transaction ID.
-- `PostingInput` — account, commodity/quantity, comment, optional cost, optional lot cost basis, optional simple balance assertion.
+- `PostingInput` — account, commodity/quantity, comment, optional cost, optional lot cost basis, optional simple balance assertion. No quantity means auto-balance: any commodity is ignored (a bare commodity would not parse).
 - `CostInput` — unit or total cost annotations.
 - `CostBasisInput` — hledger lot selector/cost basis, rendered as `{DATE, "LABEL", COST}` before any `@` cost; empty parts are omitted and an all-empty value renders nothing.
 - `BalanceAssertionInput` — simple `=` balance assertion only.

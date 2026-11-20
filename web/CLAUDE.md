@@ -11,7 +11,7 @@ React + Vite web UI for float. Built assets are emitted to `../internal/webui/di
 - TanStack React Table for transaction tables.
 - ConnectRPC (`@connectrpc/connect-web`) for `LedgerService` calls to `window.location.origin`.
 - TailwindCSS v4 plus shadcn/ui components configured by `components.json`.
-- Playwright 1.56.1 for mocked screenshot tests — **do not upgrade** without matching system Chromium.
+- Playwright 1.56.1 for mocked tests/screenshots and the real-backend e2e suite — **do not upgrade** without matching system Chromium.
 
 ## Commands
 
@@ -21,7 +21,9 @@ bun install           # install dependencies
 bun run dev           # Vite dev server on :5173 (proxies /float.v1.LedgerService → :8080)
 bun run build         # build → ../internal/webui/dist/ (also: mise run web-build from root)
 bun run screenshots   # capture Playwright screenshots with mocked API data
-bun run test          # run every Playwright spec (also: mise run web-test from root)
+bun run test          # run every mocked Playwright spec (also: mise run web-test from root)
+bun run test:e2e      # real-backend suite in e2e/ (also: mise run web-e2e from root)
+bun run test:update-snapshots  # regenerate visual baselines after an intended UI change
 ```
 
 During development run `mise run floatd` concurrently with `bun run dev` unless using screenshot tests, which mock the API and do not need `floatd`.
@@ -128,7 +130,7 @@ After any ledger mutation call `invalidateLedgerQueries(queryClient)` from `quer
 
 Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `payee:`/`desc:`/`tag:` values are regexes, so literal names must go through `escapeRegex`/`exactRegex` (e.g. `SQ *COFFEE`), and `dateRangeQuery` handles open-ended ranges. `isHledgerQuery` decides whether search text is a raw hledger query (sent as tokens, shown in mono) or literal description text.
 
-`UpdateTransaction` replaces all postings: send every posting's `comment` back (`fieldsFromPosting` → `toPostingInput` carry it) or it is deleted. An empty `comment`/`tags` keeps the existing value; set `replaceComment`/`replaceTags` to clear.
+`UpdateTransaction` replaces all postings: send every posting's `comment` back (`fieldsFromPosting` → `toPostingInput` carry it) or it is deleted. `toPostingInput` also owns commodity defaults: a blank commodity with a quantity becomes `DEFAULT_COMMODITY` (`USD`, the placeholder the fields show), and a posting with no quantity sends no commodity (auto-balance). An empty `comment`/`tags` keeps the existing value; set `replaceComment`/`replaceTags` to clear.
 
 ## Installable app (PWA)
 
@@ -145,6 +147,14 @@ Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `paye
 
 Add components with `bunx shadcn@latest add <component>`, which writes to `src/components/ui/`. Use the `shadcn` skill when composing or repairing shadcn components.
 
+## Real-backend e2e (`e2e/`)
+
+`playwright.e2e.config.js` runs `e2e/*.spec.js` against real servers: global setup builds the web UI and a `floatd` embedding it (skip with `FLOAT_E2E_BIN=<binary>`), and the `floatd` fixture in `e2e/fixtures.js` starts one per test on a fresh copy of `e2e/data` (a small hand-written ledger, Jan–Feb 2026, with a bank profile, an investment lot, unreviewed and uncategorized transactions), with auth on. `page` starts logged in (`test.use({ loggedIn: false })` to test login) and the browser clock is pinned to `FIXTURE_NOW` so "this month" views show fixture data. Tests run in parallel and may write freely.
+
+Assert on what the backend did, not only on the screen: `floatd.readFile("2026/02.journal")`, `floatd.journalText()`, `floatd.rpc("GetBalances", {...})`, and `balanceOf(floatd, account)` (returns `["72.00 USD"]`, so a stray second commodity fails). Helpers: `settle(page)` waits for spinners and in-flight RPCs, `pickAccount(page, label, account)` drives an account combobox. The fixture fails a test on page errors, `console.error`, or any RPC error response (`allowedErrors` as above). On failure the floatd log and journal are attached to the report.
+
+Use this suite to check a change in the real app: add a spec (or a temporary one) and run `bun run test:e2e -g "<name>"`. Prefer role/label locators; the posting editor labels its fields `Posting N account|commodity|amount` (and `… price`, `… lot cost`, `… balance assertion`), and a `Combobox` without an `id`/`<label htmlFor>` takes its `ariaLabel` prop or placeholder as its name.
+
 ## Touch Targets
 
 On touch devices (`pointer: coarse`) every control must offer a ≥40px hit area; desktop sizing is unchanged. The `components/ui` primitives (Button, Input, NativeSelect, Select, Combobox, Tabs, Checkbox, menu items, Calendar, sidebar) already grow via `pointer-coarse:min-h-10` / `min-w-10`, so prefer them over raw `<button>`s. For a small inline control whose visual size should stay (sort header, chip ✕, tree chevron) add the `touch-target` utility from `style.css`, which extends the hit area with an invisible `::after` (don't combine it with components that already use `::after`, e.g. tabs or checkbox). `tests/touch-targets.spec.js` enforces this on every route; links inside running text are exempt.
@@ -155,7 +165,9 @@ The Waterline primitives follow the same rule without changing their look: `Segm
 
 Playwright specs in `tests/` mock ConnectRPC responses using `tests/mock-api.js`; no live server is required. Desktop, mobile, and feature-specific screenshot specs cover major pages. Use the `web-screenshots` skill or `bun run screenshots` to regenerate. Config lives in `playwright.config.js`.
 
-Specs must import `test`/`expect` from `./fixtures.js`, not `@playwright/test`. The fixture fails a test on any uncaught page error, `console.error` (including React dev warnings), a visible Vite error overlay, or a `LedgerService` RPC that falls through to the `default` case in `mock-api.js`. Fix the cause instead of suppressing it; a test that deliberately triggers an error can use `test.use({ allowedErrors: [/status of 400/] })`.
+Specs must import `test`/`expect` from `./fixtures.js`, not `@playwright/test`. The fixture fails a test on any uncaught page error, `console.error` (including React dev warnings), a visible Vite error overlay, a `LedgerService` RPC that falls through to the `default` case in `mock-api.js`, or a mocked response that doesn't decode with the method's generated response schema (unknown or renamed field, wrong type). Mocks are proto JSON: camelCase field names, and a oneof is written as its field (`{ progress: {...} }`), never protobuf-es's `{ case, value }`; server-streaming RPCs are answered with `fulfillStream` in `mock-api.js`, which validates each message (a streaming method mocked as a plain JSON body fails the test). Fix the cause instead of suppressing it; a test that deliberately triggers an error can use `test.use({ allowedErrors: [/status of 400/] })`.
+
+`tests/visual.spec.js` is the only spec that compares screenshots (`toHaveScreenshot`, baselines in `test-snapshots/`, pinned clock). Its tolerance (`maxDiffPixels`) absorbs rendering noise but not a changed word. Baselines are rendered by Playwright's bundled Chromium (as in CI); other Chromium builds place glyphs differently, so the spec skips itself when `PW_CHROMIUM_PATH` is set. After an intended UI change on those pages, run `bun run test:update-snapshots` with the bundled browser, or, where only another build is available (Claude Code on the web), push, let CI fail, and commit the `*-actual.png` images from the run's `playwright-screenshots` artifact as `test-snapshots/visual.spec.js-snapshots/<name>-chromium-linux.png` after looking at them.
 
 React is 18: components that receive a ref (anything used as a base-ui `render` element, or as a Radix/vaul child) must use `forwardRef`. base-ui primitives (`Dialog*`, `Tooltip*`, …) take `render={<Button />}`, not `asChild`; vaul's `Drawer*` primitives still use `asChild`.
 

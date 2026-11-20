@@ -1,29 +1,33 @@
 // Shared mock data and API interception helpers for screenshot tests.
 // The Connect protocol sends POST requests with JSON bodies; responses are
-// plain JSON objects matching the proto message shapes.
+// plain JSON objects matching the proto message shapes. Server-streaming RPCs
+// must go through fulfillStream, which validates each message.
+import { fromJson } from "@bufbuild/protobuf";
+import { LedgerService } from "../src/gen/float/v1/ledger_pb.js";
+
+const rpcMethods = new Map(LedgerService.methods.map((m) => [m.name, m]));
 
 export const mockAccounts = [
-  { name: "assets", fullName: "assets", type: "A", depth: 1 },
-  { name: "checking", fullName: "assets:checking", type: "A", depth: 2 },
-  { name: "savings", fullName: "assets:savings", type: "A", depth: 2 },
-  { name: "liabilities", fullName: "liabilities", type: "L", depth: 1 },
+  { name: "assets", fullName: "assets", type: "A" },
+  { name: "checking", fullName: "assets:checking", type: "A" },
+  { name: "savings", fullName: "assets:savings", type: "A" },
+  { name: "liabilities", fullName: "liabilities", type: "L" },
   {
     name: "creditcard",
     fullName: "liabilities:creditcard",
     type: "L",
-    depth: 2,
   },
-  { name: "expenses", fullName: "expenses", type: "X", depth: 1 },
-  { name: "groceries", fullName: "expenses:groceries", type: "X", depth: 2 },
-  { name: "dining", fullName: "expenses:dining", type: "X", depth: 2 },
-  { name: "utilities", fullName: "expenses:utilities", type: "X", depth: 2 },
-  { name: "income", fullName: "income", type: "R", depth: 1 },
-  { name: "salary", fullName: "income:salary", type: "R", depth: 2 },
-  { name: "investments", fullName: "assets:investments", type: "A", depth: 2 },
-  { name: "aapl", fullName: "assets:investments:aapl", type: "A", depth: 3 },
+  { name: "expenses", fullName: "expenses", type: "X" },
+  { name: "groceries", fullName: "expenses:groceries", type: "X" },
+  { name: "dining", fullName: "expenses:dining", type: "X" },
+  { name: "utilities", fullName: "expenses:utilities", type: "X" },
+  { name: "income", fullName: "income", type: "R" },
+  { name: "salary", fullName: "income:salary", type: "R" },
+  { name: "investments", fullName: "assets:investments", type: "A" },
+  { name: "aapl", fullName: "assets:investments:aapl", type: "A" },
   // Closed account (and a sub-account inheriting the closed tag).
-  { name: "oldbank", fullName: "assets:oldbank", type: "A", depth: 2, closed: true },
-  { name: "checking", fullName: "assets:oldbank:checking", type: "A", depth: 3, closed: true },
+  { name: "oldbank", fullName: "assets:oldbank", type: "A", closed: true },
+  { name: "checking", fullName: "assets:oldbank:checking", type: "A", closed: true },
 ];
 
 export const mockBalanceRows = [
@@ -1057,30 +1061,28 @@ export const mockImportCandidates = [
 ];
 
 export const mockAccountDeclarations = [
-  { aid: "a1b2c3d4", name: "assets:checking", hasPostings: true },
-  { aid: "a1b2c3d5", name: "assets:savings", hasPostings: true },
-  { aid: "b2c3d4e5", name: "expenses:dining", hasPostings: true },
-  { aid: "c3d4e5f6", name: "expenses:groceries", hasPostings: true },
-  { aid: "d4e5f6a7", name: "expenses:household", hasPostings: false },
-  { aid: "e5f6a7b8", name: "expenses:rent", hasPostings: true },
-  { aid: "f6a7b8c9", name: "expenses:shopping", hasPostings: true },
-  { aid: "g7b8c9d0", name: "expenses:subscriptions", hasPostings: false },
-  { aid: "h8c9d0e1", name: "expenses:transport", hasPostings: true },
-  { aid: "i9d0e1f2", name: "expenses:utilities", hasPostings: false },
+  { name: "assets:checking", hasPostings: true },
+  { name: "assets:savings", hasPostings: true },
+  { name: "expenses:dining", hasPostings: true },
+  { name: "expenses:groceries", hasPostings: true },
+  { name: "expenses:household", hasPostings: false },
+  { name: "expenses:rent", hasPostings: true },
+  { name: "expenses:shopping", hasPostings: true },
+  { name: "expenses:subscriptions", hasPostings: false },
+  { name: "expenses:transport", hasPostings: true },
+  { name: "expenses:utilities", hasPostings: false },
   {
-    aid: "l1a2b3c4",
     name: "expenses:housing:mortgage:principal",
     hasPostings: true,
   },
   {
-    aid: "m2b3c4d5",
     name: "expenses:housing:mortgage:interest",
     hasPostings: true,
   },
-  { aid: "n3c4d5e6", name: "expenses:housing:insurance", hasPostings: false },
-  { aid: "j0e1f2a3", name: "income:salary", hasPostings: true },
-  { aid: "k1f2a3b4", name: "liabilities:creditcard", hasPostings: true },
-  { aid: "o4d5e6f7", name: "assets:oldbank", hasPostings: false, closed: true },
+  { name: "expenses:housing:insurance", hasPostings: false },
+  { name: "income:salary", hasPostings: true },
+  { name: "liabilities:creditcard", hasPostings: true },
+  { name: "assets:oldbank", hasPostings: false, closed: true },
 ];
 
 export const mockPortfolioHoldings = {
@@ -1571,6 +1573,29 @@ export const mockIncomeStatementTimeseries = {
   netAmounts: toAmountLists(MOCK_IS_REV.totals.map((v, i) => v - MOCK_IS_EXP.totals[i])),
 };
 
+function mockStripeRefreshMessages(stripeAccountId) {
+  return [
+    {
+      progress: {
+        stripeAccountId,
+        status: "starting",
+        attempt: 0,
+        elapsedSeconds: "0",
+        refreshId: "",
+        message: "starting refresh",
+      },
+    },
+    {
+      result: {
+        stripeAccountId,
+        refreshId: "trr_mock123",
+        succeeded: true,
+        errorMessage: "",
+      },
+    },
+  ];
+}
+
 function encodeConnectStreamingBody(messages) {
   const parts = [];
   for (const msg of messages) {
@@ -1592,6 +1617,38 @@ function encodeConnectStreamingBody(messages) {
 // LedgerService methods each page called that fell through to the default
 // case below. tests/fixtures.js fails the test if this is non-empty.
 export const unmockedCalls = new WeakMap();
+
+// Problems with streamed mock messages, per page: a message that doesn't
+// decode as the method's response type, or a streaming method answered with
+// a unary JSON body. tests/fixtures.js fails the test if this is non-empty.
+// (Unary bodies are checked in the fixture from the response itself; a
+// streamed body can't be, because some Chromium builds hand it back to
+// Playwright re-encoded as text.)
+export const mockSchemaErrors = new WeakMap();
+
+function recordSchemaError(page, message) {
+  if (!mockSchemaErrors.has(page)) mockSchemaErrors.set(page, []);
+  mockSchemaErrors.get(page).push(message);
+}
+
+// fulfillStream answers a server-streaming RPC with Connect JSON envelopes,
+// after checking each message against the method's response schema. A oneof
+// is written as its field ({ result: {...} }), not as { case, value }.
+async function fulfillStream(route, page, method, messages) {
+  const output = rpcMethods.get(method).output;
+  for (const m of messages) {
+    try {
+      fromJson(output, m);
+    } catch (err) {
+      recordSchemaError(page, `mock ${method} stream message doesn't match ${output.typeName}: ${err.message}`);
+    }
+  }
+  await route.fulfill({
+    status: 200,
+    contentType: "application/connect+json",
+    body: encodeConnectStreamingBody(messages),
+  });
+}
 
 export async function mockLedgerApi(
   page,
@@ -1837,8 +1894,8 @@ export async function mockLedgerApi(
         body = { candidates: mockImportCandidates };
         break;
       case "ImportTransactions":
-        body = { importedCount: 3, transactions: [] };
-        break;
+        await fulfillStream(route, page, method, [{ result: { importedCount: 3, transactions: [] } }]);
+        return;
       case "ListImports":
         body = { imports: mockImports };
         break;
@@ -1901,8 +1958,11 @@ export async function mockLedgerApi(
         body = { previews: mockApplyPreviews };
         break;
       case "ApplyRules":
-        body = { appliedCount: 3 };
-        break;
+        await fulfillStream(route, page, method, [
+          { progress: { applied: 3, total: 3 } },
+          { result: { appliedCount: 3 } },
+        ]);
+        return;
       case "AskQuestion":
         body = {
           hledgerArgs: "balance expenses:groceries date:lastmonth",
@@ -1968,7 +2028,7 @@ export async function mockLedgerApi(
         body = { declarations: accountDeclarations ?? mockAccountDeclarations };
         break;
       case "DeclareAccount":
-        body = { declaration: { aid: "new00001", name: reqBody.name } };
+        body = { declaration: { name: reqBody.name } };
         break;
       case "DeleteAccountDeclaration":
         body = {};
@@ -2106,79 +2166,22 @@ export async function mockLedgerApi(
         };
         break;
       case "ImportStripeTransactions":
-        body = { importedCount: 2, transactions: [] };
-        break;
+        await fulfillStream(route, page, method, [{ result: { importedCount: 2, transactions: [] } }]);
+        return;
       case "ImportAllStripeTransactions":
-        body = { importedCount: 3, transactions: [] };
-        break;
-      case "RefreshStripeAccount": {
-        const acctId = reqBody.stripeAccountId || "fca_mock";
-        await route.fulfill({
-          status: 200,
-          contentType: "application/connect+json",
-          body: encodeConnectStreamingBody([
-            {
-              payload: {
-                case: "progress",
-                value: {
-                  stripeAccountId: acctId,
-                  status: "starting",
-                  attempt: 0,
-                  elapsedSeconds: "0",
-                  refreshId: "",
-                  message: "starting refresh",
-                },
-              },
-            },
-            {
-              payload: {
-                case: "result",
-                value: {
-                  stripeAccountId: acctId,
-                  refreshId: "trr_mock123",
-                  succeeded: true,
-                  errorMessage: "",
-                },
-              },
-            },
-          ]),
-        });
+        await fulfillStream(route, page, method, [{ result: { importedCount: 3, transactions: [] } }]);
         return;
-      }
-      case "RefreshAllStripeAccounts": {
-        const messages = mockStripeLinkedAccounts.flatMap((acct) => [
-          {
-            payload: {
-              case: "progress",
-              value: {
-                stripeAccountId: acct.stripeAccountId,
-                status: "starting",
-                attempt: 0,
-                elapsedSeconds: "0",
-                refreshId: "",
-                message: "starting refresh",
-              },
-            },
-          },
-          {
-            payload: {
-              case: "result",
-              value: {
-                stripeAccountId: acct.stripeAccountId,
-                refreshId: "trr_mock123",
-                succeeded: true,
-                errorMessage: "",
-              },
-            },
-          },
-        ]);
-        await route.fulfill({
-          status: 200,
-          contentType: "application/connect+json",
-          body: encodeConnectStreamingBody(messages),
-        });
+      case "RefreshStripeAccount":
+        await fulfillStream(route, page, method, mockStripeRefreshMessages(reqBody.stripeAccountId || "fca_mock"));
         return;
-      }
+      case "RefreshAllStripeAccounts":
+        await fulfillStream(
+          route,
+          page,
+          method,
+          mockStripeLinkedAccounts.flatMap((acct) => mockStripeRefreshMessages(acct.stripeAccountId)),
+        );
+        return;
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
@@ -2238,6 +2241,9 @@ export async function mockLedgerApi(
         body = {};
     }
 
+    if (rpcMethods.get(method)?.methodKind === "server_streaming") {
+      recordSchemaError(page, `${method} is server-streaming: mock it with fulfillStream, not a JSON body`);
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",

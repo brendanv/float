@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -65,27 +66,56 @@ func main() {
 	verbose := flag.Bool("verbose", false, "enable debug-level logging (hledger queries, args, durations)")
 	flag.Parse()
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := run(ctx, options{
+		dataDir:    *dataDir,
+		addr:       *addr,
+		verbose:    *verbose,
+		passphrase: os.Getenv("FLOAT_AUTH_PASSPHRASE"),
+		logOut:     os.Stderr,
+	}); err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+// options configures run. main fills it from flags and the environment; the
+// smoke test fills it directly.
+type options struct {
+	dataDir    string
+	addr       string // listen address; empty uses config's port or :8080
+	verbose    bool
+	passphrase string    // FLOAT_AUTH_PASSPHRASE; empty disables auth
+	logOut     io.Writer // JSON log destination
+	// ready, if set, is called with the bound listener address once floatd
+	// is about to serve.
+	ready func(net.Addr)
+}
+
+// run starts floatd and serves until ctx is cancelled, then shuts down
+// gracefully. It returns an error if startup fails.
+func run(ctx context.Context, opts options) error {
 	var logLevel slog.LevelVar // defaults to Info
-	if *verbose {
+	if opts.verbose {
 		logLevel.Set(slog.LevelDebug)
 	}
 	broadcaster := logstream.NewBroadcaster()
-	jsonHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel})
+	jsonHandler := slog.NewJSONHandler(opts.logOut, &slog.HandlerOptions{Level: &logLevel})
 	logger := slog.New(logstream.NewBroadcastHandler(jsonHandler, broadcaster))
 	slog.SetDefault(logger)
 
-	if *dataDir == "" {
-		slog.Error("--data-dir is required")
-		os.Exit(1)
+	if opts.dataDir == "" {
+		return errors.New("--data-dir is required")
 	}
 
-	cfg, err := config.Load(filepath.Join(*dataDir, "config.toml"))
+	cfg, err := config.Load(filepath.Join(opts.dataDir, "config.toml"))
 	if err != nil {
-		slog.Error("load config", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("load config: %w", err)
 	}
 
-	listenAddr := *addr
+	listenAddr := opts.addr
 	if listenAddr == "" {
 		port := cfg.Server.Port
 		if port == 0 {
@@ -94,68 +124,65 @@ func main() {
 		listenAddr = fmt.Sprintf(":%d", port)
 	}
 
-	mainJournal := filepath.Join(*dataDir, "main.journal")
+	mainJournal := filepath.Join(opts.dataDir, "main.journal")
 	if _, err := os.Stat(mainJournal); os.IsNotExist(err) {
 		slog.Info("main.journal not found, creating empty file", "path", mainJournal)
 		if err := os.WriteFile(mainJournal, nil, 0644); err != nil { //nolint:forbidigo // startup bootstrap, before any txlock exists
-			slog.Error("create main.journal", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("create main.journal: %w", err)
 		}
 	}
 
 	hl, err := hledger.New("hledger", mainJournal)
 	if err != nil {
-		slog.Error("hledger init", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("hledger init: %w", err)
 	}
 	hl.SetConcurrency(cfg.Server.HledgerConcurrency)
 
-	lock := txlock.New(*dataDir, hl)
+	lock := txlock.New(opts.dataDir, hl)
 
-	snap, err := gitsnap.New(*dataDir)
+	snap, err := gitsnap.New(opts.dataDir)
 	if err != nil {
-		slog.Error("gitsnap init", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("gitsnap init: %w", err)
 	}
-	if recoverErr := snap.RecoverUncommitted(context.Background()); recoverErr != nil {
+	if recoverErr := snap.RecoverUncommitted(ctx); recoverErr != nil {
 		slog.Warn("gitsnap: recover uncommitted", "error", recoverErr)
 	}
 	lock.SetSnap(snap)
 
 	var backfillCount, stripeMigrateCount, declaredCount int
 	var commodityChanged, accountsFileChanged, accountsIncludeChanged, migrationsChanged bool
-	if err := lock.Do(context.Background(), "startup migrations", func() error {
+	if err := lock.Do(ctx, "startup migrations", func() error {
 		var err error
 
-		backfillCount, err = journal.MigrateFIDs(*dataDir)
+		backfillCount, err = journal.MigrateFIDs(opts.dataDir)
 		if err != nil {
 			return fmt.Errorf("fid backfill: %w", err)
 		}
 
-		stripeMigrateCount, err = journal.MigrateStripeTxnTag(context.Background(), hl, *dataDir)
+		stripeMigrateCount, err = journal.MigrateStripeTxnTag(ctx, hl, opts.dataDir)
 		if err != nil {
 			return fmt.Errorf("stripe-txn tag migration: %w", err)
 		}
 
-		commodityChanged, err = journal.EnsureCommodityDirective(*dataDir, "USD")
+		commodityChanged, err = journal.EnsureCommodityDirective(opts.dataDir, "USD")
 		if err != nil {
 			return fmt.Errorf("commodity directive: %w", err)
 		}
 
-		accountsFileChanged, err = journal.EnsureAccountsFile(*dataDir)
+		accountsFileChanged, err = journal.EnsureAccountsFile(opts.dataDir)
 		if err != nil {
 			return fmt.Errorf("account declarations startup: %w", err)
 		}
-		accountsIncludeChanged, err = journal.EnsureAccountsInclude(*dataDir)
+		accountsIncludeChanged, err = journal.EnsureAccountsInclude(opts.dataDir)
 		if err != nil {
 			return fmt.Errorf("account declarations startup: %w", err)
 		}
-		undeclared, err := hl.UndeclaredAccounts(context.Background())
+		undeclared, err := hl.UndeclaredAccounts(ctx)
 		if err != nil {
 			return fmt.Errorf("account declarations startup: %w", err)
 		}
 		for _, name := range undeclared {
-			if err := journal.AppendAccountDeclaration(*dataDir, name); err != nil {
+			if err := journal.AppendAccountDeclaration(opts.dataDir, name); err != nil {
 				return fmt.Errorf("account declarations startup: %w", err)
 			}
 		}
@@ -168,8 +195,7 @@ func main() {
 		}
 		return nil
 	}); err != nil {
-		slog.Error("startup migrations", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("startup migrations: %w", err)
 	}
 	if !migrationsChanged {
 		// lock.Do's ErrNoChanges fast path skips the generation bump, gitsnap
@@ -177,9 +203,8 @@ func main() {
 		// for. Run the check directly so a journal hand-edited into an
 		// invalid state while floatd was stopped still fails startup loudly,
 		// instead of surfacing as opaque per-RPC hledger errors later.
-		if err := hl.Check(context.Background()); err != nil {
-			slog.Error("startup check", "error", err)
-			os.Exit(1)
+		if err := hl.Check(ctx); err != nil {
+			return fmt.Errorf("startup check: %w", err)
 		}
 	}
 	if backfillCount > 0 {
@@ -192,7 +217,7 @@ func main() {
 		slog.Info("account declarations: declared undeclared accounts", "count", declaredCount)
 	}
 
-	authn := auth.New(os.Getenv("FLOAT_AUTH_PASSPHRASE"))
+	authn := auth.New(opts.passphrase)
 	if authn.Enabled() {
 		slog.Info("auth enabled (FLOAT_AUTH_PASSPHRASE is set)")
 	} else {
@@ -200,7 +225,7 @@ func main() {
 	}
 
 	c := cache.New[any](lock.Generation)
-	handler := serverledger.NewHandler(hl, lock, *dataDir, filepath.Join(*dataDir, "config.toml"), c, snap, cfg, broadcaster)
+	handler := serverledger.NewHandler(hl, lock, opts.dataDir, filepath.Join(opts.dataDir, "config.toml"), c, snap, cfg, broadcaster)
 
 	warmer := warm.New(lock.Generation, handler.WarmEntries, warmDebounce, hl.WaitUncontended)
 	lock.OnCommit(warmer.Trigger)
@@ -224,34 +249,33 @@ func main() {
 	mux.Handle("/api/logout", authn.LogoutHandler())
 	mux.Handle("/", webui.Handler())
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	go handler.StartDailyStripeImport(ctx)
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
 
 	httpSrv := &http.Server{Addr: listenAddr, Handler: h2c.NewHandler(mux, &http2.Server{})}
 	shutdownDone := make(chan struct{})
 	go func() {
 		defer close(shutdownDone)
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		// ctx is already cancelled here; drain with a fresh deadline.
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
+	go handler.StartDailyStripeImport(ctx)
 
-	ln, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		slog.Error("listen", "error", err)
-		os.Exit(1)
-	}
 	// Kick the startup warm pass only once the listener is bound, so warming
 	// never delays accepting connections.
 	warmer.Start(ctx)
 
-	slog.Info("floatd listening", "addr", listenAddr, "webui", true)
+	slog.Info("floatd listening", "addr", ln.Addr().String(), "webui", true)
+	if opts.ready != nil {
+		opts.ready(ln.Addr())
+	}
 	if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		slog.Error("server", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("server: %w", err)
 	}
 	// ListenAndServe returns ErrServerClosed as soon as Shutdown is initiated;
 	// wait for Shutdown to finish draining in-flight requests before exiting,
@@ -259,4 +283,5 @@ func main() {
 	// journal writes on disk.
 	<-shutdownDone
 	slog.Info("floatd shut down")
+	return nil
 }

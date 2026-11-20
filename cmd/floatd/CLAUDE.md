@@ -4,6 +4,8 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
 
 ## Startup Sequence
 
+`main` parses flags, reads `FLOAT_AUTH_PASSPHRASE`, sets up SIGINT/SIGTERM cancellation and calls `run(ctx, options)`, which does everything below and returns an error instead of exiting (so `main_test.go` can start the real server on `127.0.0.1:0`; `options.ready` reports the bound address).
+
 1. Parse flags (`--data-dir`, `--addr`, `--verbose`).
 2. Configure structured logging. Logs go to stderr and through `internal/logstream` for the `StreamLogs` RPC.
 3. Load `<data-dir>/config.toml`.
@@ -19,9 +21,12 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
 9. Read `FLOAT_AUTH_PASSPHRASE` into `internal/auth` (auth disabled when unset) and log the auth state.
 10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, gRPC reflection handlers, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
 11. Create an `internal/warm.Warmer` over `handler.WarmEntries` and register it as a `lock.OnCommit` hook, so every successful write schedules a debounced (500ms) cache-warming pass. Also register a second `lock.OnCommit` hook (`newStatsLogger`) that diffs `cache.Cache.Stats()` and `hledger.Client.Invocations()` against the previous generation and logs the delta at Info level (reaches `StreamLogs` via the broadcast handler) — the target steady state is zero hledger invocations between writes.
-12. Start `handler.StartDailyStripeImport(ctx)`.
-13. Bind the listener (`net.Listen`), then kick the startup warm pass (`warmer.Start(ctx)`) — only once the listener is bound, so warming never delays accepting connections — before serving HTTP.
-14. Serve HTTP until interrupted, then shut down gracefully.
+12. Bind the listener (`net.Listen`), then start `handler.StartDailyStripeImport(ctx)` and kick the startup warm pass (`warmer.Start(ctx)`) — only once the listener is bound, so warming never delays accepting connections — before serving HTTP.
+13. Serve HTTP until `ctx` is cancelled, then shut down gracefully and return.
+
+## Tests
+
+`main_test.go` is the whole-server smoke test: it runs `run()` against a temp data dir with real hledger and checks the public `/api/auth`, unauthenticated RPC rejection, login cookie and bearer auth, gRPC reflection (h2c) behind auth, a write that lands on disk / in balances / as a git snapshot, rejection of an unbalanced transaction, and startup failure on an invalid journal. Keep it fast and wiring-focused; feature behavior belongs in package tests and `web/e2e`.
 
 ## Flags
 

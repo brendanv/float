@@ -1,0 +1,11 @@
+account assets:checking
+account assets:savings
+account assets:brokerage
+account liabilities:credit-card
+account equity:opening-balances
+account income:salary
+account expenses:housing:rent
+account expenses:food:groceries
+account expenses:food:restaurants
+account expenses:misc
+account expenses:unknown

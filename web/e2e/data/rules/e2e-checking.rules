@@ -1,0 +1,11 @@
+skip 1
+fields date, description, amount
+date-format %Y-%m-%d
+account1 assets:checking
+currency USD
+
+if PAYROLL
+  account2 income:salary
+
+if RENT PAYMENT
+  account2 expenses:housing:rent

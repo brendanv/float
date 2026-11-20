@@ -13,7 +13,7 @@ import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { AccountInput } from "../components/posting-fields.jsx";
+import { AccountInput, DEFAULT_COMMODITY } from "../components/posting-fields.jsx";
 import { TagEditor } from "../components/tag-editor.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
@@ -47,7 +47,7 @@ import { cn, ON_ACCENT, ROW_ACTION } from "@/lib/utils";
 const columnHelper = createColumnHelper();
 
 function emptyPosting() {
-  return { account: "", commodity: "USD", defaultQuantity: "", comment: "" };
+  return { account: "", commodity: DEFAULT_COMMODITY, defaultQuantity: "", comment: "" };
 }
 
 function TemplatePostingRow({ posting, index, onChange, onRemove, canRemove, accounts }) {

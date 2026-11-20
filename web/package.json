@@ -7,6 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
+    "test:e2e": "playwright test -c playwright.e2e.config.js",
+    "test:update-snapshots": "playwright test tests/visual.spec.js --update-snapshots",
     "screenshots": "playwright test tests/screenshots.spec.js",
     "screenshots:all": "bash capture-screenshots.sh"
   },
