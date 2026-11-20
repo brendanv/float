@@ -1,6 +1,11 @@
 // Shared mock data and API interception helpers for screenshot tests.
 // The Connect protocol sends POST requests with JSON bodies; responses are
-// plain JSON objects matching the proto message shapes.
+// plain JSON objects matching the proto message shapes. Server-streaming RPCs
+// must go through fulfillStream, which validates each message.
+import { fromJson } from "@bufbuild/protobuf";
+import { LedgerService } from "../src/gen/float/v1/ledger_pb.js";
+
+const rpcMethods = new Map(LedgerService.methods.map((m) => [m.name, m]));
 
 export const mockAccounts = [
   { name: "assets", fullName: "assets", type: "A" },
@@ -1613,6 +1618,38 @@ function encodeConnectStreamingBody(messages) {
 // case below. tests/fixtures.js fails the test if this is non-empty.
 export const unmockedCalls = new WeakMap();
 
+// Problems with streamed mock messages, per page: a message that doesn't
+// decode as the method's response type, or a streaming method answered with
+// a unary JSON body. tests/fixtures.js fails the test if this is non-empty.
+// (Unary bodies are checked in the fixture from the response itself; a
+// streamed body can't be, because some Chromium builds hand it back to
+// Playwright re-encoded as text.)
+export const mockSchemaErrors = new WeakMap();
+
+function recordSchemaError(page, message) {
+  if (!mockSchemaErrors.has(page)) mockSchemaErrors.set(page, []);
+  mockSchemaErrors.get(page).push(message);
+}
+
+// fulfillStream answers a server-streaming RPC with Connect JSON envelopes,
+// after checking each message against the method's response schema. A oneof
+// is written as its field ({ result: {...} }), not as { case, value }.
+async function fulfillStream(route, page, method, messages) {
+  const output = rpcMethods.get(method).output;
+  for (const m of messages) {
+    try {
+      fromJson(output, m);
+    } catch (err) {
+      recordSchemaError(page, `mock ${method} stream message doesn't match ${output.typeName}: ${err.message}`);
+    }
+  }
+  await route.fulfill({
+    status: 200,
+    contentType: "application/connect+json",
+    body: encodeConnectStreamingBody(messages),
+  });
+}
+
 export async function mockLedgerApi(
   page,
   {
@@ -1857,8 +1894,8 @@ export async function mockLedgerApi(
         body = { candidates: mockImportCandidates };
         break;
       case "ImportTransactions":
-        body = { importedCount: 3, transactions: [] };
-        break;
+        await fulfillStream(route, page, method, [{ result: { importedCount: 3, transactions: [] } }]);
+        return;
       case "ListImports":
         body = { imports: mockImports };
         break;
@@ -1921,8 +1958,11 @@ export async function mockLedgerApi(
         body = { previews: mockApplyPreviews };
         break;
       case "ApplyRules":
-        body = { appliedCount: 3 };
-        break;
+        await fulfillStream(route, page, method, [
+          { progress: { applied: 3, total: 3 } },
+          { result: { appliedCount: 3 } },
+        ]);
+        return;
       case "AskQuestion":
         body = {
           hledgerArgs: "balance expenses:groceries date:lastmonth",
@@ -2126,32 +2166,22 @@ export async function mockLedgerApi(
         };
         break;
       case "ImportStripeTransactions":
-        body = { importedCount: 2, transactions: [] };
-        break;
+        await fulfillStream(route, page, method, [{ result: { importedCount: 2, transactions: [] } }]);
+        return;
       case "ImportAllStripeTransactions":
-        body = { importedCount: 3, transactions: [] };
-        break;
-      case "RefreshStripeAccount": {
-        // Streaming responses are Connect JSON: a oneof is written as its
-        // field name ({progress: ...}), not protobuf-es's {case, value}.
-        const acctId = reqBody.stripeAccountId || "fca_mock";
-        await route.fulfill({
-          status: 200,
-          contentType: "application/connect+json",
-          body: encodeConnectStreamingBody(mockStripeRefreshMessages(acctId)),
-        });
+        await fulfillStream(route, page, method, [{ result: { importedCount: 3, transactions: [] } }]);
         return;
-      }
-      case "RefreshAllStripeAccounts": {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/connect+json",
-          body: encodeConnectStreamingBody(
-            mockStripeLinkedAccounts.flatMap((acct) => mockStripeRefreshMessages(acct.stripeAccountId)),
-          ),
-        });
+      case "RefreshStripeAccount":
+        await fulfillStream(route, page, method, mockStripeRefreshMessages(reqBody.stripeAccountId || "fca_mock"));
         return;
-      }
+      case "RefreshAllStripeAccounts":
+        await fulfillStream(
+          route,
+          page,
+          method,
+          mockStripeLinkedAccounts.flatMap((acct) => mockStripeRefreshMessages(acct.stripeAccountId)),
+        );
+        return;
       case "GetAlphaVantageConfig":
         body = { apiKeyConfigured: true, apiKeyPreview: "ABCD..." };
         break;
@@ -2211,6 +2241,9 @@ export async function mockLedgerApi(
         body = {};
     }
 
+    if (rpcMethods.get(method)?.methodKind === "server_streaming") {
+      recordSchemaError(page, `${method} is server-streaming: mock it with fulfillStream, not a JSON body`);
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
