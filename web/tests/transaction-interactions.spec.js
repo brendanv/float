@@ -337,6 +337,66 @@ test.describe("mobile", () => {
     await expect(drawer).toBeHidden();
   });
 
+  // Chromium has no on-screen keyboard, so stand in for iOS Safari's: it
+  // shrinks only the visual viewport and leaves window.innerHeight alone.
+  async function stubKeyboard(page) {
+    await page.addInitScript(() => {
+      const real = window.visualViewport;
+      const fake = new EventTarget();
+      for (const key of ["width", "offsetLeft", "pageLeft", "pageTop", "scale"]) {
+        Object.defineProperty(fake, key, { get: () => real[key] });
+      }
+      Object.defineProperty(fake, "offsetTop", { get: () => 0 });
+      Object.defineProperty(fake, "height", { get: () => window.innerHeight - (window.__keyboard || 0) });
+      Object.defineProperty(window, "visualViewport", { value: fake });
+      window.__setKeyboard = (h) => {
+        window.__keyboard = h;
+        fake.dispatchEvent(new Event("resize"));
+      };
+    });
+  }
+
+  test("the editor follows the keyboard and returns after picking an account or editing tags", async ({ page }) => {
+    await stubKeyboard(page);
+    await mockLedgerApi(page, { transactions });
+    await page.goto("/#/transactions");
+
+    await card(page, "Coffee Shop").click();
+    const drawer = page.locator("[data-slot=drawer-content]");
+    const title = drawer.getByText("Edit Transaction");
+    await expect(title).toBeVisible();
+    const viewportHeight = page.viewportSize().height;
+    const bottom = async () => { const b = await drawer.boundingBox(); return Math.round(b.y + b.height); };
+    await expect.poll(bottom).toBe(viewportHeight);
+
+    // Keyboard opens for the account search: the drawer sits above it.
+    const account = drawer.getByRole("combobox").first();
+    await account.click();
+    await page.evaluate(() => window.__setKeyboard(300));
+    await expect.poll(bottom).toBe(viewportHeight - 300);
+    expect((await drawer.boundingBox()).height).toBeLessThanOrEqual(viewportHeight - 300);
+
+    // Picking closes the popover and the keyboard; the drawer goes back.
+    await page.getByRole("option", { name: "expenses:dining", exact: true }).click();
+    await page.evaluate(() => window.__setKeyboard(0));
+    await expect.poll(bottom).toBe(viewportHeight);
+    await expect(drawer).not.toHaveAttribute("style", /height|bottom/);
+    await expect(title).toBeInViewport();
+
+    // Same for the tag form, which also grows the drawer while open.
+    await drawer.getByRole("button", { name: "Tag", exact: true }).click();
+    await page.evaluate(() => window.__setKeyboard(300));
+    await expect.poll(bottom).toBe(viewportHeight - 300);
+    await expect(drawer.getByPlaceholder("key")).toBeInViewport();
+    await drawer.getByPlaceholder("key").fill("work");
+    await drawer.getByRole("button", { name: "Add tag" }).click();
+    await page.evaluate(() => window.__setKeyboard(0));
+    await expect.poll(bottom).toBe(viewportHeight);
+    await expect(drawer).not.toHaveAttribute("style", /height|bottom/);
+    await expect(title).toBeInViewport();
+    await expect(drawer.getByText("#work")).toBeVisible();
+  });
+
   test("re-picking the selected account keeps it", async ({ page }) => {
     await mockLedgerApi(page, { transactions });
     await page.goto("/#/transactions");
