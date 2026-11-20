@@ -217,9 +217,10 @@ export function ImportPage() {
         <Form onSubmit={handlePreview} className="max-w-2xl">
           {previewError && <ErrorBanner error={previewError} />}
           {profilesError && <ErrorBanner error={profilesError} />}
-          <FormField label="Bank profile">
+          <FormField label="Bank profile" htmlFor="bank-profile">
             <div className="flex items-center gap-1">
               <NativeSelect
+                id="bank-profile"
                 size="sm"
                 value={selectedProfile || ""}
                 onChange={(e) => setSelectedProfile(e.target.value || undefined)}

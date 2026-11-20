@@ -64,9 +64,12 @@ type TransactionInput struct {
 // postingAmountString builds the hledger amount string for a posting.
 // Uses "QUANTITY COMMODITY" format which hledger accepts universally and
 // FormatViaHledger will canonicalize to the commodity directive's placement.
-// Returns "" for auto-balance postings (empty commodity and quantity).
+// Returns "" for auto-balance postings: no quantity. A commodity without a
+// quantity (an editor that kept the commodity when the amount was blanked) is
+// still auto-balance; writing it would leave "account  USD", which hledger
+// can't parse.
 func postingAmountString(p PostingInput) string {
-	if p.Commodity == "" && p.Quantity == "" {
+	if p.Quantity == "" {
 		return ""
 	}
 	s := p.Quantity + " " + p.Commodity

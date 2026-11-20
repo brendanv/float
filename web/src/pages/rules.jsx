@@ -401,8 +401,9 @@ export function RulesPage() {
             <form.Field
               name="account"
               children={(field) => (
-                <FormField label="Set category account">
+                <FormField label="Set category account" htmlFor="rule-account">
                   <AccountInput
+                    id="rule-account"
                     value={field.state.value}
                     onChange={(v) => field.handleChange(v)}
                     accounts={accountsData?.accounts ?? []}
@@ -415,8 +416,9 @@ export function RulesPage() {
             <form.Field
               name="matchAccount"
               children={(field) => (
-                <FormField label="Match source account" hint="optional">
+                <FormField label="Match source account" htmlFor="rule-match-account" hint="optional">
                   <AccountInput
+                    id="rule-match-account"
                     value={field.state.value}
                     onChange={(v) => field.handleChange(v)}
                     accounts={accountsData?.accounts ?? []}
