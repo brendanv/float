@@ -103,6 +103,17 @@ buf curl --protocol grpc --http2-prior-knowledge \
 
 If you're writing a script (or pointing an agent at float) to turn some export into transactions, use `ImportStructuredTransactions`. It validates the whole batch up front, supports dry runs, skips anything that's already in your journal so re-running it is safe, and the result can be undone just like a CSV import.
 
+## Connecting an agent (MCP)
+
+floatd serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp` (streamable HTTP), so agents like Claude Code can read and edit your ledger through a curated set of tools: listing and querying transactions, balances and reports, read-only hledger commands, structured imports with dry runs, bulk edits, categorization rules, and snapshots. With auth on, the endpoint takes the same passphrase as a bearer token (the web UI's cookie isn't accepted):
+
+```bash
+claude mcp add --transport http float http://localhost:8080/mcp \
+  --header "Authorization: Bearer $FLOAT_AUTH_PASSPHRASE"
+```
+
+Other clients take the same URL and header in their MCP config. Tools are annotated as read-only or destructive, so a client can ask you before anything that deletes or overwrites data.
+
 There's also `floatctl`, an admin CLI that operates on the data directory directly, which is handy for debugging, poking at config, or restoring snapshots without the server running. Run `go run ./cmd/floatctl help` to see everything it can do.
 
 ## Contributing

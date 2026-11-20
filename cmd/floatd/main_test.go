@@ -19,6 +19,7 @@ import (
 
 	"connectrpc.com/connect"
 	"connectrpc.com/grpcreflect"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/net/http2"
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
@@ -290,6 +291,37 @@ func TestServerSmoke(t *testing.T) {
 		}
 	})
 
+	t.Run("MCP endpoint requires a bearer and reaches the ledger", func(t *testing.T) {
+		resp, err := http.Post(base+"/mcp", "application/json", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("POST /mcp without credentials = %d, want 401", resp.StatusCode)
+		}
+
+		session, err := mcp.NewClient(&mcp.Implementation{Name: "smoke"}, nil).Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint:   base + "/mcp",
+			HTTPClient: &http.Client{Transport: bearerRoundTripper(smokePassphrase)},
+		}, nil)
+		if err != nil {
+			t.Fatalf("MCP connect: %v", err)
+		}
+		defer func() { _ = session.Close() }()
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "get_balances",
+			Arguments: map[string]any{"query": []string{"assets:checking"}},
+		})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		text := res.Content[0].(*mcp.TextContent).Text
+		if res.IsError || !strings.Contains(text, `"assets:checking"`) {
+			t.Fatalf("get_balances = %s (isError=%v)", text, res.IsError)
+		}
+	})
+
 	t.Run("invalid transaction is rejected and nothing is written", func(t *testing.T) {
 		_, err := client.AddTransaction(ctx, connect.NewRequest(&floatv1.AddTransactionRequest{
 			Date:        "2026-01-16",
@@ -310,6 +342,15 @@ func TestServerSmoke(t *testing.T) {
 			t.Fatalf("rejected transaction was left on disk:\n%s", monthFile)
 		}
 	})
+}
+
+// bearerRoundTripper adds a bearer header to every plain HTTP request.
+type bearerRoundTripper string
+
+func (b bearerRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("Authorization", "Bearer "+string(b))
+	return http.DefaultTransport.RoundTrip(r)
 }
 
 func bearerStream(token string) connect.Interceptor {

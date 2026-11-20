@@ -177,3 +177,44 @@ func findSessionCookie(cookies []*http.Cookie) *http.Cookie {
 	}
 	return nil
 }
+
+func TestRequireBearer(t *testing.T) {
+	enabled := auth.New("secret")
+	tests := []struct {
+		name   string
+		auth   *auth.Auth
+		header string
+		cookie string
+		want   int
+	}{
+		{name: "disabled passes", auth: auth.New(""), want: http.StatusNoContent},
+		{name: "passphrase", auth: enabled, header: "Bearer secret", want: http.StatusNoContent},
+		{name: "session token", auth: enabled, header: "Bearer " + enabled.Token(), want: http.StatusNoContent},
+		{name: "missing", auth: enabled, want: http.StatusUnauthorized},
+		{name: "wrong", auth: enabled, header: "Bearer nope", want: http.StatusUnauthorized},
+		{name: "not bearer", auth: enabled, header: "Basic secret", want: http.StatusUnauthorized},
+		{name: "cookie is not enough", auth: enabled, cookie: enabled.Token(), want: http.StatusUnauthorized},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tt.auth.RequireBearer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+			if tt.header != "" {
+				req.Header.Set("Authorization", tt.header)
+			}
+			if tt.cookie != "" {
+				req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: tt.cookie})
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != tt.want {
+				t.Fatalf("status = %d, want %d", rec.Code, tt.want)
+			}
+			if tt.want == http.StatusUnauthorized && rec.Header().Get("WWW-Authenticate") == "" {
+				t.Error("missing WWW-Authenticate challenge")
+			}
+		})
+	}
+}

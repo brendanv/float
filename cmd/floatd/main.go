@@ -30,6 +30,7 @@ import (
 	"github.com/brendanv/float/internal/logstream"
 	"github.com/brendanv/float/internal/middleware"
 	serverledger "github.com/brendanv/float/internal/server/ledger"
+	"github.com/brendanv/float/internal/server/mcpserver"
 	"github.com/brendanv/float/internal/txlock"
 	"github.com/brendanv/float/internal/warm"
 	"github.com/brendanv/float/internal/webui"
@@ -244,6 +245,22 @@ func run(ctx context.Context, opts options) error {
 	reflector := grpcreflect.NewStaticReflector(floatv1connect.LedgerServiceName)
 	mux.Handle(grpcreflect.NewHandlerV1(reflector, interceptors))
 	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector, interceptors))
+	// MCP endpoint for agents. Tool calls go through an in-process Connect
+	// client to svcHandler, so they pass the same interceptors (auth
+	// included) as external clients. The in-process server must outlive the
+	// public one: it is shut down only when run returns, after httpSrv has
+	// drained in-flight /mcp requests.
+	inproc := mcpserver.NewInProcess(svcHandler)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = inproc.Shutdown(shutdownCtx)
+	}()
+	mcpHandler, err := mcpserver.NewHandler(inproc.LedgerClient(), mcpserver.Options{AuthEnabled: authn.Enabled()})
+	if err != nil {
+		return err
+	}
+	mux.Handle(mcpserver.Path, authn.RequireBearer(mcpHandler))
 	mux.Handle("/api/auth", authn.StatusHandler())
 	mux.Handle("/api/login", authn.LoginHandler())
 	mux.Handle("/api/logout", authn.LogoutHandler())
