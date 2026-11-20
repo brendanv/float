@@ -1,16 +1,24 @@
 // Visual regression baselines for a few key pages (mocked data, pinned clock).
 // Unlike the other screenshot specs, these compare against committed images in
-// test-snapshots/ and fail on a visible change. After an intended UI change,
-// regenerate with `bun run test:update-snapshots` and review the image diff in
-// the commit.
+// test-snapshots/ and fail on a visible change (a single changed word is ~200
+// pixels; the tolerance below only absorbs rendering noise).
 //
-// The tolerance absorbs anti-aliasing differences between Chromium builds
-// (the CI image vs. a local browser); layout, color or text changes still
-// fail.
+// Baselines are rendered by Playwright's bundled Chromium, which is what CI
+// uses. Another Chromium build lays out glyphs a pixel differently, so the
+// spec skips itself when PW_CHROMIUM_PATH points at a different browser
+// (e.g. Claude Code on the web). To update baselines after an intended UI
+// change: run `bun run test:update-snapshots` with the bundled browser, or take
+// the `*-actual.png` files from the failing CI run's playwright-screenshots
+// artifact. Review the image diff in the commit either way.
 import { test, expect } from "./fixtures.js";
 import { mockLedgerApi } from "./mock-api.js";
 
 const SCREENSHOT = { fullPage: true, maxDiffPixels: 50, threshold: 0.3 };
+
+test.skip(
+  !!process.env.PW_CHROMIUM_PATH,
+  "visual baselines are rendered by Playwright's bundled Chromium; PW_CHROMIUM_PATH selects a different build",
+);
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-03-28T12:00:00"));

@@ -67,8 +67,9 @@ async function checkRpcResponse(res) {
     return null; // page closed before the body was read
   }
   try {
-    const contentType = res.headers()["content-type"] ?? "";
-    const messages = contentType.startsWith("application/connect+json") ? decodeEnvelopes(body) : [JSON.parse(body.toString("utf8") || "{}")];
+    // Decide by the method, not the response's content type: browsers don't
+    // all report a fulfilled route's headers the same way.
+    const messages = method.methodKind === "server_streaming" ? decodeEnvelopes(body) : [JSON.parse(body.toString("utf8") || "{}")];
     messages.forEach((m) => fromJson(method.output, m));
     return null;
   } catch (err) {
