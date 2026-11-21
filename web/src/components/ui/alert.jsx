@@ -71,6 +71,10 @@ function AlertAction({
   );
 }
 
+// The description wraps the action onto its own line only when its text
+// (capped at 14rem) and the action cannot share a line: max-w-max clamps the
+// flex basis so short text does not reserve a full 14rem.
+//
 // Notice is the one-line Waterline notice: <Notice variant="warning"
 // action={<Link to="/prices">Update prices</Link>}>2 holdings…</Notice>.
 // `action` renders in an AlertAction (a link or a small button).
@@ -83,7 +87,7 @@ function Notice({
 }) {
   return (
     <Alert variant={variant} className={className} {...props}>
-      <span data-slot="alert-description" className="min-w-0 flex-[1_1_14rem]">{children}</span>
+      <span data-slot="alert-description" className="min-w-0 max-w-max flex-[1_1_14rem]">{children}</span>
       {action && <AlertAction>{action}</AlertAction>}
     </Alert>
   );
