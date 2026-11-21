@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -156,12 +157,18 @@ func TestStripeTransactionToHledger(t *testing.T) {
 			if main.Amounts[0].Quantity.FloatingPoint != tc.wantMainAmt {
 				t.Errorf("main posting amount: got %v, want %v", main.Amounts[0].Quantity.FloatingPoint, tc.wantMainAmt)
 			}
+			if got, want := main.Amounts[0].Quantity.Format(), fmt.Sprintf("%.2f", tc.wantMainAmt); got != want {
+				t.Errorf("main posting Format(): got %q, want %q", got, want)
+			}
 			counter := ht.Postings[1]
 			if counter.Account != tc.wantCounterAcc {
 				t.Errorf("counter posting account: got %q, want %q", counter.Account, tc.wantCounterAcc)
 			}
 			if counter.Amounts[0].Quantity.FloatingPoint != tc.wantCounterAmt {
 				t.Errorf("counter posting amount: got %v, want %v", counter.Amounts[0].Quantity.FloatingPoint, tc.wantCounterAmt)
+			}
+			if got, want := counter.Amounts[0].Quantity.Format(), fmt.Sprintf("%.2f", tc.wantCounterAmt); got != want {
+				t.Errorf("counter posting Format(): got %q, want %q", got, want)
 			}
 		})
 	}

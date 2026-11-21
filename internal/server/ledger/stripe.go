@@ -1024,8 +1024,10 @@ func stripeTransactionToHledger(t stripeClient.Transaction, hledgerAccount strin
 	amountDecimal := float64(t.AmountCents) / 100.0
 	currency := strings.ToUpper(t.Currency)
 
-	qty := hledger.AmountQuantity{FloatingPoint: amountDecimal, DecimalPlaces: 2}
-	counterQty := hledger.AmountQuantity{FloatingPoint: -amountDecimal, DecimalPlaces: 2}
+	// Format() renders from DecimalMantissa, so it must be set alongside
+	// FloatingPoint or the preview shows 0.00.
+	qty := hledger.AmountQuantity{DecimalMantissa: t.AmountCents, DecimalPlaces: 2, FloatingPoint: amountDecimal}
+	counterQty := hledger.AmountQuantity{DecimalMantissa: -t.AmountCents, DecimalPlaces: 2, FloatingPoint: -amountDecimal}
 
 	return hledger.Transaction{
 		Date:        stripeTransactedAtDate(t.TransactedAt, loc).Format("2006-01-02"),
