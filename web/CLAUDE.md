@@ -71,7 +71,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 | `/import` | `ImportPage` | Bring in › Import › Import | CSV import wizard and bank profiles |
 | `/imports` | `ImportsHistoryPage` | Bring in › Import › History | Import batches (a row, or its Source link, opens `/transactions?importBatchId=`) and original CSVs |
 | `/settings` | `SettingsPage` | Settings › General | Timezone, export, Alpha Vantage, Stripe, AI |
-| `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status; unmatched transfers (`FindUnmatchedTransfers`, shown only when non-empty) |
+| `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status; unmatched transfers grouped by route (`FindUnmatchedTransfers`, shown only when non-empty) |
 | `/snapshots` | `SnapshotsPage` | Settings › Snapshots | Git snapshots, diffs and restores |
 | `/hledger-query` | `HledgerQueryPage` | Settings › Query | Raw hledger query and AI query helpers |
 | `/logs` | `LogsPage` | Settings › Logs | Live server log stream |

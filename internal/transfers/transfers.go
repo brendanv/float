@@ -6,9 +6,14 @@
 // pair nets the clearing account to zero. A side whose counterpart never
 // arrived usually means a transaction is missing from the journal entirely.
 //
+// The clearing account's direct children are routes, one per pair of
+// counterparties (e.g. equity:transfers:Schwab-Amex). Sides only match within
+// a route, and each route learns from history which accounts use it, so an
+// unmatched side can say where its counterpart was expected.
+//
 // The package only pairs transactions hledger has already parsed; it does no
-// accounting of its own. The sum of the unmatched sides equals hledger's
-// balance of the clearing account.
+// accounting of its own. The sum of the unmatched sides in a route equals
+// hledger's balance of that route.
 package transfers
 
 import (
@@ -58,6 +63,44 @@ type Unmatched struct {
 	// Amount is the amount posted to the clearing account.
 	Amount hledger.Amount
 	Status Status
+	// Route is the clearing account's direct child the side posts to (or
+	// the clearing account itself for a direct posting).
+	Route string
+	// ExpectedAccounts is where the other side was expected: the route's
+	// accounts that have moved money the opposite way, or, if none has yet,
+	// every other account in the route. Sorted; empty when the route has
+	// only ever seen this side's account.
+	ExpectedAccounts []string
+}
+
+// Route summarizes a route with at least one unmatched side.
+type Route struct {
+	Account string
+	// Accounts are the source accounts that have posted to the route, sorted.
+	Accounts []string
+}
+
+// Report is the result of FindUnmatched.
+type Report struct {
+	// Unmatched lists the sides with no match, in input order.
+	Unmatched []Unmatched
+	// Routes lists the routes of the unmatched sides, sorted by account.
+	Routes []Route
+}
+
+// RouteOf returns the route for a posting account under the clearing
+// account: its direct child, or the clearing account itself. ok is false
+// when name is not the clearing account or under it.
+func RouteOf(name, account string) (route string, ok bool) {
+	if name == account {
+		return account, true
+	}
+	rest, found := strings.CutPrefix(name, account+":")
+	if !found {
+		return "", false
+	}
+	child, _, _ := strings.Cut(rest, ":")
+	return account + ":" + child, true
 }
 
 // leg is a candidate transaction: exactly one posting to the clearing
@@ -66,22 +109,20 @@ type leg struct {
 	idx    int // index into the input slice
 	date   time.Time
 	amount hledger.Amount
+	route  string
 	source string // first posting outside the clearing account
-	key    amountKey
-	neg    bool
+	key    bucketKey
+	neg    bool // clearing amount is negative (money arrived at source)
 }
 
-// amountKey groups legs whose clearing amounts have the same magnitude and
-// commodity. The mantissa is normalized (trailing zeros stripped) so 500.0
+// bucketKey groups legs that could match: same route, same commodity, same
+// magnitude. The mantissa is normalized (trailing zeros stripped) so 500.0
 // and 500.00 compare equal.
-type amountKey struct {
+type bucketKey struct {
+	route     string
 	commodity string
 	mantissa  int64 // absolute value
 	places    int
-}
-
-func inAccount(name, account string) bool {
-	return name == account || strings.HasPrefix(name, account+":")
 }
 
 func normalize(q hledger.AmountQuantity) (mantissa int64, places int, neg bool) {
@@ -98,14 +139,15 @@ func normalize(q hledger.AmountQuantity) (mantissa int64, places int, neg bool) 
 
 func toLeg(i int, t hledger.Transaction, account string) (leg, bool) {
 	var clearing *hledger.Posting
+	route := ""
 	source := ""
 	for j := range t.Postings {
 		p := &t.Postings[j]
-		if inAccount(p.Account, account) {
+		if r, ok := RouteOf(p.Account, account); ok {
 			if clearing != nil {
 				return leg{}, false // touches the clearing account twice
 			}
-			clearing = p
+			clearing, route = p, r
 		} else if source == "" {
 			source = p.Account
 		}
@@ -126,8 +168,9 @@ func toLeg(i int, t hledger.Transaction, account string) (leg, bool) {
 		idx:    i,
 		date:   date,
 		amount: a,
+		route:  route,
 		source: source,
-		key:    amountKey{commodity: a.Commodity, mantissa: m, places: p},
+		key:    bucketKey{route: route, commodity: a.Commodity, mantissa: m, places: p},
 		neg:    neg,
 	}, true
 }
@@ -140,25 +183,79 @@ func daysApart(a, b time.Time) int {
 	return d
 }
 
+// routeAccounts records, per route, which source accounts have posted to it
+// and in which direction.
+type routeAccounts map[string]map[string][2]bool // route -> source -> [pos, neg]
+
+func (ra routeAccounts) add(l leg) {
+	m := ra[l.route]
+	if m == nil {
+		m = make(map[string][2]bool)
+		ra[l.route] = m
+	}
+	dirs := m[l.source]
+	if l.neg {
+		dirs[1] = true
+	} else {
+		dirs[0] = true
+	}
+	m[l.source] = dirs
+}
+
+func (ra routeAccounts) all(route string) []string {
+	out := make([]string, 0, len(ra[route]))
+	for a := range ra[route] {
+		out = append(out, a)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// expected lists where l's counterpart should be: accounts in l's route that
+// have moved money the opposite way, else every other account in the route.
+func (ra routeAccounts) expected(l leg) []string {
+	opposite := 0 // a positive leg pairs with negative legs, and vice versa
+	if !l.neg {
+		opposite = 1
+	}
+	var dir, others []string
+	for a, dirs := range ra[l.route] {
+		if a == l.source {
+			continue
+		}
+		others = append(others, a)
+		if dirs[opposite] {
+			dir = append(dir, a)
+		}
+	}
+	if len(dir) == 0 {
+		dir = others
+	}
+	slices.Sort(dir)
+	return dir
+}
+
 // FindUnmatched returns the transfer sides in txns that have no matching
-// other side, in input order.
+// other side.
 //
 // A transaction is a transfer side when exactly one of its postings is to
 // the clearing account (or a sub-account) and that posting has a single
-// amount. Two sides match when their clearing amounts are equal and
-// opposite in the same commodity (costs are ignored), their source accounts
-// (first posting outside the clearing account) differ, and their dates are
-// at most WindowDays apart. Pairing is one-to-one, closest dates first, so
-// repeated identical transfers each need their own counterpart.
-func FindUnmatched(txns []hledger.Transaction, opts Options) []Unmatched {
+// amount. Two sides match when they post to the same route, their clearing
+// amounts are equal and opposite in the same commodity (costs are ignored),
+// their source accounts (first posting outside the clearing account) differ,
+// and their dates are at most WindowDays apart. Pairing is one-to-one,
+// closest dates first, so repeated identical transfers each need their own
+// counterpart.
+func FindUnmatched(txns []hledger.Transaction, opts Options) Report {
 	account := cmp.Or(opts.Account, DefaultAccount)
 	window := opts.WindowDays
 	if window <= 0 {
 		window = DefaultWindowDays
 	}
 
-	buckets := make(map[amountKey][]leg)
-	var keys []amountKey
+	buckets := make(map[bucketKey][]leg)
+	var keys []bucketKey
+	accounts := make(routeAccounts)
 	for i, t := range txns {
 		l, ok := toLeg(i, t, account)
 		if !ok {
@@ -168,6 +265,7 @@ func FindUnmatched(txns []hledger.Transaction, opts Options) []Unmatched {
 			keys = append(keys, l.key)
 		}
 		buckets[l.key] = append(buckets[l.key], l)
+		accounts.add(l)
 	}
 
 	type pair struct {
@@ -219,13 +317,25 @@ func FindUnmatched(txns []hledger.Transaction, opts Options) []Unmatched {
 	slices.SortFunc(unmatched, func(a, b leg) int { return cmp.Compare(a.idx, b.idx) })
 
 	today := time.Date(opts.Today.Year(), opts.Today.Month(), opts.Today.Day(), 0, 0, 0, 0, time.UTC)
-	out := make([]Unmatched, 0, len(unmatched))
+	report := Report{Unmatched: make([]Unmatched, 0, len(unmatched))}
+	routes := make(map[string]bool)
 	for _, l := range unmatched {
 		status := StatusRecent
 		if l.date.AddDate(0, 0, window).Before(today) {
 			status = StatusMissing
 		}
-		out = append(out, Unmatched{Transaction: txns[l.idx], Amount: l.amount, Status: status})
+		report.Unmatched = append(report.Unmatched, Unmatched{
+			Transaction:      txns[l.idx],
+			Amount:           l.amount,
+			Status:           status,
+			Route:            l.route,
+			ExpectedAccounts: accounts.expected(l),
+		})
+		if !routes[l.route] {
+			routes[l.route] = true
+			report.Routes = append(report.Routes, Route{Account: l.route, Accounts: accounts.all(l.route)})
+		}
 	}
-	return out
+	slices.SortFunc(report.Routes, func(a, b Route) int { return cmp.Compare(a.Account, b.Account) })
+	return report
 }

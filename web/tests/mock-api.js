@@ -618,19 +618,23 @@ export const mockUnmatchedTransfers = [
   {
     status: "recent",
     amount: { commodity: "USD", quantity: "250.00" },
+    route: "equity:transfers:Checking-Savings",
+    expectedAccounts: ["assets:savings"],
     transaction: {
       fid: "f1e2d3c4",
       date: "2026-03-27",
       description: "Online transfer to savings",
       postings: [
         { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-250.00" }] },
-        { account: "equity:transfers", amounts: [{ commodity: "USD", quantity: "250.00" }] },
+        { account: "equity:transfers:Checking-Savings", amounts: [{ commodity: "USD", quantity: "250.00" }] },
       ],
     },
   },
   {
     status: "missing",
     amount: { commodity: "USD", quantity: "-842.18" },
+    route: "equity:transfers:Checking-Cards",
+    expectedAccounts: ["assets:checking"],
     transaction: {
       fid: "f1e2d3c5",
       date: "2026-03-04",
@@ -638,22 +642,53 @@ export const mockUnmatchedTransfers = [
       importBatchId: "stripe/2026-03-05-a1b2c3d4",
       postings: [
         { account: "liabilities:creditcard", amounts: [{ commodity: "USD", quantity: "842.18" }] },
-        { account: "equity:transfers", amounts: [{ commodity: "USD", quantity: "-842.18" }] },
+        { account: "equity:transfers:Checking-Cards", amounts: [{ commodity: "USD", quantity: "-842.18" }] },
       ],
     },
   },
   {
     status: "missing",
     amount: { commodity: "USD", quantity: "100.00" },
+    route: "equity:transfers:Checking-Cards",
+    expectedAccounts: ["liabilities:creditcard", "liabilities:travelcard"],
     transaction: {
       fid: "f1e2d3c6",
       date: "2026-02-14",
-      description: "Transfer to Venmo",
+      description: "Card autopay",
       postings: [
         { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-100.00" }] },
-        { account: "equity:transfers", amounts: [{ commodity: "USD", quantity: "100.00" }] },
+        { account: "equity:transfers:Checking-Cards", amounts: [{ commodity: "USD", quantity: "100.00" }] },
       ],
     },
+  },
+  {
+    status: "missing",
+    amount: { commodity: "USD", quantity: "20.00" },
+    route: "equity:transfers",
+    transaction: {
+      fid: "f1e2d3c7",
+      date: "2026-01-09",
+      description: "Transfer to Venmo",
+      postings: [
+        { account: "assets:checking", amounts: [{ commodity: "USD", quantity: "-20.00" }] },
+        { account: "equity:transfers", amounts: [{ commodity: "USD", quantity: "20.00" }] },
+      ],
+    },
+  },
+];
+
+// FindUnmatchedTransfers.routes for mockUnmatchedTransfers.
+export const mockTransferRoutes = [
+  { account: "equity:transfers", accounts: ["assets:checking"], balance: [{ commodity: "USD", quantity: "20.00" }] },
+  {
+    account: "equity:transfers:Checking-Cards",
+    accounts: ["assets:checking", "liabilities:creditcard", "liabilities:travelcard"],
+    balance: [{ commodity: "USD", quantity: "-742.18" }],
+  },
+  {
+    account: "equity:transfers:Checking-Savings",
+    accounts: ["assets:checking", "assets:savings"],
+    balance: [{ commodity: "USD", quantity: "250.00" }],
   },
 ];
 
@@ -1729,7 +1764,12 @@ export async function mockLedgerApi(
         body = { tags: ["category", "memo", "reimbursable"] };
         break;
       case "FindUnmatchedTransfers":
-        body = { transfers: unmatchedTransfers, account: "equity:transfers", windowDays: 5 };
+        body = {
+          transfers: unmatchedTransfers,
+          account: "equity:transfers",
+          windowDays: 5,
+          routes: unmatchedTransfers.length ? mockTransferRoutes : [],
+        };
         break;
       case "GetBalanceAssertionStatus":
         body = {

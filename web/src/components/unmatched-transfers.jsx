@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { Account } from "./account.jsx";
@@ -40,9 +41,49 @@ function TransferStatus({ status }) {
   );
 }
 
+// routeLabel names a route by its segment under the clearing account
+// ("Schwab-Amex"); direct postings to the clearing account itself have none.
+function routeLabel(route, account) {
+  return route === account ? "Direct" : route.slice(account.length + 1);
+}
+
+// orList joins account names as "a, b or c".
+function orList(names) {
+  if (names.length <= 1) return names[0] || "";
+  return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
+}
+
+// RouteHeader heads one route's rows: its name, the accounts that use it, and
+// hledger's balance of the route (what the unmatched sides leave behind).
+function RouteHeader({ route, account, summary }) {
+  return (
+    <tr data-slot="transfer-route" className="shadow-[inset_0_-1px_0_var(--input)]">
+      <td colSpan={5} className="px-2 pt-5 pb-1.5 whitespace-normal">
+        {/* Chrome sizes the table to a spanning cell's max-content, so the
+            route's account list (w-0 min-w-full) adds no width of its own:
+            it fills the row and wraps on phones instead of widening the table. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3">
+          <div className="w-0 min-w-full">
+            <span className="mr-3 font-medium" title={route}>{routeLabel(route, account)}</span>
+            {summary?.accounts?.length > 0 && (
+              <span className="text-[12px] text-faint [overflow-wrap:anywhere]">{summary.accounts.join(" · ")}</span>
+            )}
+          </div>
+          {summary?.balance?.length > 0 ? (
+            <span className="text-[12px] whitespace-nowrap text-muted-foreground">
+              Balance <Amount value={summary.balance} />
+            </span>
+          ) : <span />}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function TransferRow({ transfer, account }) {
   const tx = transfer.transaction;
   const source = sourcePosting(tx, account);
+  const expected = transfer.expectedAccounts || [];
   return (
     <TableRow data-slot="unmatched-transfer-row">
       <TableCell className="w-6 pr-0 sm:w-28 sm:pr-2">
@@ -61,6 +102,11 @@ function TransferRow({ transfer, account }) {
         ) : (
           <span className="block truncate">{tx.description}</span>
         )}
+        {expected.length > 0 && (
+          <span data-slot="expected-accounts" className="block text-[12px] whitespace-normal text-muted-foreground [overflow-wrap:anywhere]">
+            Expected on {orList(expected)}
+          </span>
+        )}
       </TableCell>
       <TableCell className="hidden sm:table-cell">
         {source ? <Account name={source.account} variant="path" /> : <span className="text-faint">—</span>}
@@ -72,15 +118,29 @@ function TransferRow({ transfer, account }) {
   );
 }
 
+// groupByRoute groups transfers by route, routes ordered by their newest side
+// (transfers arrive newest first).
+function groupByRoute(transfers) {
+  const groups = new Map();
+  for (const t of transfers) {
+    const key = t.route || "";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(t);
+  }
+  return [...groups.entries()];
+}
+
 // UnmatchedTransfersSection lists transfer sides through the clearing account
-// with no matching other side. It renders nothing when every transfer has
-// both sides.
+// with no matching other side, grouped by route (the clearing account's direct
+// children, e.g. equity:transfers:Schwab-Amex). It renders nothing when every
+// transfer has both sides.
 export function UnmatchedTransfersSection() {
   const { data, error } = useUnmatchedTransfers();
   if (error) return <ErrorBanner error={error} />;
   const transfers = data?.transfers || [];
   if (transfers.length === 0) return null;
   const account = data.account;
+  const summaries = new Map((data.routes || []).map((r) => [r.account, r]));
   return (
     <Section
       title="Unmatched transfers"
@@ -102,8 +162,17 @@ export function UnmatchedTransfersSection() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {transfers.map((t, i) => (
-            <TransferRow key={t.transaction.fid || i} transfer={t} account={account} />
+          {groupByRoute(transfers).map(([route, rows]) => (
+            <Fragment key={route}>
+              <RouteHeader
+                route={route || account}
+                account={account}
+                summary={summaries.get(route)}
+              />
+              {rows.map((t, i) => (
+                <TransferRow key={t.transaction.fid || i} transfer={t} account={account} />
+              ))}
+            </Fragment>
           ))}
         </TableBody>
       </Table>

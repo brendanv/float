@@ -1,50 +1,71 @@
 // Unmatched-transfer check against a real floatd: one side of a transfer
-// through equity:transfers is flagged until the other side is imported.
+// through an equity:transfers route is flagged, with the account its other
+// side was expected on, until that side is imported.
 import { test, expect, settle, balanceOf } from "./fixtures.js";
 
-function transferSide(date, description, account, quantity) {
+const ROUTE = "equity:transfers:Checking-Card";
+
+function transferSide(date, description, account, quantity, route = ROUTE) {
   return {
     date,
     description,
     postings: [
       { account, commodity: "USD", quantity },
-      { account: "equity:transfers" },
+      { account: route },
     ],
   };
 }
 
 test("a lone transfer side is flagged until its other side is imported", async ({ page, floatd }) => {
-  // The checking side of a card payment arrives first. floatd's clock is
-  // the real date, long after this, so the side is "missing", not "recent".
+  // History: one complete card payment, so the route knows its accounts.
+  // Then the card side of a second payment arrives without the checking side,
+  // plus a same-amount checking transfer through another route that must not
+  // be taken as its match. floatd's clock is the real date, long after these,
+  // so lone sides are "missing", not "recent".
   await floatd.rpc("ImportStructuredTransactions", {
-    transactions: [transferSide("2026-02-10", "ONLINE PMT CREDIT CARD", "assets:checking", "-300.00")],
+    transactions: [
+      transferSide("2026-01-20", "ONLINE PMT CREDIT CARD", "assets:checking", "-150.00"),
+      transferSide("2026-01-21", "PAYMENT THANK YOU", "liabilities:credit-card", "150.00"),
+      transferSide("2026-02-12", "PAYMENT THANK YOU", "liabilities:credit-card", "300.00"),
+      transferSide("2026-02-12", "TRANSFER TO SAVINGS", "assets:checking", "-300.00", "equity:transfers:Checking-Savings"),
+    ],
   });
   const first = await floatd.rpc("FindUnmatchedTransfers", {});
   expect(first.account).toBe("equity:transfers");
-  expect(first.transfers.map((t) => [t.transaction.description, t.status])).toEqual([
-    ["ONLINE PMT CREDIT CARD", "missing"],
+  // Newest first; same-day sides in reverse journal order.
+  expect(first.transfers.map((t) => [t.transaction.description, t.status, t.route, t.expectedAccounts ?? []])).toEqual([
+    ["TRANSFER TO SAVINGS", "missing", "equity:transfers:Checking-Savings", []],
+    ["PAYMENT THANK YOU", "missing", ROUTE, ["assets:checking"]],
   ]);
-  expect(await balanceOf(floatd, "equity:transfers")).toEqual(["300.00 USD"]);
+  expect(first.routes.map((r) => [r.account, r.accounts])).toEqual([
+    [ROUTE, ["assets:checking", "liabilities:credit-card"]],
+    ["equity:transfers:Checking-Savings", ["assets:checking"]],
+  ]);
+  expect(await balanceOf(floatd, ROUTE)).toEqual(["-300.00 USD"]);
 
   await page.goto("/#/");
   await settle(page);
   const notice = page.getByRole("status").filter({ hasText: "missing the other side" });
-  await expect(notice).toContainText("1 transfer is");
+  await expect(notice).toContainText("2 transfers are");
   await notice.getByRole("link", { name: "Check", exact: true }).click();
   await settle(page);
   const section = page.getByRole("region", { name: "Unmatched transfers" });
-  const row = section.locator("[data-slot=unmatched-transfer-row]");
-  await expect(row).toHaveCount(1);
+  const route = section.locator("[data-slot=transfer-route]").filter({ hasText: "Checking-Card" });
+  await expect(route).toContainText("assets:checking · liabilities:credit-card");
+  await expect(route).toContainText("-$300.00");
+  const row = section.locator("[data-slot=unmatched-transfer-row]").filter({ hasText: "PAYMENT THANK YOU" });
   await expect(row).toContainText("Missing");
-  await expect(row).toContainText("ONLINE PMT CREDIT CARD");
+  await expect(row).toContainText("Expected on assets:checking");
 
-  // The card side arrives two days later: the pair nets the clearing account
-  // to zero and the flag clears.
+  // The checking sides arrive: each route nets to zero and the flags clear.
   await floatd.rpc("ImportStructuredTransactions", {
-    transactions: [transferSide("2026-02-12", "PAYMENT THANK YOU", "liabilities:credit-card", "300.00")],
+    transactions: [
+      transferSide("2026-02-10", "ONLINE PMT CREDIT CARD", "assets:checking", "-300.00"),
+      transferSide("2026-02-13", "TRANSFER FROM CHECKING", "assets:savings", "300.00", "equity:transfers:Checking-Savings"),
+    ],
   });
   expect((await floatd.rpc("FindUnmatchedTransfers", {})).transfers ?? []).toEqual([]);
-  expect(await balanceOf(floatd, "equity:transfers")).toEqual([]);
+  expect(await balanceOf(floatd, ROUTE)).toEqual([]);
 
   await page.reload();
   await settle(page);

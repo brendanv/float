@@ -29,8 +29,14 @@ func posting(account, commodity, qty string) hledger.Posting {
 	return hledger.Posting{Account: account, Amounts: []hledger.Amount{amt(commodity, qty)}}
 }
 
-// side is a transfer side: source posts -clearing, the clearing account posts clearing.
+// side is a transfer side through equity:transfers: source posts -clearing,
+// the clearing account posts clearing.
 func side(fid, date, source, clearing string) hledger.Transaction {
+	return routeSide(fid, date, "equity:transfers", source, clearing)
+}
+
+// routeSide is side posting to the given clearing (route) account.
+func routeSide(fid, date, route, source, clearing string) hledger.Transaction {
 	neg := "-" + clearing
 	if strings.HasPrefix(clearing, "-") {
 		neg = clearing[1:]
@@ -40,7 +46,7 @@ func side(fid, date, source, clearing string) hledger.Transaction {
 		Date: date,
 		Postings: []hledger.Posting{
 			posting(source, "USD", neg),
-			posting("equity:transfers", "USD", clearing),
+			posting(route, "USD", clearing),
 		},
 	}
 }
@@ -166,17 +172,34 @@ func TestFindUnmatched(t *testing.T) {
 			want: []string{"b:missing"},
 		},
 		{
-			name: "sub-accounts of the clearing account count",
+			name: "sides in the same route match",
+			txns: []hledger.Transaction{
+				routeSide("a", "2026-01-05", "equity:transfers:Schwab-Amex", "assets:schwab", "500.00"),
+				routeSide("b", "2026-01-06", "equity:transfers:Schwab-Amex", "liabilities:amex", "-500.00"),
+			},
+			want: []string{},
+		},
+		{
+			name: "sides in different routes do not match",
+			txns: []hledger.Transaction{
+				routeSide("a", "2026-01-05", "equity:transfers:Schwab-Amex", "assets:schwab", "500.00"),
+				routeSide("b", "2026-01-05", "equity:transfers:Chase-Savings", "assets:savings", "-500.00"),
+			},
+			want: []string{"a:missing", "b:missing"},
+		},
+		{
+			name: "a route posting does not match the parent account",
 			txns: []hledger.Transaction{
 				side("a", "2026-01-05", "assets:checking", "500.00"),
-				{
-					FID:  "b",
-					Date: "2026-01-05",
-					Postings: []hledger.Posting{
-						posting("liabilities:card", "USD", "500.00"),
-						posting("equity:transfers:card", "USD", "-500.00"),
-					},
-				},
+				routeSide("b", "2026-01-05", "equity:transfers:card", "liabilities:card", "-500.00"),
+			},
+			want: []string{"a:missing", "b:missing"},
+		},
+		{
+			name: "deeper sub-accounts belong to their route",
+			txns: []hledger.Transaction{
+				routeSide("a", "2026-01-05", "equity:transfers:Schwab-Amex", "assets:schwab", "500.00"),
+				routeSide("b", "2026-01-05", "equity:transfers:Schwab-Amex:pending", "liabilities:amex", "-500.00"),
 			},
 			want: []string{},
 		},
@@ -246,7 +269,7 @@ func TestFindUnmatched(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := tt.opts
 			opts.Today = today
-			got := fids(transfers.FindUnmatched(tt.txns, opts))
+			got := fids(transfers.FindUnmatched(tt.txns, opts).Unmatched)
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("got %v, want %v", got, tt.want)
 			}
@@ -254,8 +277,115 @@ func TestFindUnmatched(t *testing.T) {
 	}
 }
 
+func TestRouteOf(t *testing.T) {
+	tests := []struct {
+		name, want string
+		ok         bool
+	}{
+		{"equity:transfers", "equity:transfers", true},
+		{"equity:transfers:Schwab-Amex", "equity:transfers:Schwab-Amex", true},
+		{"equity:transfers:Schwab-Amex:pending", "equity:transfers:Schwab-Amex", true},
+		{"equity:transfersx", "", false},
+		{"equity", "", false},
+		{"assets:checking", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := transfers.RouteOf(tt.name, "equity:transfers")
+		if got != tt.want || ok != tt.ok {
+			t.Errorf("RouteOf(%q) = %q, %v; want %q, %v", tt.name, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
+func TestFindUnmatchedExpectedAccounts(t *testing.T) {
+	const cards = "equity:transfers:Chase-Cards"
+	tests := []struct {
+		name string
+		txns []hledger.Transaction
+		want map[string][]string // fid -> expected accounts
+	}{
+		{
+			// Checking pays two cards through one route. A lone card payment
+			// points at checking, not at the other card; a lone checking
+			// payment could be for either card.
+			name: "direction narrows a shared route",
+			txns: []hledger.Transaction{
+				routeSide("p1", "2026-01-05", cards, "assets:checking", "500.00"),
+				routeSide("p2", "2026-01-05", cards, "liabilities:sapphire", "-500.00"),
+				routeSide("p3", "2026-01-10", cards, "assets:checking", "200.00"),
+				routeSide("p4", "2026-01-10", cards, "liabilities:freedom", "-200.00"),
+				routeSide("lone-card", "2026-02-01", cards, "liabilities:sapphire", "-300.00"),
+				routeSide("lone-checking", "2026-02-10", cards, "assets:checking", "150.00"),
+			},
+			want: map[string][]string{
+				"lone-card":     {"assets:checking"},
+				"lone-checking": {"liabilities:freedom", "liabilities:sapphire"},
+			},
+		},
+		{
+			name: "falls back to every other account without opposite-direction history",
+			txns: []hledger.Transaction{
+				routeSide("a", "2026-01-05", cards, "assets:checking", "10.00"),
+				routeSide("b", "2026-01-20", cards, "assets:savings", "20.00"),
+			},
+			want: map[string][]string{
+				"a": {"assets:savings"},
+				"b": {"assets:checking"},
+			},
+		},
+		{
+			name: "a route seen from one account expects nothing",
+			txns: []hledger.Transaction{routeSide("a", "2026-01-05", cards, "assets:checking", "10.00")},
+			want: map[string][]string{"a": {}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := make(map[string][]string)
+			for _, u := range transfers.FindUnmatched(tt.txns, transfers.Options{Today: today}).Unmatched {
+				if u.Route != cards {
+					t.Errorf("%s route = %q, want %q", u.Transaction.FID, u.Route, cards)
+				}
+				got[u.Transaction.FID] = append([]string{}, u.ExpectedAccounts...)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("unmatched = %v, want %v", got, tt.want)
+			}
+			for fid, want := range tt.want {
+				if !slices.Equal(got[fid], want) {
+					t.Errorf("%s expected accounts = %v, want %v", fid, got[fid], want)
+				}
+			}
+		})
+	}
+}
+
+func TestFindUnmatchedRoutes(t *testing.T) {
+	report := transfers.FindUnmatched([]hledger.Transaction{
+		routeSide("a", "2026-01-05", "equity:transfers:Schwab-Amex", "assets:schwab", "500.00"),
+		routeSide("b", "2026-01-06", "equity:transfers:Schwab-Amex", "liabilities:amex", "-500.00"),
+		routeSide("c", "2026-01-20", "equity:transfers:Schwab-Amex", "assets:schwab", "75.00"),
+		routeSide("d", "2026-01-05", "equity:transfers:Chase-Savings", "assets:chase", "40.00"),
+		routeSide("e", "2026-01-06", "equity:transfers:Chase-Savings", "assets:savings", "-40.00"),
+		side("f", "2026-01-07", "assets:checking", "9.00"),
+	}, transfers.Options{Today: today})
+
+	var got []string
+	for _, r := range report.Routes {
+		got = append(got, r.Account+"="+strings.Join(r.Accounts, ","))
+	}
+	// Only routes with unmatched sides; Chase-Savings is fully matched.
+	want := []string{
+		"equity:transfers=assets:checking",
+		"equity:transfers:Schwab-Amex=assets:schwab,liabilities:amex",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("routes = %v, want %v", got, want)
+	}
+}
+
 func TestFindUnmatchedAmount(t *testing.T) {
-	got := transfers.FindUnmatched([]hledger.Transaction{side("a", "2026-01-05", "assets:checking", "12.50")}, transfers.Options{Today: today})
+	got := transfers.FindUnmatched([]hledger.Transaction{side("a", "2026-01-05", "assets:checking", "12.50")}, transfers.Options{Today: today}).Unmatched
 	if len(got) != 1 {
 		t.Fatalf("got %d unmatched, want 1", len(got))
 	}
@@ -265,9 +395,11 @@ func TestFindUnmatchedAmount(t *testing.T) {
 }
 
 // TestFindUnmatchedMatchesHledgerBalance runs real hledger over a fixture and
-// checks the unmatched sides add up to hledger's balance of the clearing
-// account: every matched pair nets to zero, so whatever is left must be the
-// unmatched sides.
+// checks each route's unmatched sides add up to hledger's balance of that
+// route: every matched pair nets to zero, so whatever is left must be the
+// unmatched sides. Routes are read from `bal --depth 3`, which clips deeper
+// accounts into their route and leaves direct equity:transfers postings on
+// the parent.
 func TestFindUnmatchedMatchesHledgerBalance(t *testing.T) {
 	c, err := hledger.New("hledger", filepath.Join("testdata", "transfers.journal"))
 	if err != nil {
@@ -277,26 +409,38 @@ func TestFindUnmatchedMatchesHledgerBalance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := transfers.FindUnmatched(txns, transfers.Options{Today: today})
+	got := transfers.FindUnmatched(txns, transfers.Options{Today: today}).Unmatched
 
-	if want := []string{"aa000005:missing", "aa000007:missing", "aa000008:missing"}; !slices.Equal(fids(got), want) {
+	want := []string{"aa000011:missing", "aa000005:missing", "aa000007:missing", "aa000008:missing"}
+	if !slices.Equal(fids(got), want) {
 		t.Fatalf("unmatched = %v, want %v", fids(got), want)
 	}
 
-	var sum hledger.AmountQuantity
+	sums := make(map[string]hledger.AmountQuantity)
 	for _, u := range got {
-		sum = sum.Add(u.Amount.Quantity)
+		sums[u.Route] = sums[u.Route].Add(u.Amount.Quantity)
 	}
-	report, err := c.Balances(t.Context(), hledger.BalanceOpts{}, "acct:^equity:transfers$")
+	report, err := c.Balances(t.Context(), hledger.BalanceOpts{Depth: 3}, "acct:^equity:transfers(:|$)")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Total) != 1 {
-		t.Fatalf("hledger balance total = %+v, want one amount", report.Total)
+	balances := make(map[string]hledger.AmountQuantity)
+	for _, row := range report.Rows {
+		if len(row.Amounts) != 1 {
+			t.Fatalf("%s balance = %+v, want one amount", row.FullName, row.Amounts)
+		}
+		balances[row.FullName] = row.Amounts[0].Quantity
 	}
-	want := report.Total[0].Quantity
-	negWant := hledger.AmountQuantity{DecimalMantissa: -want.DecimalMantissa, DecimalPlaces: want.DecimalPlaces}
-	if diff := sum.Add(negWant); diff.DecimalMantissa != 0 {
-		t.Errorf("sum of unmatched = %s, hledger balance = %s", sum.Format(), want.Format())
+	for route := range balances {
+		if _, ok := sums[route]; !ok {
+			sums[route] = hledger.AmountQuantity{}
+		}
+	}
+	for route, sum := range sums {
+		bal := balances[route]
+		negBal := hledger.AmountQuantity{DecimalMantissa: -bal.DecimalMantissa, DecimalPlaces: bal.DecimalPlaces}
+		if diff := sum.Add(negBal); diff.DecimalMantissa != 0 {
+			t.Errorf("%s: sum of unmatched = %s, hledger balance = %s", route, sum.Format(), bal.Format())
+		}
 	}
 }

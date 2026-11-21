@@ -6,16 +6,28 @@ test.describe("with unmatched transfers", () => {
     await mockLedgerApi(page, { unmatchedTransfers: mockUnmatchedTransfers });
   });
 
-  test("assertions page lists unmatched transfers", async ({ page }) => {
+  test("assertions page lists unmatched transfers by route", async ({ page }) => {
     await page.goto("/#/assertions");
     const section = page.getByRole("region", { name: "Unmatched transfers" });
     await expect(section).toBeVisible();
-    const rows = section.locator("[data-slot=unmatched-transfer-row]");
-    await expect(rows).toHaveCount(3);
-    await expect(rows.nth(1)).toContainText("Missing");
-    await expect(rows.nth(1)).toContainText("Payment thank you");
-    await expect(rows.nth(0)).toContainText("Recent");
     await expect(section).toContainText("equity:transfers");
+
+    // Route headers in order of their newest side, each with hledger's balance.
+    const routes = section.locator("[data-slot=transfer-route]");
+    await expect(routes).toHaveCount(3);
+    await expect(routes.nth(0)).toContainText("Checking-Savings");
+    await expect(routes.nth(1)).toContainText("Checking-Cards");
+    await expect(routes.nth(1)).toContainText("assets:checking · liabilities:creditcard · liabilities:travelcard");
+    await expect(routes.nth(1)).toContainText("-$742.18");
+    await expect(routes.nth(2)).toContainText("Direct");
+
+    const rows = section.locator("[data-slot=unmatched-transfer-row]");
+    await expect(rows).toHaveCount(4);
+    await expect(rows.nth(0)).toContainText("Recent");
+    await expect(rows.nth(1)).toContainText("Missing");
+    await expect(rows.nth(1)).toContainText("Expected on assets:checking");
+    await expect(rows.nth(2)).toContainText("Expected on liabilities:creditcard or liabilities:travelcard");
+    await expect(rows.nth(3).locator("[data-slot=expected-accounts]")).toHaveCount(0);
 
     await page.screenshot({ path: "test-results/unmatched-transfers.png", fullPage: true });
 
@@ -26,7 +38,7 @@ test.describe("with unmatched transfers", () => {
   test("home shows a notice for missing transfers only", async ({ page }) => {
     await page.goto("/#/");
     const notice = page.getByRole("status").filter({ hasText: "missing the other side" });
-    await expect(notice).toContainText("2 transfers are");
+    await expect(notice).toContainText("3 transfers are");
     await notice.getByRole("link", { name: "Check" }).click();
     await expect(page).toHaveURL(/#\/assertions/);
   });

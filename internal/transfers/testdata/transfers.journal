@@ -41,3 +41,32 @@ account expenses:food
 2026-02-20 (aa000008) XFER FROM CHECKING
     assets:savings            250.00 USD
     equity:transfers
+
+; Routes: one per pair of counterparties.
+account equity:transfers:Schwab-Amex
+account equity:transfers:Chase-Cards
+account assets:schwab
+account liabilities:amex
+account liabilities:sapphire
+account liabilities:freedom
+
+2026-01-15 (aa000009) SCHWAB PMT AMEX
+    assets:schwab                      -600.00 USD
+    equity:transfers:Schwab-Amex
+
+2026-01-16 (aa000010) AMEX PAYMENT RECEIVED
+    liabilities:amex                    600.00 USD
+    equity:transfers:Schwab-Amex
+
+; Same amount as aa000009 but a different route: must not match it.
+2026-01-15 (aa000011) CHASE PMT SAPPHIRE
+    liabilities:sapphire                600.00 USD
+    equity:transfers:Chase-Cards
+
+2026-01-20 (aa000012) CHASE PMT FREEDOM
+    assets:checking                    -200.00 USD
+    equity:transfers:Chase-Cards
+
+2026-01-21 (aa000013) FREEDOM PAYMENT
+    liabilities:freedom                 200.00 USD
+    equity:transfers:Chase-Cards

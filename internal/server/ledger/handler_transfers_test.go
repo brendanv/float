@@ -1,6 +1,7 @@
 package ledger_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -119,20 +120,23 @@ func TestFindUnmatchedTransfers(t *testing.T) {
 func TestFindUnmatchedTransfers_ConfiguredAccount(t *testing.T) {
 	dir := writeTransfersJournal(t, `2026-01-05 (tt000001) ONLINE PMT CARD
     assets:checking          -500.00 USD
-    assets:in transit
+    assets:in transit (2)
 
 2026-01-07 (tt000002) Lone side via default account
     assets:checking          -1.00 USD
     equity:transfers
 `)
-	h := mustHandlerWithConfig(t, dir, &config.Config{Transfers: config.TransfersConfig{Account: "assets:in transit"}})
+	h := mustHandlerWithConfig(t, dir, &config.Config{Transfers: config.TransfersConfig{Account: "assets:in transit (2)"}})
 
 	resp := findUnmatched(t, h, "")
 	if got, want := unmatchedSummary(resp), []string{"tt000001:missing:500.00 USD"}; !slices.Equal(got, want) {
 		t.Errorf("transfers = %v, want %v", got, want)
 	}
-	if resp.Account != "assets:in transit" {
-		t.Errorf("account = %q, want assets:in transit", resp.Account)
+	if resp.Account != "assets:in transit (2)" {
+		t.Errorf("account = %q, want assets:in transit (2)", resp.Account)
+	}
+	if got, want := routesSummary(resp), []string{"assets:in transit (2) [assets:checking] [500.00 USD]"}; !slices.Equal(got, want) {
+		t.Errorf("routes = %q, want %q", got, want)
 	}
 }
 
@@ -166,5 +170,83 @@ func TestRenameAccount_RenamesDefaultTransfersAccount(t *testing.T) {
 	}
 	if got, want := unmatchedSummary(resp), []string{"tt000001:missing:500.00 USD"}; !slices.Equal(got, want) {
 		t.Errorf("transfers = %v, want %v", got, want)
+	}
+}
+
+func routesSummary(resp *floatv1.FindUnmatchedTransfersResponse) []string {
+	out := make([]string, len(resp.Routes))
+	for i, r := range resp.Routes {
+		var bal []string
+		for _, a := range r.Balance {
+			bal = append(bal, a.Quantity+" "+a.Commodity)
+		}
+		out[i] = fmt.Sprintf("%s %v %v", r.Account, r.Accounts, bal)
+	}
+	return out
+}
+
+// Routes (direct children of equity:transfers) scope matching, name where the
+// other side was expected, and carry hledger's balance of the route.
+func TestFindUnmatchedTransfers_Routes(t *testing.T) {
+	h := mustRealHandler(t, writeTransfersJournal(t, `2026-01-05 (tt000001) CHASE PMT SAPPHIRE
+    assets:checking                -500.00 USD
+    equity:transfers:Chase-Cards
+
+2026-01-06 (tt000002) SAPPHIRE PAYMENT
+    liabilities:sapphire            500.00 USD
+    equity:transfers:Chase-Cards
+
+2026-01-10 (tt000003) CHASE PMT FREEDOM
+    assets:checking                -200.00 USD
+    equity:transfers:Chase-Cards
+
+2026-01-11 (tt000004) FREEDOM PAYMENT
+    liabilities:freedom             200.00 USD
+    equity:transfers:Chase-Cards
+
+2026-02-01 (tt000005) SAPPHIRE PAYMENT
+    liabilities:sapphire            300.00 USD
+    equity:transfers:Chase-Cards
+
+; Same amount and dates as tt000005 but another route: no match.
+2026-02-01 (tt000006) SCHWAB TO AMEX
+    assets:schwab                  -300.00 USD
+    equity:transfers:Schwab-Amex:pending
+
+2026-02-02 (tt000007) Fully matched savings move
+    assets:checking                 -40.00 USD
+    equity:transfers:Chase-Savings
+
+2026-02-02 (tt000008) Fully matched savings move
+    assets:savings                   40.00 USD
+    equity:transfers:Chase-Savings
+`))
+
+	resp := findUnmatched(t, h, "")
+	var got []string
+	for _, u := range resp.Transfers {
+		got = append(got, fmt.Sprintf("%s %s %v", u.Transaction.Fid, u.Route, u.ExpectedAccounts))
+	}
+	want := []string{
+		// The route has only ever been used by assets:schwab: nothing to expect.
+		"tt000006 equity:transfers:Schwab-Amex []",
+		// A lone card payment points at checking, not the other card.
+		"tt000005 equity:transfers:Chase-Cards [assets:checking]",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("transfers = %q, want %q", got, want)
+	}
+
+	wantRoutes := []string{
+		"equity:transfers:Chase-Cards [assets:checking liabilities:freedom liabilities:sapphire] [-300.00 USD]",
+		"equity:transfers:Schwab-Amex [assets:schwab] [300.00 USD]",
+	}
+	if got := routesSummary(resp); !slices.Equal(got, wantRoutes) {
+		t.Errorf("routes = %q, want %q", got, wantRoutes)
+	}
+
+	// Routes follow from_date: only routes with a returned side are listed.
+	if got := routesSummary(findUnmatched(t, h, "2026-02-02")); len(got) != 0 {
+		t.Errorf("routes after from_date = %q, want none", got)
 	}
 }
