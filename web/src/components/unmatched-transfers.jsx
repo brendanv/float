@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { Account } from "./account.jsx";
@@ -7,6 +7,7 @@ import { ErrorBanner } from "./error-banner.jsx";
 import { Section } from "./page.jsx";
 import { formatDate } from "../format.js";
 import { Notice } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -15,7 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useMissingTransferCount, useUnmatchedTransfers } from "@/hooks/use-unmatched-transfers.js";
+import {
+  RECENT_MONTHS,
+  recentCutoff,
+  useMissingTransferCount,
+  useUnmatchedTransfers,
+} from "@/hooks/use-unmatched-transfers.js";
 import { cn } from "@/lib/utils";
 
 function inAccount(name, account) {
@@ -116,13 +122,19 @@ function groupByRoute(transfers) {
 
 // UnmatchedTransfersSection lists transfer sides through the clearing account
 // with no matching other side, grouped by route (the clearing account's direct
-// children, e.g. equity:transfers:Schwab-Amex). It renders nothing when every
-// transfer has both sides.
+// children, e.g. equity:transfers:Schwab-Amex). Only the last RECENT_MONTHS
+// are listed until "Show all". It renders nothing when every transfer has both
+// sides.
 export function UnmatchedTransfersSection() {
   const { data, error } = useUnmatchedTransfers();
+  const [showAll, setShowAll] = useState(false);
   if (error) return <ErrorBanner error={error} />;
-  const transfers = data?.transfers || [];
-  if (transfers.length === 0) return null;
+  const all = data?.transfers || [];
+  if (all.length === 0) return null;
+  const cutoff = recentCutoff();
+  const recent = all.filter((t) => t.transaction.date >= cutoff);
+  const older = all.length - recent.length;
+  const transfers = showAll ? all : recent;
   const account = data.account;
   return (
     <Section
@@ -133,34 +145,48 @@ export function UnmatchedTransfersSection() {
           {data.windowDays} days
         </>
       }
+      action={
+        older > 0 && (
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? `Last ${RECENT_MONTHS} months` : `Show all (${older} older)`}
+          </Button>
+        )
+      }
     >
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-6 pr-0 sm:w-28 sm:pr-2"><span className="max-sm:sr-only">Status</span></TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead className="hidden sm:table-cell">Account</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {groupByRoute(transfers).map(([route, rows]) => (
-            <Fragment key={route}>
-              <RouteHeader route={route || account} account={account} />
-              {rows.map((t, i) => (
-                <TransferRow key={t.transaction.fid || i} transfer={t} account={account} />
-              ))}
-            </Fragment>
-          ))}
-        </TableBody>
-      </Table>
+      {transfers.length === 0 ? (
+        <p className="text-control text-muted-foreground">
+          No unmatched transfers in the last {RECENT_MONTHS} months.
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-6 pr-0 sm:w-28 sm:pr-2"><span className="max-sm:sr-only">Status</span></TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="hidden sm:table-cell">Account</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groupByRoute(transfers).map(([route, rows]) => (
+              <Fragment key={route}>
+                <RouteHeader route={route || account} account={account} />
+                {rows.map((t, i) => (
+                  <TransferRow key={t.transaction.fid || i} transfer={t} account={account} />
+                ))}
+              </Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </Section>
   );
 }
 
-// MissingTransfersNotice points at Settings › Assertions when a transfer has
-// been missing its other side for longer than the match window.
+// MissingTransfersNotice points at Settings › Assertions when a transfer from
+// the last RECENT_MONTHS has been missing its other side for longer than the
+// match window.
 export function MissingTransfersNotice() {
   const count = useMissingTransferCount();
   if (!count) return null;
