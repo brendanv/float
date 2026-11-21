@@ -1,9 +1,11 @@
 import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, X } from "lucide-react";
 import { Account } from "./account.jsx";
 import { Amount } from "./amount.jsx";
+import { EmptyState } from "./empty-state.jsx";
 import { ErrorBanner } from "./error-banner.jsx";
+import { Loading } from "./loading.jsx";
 import { Section } from "./page.jsx";
 import { formatDate } from "../format.js";
 import { Notice } from "@/components/ui/alert";
@@ -123,14 +125,28 @@ function groupByRoute(transfers) {
 // UnmatchedTransfersSection lists transfer sides through the clearing account
 // with no matching other side, grouped by route (the clearing account's direct
 // children, e.g. equity:transfers:Schwab-Amex). Only the last RECENT_MONTHS
-// are listed until "Show all". It renders nothing when every transfer has both
-// sides.
+// are listed until "Show all". It shows an empty state when every transfer has
+// both sides.
 export function UnmatchedTransfersSection() {
-  const { data, error } = useUnmatchedTransfers();
+  const { data, isLoading, error } = useUnmatchedTransfers();
   const [showAll, setShowAll] = useState(false);
+  if (isLoading) return <Loading />;
   if (error) return <ErrorBanner error={error} />;
   const all = data?.transfers || [];
-  if (all.length === 0) return null;
+  if (all.length === 0) {
+    return (
+      <EmptyState
+        icon={ArrowLeftRight}
+        title="No unmatched transfers"
+        description={
+          <>
+            Every transfer through <span className="font-mono text-code">{data?.account || "equity:transfers"}</span> has
+            both sides.
+          </>
+        }
+      />
+    );
+  }
   const cutoff = recentCutoff();
   const recent = all.filter((t) => t.transaction.date >= cutoff);
   const older = all.length - recent.length;
@@ -184,7 +200,7 @@ export function UnmatchedTransfersSection() {
   );
 }
 
-// MissingTransfersNotice points at Settings › Assertions when a transfer from
+// MissingTransfersNotice points at Settings › Transfers when a transfer from
 // the last RECENT_MONTHS has been missing its other side for longer than the
 // match window. Dismissing it hides it until another transfer goes missing.
 export function MissingTransfersNotice() {
@@ -196,7 +212,7 @@ export function MissingTransfersNotice() {
       action={
         <>
           <Link
-            to="/assertions"
+            to="/transfers"
             className="touch-target inline-flex items-center gap-1 font-medium text-primary hover:underline"
           >
             Check

@@ -44,6 +44,7 @@ test("a lone transfer side is flagged until its other side is imported", async (
   const notice = page.getByRole("status").filter({ hasText: "missing the other side" });
   await expect(notice).toContainText("2 transfers are");
   await notice.getByRole("link", { name: "Check", exact: true }).click();
+  await expect(page).toHaveURL(/#\/transfers/);
   await settle(page);
   const section = page.getByRole("region", { name: "Unmatched transfers" });
   await expect(section.locator("[data-slot=transfer-route]").filter({ hasText: "Checking-Card" })).toBeVisible();
@@ -63,6 +64,6 @@ test("a lone transfer side is flagged until its other side is imported", async (
 
   await page.reload();
   await settle(page);
-  await expect(page.getByRole("region", { name: "Accounts" })).toBeVisible();
+  await expect(page.getByText("No unmatched transfers")).toBeVisible();
   await expect(section).toHaveCount(0);
 });

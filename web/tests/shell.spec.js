@@ -24,7 +24,7 @@ test("section tabs reach every route in a group", async ({ page }) => {
 
   await page.goto("/#/settings");
   const settingsTabs = page.getByRole("navigation", { name: "Settings" });
-  await expect(settingsTabs.getByRole("link")).toHaveText(["General", "Assertions", "Snapshots", "Query", "Logs"]);
+  await expect(settingsTabs.getByRole("link")).toHaveText(["General", "Assertions", "Transfers", "Snapshots", "Query", "Logs"]);
   await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/shell-settings-tabs.png" });
 });
