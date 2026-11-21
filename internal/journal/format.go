@@ -288,8 +288,14 @@ func ParseInputs(ctx context.Context, client *hledger.Client, inputs []Transacti
 
 func parseDrafts(ctx context.Context, client *hledger.Client, inputs []TransactionInput) ([]hledger.Transaction, error) {
 	var all strings.Builder
-	for _, tx := range inputs {
-		all.WriteString(draftFormat(tx, MintFID()))
+	order := make(map[string]int, len(inputs))
+	for i, tx := range inputs {
+		fid := MintFID()
+		for _, dup := order[fid]; dup; _, dup = order[fid] {
+			fid = MintFID()
+		}
+		order[fid] = i
+		all.WriteString(draftFormat(tx, fid))
 		all.WriteString("\n")
 	}
 
@@ -307,7 +313,22 @@ func parseDrafts(ctx context.Context, client *hledger.Client, inputs []Transacti
 	if err := f.Close(); err != nil {
 		return nil, fmt.Errorf("journal: close temp file: %w", err)
 	}
-	return client.ParseJournalFile(ctx, tmpPath)
+	parsed, err := client.ParseJournalFile(ctx, tmpPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(parsed) != len(inputs) {
+		return parsed, nil
+	}
+	out := make([]hledger.Transaction, len(inputs))
+	for _, t := range parsed {
+		i, ok := order[t.FID]
+		if !ok {
+			return nil, fmt.Errorf("journal: parse inputs: unexpected transaction code %q", t.FID)
+		}
+		out[i] = t
+	}
+	return out, nil
 }
 
 // FormatViaHledger writes tx to a temp file, runs `hledger print -f <tmpfile>`,

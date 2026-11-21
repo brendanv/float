@@ -32,7 +32,7 @@ type tool struct {
 // given request headers and returns the response message.
 type rpc struct {
 	input protoreflect.MessageDescriptor
-	call  func(ctx context.Context, header http.Header, args []byte) (proto.Message, error)
+	call  func(ctx context.Context, header http.Header, args []byte) (any, error)
 }
 
 type protoPtr[T any] interface {
@@ -57,7 +57,7 @@ func unary[Req, Res any, PReq protoPtr[Req], PRes protoPtr[Res]](
 ) rpc {
 	return rpc{
 		input: PReq(new(Req)).ProtoReflect().Descriptor(),
-		call: func(ctx context.Context, header http.Header, args []byte) (proto.Message, error) {
+		call: func(ctx context.Context, header http.Header, args []byte) (any, error) {
 			req, err := decodeRequest[Req, PReq](header, args)
 			if err != nil {
 				return nil, err
@@ -78,7 +78,7 @@ func serverStream[Req, Res any, PReq protoPtr[Req], PRes protoPtr[Res]](
 ) rpc {
 	return rpc{
 		input: PReq(new(Req)).ProtoReflect().Descriptor(),
-		call: func(ctx context.Context, header http.Header, args []byte) (proto.Message, error) {
+		call: func(ctx context.Context, header http.Header, args []byte) (any, error) {
 			req, err := decodeRequest[Req, PReq](header, args)
 			if err != nil {
 				return nil, err
@@ -136,9 +136,11 @@ func tools(c floatv1connect.LedgerServiceClient) []tool {
 			title: "Import transactions",
 			description: "Add transactions as one import batch. Validates the whole batch with hledger first (errors name the transaction index); dry_run previews without writing. " +
 				"Transactions already in the ledger are skipped as duplicates, so re-sending is safe. apply_rules categorizes with float rules. " +
-				"New transactions are Unmarked so the user can review them. Use this for any new transactions, even one.",
+				"New transactions are Unmarked so the user can review them. Use this for any new transactions, even one. " +
+				"The result is a compact summary, not the transactions: counts, import_batch_id, fids (one per input, in order; \"\" for skipped duplicates), duplicates (input indices) and rule_matches (what a rule changed, by input index). " +
+				"To see what was written, list_transactions with query [\"tag:float-import=<import_batch_id>\"].",
 			idempotent: true,
-			rpc:        unary(c.ImportStructuredTransactions),
+			rpc:        importStructured(c),
 		},
 		{
 			name:  "update_transaction",

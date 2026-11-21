@@ -12,6 +12,7 @@ package mcpserver
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -95,12 +96,12 @@ func (t tool) handle(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallTo
 	if req.Extra != nil {
 		header = req.Extra.Header
 	}
-	msg, err := t.rpc.call(ctx, header, req.Params.Arguments)
+	res, err := t.rpc.call(ctx, header, req.Params.Arguments)
 	if err != nil {
 		slog.DebugContext(ctx, "mcp tool call failed", "tool", t.name, "error", err)
 		return errorResult(err), nil
 	}
-	out, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(msg)
+	out, err := marshalResult(res)
 	if err != nil {
 		return nil, fmt.Errorf("marshal %s result: %w", t.name, err)
 	}
@@ -110,6 +111,13 @@ func (t tool) handle(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallTo
 			len(out)>>10, maxResultBytes>>10)), nil
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil
+}
+
+func marshalResult(res any) ([]byte, error) {
+	if msg, ok := res.(proto.Message); ok {
+		return protojson.MarshalOptions{UseProtoNames: true}.Marshal(msg)
+	}
+	return json.Marshal(res)
 }
 
 // errorResult reports a failed call as a tool error (visible to the model)
