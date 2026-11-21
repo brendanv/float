@@ -51,3 +51,20 @@ test("review notice returns for a backdated unreviewed transaction", async ({ pa
   await reloadWith(page, [newPending("2026-01-02"), ...oldestFirst]);
   await expect(notice).toBeVisible();
 });
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("review notice keeps its text and actions on one line", async ({ page }) => {
+    await mockLedgerApi(page, { transactions: oldestFirst });
+    await page.goto("/#/");
+    const notice = page.getByRole("status").filter({ hasText: "review" });
+    const text = notice.locator("[data-slot=alert-description]");
+    const action = notice.locator("[data-slot=alert-action]");
+    await expect(action).toBeVisible();
+    const t = await text.boundingBox();
+    const a = await action.boundingBox();
+    expect(a.y).toBeLessThan(t.y + t.height);
+    expect(a.x).toBeGreaterThanOrEqual(t.x + t.width);
+  });
+});
