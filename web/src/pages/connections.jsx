@@ -60,10 +60,15 @@ function AccountName({ account }) {
   );
 }
 
-// Phone: name, then account and last import, then actions, wrapping.
+// Phone: a stack of name, then account and last import on one line, then
+// actions, all indented under the name past the status dot.
 // From md: one dense line on a shared grid so the columns line up.
 const ROW =
-  "flex flex-wrap items-center gap-x-4 gap-y-1 py-1.5 md:grid md:min-h-[38px] md:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_minmax(0,9.5rem)_auto] md:py-1";
+  "flex flex-col gap-1.5 py-3 md:grid md:min-h-[38px] md:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_minmax(0,9.5rem)_auto] md:items-center md:gap-x-4 md:gap-y-1 md:py-1";
+
+// DETAIL is the phone's second line (account + last import); from md its
+// two cells join the row's grid.
+const DETAIL = "flex min-w-0 items-baseline gap-3 pl-[26px] md:contents";
 
 // LinkedAccountRow is one configured account: status dot, name +
 // institution, hledger account, last import (relative), and its fetch
@@ -82,23 +87,28 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
   return (
     <li data-slot="linked-account" className="group/row border-b border-border last:border-0">
       <div className={ROW}>
-        <span className="flex min-w-0 flex-1 basis-64 items-center gap-1.5">
+        <span className="flex min-w-0 items-center gap-1.5">
           <StatusDot {...dot} />
           <AccountName account={account} />
         </span>
-        <span className="min-w-0 basis-48 pl-[26px] md:pl-0">
-          <Account name={account.hledgerAccount} variant="path" />
+        <span className={DETAIL}>
+          <span className="flex min-w-0 flex-1">
+            <Account name={account.hledgerAccount} variant="path" />
+          </span>
+          <span className="max-w-[60%] shrink-0 text-right text-control md:max-w-none md:text-left">
+            {line ? (
+              <span className={cn(LINE_TONE[line.tone])}>{line.text}</span>
+            ) : account.lastFetchedAt ? (
+              <span className="whitespace-nowrap text-muted-foreground">
+                <span className="max-md:hidden">Imported </span>
+                <Timestamp value={account.lastFetchedAt} />
+              </span>
+            ) : (
+              <span className="text-faint">Never imported</span>
+            )}
+          </span>
         </span>
-        <span className="min-w-0 basis-40 pl-[26px] text-control md:pl-0">
-          {line ? (
-            <span className={cn(LINE_TONE[line.tone])}>{line.text}</span>
-          ) : account.lastFetchedAt ? (
-            <span className="text-muted-foreground">Imported <Timestamp value={account.lastFetchedAt} /></span>
-          ) : (
-            <span className="text-faint">Never imported</span>
-          )}
-        </span>
-        <span className="ml-auto flex shrink-0 flex-wrap items-center gap-1">
+        <span className="flex flex-wrap items-center gap-1 pl-[26px] md:ml-auto md:shrink-0 md:pl-0">
           <Button
             variant="ghost"
             size="sm"
@@ -112,22 +122,23 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
             }
           >
             <RefreshCw data-icon="inline-start" />
-            Refresh & Fetch
+            Refresh<span className="max-md:hidden"> &amp; Fetch</span>
           </Button>
           <Button
             variant="outline"
             size="sm"
+            className="max-md:order-first"
             onClick={fetch.handleFetch}
             disabled={fetch.refreshing}
             isLoading={fetch.fetching}
             loadingText="Fetching…"
           >
-            Fetch Transactions
+            Fetch<span className="max-md:hidden"> Transactions</span>
           </Button>
           <Button
             variant="destructive-ghost"
             size="sm"
-            className={unlinking ? undefined : ROW_ACTION}
+            className={cn("max-md:ml-auto", !unlinking && ROW_ACTION)}
             isLoading={unlinking}
             loadingText="Unlink"
             onClick={() => onUnlink(account.stripeAccountId)}
@@ -146,15 +157,15 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
 function UnmappedAccountRow({ account, onConfigure, onDisconnect, disabled }) {
   return (
     <li data-slot="linked-account" data-unmapped="" className={cn(ROW, "border-b border-border last:border-0")}>
-      <span className="flex min-w-0 flex-1 basis-64 items-center gap-1.5">
+      <span className="flex min-w-0 items-center gap-1.5">
         <StatusDot tone="warning" label="Needs an hledger account" />
         <AccountName account={account} />
       </span>
-      <span className="min-w-0 basis-48 pl-[26px] text-control text-warning md:pl-0">Needs an hledger account</span>
-      <span className="min-w-0 basis-40 truncate pl-[26px] font-mono text-[11.5px] text-faint md:pl-0">
-        {account.stripeAccountId}
+      <span className={DETAIL}>
+        <span className="min-w-0 flex-1 text-control text-warning">Needs an hledger account</span>
+        <span className="min-w-0 truncate font-mono text-[11.5px] text-faint">{account.stripeAccountId}</span>
       </span>
-      <span className="ml-auto flex shrink-0 items-center gap-1">
+      <span className="flex items-center gap-1 pl-[26px] md:ml-auto md:shrink-0 md:pl-0">
         <Button variant="outline" size="sm" onClick={onConfigure}>
           Configure
         </Button>
@@ -326,7 +337,7 @@ export function ConnectionsPage() {
               loadingText="Refreshing…"
             >
               <RefreshCw data-icon="inline-start" />
-              Refresh & Fetch All
+              Refresh<span className="max-sm:hidden"> &amp; Fetch</span> All
             </Button>
             <Button
               size="sm"
