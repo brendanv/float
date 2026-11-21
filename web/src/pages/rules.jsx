@@ -512,28 +512,42 @@ export function RulesPage() {
               value={globalFilter ?? ""}
               onChange={(e) => setGlobalFilter(e.target.value)}
             />
-            <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
-              <Sparkles data-icon="inline-start" />
-              Suggest Rules
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIssuesDialogOpen(true)}
-              disabled={rules.length < 2}
-            >
-              <Sparkles data-icon="inline-start" />
-              Find Issues
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePreviewApply}
-              isLoading={applyLoading}
-              loadingText="Previewing…"
-            >
-              Preview Changes
-            </Button>
+            {/* On phones the three actions share one row: each takes an equal
+                share and drops its second word (the aria-label keeps the full name). */}
+            <div className="flex w-full items-center gap-2 sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                aria-label="Suggest Rules"
+                onClick={() => setWizardOpen(true)}
+              >
+                <Sparkles data-icon="inline-start" />
+                <span>Suggest<span className="hidden sm:inline"> Rules</span></span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                aria-label="Find Issues"
+                onClick={() => setIssuesDialogOpen(true)}
+                disabled={rules.length < 2}
+              >
+                <Sparkles data-icon="inline-start" />
+                <span><span className="hidden sm:inline">Find </span>Issues</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-none"
+                aria-label="Preview Changes"
+                onClick={handlePreviewApply}
+                isLoading={applyLoading}
+                loadingText="Previewing…"
+              >
+                <span>Preview<span className="hidden sm:inline"> Changes</span></span>
+              </Button>
+            </div>
           </div>
         }
       >
