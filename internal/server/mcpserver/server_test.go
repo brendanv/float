@@ -295,8 +295,8 @@ func TestWriteToolsRoundTrip(t *testing.T) {
 	}
 
 	dry := mustCall(t, s, "import_structured_transactions", withArg(importArgs, "dry_run", true))
-	if dry["import_batch_id"] != nil || len(dry["candidates"].([]any)) != 1 {
-		t.Fatalf("dry run = %v, want one candidate and no batch", dry)
+	if dry["import_batch_id"] != nil || dry["count"] != float64(1) || dry["dry_run"] != true {
+		t.Fatalf("dry run = %v, want count 1 and no batch", dry)
 	}
 	if strings.Contains(readJournals(t, dir), "Coffee shop") {
 		t.Fatal("dry run wrote to the journal")
@@ -306,7 +306,11 @@ func TestWriteToolsRoundTrip(t *testing.T) {
 	if res["imported_count"] != float64(1) {
 		t.Fatalf("import = %v, want imported_count 1", res)
 	}
-	fid := res["transactions"].([]any)[0].(map[string]any)["fid"].(string)
+	fid := res["fids"].([]any)[0].(string)
+	listed := mustCall(t, s, "list_transactions", map[string]any{"query": []string{"tag:float-import=" + res["import_batch_id"].(string)}})
+	if got := listed["transactions"].([]any)[0].(map[string]any)["fid"]; got != fid {
+		t.Fatalf("list by batch = %v, want fid %s", listed, fid)
+	}
 	if !strings.Contains(readJournals(t, dir), "Coffee shop") {
 		t.Fatal("import did not reach the journal")
 	}
@@ -341,6 +345,82 @@ func TestWriteToolsRoundTrip(t *testing.T) {
 	}
 	if strings.Contains(readJournals(t, dir), "Coffee shop") {
 		t.Fatal("bulk delete left the transaction in the journal")
+	}
+}
+
+func TestImportSummaryLargeBatch(t *testing.T) {
+	endpoint, _ := startMCP(t, journalWith(1))
+	s := connectMCP(t, endpoint, testPassphrase)
+
+	mustCall(t, s, "add_rule", map[string]any{"rules": []map[string]any{{"pattern": "^Cafe", "payee": "Cafe", "account": "expenses:cafe", "tags": map[string]string{"kind": "coffee"}}}})
+
+	const n = 300
+	txns := make([]map[string]any, n)
+	for i := range n {
+		desc := fmt.Sprintf("Shop %d", i)
+		if i%10 == 0 {
+			desc = fmt.Sprintf("Cafe %d", i)
+		}
+		txns[i] = map[string]any{
+			"date":        fmt.Sprintf("2026-03-%02d", i%28+1),
+			"description": desc,
+			"postings": []map[string]any{
+				{"account": "expenses:misc", "quantity": fmt.Sprintf("%d.25", i+1), "commodity": "USD"},
+				{"account": "assets:checking"},
+			},
+		}
+	}
+	txns[5] = map[string]any{
+		"date":        "2026-01-01",
+		"description": "Grocery 0",
+		"status":      "Cleared",
+		"postings": []map[string]any{
+			{"account": "expenses:food", "quantity": "1.00", "commodity": "USD"},
+			{"account": "assets:checking"},
+		},
+	}
+	args := map[string]any{"source": "agent", "apply_rules": true, "transactions": txns}
+
+	res, err := s.CallTool(t.Context(), &mcp.CallToolParams{Name: "import_structured_transactions", Arguments: args})
+	if err != nil || res.IsError {
+		t.Fatalf("import: %v %v", err, res.Content)
+	}
+	text := res.Content[0].(*mcp.TextContent).Text
+	if len(text) > 32<<10 {
+		t.Errorf("summary of %d transactions is %d bytes, want it compact", n, len(text))
+	}
+	var sum struct {
+		Count                 int      `json:"count"`
+		ImportedCount         int      `json:"imported_count"`
+		SkippedDuplicateCount int      `json:"skipped_duplicate_count"`
+		Duplicates            []int    `json:"duplicates"`
+		FIDs                  []string `json:"fids"`
+		RuleMatches           []struct {
+			Index    int
+			Payee    string
+			Accounts []string
+			Tags     map[string]string
+		} `json:"rule_matches"`
+	}
+	if err := json.Unmarshal([]byte(text), &sum); err != nil {
+		t.Fatal(err)
+	}
+	if sum.Count != n || sum.ImportedCount != n-1 || sum.SkippedDuplicateCount != 1 || !slices.Equal(sum.Duplicates, []int{5}) {
+		t.Fatalf("summary = %s", text)
+	}
+	if len(sum.FIDs) != n || sum.FIDs[5] != "" || sum.FIDs[0] == "" || sum.FIDs[n-1] == "" {
+		t.Fatalf("fids = %v, want one per input with \"\" for the duplicate", sum.FIDs)
+	}
+	if len(sum.RuleMatches) != n/10 {
+		t.Fatalf("rule_matches = %d, want %d", len(sum.RuleMatches), n/10)
+	}
+	if m := sum.RuleMatches[1]; m.Index != 10 || m.Payee != "Cafe" || !slices.Equal(m.Accounts, []string{"expenses:cafe"}) || m.Tags["kind"] != "coffee" {
+		t.Fatalf("rule match = %+v", m)
+	}
+
+	got := mustCall(t, s, "list_transactions", map[string]any{"query": []string{"code:" + sum.FIDs[42]}})
+	if d := got["transactions"].([]any)[0].(map[string]any)["description"]; d != "Shop 42" {
+		t.Fatalf("fid 42 is %v, want Shop 42", d)
 	}
 }
 

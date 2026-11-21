@@ -2,6 +2,7 @@ package journal_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -68,5 +69,29 @@ func TestParseInputs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestParseInputsKeepsInputOrder(t *testing.T) {
+	c := mustHledger(t)
+	var inputs []journal.TransactionInput
+	for _, day := range []int{20, 3, 11, 3, 1} {
+		inputs = append(inputs, journal.TransactionInput{
+			Date:        time.Date(2026, 3, day, 0, 0, 0, 0, time.UTC),
+			Description: fmt.Sprintf("day %d #%d", day, len(inputs)),
+			Postings: []journal.PostingInput{
+				{Account: "expenses:food", Commodity: "USD", Quantity: "1.00"},
+				{Account: "assets:checking"},
+			},
+		})
+	}
+	got, err := journal.ParseInputs(t.Context(), c, inputs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, tx := range got {
+		if tx.Description != inputs[i].Description {
+			t.Errorf("result %d = %q, want %q", i, tx.Description, inputs[i].Description)
+		}
 	}
 }
