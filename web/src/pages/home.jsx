@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 import { monthName } from "../format.js";
@@ -16,7 +16,8 @@ import { MetricHero, Page, Section } from "../components/page.jsx";
 import { PageHeader } from "../components/page-header.jsx";
 import { MissingTransfersNotice } from "../components/unmatched-transfers.jsx";
 import { Notice } from "@/components/ui/alert";
-import { UNREVIEWED_SEARCH, useReviewCount } from "@/hooks/use-review-count.js";
+import { Button } from "@/components/ui/button";
+import { UNREVIEWED_SEARCH, useReviewNotice } from "@/hooks/use-review-count.js";
 import { OPEN_ACCOUNTS_QUERY } from "@/lib/accounts";
 import { dateRangeQuery } from "@/lib/hledger-query";
 import {
@@ -47,20 +48,25 @@ function spendingTitle(from, to) {
 }
 
 function ReviewNotice() {
-  const count = useReviewCount();
-  if (!count) return null;
+  const { count, hidden, dismiss } = useReviewNotice();
+  if (!count || hidden) return null;
   return (
     <Notice
       variant="info"
       action={
-        <Link
-          to="/transactions"
-          search={UNREVIEWED_SEARCH}
-          className="touch-target inline-flex items-center gap-1 font-medium text-primary hover:underline"
-        >
-          Review
-          <ArrowRight className="size-3.5" aria-hidden="true" />
-        </Link>
+        <>
+          <Link
+            to="/transactions"
+            search={UNREVIEWED_SEARCH}
+            className="touch-target inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          >
+            Review
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+          <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={dismiss}>
+            <X />
+          </Button>
+        </>
       }
     >
       <span className="font-medium">
