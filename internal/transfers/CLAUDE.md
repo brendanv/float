@@ -12,10 +12,9 @@ The package only pairs transactions hledger has already parsed; the sum of a rou
 
 ## API
 
-- `FindUnmatched(txns, Options) Report` — pure function over `[]hledger.Transaction`.
+- `FindUnmatched(txns, Options) []Unmatched` — pure function over `[]hledger.Transaction`; returns unmatched sides in input order.
 - `Options` — `Account` (empty = `DefaultAccount`), `WindowDays` (≤0 = `DefaultWindowDays` = 5), `Today` (date in the ledger timezone).
-- `Report.Unmatched` (input order) — the transaction, the amount posted to the clearing account, `Status` (`missing`: dated more than the window before today; `recent`: the other side may not be imported yet), `Route`, and `ExpectedAccounts`.
-- `Report.Routes` (sorted) — each route with an unmatched side and every source account that has posted to it.
+- `Unmatched` — the transaction, the amount posted to the clearing account, `Status` (`missing`: dated more than the window before today; `recent`: the other side may not be imported yet), `Route`, and `ExpectedAccounts`.
 - `RouteOf(name, account)` — route for a posting account.
 
 ## Matching Rules

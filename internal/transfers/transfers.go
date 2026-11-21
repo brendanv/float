@@ -73,21 +73,6 @@ type Unmatched struct {
 	ExpectedAccounts []string
 }
 
-// Route summarizes a route with at least one unmatched side.
-type Route struct {
-	Account string
-	// Accounts are the source accounts that have posted to the route, sorted.
-	Accounts []string
-}
-
-// Report is the result of FindUnmatched.
-type Report struct {
-	// Unmatched lists the sides with no match, in input order.
-	Unmatched []Unmatched
-	// Routes lists the routes of the unmatched sides, sorted by account.
-	Routes []Route
-}
-
 // RouteOf returns the route for a posting account under the clearing
 // account: its direct child, or the clearing account itself. ok is false
 // when name is not the clearing account or under it.
@@ -202,15 +187,6 @@ func (ra routeAccounts) add(l leg) {
 	m[l.source] = dirs
 }
 
-func (ra routeAccounts) all(route string) []string {
-	out := make([]string, 0, len(ra[route]))
-	for a := range ra[route] {
-		out = append(out, a)
-	}
-	slices.Sort(out)
-	return out
-}
-
 // expected lists where l's counterpart should be: accounts in l's route that
 // have moved money the opposite way, else every other account in the route.
 func (ra routeAccounts) expected(l leg) []string {
@@ -236,7 +212,7 @@ func (ra routeAccounts) expected(l leg) []string {
 }
 
 // FindUnmatched returns the transfer sides in txns that have no matching
-// other side.
+// other side, in input order.
 //
 // A transaction is a transfer side when exactly one of its postings is to
 // the clearing account (or a sub-account) and that posting has a single
@@ -246,7 +222,7 @@ func (ra routeAccounts) expected(l leg) []string {
 // and their dates are at most WindowDays apart. Pairing is one-to-one,
 // closest dates first, so repeated identical transfers each need their own
 // counterpart.
-func FindUnmatched(txns []hledger.Transaction, opts Options) Report {
+func FindUnmatched(txns []hledger.Transaction, opts Options) []Unmatched {
 	account := cmp.Or(opts.Account, DefaultAccount)
 	window := opts.WindowDays
 	if window <= 0 {
@@ -317,25 +293,19 @@ func FindUnmatched(txns []hledger.Transaction, opts Options) Report {
 	slices.SortFunc(unmatched, func(a, b leg) int { return cmp.Compare(a.idx, b.idx) })
 
 	today := time.Date(opts.Today.Year(), opts.Today.Month(), opts.Today.Day(), 0, 0, 0, 0, time.UTC)
-	report := Report{Unmatched: make([]Unmatched, 0, len(unmatched))}
-	routes := make(map[string]bool)
+	out := make([]Unmatched, 0, len(unmatched))
 	for _, l := range unmatched {
 		status := StatusRecent
 		if l.date.AddDate(0, 0, window).Before(today) {
 			status = StatusMissing
 		}
-		report.Unmatched = append(report.Unmatched, Unmatched{
+		out = append(out, Unmatched{
 			Transaction:      txns[l.idx],
 			Amount:           l.amount,
 			Status:           status,
 			Route:            l.route,
 			ExpectedAccounts: accounts.expected(l),
 		})
-		if !routes[l.route] {
-			routes[l.route] = true
-			report.Routes = append(report.Routes, Route{Account: l.route, Accounts: accounts.all(l.route)})
-		}
 	}
-	slices.SortFunc(report.Routes, func(a, b Route) int { return cmp.Compare(a.Account, b.Account) })
-	return report
+	return out
 }

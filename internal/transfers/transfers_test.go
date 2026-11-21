@@ -269,7 +269,7 @@ func TestFindUnmatched(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := tt.opts
 			opts.Today = today
-			got := fids(transfers.FindUnmatched(tt.txns, opts).Unmatched)
+			got := fids(transfers.FindUnmatched(tt.txns, opts))
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("got %v, want %v", got, tt.want)
 			}
@@ -342,7 +342,7 @@ func TestFindUnmatchedExpectedAccounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := make(map[string][]string)
-			for _, u := range transfers.FindUnmatched(tt.txns, transfers.Options{Today: today}).Unmatched {
+			for _, u := range transfers.FindUnmatched(tt.txns, transfers.Options{Today: today}) {
 				if u.Route != cards {
 					t.Errorf("%s route = %q, want %q", u.Transaction.FID, u.Route, cards)
 				}
@@ -360,32 +360,8 @@ func TestFindUnmatchedExpectedAccounts(t *testing.T) {
 	}
 }
 
-func TestFindUnmatchedRoutes(t *testing.T) {
-	report := transfers.FindUnmatched([]hledger.Transaction{
-		routeSide("a", "2026-01-05", "equity:transfers:Schwab-Amex", "assets:schwab", "500.00"),
-		routeSide("b", "2026-01-06", "equity:transfers:Schwab-Amex", "liabilities:amex", "-500.00"),
-		routeSide("c", "2026-01-20", "equity:transfers:Schwab-Amex", "assets:schwab", "75.00"),
-		routeSide("d", "2026-01-05", "equity:transfers:Chase-Savings", "assets:chase", "40.00"),
-		routeSide("e", "2026-01-06", "equity:transfers:Chase-Savings", "assets:savings", "-40.00"),
-		side("f", "2026-01-07", "assets:checking", "9.00"),
-	}, transfers.Options{Today: today})
-
-	var got []string
-	for _, r := range report.Routes {
-		got = append(got, r.Account+"="+strings.Join(r.Accounts, ","))
-	}
-	// Only routes with unmatched sides; Chase-Savings is fully matched.
-	want := []string{
-		"equity:transfers=assets:checking",
-		"equity:transfers:Schwab-Amex=assets:schwab,liabilities:amex",
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("routes = %v, want %v", got, want)
-	}
-}
-
 func TestFindUnmatchedAmount(t *testing.T) {
-	got := transfers.FindUnmatched([]hledger.Transaction{side("a", "2026-01-05", "assets:checking", "12.50")}, transfers.Options{Today: today}).Unmatched
+	got := transfers.FindUnmatched([]hledger.Transaction{side("a", "2026-01-05", "assets:checking", "12.50")}, transfers.Options{Today: today})
 	if len(got) != 1 {
 		t.Fatalf("got %d unmatched, want 1", len(got))
 	}
@@ -409,7 +385,7 @@ func TestFindUnmatchedMatchesHledgerBalance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := transfers.FindUnmatched(txns, transfers.Options{Today: today}).Unmatched
+	got := transfers.FindUnmatched(txns, transfers.Options{Today: today})
 
 	want := []string{"aa000011:missing", "aa000005:missing", "aa000007:missing", "aa000008:missing"}
 	if !slices.Equal(fids(got), want) {

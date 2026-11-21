@@ -12,13 +12,11 @@ test.describe("with unmatched transfers", () => {
     await expect(section).toBeVisible();
     await expect(section).toContainText("equity:transfers");
 
-    // Route headers in order of their newest side, each with hledger's balance.
+    // Route headers in order of their newest side.
     const routes = section.locator("[data-slot=transfer-route]");
     await expect(routes).toHaveCount(3);
     await expect(routes.nth(0)).toContainText("Checking-Savings");
     await expect(routes.nth(1)).toContainText("Checking-Cards");
-    await expect(routes.nth(1)).toContainText("assets:checking · liabilities:creditcard · liabilities:travelcard");
-    await expect(routes.nth(1)).toContainText("-$742.18");
     await expect(routes.nth(2)).toContainText("Direct");
 
     const rows = section.locator("[data-slot=unmatched-transfer-row]");

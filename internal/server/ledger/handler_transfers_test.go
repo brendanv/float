@@ -120,23 +120,20 @@ func TestFindUnmatchedTransfers(t *testing.T) {
 func TestFindUnmatchedTransfers_ConfiguredAccount(t *testing.T) {
 	dir := writeTransfersJournal(t, `2026-01-05 (tt000001) ONLINE PMT CARD
     assets:checking          -500.00 USD
-    assets:in transit (2)
+    assets:in transit
 
 2026-01-07 (tt000002) Lone side via default account
     assets:checking          -1.00 USD
     equity:transfers
 `)
-	h := mustHandlerWithConfig(t, dir, &config.Config{Transfers: config.TransfersConfig{Account: "assets:in transit (2)"}})
+	h := mustHandlerWithConfig(t, dir, &config.Config{Transfers: config.TransfersConfig{Account: "assets:in transit"}})
 
 	resp := findUnmatched(t, h, "")
 	if got, want := unmatchedSummary(resp), []string{"tt000001:missing:500.00 USD"}; !slices.Equal(got, want) {
 		t.Errorf("transfers = %v, want %v", got, want)
 	}
-	if resp.Account != "assets:in transit (2)" {
-		t.Errorf("account = %q, want assets:in transit (2)", resp.Account)
-	}
-	if got, want := routesSummary(resp), []string{"assets:in transit (2) [assets:checking] [500.00 USD]"}; !slices.Equal(got, want) {
-		t.Errorf("routes = %q, want %q", got, want)
+	if resp.Account != "assets:in transit" {
+		t.Errorf("account = %q, want assets:in transit", resp.Account)
 	}
 }
 
@@ -173,20 +170,8 @@ func TestRenameAccount_RenamesDefaultTransfersAccount(t *testing.T) {
 	}
 }
 
-func routesSummary(resp *floatv1.FindUnmatchedTransfersResponse) []string {
-	out := make([]string, len(resp.Routes))
-	for i, r := range resp.Routes {
-		var bal []string
-		for _, a := range r.Balance {
-			bal = append(bal, a.Quantity+" "+a.Commodity)
-		}
-		out[i] = fmt.Sprintf("%s %v %v", r.Account, r.Accounts, bal)
-	}
-	return out
-}
-
-// Routes (direct children of equity:transfers) scope matching, name where the
-// other side was expected, and carry hledger's balance of the route.
+// Routes (direct children of equity:transfers) scope matching and name where
+// the other side was expected.
 func TestFindUnmatchedTransfers_Routes(t *testing.T) {
 	h := mustRealHandler(t, writeTransfersJournal(t, `2026-01-05 (tt000001) CHASE PMT SAPPHIRE
     assets:checking                -500.00 USD
@@ -235,18 +220,5 @@ func TestFindUnmatchedTransfers_Routes(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("transfers = %q, want %q", got, want)
-	}
-
-	wantRoutes := []string{
-		"equity:transfers:Chase-Cards [assets:checking liabilities:freedom liabilities:sapphire] [-300.00 USD]",
-		"equity:transfers:Schwab-Amex [assets:schwab] [300.00 USD]",
-	}
-	if got := routesSummary(resp); !slices.Equal(got, wantRoutes) {
-		t.Errorf("routes = %q, want %q", got, wantRoutes)
-	}
-
-	// Routes follow from_date: only routes with a returned side are listed.
-	if got := routesSummary(findUnmatched(t, h, "2026-02-02")); len(got) != 0 {
-		t.Errorf("routes after from_date = %q, want none", got)
 	}
 }

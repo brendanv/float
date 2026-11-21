@@ -677,21 +677,6 @@ export const mockUnmatchedTransfers = [
   },
 ];
 
-// FindUnmatchedTransfers.routes for mockUnmatchedTransfers.
-export const mockTransferRoutes = [
-  { account: "equity:transfers", accounts: ["assets:checking"], balance: [{ commodity: "USD", quantity: "20.00" }] },
-  {
-    account: "equity:transfers:Checking-Cards",
-    accounts: ["assets:checking", "liabilities:creditcard", "liabilities:travelcard"],
-    balance: [{ commodity: "USD", quantity: "-742.18" }],
-  },
-  {
-    account: "equity:transfers:Checking-Savings",
-    accounts: ["assets:checking", "assets:savings"],
-    balance: [{ commodity: "USD", quantity: "250.00" }],
-  },
-];
-
 export const mockLots = [
   {
     account: "assets:investments:aapl",
@@ -1764,12 +1749,7 @@ export async function mockLedgerApi(
         body = { tags: ["category", "memo", "reimbursable"] };
         break;
       case "FindUnmatchedTransfers":
-        body = {
-          transfers: unmatchedTransfers,
-          account: "equity:transfers",
-          windowDays: 5,
-          routes: unmatchedTransfers.length ? mockTransferRoutes : [],
-        };
+        body = { transfers: unmatchedTransfers, account: "equity:transfers", windowDays: 5 };
         break;
       case "GetBalanceAssertionStatus":
         body = {
