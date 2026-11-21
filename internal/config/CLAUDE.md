@@ -17,6 +17,8 @@ Top-level `Config` fields:
 - `AlphaVantage` — `api_key` for price backfills.
 - `AI` — OpenRouter `model` override and user prompt guidelines.
 - `Stripe` — customer ID, daily import toggle/timestamp, and linked Financial Connections accounts.
+- `Portfolio` — symbols and account prefixes excluded from portfolio views.
+- `Transfers` — `account`: the clearing account the unmatched-transfer check watches (empty = `equity:transfers`).
 - `Timezone` — IANA timezone used when converting external timestamps (notably Stripe) to journal dates; defaults to UTC.
 
 ## Stripe Config Notes

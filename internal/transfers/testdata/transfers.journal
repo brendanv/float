@@ -1,0 +1,72 @@
+; Transfer sides through equity:transfers, as two imports would record them.
+
+account assets:checking
+account assets:savings
+account liabilities:card
+account equity:transfers
+account expenses:food
+
+; Matched pair: card payment seen by both accounts, one day apart.
+2026-01-05 (aa000001) ONLINE PMT CARD
+    assets:checking          -500.00 USD
+    equity:transfers
+
+2026-01-06 (aa000002) PAYMENT THANK YOU
+    liabilities:card          500.00 USD
+    equity:transfers
+
+; Two identical savings transfers; only one savings side arrived.
+2026-01-10 (aa000003) XFER TO SAVINGS
+    assets:checking          -100 USD
+    equity:transfers
+
+2026-01-11 (aa000004) XFER FROM CHECKING
+    assets:savings            100.0 USD
+    equity:transfers
+
+2026-01-24 (aa000005) XFER TO SAVINGS
+    assets:checking          -100.00 USD
+    equity:transfers
+
+; Ordinary spending: never a transfer side.
+2026-01-12 (aa000006) Grocer
+    expenses:food              42.00 USD
+    assets:checking
+
+; Matching amount but outside the window.
+2026-02-01 (aa000007) XFER TO SAVINGS
+    assets:checking          -250.00 USD
+    equity:transfers
+
+2026-02-20 (aa000008) XFER FROM CHECKING
+    assets:savings            250.00 USD
+    equity:transfers
+
+; Routes: one per pair of counterparties.
+account equity:transfers:Schwab-Amex
+account equity:transfers:Chase-Cards
+account assets:schwab
+account liabilities:amex
+account liabilities:sapphire
+account liabilities:freedom
+
+2026-01-15 (aa000009) SCHWAB PMT AMEX
+    assets:schwab                      -600.00 USD
+    equity:transfers:Schwab-Amex
+
+2026-01-16 (aa000010) AMEX PAYMENT RECEIVED
+    liabilities:amex                    600.00 USD
+    equity:transfers:Schwab-Amex
+
+; Same amount as aa000009 but a different route: must not match it.
+2026-01-15 (aa000011) CHASE PMT SAPPHIRE
+    liabilities:sapphire                600.00 USD
+    equity:transfers:Chase-Cards
+
+2026-01-20 (aa000012) CHASE PMT FREEDOM
+    assets:checking                    -200.00 USD
+    equity:transfers:Chase-Cards
+
+2026-01-21 (aa000013) FREEDOM PAYMENT
+    liabilities:freedom                 200.00 USD
+    equity:transfers:Chase-Cards

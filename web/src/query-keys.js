@@ -8,6 +8,7 @@ export const queryKeys = {
   prices:               () => ["prices"],
   accountDeclarations:  () => ["accountDeclarations"],
   balanceAssertionStatus: () => ["balanceAssertionStatus"],
+  unmatchedTransfers:   () => ["unmatchedTransfers"],
   snapshots:            () => ["snapshots"],
   snapshotDiff:         (hash) => ["snapshotDiff", hash],
   bankProfiles:         () => ["bankProfiles"],

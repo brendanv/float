@@ -80,7 +80,7 @@ data/
 ├── rules.json            # float categorization rules (post-import / bulk apply)
 ├── templates.json        # saved transaction templates for quick entry (auto-created)
 ├── 2026/01.journal       # transactions grouped by month
-└── config.toml           # server, bank profiles, Stripe, Alpha Vantage, AI, timezone
+└── config.toml           # server, bank profiles, Stripe, Alpha Vantage, AI, transfers account, timezone
 ```
 
 `internal/journal/` handles text-level file manipulation only. Every float-written transaction gets an 8-character code field, e.g. `(a1b2c3d4)`, and lookups use `code:a1b2c3d4`. Hidden float metadata is stored in tags with the `float-` prefix and is filtered from user-facing APIs.
@@ -89,7 +89,7 @@ data/
 
 ConnectRPC powers all clients. Protobufs live in `proto/float/v1/` and generated code is produced with Buf. `LedgerService` currently includes:
 
-- Core queries: transactions (with pagination), balances (raw or valued), account register, lots, accounts, tags, payees, net worth, income statement, portfolio holdings/timeseries.
+- Core queries: transactions (with pagination), balances (raw or valued), account register, lots, accounts, tags, payees, net worth, income statement, portfolio holdings/timeseries, unmatched transfers (one-sided transfers through the `equity:transfers` clearing account, scoped to its per-counterparty-pair sub-accounts).
 - Mutations: add/update/delete transactions, status/date changes, bulk edit/delete, account declarations, account rename, close/reopen accounts (`float-closed` account tag), prices, Alpha Vantage price backfill, snapshots.
 - Imports/rules: bank profile CRUD, CSV preview/import with import batches and original file storage, structured (JSON) transaction import for scripts/agents (`ImportStructuredTransactions`), categorization rule CRUD, preview/apply rules.
 - Templates: saved transaction shapes (CRUD) stored in `templates.json` for quick recurring-transaction entry.

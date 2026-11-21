@@ -48,6 +48,9 @@ const (
 	// LedgerServiceGetBalanceAssertionStatusProcedure is the fully-qualified name of the
 	// LedgerService's GetBalanceAssertionStatus RPC.
 	LedgerServiceGetBalanceAssertionStatusProcedure = "/float.v1.LedgerService/GetBalanceAssertionStatus"
+	// LedgerServiceFindUnmatchedTransfersProcedure is the fully-qualified name of the LedgerService's
+	// FindUnmatchedTransfers RPC.
+	LedgerServiceFindUnmatchedTransfersProcedure = "/float.v1.LedgerService/FindUnmatchedTransfers"
 	// LedgerServiceListTagsProcedure is the fully-qualified name of the LedgerService's ListTags RPC.
 	LedgerServiceListTagsProcedure = "/float.v1.LedgerService/ListTags"
 	// LedgerServiceListPayeesProcedure is the fully-qualified name of the LedgerService's ListPayees
@@ -286,6 +289,7 @@ type LedgerServiceClient interface {
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	GetBalanceAssertionStatus(context.Context, *connect.Request[v1.GetBalanceAssertionStatusRequest]) (*connect.Response[v1.GetBalanceAssertionStatusResponse], error)
+	FindUnmatchedTransfers(context.Context, *connect.Request[v1.FindUnmatchedTransfersRequest]) (*connect.Response[v1.FindUnmatchedTransfersResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
 	ListPayees(context.Context, *connect.Request[v1.ListPayeesRequest]) (*connect.Response[v1.ListPayeesResponse], error)
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
@@ -412,6 +416,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceGetBalanceAssertionStatusProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("GetBalanceAssertionStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		findUnmatchedTransfers: connect.NewClient[v1.FindUnmatchedTransfersRequest, v1.FindUnmatchedTransfersResponse](
+			httpClient,
+			baseURL+LedgerServiceFindUnmatchedTransfersProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("FindUnmatchedTransfers")),
 			connect.WithClientOptions(opts...),
 		),
 		listTags: connect.NewClient[v1.ListTagsRequest, v1.ListTagsResponse](
@@ -892,6 +902,7 @@ type ledgerServiceClient struct {
 	getBalances                  *connect.Client[v1.GetBalancesRequest, v1.GetBalancesResponse]
 	listAccounts                 *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
 	getBalanceAssertionStatus    *connect.Client[v1.GetBalanceAssertionStatusRequest, v1.GetBalanceAssertionStatusResponse]
+	findUnmatchedTransfers       *connect.Client[v1.FindUnmatchedTransfersRequest, v1.FindUnmatchedTransfersResponse]
 	listTags                     *connect.Client[v1.ListTagsRequest, v1.ListTagsResponse]
 	listPayees                   *connect.Client[v1.ListPayeesRequest, v1.ListPayeesResponse]
 	deleteTransaction            *connect.Client[v1.DeleteTransactionRequest, v1.DeleteTransactionResponse]
@@ -995,6 +1006,11 @@ func (c *ledgerServiceClient) ListAccounts(ctx context.Context, req *connect.Req
 // GetBalanceAssertionStatus calls float.v1.LedgerService.GetBalanceAssertionStatus.
 func (c *ledgerServiceClient) GetBalanceAssertionStatus(ctx context.Context, req *connect.Request[v1.GetBalanceAssertionStatusRequest]) (*connect.Response[v1.GetBalanceAssertionStatusResponse], error) {
 	return c.getBalanceAssertionStatus.CallUnary(ctx, req)
+}
+
+// FindUnmatchedTransfers calls float.v1.LedgerService.FindUnmatchedTransfers.
+func (c *ledgerServiceClient) FindUnmatchedTransfers(ctx context.Context, req *connect.Request[v1.FindUnmatchedTransfersRequest]) (*connect.Response[v1.FindUnmatchedTransfersResponse], error) {
+	return c.findUnmatchedTransfers.CallUnary(ctx, req)
 }
 
 // ListTags calls float.v1.LedgerService.ListTags.
@@ -1394,6 +1410,7 @@ type LedgerServiceHandler interface {
 	GetBalances(context.Context, *connect.Request[v1.GetBalancesRequest]) (*connect.Response[v1.GetBalancesResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	GetBalanceAssertionStatus(context.Context, *connect.Request[v1.GetBalanceAssertionStatusRequest]) (*connect.Response[v1.GetBalanceAssertionStatusResponse], error)
+	FindUnmatchedTransfers(context.Context, *connect.Request[v1.FindUnmatchedTransfersRequest]) (*connect.Response[v1.FindUnmatchedTransfersResponse], error)
 	ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error)
 	ListPayees(context.Context, *connect.Request[v1.ListPayeesRequest]) (*connect.Response[v1.ListPayeesResponse], error)
 	DeleteTransaction(context.Context, *connect.Request[v1.DeleteTransactionRequest]) (*connect.Response[v1.DeleteTransactionResponse], error)
@@ -1516,6 +1533,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceGetBalanceAssertionStatusProcedure,
 		svc.GetBalanceAssertionStatus,
 		connect.WithSchema(ledgerServiceMethods.ByName("GetBalanceAssertionStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceFindUnmatchedTransfersHandler := connect.NewUnaryHandler(
+		LedgerServiceFindUnmatchedTransfersProcedure,
+		svc.FindUnmatchedTransfers,
+		connect.WithSchema(ledgerServiceMethods.ByName("FindUnmatchedTransfers")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceListTagsHandler := connect.NewUnaryHandler(
@@ -1998,6 +2021,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceListAccountsHandler.ServeHTTP(w, r)
 		case LedgerServiceGetBalanceAssertionStatusProcedure:
 			ledgerServiceGetBalanceAssertionStatusHandler.ServeHTTP(w, r)
+		case LedgerServiceFindUnmatchedTransfersProcedure:
+			ledgerServiceFindUnmatchedTransfersHandler.ServeHTTP(w, r)
 		case LedgerServiceListTagsProcedure:
 			ledgerServiceListTagsHandler.ServeHTTP(w, r)
 		case LedgerServiceListPayeesProcedure:
@@ -2181,6 +2206,10 @@ func (UnimplementedLedgerServiceHandler) ListAccounts(context.Context, *connect.
 
 func (UnimplementedLedgerServiceHandler) GetBalanceAssertionStatus(context.Context, *connect.Request[v1.GetBalanceAssertionStatusRequest]) (*connect.Response[v1.GetBalanceAssertionStatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.GetBalanceAssertionStatus is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) FindUnmatchedTransfers(context.Context, *connect.Request[v1.FindUnmatchedTransfersRequest]) (*connect.Response[v1.FindUnmatchedTransfersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.FindUnmatchedTransfers is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) ListTags(context.Context, *connect.Request[v1.ListTagsRequest]) (*connect.Response[v1.ListTagsResponse], error) {

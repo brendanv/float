@@ -52,6 +52,13 @@ type PortfolioConfig struct {
 	ExcludedAccountPrefixes []string `toml:"excluded_account_prefixes"`
 }
 
+// TransfersConfig configures the unmatched-transfer check. Each side of a
+// transfer posts between its account and Account, so a complete pair nets
+// Account to zero.
+type TransfersConfig struct {
+	Account string `toml:"account"` // clearing account; empty = "equity:transfers"
+}
+
 type Config struct {
 	Server       ServerConfig       `toml:"server"`
 	BankProfiles []BankProfile      `toml:"bank_profiles"`
@@ -59,6 +66,7 @@ type Config struct {
 	AI           AIConfig           `toml:"ai"`
 	Stripe       StripeConfig       `toml:"stripe"`
 	Portfolio    PortfolioConfig    `toml:"portfolio"`
+	Transfers    TransfersConfig    `toml:"transfers"`
 	// Timezone is an IANA timezone name (e.g. "America/New_York") used when
 	// converting Stripe transaction timestamps to calendar dates. Defaults to
 	// UTC when empty. Set this to your local timezone to avoid off-by-one-day
