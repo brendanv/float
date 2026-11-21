@@ -15,12 +15,14 @@ import {
 
 // LinkMappingDialog maps Stripe Financial Connections accounts to hledger
 // accounts (and display names) after linking, or for one unmapped account.
+// The optional start date skips older transactions, e.g. after relinking an
+// account whose history was already imported under its old Stripe IDs.
 export function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onComplete, onClose }) {
   const [mappings, setMappings] = useState(() =>
     Object.fromEntries(
       fcAccounts.map((a) => [
         a.id,
-        { hledgerAccount: "", displayName: a.display_name ?? a.displayName ?? a.id },
+        { hledgerAccount: "", displayName: a.display_name ?? a.displayName ?? a.id, importFrom: "" },
       ])
     )
   );
@@ -80,6 +82,19 @@ export function LinkMappingDialog({ open, fcAccounts, accountDeclarations, onCom
                   searchPlaceholder="Search accounts…"
                   emptyMessage="No matching account."
                   clearable
+                />
+              </FormField>
+              <FormField
+                label="Import from"
+                htmlFor={`import-from-${a.id}`}
+                hint="Optional"
+                description="Transactions before this date are never fetched or imported. Set it when relinking an account that was already imported."
+              >
+                <Input
+                  id={`import-from-${a.id}`}
+                  type="date"
+                  value={mappings[a.id]?.importFrom ?? ""}
+                  onChange={(e) => setMapping(a.id, "importFrom", e.target.value)}
                 />
               </FormField>
             </div>

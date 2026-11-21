@@ -162,7 +162,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		}
 		var newTxns []stripeClient.Transaction
 		for _, st := range fetched[i].txns {
-			if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
+			if !stripeTxnImportable(st, linked, cfg.Location()) || stripeTxnSet[st.ID] {
 				continue
 			}
 			newTxns = append(newTxns, st)

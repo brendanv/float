@@ -38,6 +38,10 @@ type StripeLinkedAccount struct {
 	HledgerAccount  string `toml:"hledger_account"`
 	DisplayName     string `toml:"display_name"`
 	LastFetchedAt   string `toml:"last_fetched_at"` // RFC3339; last import time, empty if never imported
+	// ImportFrom (YYYY-MM-DD) is the earliest transaction date float fetches or
+	// imports for this account; empty means no cutoff. Set it after relinking
+	// an account, whose transactions come back under new Stripe IDs.
+	ImportFrom string `toml:"import_from"`
 }
 
 type StripeConfig struct {

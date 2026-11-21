@@ -88,7 +88,7 @@ Rules are stored in `rules.json` and handled through `internal/rules`. Add/updat
 
 Stripe handlers live in `stripe.go` and read credentials from environment variables (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`). Customer ID, linked accounts, daily auto-import toggle, and timestamps are stored in config.
 
-Fetch RPCs only list already-available settled transactions and hide duplicates by hidden `float-stripe-txn` metadata. Refresh RPCs kick off/poll Stripe refreshes and stream progress/results, honoring Stripe's per-account throttle. Import RPCs re-read existing Stripe IDs inside txlock to prevent double writes during races with auto-import.
+Fetch RPCs only list already-available settled transactions and hide duplicates by hidden `float-stripe-txn` metadata. Each linked account may have an `import_from` cutoff (YYYY-MM-DD, set via `CompleteStripeLinking` or `SetStripeAccountImportFrom`); `stripeTxnImportable` drops transactions dated before it (transacted_at in the config timezone) from fetch, both import RPCs and daily auto-import. It exists for relinked accounts: Stripe gives a relinked account new transaction IDs, so ID dedup alone would offer the whole history again. `CompleteStripeLinking` with an empty `import_from` keeps an existing cutoff. Refresh RPCs kick off/poll Stripe refreshes and stream progress/results, honoring Stripe's per-account throttle. Import RPCs re-read existing Stripe IDs inside txlock to prevent double writes during races with auto-import.
 
 ### Daily Stripe Auto-Import
 

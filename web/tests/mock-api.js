@@ -1505,6 +1505,7 @@ export const mockStripeLinkedAccounts = [
     displayName: "Bank of America Savings ****5678",
     institutionName: "Bank of America",
     lastFetchedAt: "2026-05-09T00:00:00Z",
+    importFrom: "2026-04-01",
   },
 ];
 
@@ -2197,6 +2198,11 @@ export async function mockLedgerApi(
       case "UnlinkStripeAccount":
         body = {};
         break;
+      case "SetStripeAccountImportFrom": {
+        const acct = mockStripeLinkedAccounts.find((a) => a.stripeAccountId === reqBody.stripeAccountId);
+        body = { account: { ...acct, importFrom: reqBody.importFrom ?? "" } };
+        break;
+      }
       case "FetchStripeTransactions":
         body = { candidates: mockStripeImportCandidates };
         break;

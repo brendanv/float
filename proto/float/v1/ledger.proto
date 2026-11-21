@@ -843,6 +843,9 @@ message StripeLinkedAccount {
   string display_name = 3;
   string last_fetched_at = 4; // RFC3339; empty if never fetched
   string institution_name = 5;
+  // Earliest transaction date (YYYY-MM-DD) fetched or imported for this
+  // account; empty means no cutoff.
+  string import_from = 6;
 }
 
 message GetStripeConfigRequest {}
@@ -878,6 +881,10 @@ message LinkedAccountInput {
   string stripe_account_id = 1;
   string hledger_account = 2;
   string display_name = 3;
+  // Optional import cutoff (YYYY-MM-DD): transactions dated before it are
+  // never fetched or imported. Empty leaves an existing cutoff unchanged; use
+  // SetStripeAccountImportFrom to clear one.
+  string import_from = 4;
 }
 
 message CompleteStripeLinkingRequest {
@@ -900,6 +907,17 @@ message UnlinkStripeAccountRequest {
 }
 
 message UnlinkStripeAccountResponse {}
+
+message SetStripeAccountImportFromRequest {
+  string stripe_account_id = 1;
+  // Earliest transaction date (YYYY-MM-DD) to fetch or import; empty clears
+  // the cutoff.
+  string import_from = 2;
+}
+
+message SetStripeAccountImportFromResponse {
+  StripeLinkedAccount account = 1;
+}
 
 message FetchStripeTransactionsRequest {
   string stripe_account_id = 1;
@@ -1242,6 +1260,9 @@ service LedgerService {
   rpc CompleteStripeLinking(CompleteStripeLinkingRequest) returns (CompleteStripeLinkingResponse);
   rpc ListStripeLinkedAccounts(ListStripeLinkedAccountsRequest) returns (ListStripeLinkedAccountsResponse);
   rpc UnlinkStripeAccount(UnlinkStripeAccountRequest) returns (UnlinkStripeAccountResponse);
+  // Sets or clears a linked account's import cutoff date. Stripe transactions
+  // dated before it are skipped by fetch, import, and daily auto-import.
+  rpc SetStripeAccountImportFrom(SetStripeAccountImportFromRequest) returns (SetStripeAccountImportFromResponse);
   rpc FetchStripeTransactions(FetchStripeTransactionsRequest) returns (FetchStripeTransactionsResponse);
   rpc ImportStripeTransactions(ImportStripeTransactionsRequest) returns (stream ImportTransactionsResponse);
   rpc FetchAllStripeTransactions(FetchAllStripeTransactionsRequest) returns (FetchAllStripeTransactionsResponse);
