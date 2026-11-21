@@ -310,15 +310,15 @@ func TestServerSmoke(t *testing.T) {
 		}
 		defer func() { _ = session.Close() }()
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name:      "get_balances",
-			Arguments: map[string]any{"query": []string{"assets:checking"}},
+			Name:      "list_transactions",
+			Arguments: map[string]any{"query": []string{"desc:Grocery"}},
 		})
 		if err != nil {
 			t.Fatalf("CallTool: %v", err)
 		}
 		text := res.Content[0].(*mcp.TextContent).Text
-		if res.IsError || !strings.Contains(text, `"assets:checking"`) {
-			t.Fatalf("get_balances = %s (isError=%v)", text, res.IsError)
+		if res.IsError || !strings.Contains(text, `"Grocery store"`) {
+			t.Fatalf("list_transactions = %s (isError=%v)", text, res.IsError)
 		}
 	})
 

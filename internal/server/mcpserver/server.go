@@ -36,52 +36,34 @@ const maxResultBytes = 256 << 10
 //go:embed instructions.md
 var instructions string
 
-// Options configures NewHandler.
-type Options struct {
-	// Version is reported as the server implementation version.
-	Version string
-	// AuthEnabled disables the MCP SDK's DNS-rebinding protection, which
-	// rejects requests to a loopback address with a non-loopback Host header
-	// (a reverse proxy on the same machine). With auth on, every request needs
-	// the bearer credential, which a rebinding page cannot supply.
-	AuthEnabled bool
-}
-
-// NewServer returns an MCP server whose tools call client.
-func NewServer(client floatv1connect.LedgerServiceClient, version string) (*mcp.Server, error) {
+// NewHandler returns the MCP endpoint, whose tools call client. It is
+// stateless (every POST is self-contained) and answers with plain JSON, so it
+// works behind ordinary reverse proxies. It does not authenticate: wrap it in
+// auth.RequireBearer. Tool calls forward the request's Authorization header
+// to the Connect API, which checks it again.
+//
+// authEnabled turns off the SDK's DNS-rebinding protection, which rejects
+// requests to a loopback address with a non-loopback Host header (a reverse
+// proxy on the same machine). With auth on, every request needs the bearer,
+// which a rebinding page cannot supply.
+func NewHandler(client floatv1connect.LedgerServiceClient, authEnabled bool) (http.Handler, error) {
 	d, err := loadDocs(ledgerDescriptor)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: load proto docs: %w", err)
 	}
-	if version == "" {
-		version = "dev"
-	}
 	s := mcp.NewServer(
-		&mcp.Implementation{Name: "float", Title: "float personal finance ledger", Version: version},
+		&mcp.Implementation{Name: "float", Title: "float personal finance ledger", Version: "1"},
 		&mcp.ServerOptions{Instructions: instructions},
 	)
 	for _, t := range tools(client) {
 		s.AddTool(t.mcpTool(d), t.handle)
-	}
-	return s, nil
-}
-
-// NewHandler returns the streamable-HTTP MCP endpoint for client. It is
-// stateless (every POST is self-contained) and answers with plain JSON, so it
-// works behind ordinary reverse proxies. It does not authenticate: wrap it
-// (see auth.RequireBearer); tool calls forward the request's Authorization
-// header to the Connect API, which checks it again.
-func NewHandler(client floatv1connect.LedgerServiceClient, opts Options) (http.Handler, error) {
-	s, err := NewServer(client, opts.Version)
-	if err != nil {
-		return nil, err
 	}
 	return mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return s },
 		&mcp.StreamableHTTPOptions{
 			Stateless:                  true,
 			JSONResponse:               true,
-			DisableLocalhostProtection: opts.AuthEnabled,
+			DisableLocalhostProtection: authEnabled,
 			MaxRequestBodyBytes:        32 << 20,
 		},
 	), nil
@@ -90,12 +72,12 @@ func NewHandler(client floatv1connect.LedgerServiceClient, opts Options) (http.H
 func (t tool) mcpTool(d docs) *mcp.Tool {
 	ann := &mcp.ToolAnnotations{
 		Title:          t.title,
-		ReadOnlyHint:   t.effect == readOnly,
-		IdempotentHint: t.effect == readOnly || t.idempotent,
+		ReadOnlyHint:   t.readOnly,
+		IdempotentHint: t.readOnly || t.idempotent,
 		OpenWorldHint:  new(false),
 	}
-	if t.effect != readOnly {
-		ann.DestructiveHint = new(t.effect == destructive)
+	if !t.readOnly {
+		ann.DestructiveHint = new(t.destructive)
 	}
 	schema := d.inputSchema(t.rpc.input)
 	delete(schema, "description") // the tool description covers the request message
@@ -143,18 +125,12 @@ func errorResult(err error) *mcp.CallToolResult {
 	}
 }
 
-// argsError marks malformed tool arguments.
-type argsError struct{ err error }
-
-func (e argsError) Error() string { return "invalid arguments: " + e.err.Error() }
-func (e argsError) Unwrap() error { return e.err }
-
 func decodeArgs(args []byte, msg proto.Message) error {
 	if len(args) == 0 || strings.TrimSpace(string(args)) == "null" {
 		return nil
 	}
 	if err := protojson.Unmarshal(args, msg); err != nil {
-		return argsError{err}
+		return fmt.Errorf("invalid arguments: %w", err)
 	}
 	return nil
 }

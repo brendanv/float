@@ -3,6 +3,7 @@ package mcpserver_test
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,7 +65,7 @@ func startMCP(t *testing.T, journal string) (string, string) {
 	inproc := mcpserver.NewInProcess(svc)
 	t.Cleanup(func() { _ = inproc.Shutdown(t.Context()) })
 
-	mh, err := mcpserver.NewHandler(inproc.LedgerClient(), mcpserver.Options{AuthEnabled: true})
+	mh, err := mcpserver.NewHandler(inproc.LedgerClient(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestAuthRequired(t *testing.T) {
 
 	t.Run("session token works", func(t *testing.T) {
 		s := connectMCP(t, endpoint, auth.New(testPassphrase).Token())
-		mustCall(t, s, "list_accounts", nil)
+		mustCall(t, s, "list_rules", nil)
 	})
 }
 
@@ -189,16 +190,12 @@ func TestListTools(t *testing.T) {
 			t.Errorf("%s: schema type = %v", tool.Name, schema["type"])
 		}
 	}
-	for _, name := range []string{"list_transactions", "import_structured_transactions", "bulk_delete_transactions", "restore_snapshot", "run_hledger_query"} {
-		if byName[name] == nil {
-			t.Fatalf("tool %s missing; have %v", name, slices.Sorted(func(yield func(string) bool) {
-				for n := range byName {
-					if !yield(n) {
-						return
-					}
-				}
-			}))
-		}
+	want := []string{
+		"add_rule", "apply_rules", "bulk_delete_transactions", "bulk_edit_transactions", "import_structured_transactions", "list_rules",
+		"list_transactions", "preview_apply_rules", "run_hledger_query", "update_transaction",
+	}
+	if got := slices.Sorted(maps.Keys(byName)); !slices.Equal(got, want) {
+		t.Fatalf("tools = %v, want %v", got, want)
 	}
 
 	for _, tc := range []struct {
@@ -208,7 +205,7 @@ func TestListTools(t *testing.T) {
 	}{
 		{"list_transactions", true, false, false},
 		{"import_structured_transactions", false, false, true},
-		{"bulk_delete_transactions", false, true, true},
+		{"bulk_edit_transactions", false, true, true},
 	} {
 		a := byName[tc.name].Annotations
 		if a.ReadOnlyHint != tc.readOnly {
@@ -251,25 +248,17 @@ func TestReadTools(t *testing.T) {
 		}
 	})
 
-	t.Run("get_balances", func(t *testing.T) {
-		out := mustCall(t, s, "get_balances", map[string]any{"query": []string{"expenses"}})
-		b, _ := json.Marshal(out)
-		if !strings.Contains(string(b), `"expenses:food"`) || !strings.Contains(string(b), "7260") {
-			t.Errorf("balances missing expenses:food 7260:\n%s", b)
-		}
-	})
-
 	t.Run("run_hledger_query", func(t *testing.T) {
 		out := mustCall(t, s, "run_hledger_query", map[string]any{"args": "bal expenses"})
-		if !strings.Contains(out["stdout"].(string), "expenses:food") {
-			t.Errorf("stdout = %q", out["stdout"])
+		if stdout := out["stdout"].(string); !strings.Contains(stdout, "expenses:food") || !strings.Contains(stdout, "7260") {
+			t.Errorf("stdout = %q, want expenses:food 7260", stdout)
 		}
 	})
 
 	t.Run("RPC errors are tool errors", func(t *testing.T) {
-		_, errText := call(t, s, "get_account_register", map[string]any{})
-		if !strings.HasPrefix(errText, "invalid_argument: ") || !strings.Contains(errText, "account") {
-			t.Errorf("error = %q, want invalid_argument about account", errText)
+		_, errText := call(t, s, "update_transaction", map[string]any{})
+		if !strings.HasPrefix(errText, "invalid_argument: ") || !strings.Contains(errText, "fid") {
+			t.Errorf("error = %q, want invalid_argument about fid", errText)
 		}
 		_, errText = call(t, s, "run_hledger_query", map[string]any{"args": "add"})
 		if !strings.HasPrefix(errText, "invalid_argument: ") {
@@ -327,12 +316,25 @@ func TestWriteToolsRoundTrip(t *testing.T) {
 		t.Fatalf("re-import = %v, want the duplicate skipped", again)
 	}
 
-	snaps := mustCall(t, s, "list_snapshots", nil)["snapshots"].([]any)
-	if len(snaps) == 0 {
-		t.Fatal("no snapshot after a write")
+	mustCall(t, s, "add_rule", map[string]any{"rules": []map[string]any{{"pattern": "Coffee", "account": "expenses:cafe"}}})
+	preview := mustCall(t, s, "preview_apply_rules", nil)
+	if previews, _ := preview["previews"].([]any); len(previews) != 1 {
+		t.Fatalf("preview_apply_rules = %v, want one match", preview)
+	}
+	// Server-streaming RPC: the tool returns the final message.
+	applied := mustCall(t, s, "apply_rules", map[string]any{"fids": []string{fid}})
+	if applied["result"].(map[string]any)["applied_count"] != float64(1) {
+		t.Fatalf("apply_rules = %v, want applied_count 1", applied)
+	}
+	if !strings.Contains(readJournals(t, dir), "expenses:cafe") {
+		t.Fatal("apply_rules did not recategorize the transaction")
 	}
 
-	// Server-streaming RPC: the tool returns the final message.
+	edited := mustCall(t, s, "bulk_edit_transactions", map[string]any{"fids": []string{fid}, "operations": []map[string]any{{"mark_reviewed": map[string]any{"reviewed": true}}}})
+	if status := edited["transactions"].([]any)[0].(map[string]any)["status"]; status != "Cleared" {
+		t.Fatalf("bulk edit status = %v, want Cleared", status)
+	}
+
 	del := mustCall(t, s, "bulk_delete_transactions", map[string]any{"fids": []string{fid}})
 	if del["result"].(map[string]any)["deleted_count"] != float64(1) {
 		t.Fatalf("bulk delete = %v, want deleted_count 1", del)

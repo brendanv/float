@@ -256,7 +256,7 @@ func run(ctx context.Context, opts options) error {
 		defer cancel()
 		_ = inproc.Shutdown(shutdownCtx)
 	}()
-	mcpHandler, err := mcpserver.NewHandler(inproc.LedgerClient(), mcpserver.Options{AuthEnabled: authn.Enabled()})
+	mcpHandler, err := mcpserver.NewHandler(inproc.LedgerClient(), authn.Enabled())
 	if err != nil {
 		return err
 	}

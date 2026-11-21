@@ -105,7 +105,7 @@ If you're writing a script (or pointing an agent at float) to turn some export i
 
 ## Connecting an agent (MCP)
 
-floatd serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp` (streamable HTTP), so agents like Claude Code can read and edit your ledger through a curated set of tools: listing and querying transactions, balances and reports, read-only hledger commands, structured imports with dry runs, bulk edits, categorization rules, and snapshots. With auth on, the endpoint takes the same passphrase as a bearer token (the web UI's cookie isn't accepted):
+floatd serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint at `/mcp` (streamable HTTP), so agents like Claude Code can read and edit your ledger through a small set of tools: listing transactions, running read-only hledger reports, importing transactions (with dry runs), editing and deleting them, and categorization rules. With auth on, the endpoint takes the same passphrase as a bearer token (the web UI's cookie isn't accepted):
 
 ```bash
 claude mcp add --transport http float http://localhost:8080/mcp \
