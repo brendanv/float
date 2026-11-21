@@ -32,6 +32,7 @@ export const SECTION_TABS = {
   settings: [
     { to: "/settings", label: "General" },
     { to: "/assertions", label: "Assertions" },
+    { to: "/transfers", label: "Transfers" },
     { to: "/snapshots", label: "Snapshots" },
     { to: "/hledger-query", label: "Query" },
     { to: "/logs", label: "Logs" },

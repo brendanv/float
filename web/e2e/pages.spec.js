@@ -21,6 +21,7 @@ const routes = [
   { path: "/imports", text: [] },
   { path: "/settings", text: [] },
   { path: "/assertions", text: [] },
+  { path: "/transfers", text: [] },
   { path: "/snapshots", text: ["startup migrations"] },
   { path: "/hledger-query", text: [] },
   { path: "/logs", text: [] },

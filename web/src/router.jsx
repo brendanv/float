@@ -29,6 +29,7 @@ const BalanceAssertionsPage = lazyPage(
   () => import("./pages/balance-assertions.jsx"),
   "BalanceAssertionsPage"
 );
+const TransfersPage = lazyPage(() => import("./pages/transfers.jsx"), "TransfersPage");
 const SnapshotsPage = lazyPage(() => import("./pages/snapshots.jsx"), "SnapshotsPage");
 const ImportPage = lazyPage(() => import("./pages/import.jsx"), "ImportPage");
 const RulesPage = lazyPage(() => import("./pages/rules.jsx"), "RulesPage");
@@ -125,6 +126,12 @@ const balanceAssertionsRoute = createRoute({
   component: BalanceAssertionsPage,
 });
 
+const transfersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/transfers",
+  component: TransfersPage,
+});
+
 const snapshotsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/snapshots",
@@ -212,6 +219,7 @@ const routeTree = rootRoute.addChildren([
   pricesRoute,
   accountsRoute,
   balanceAssertionsRoute,
+  transfersRoute,
   snapshotsRoute,
   importRoute,
   rulesRoute,

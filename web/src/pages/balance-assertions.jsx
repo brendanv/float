@@ -5,7 +5,6 @@ import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Scale, ChevronRight } from "lucide-react";
 import { Loading } from "../components/loading.jsx";
 import { ErrorBanner } from "../components/error-banner.jsx";
-import { UnmatchedTransfersSection } from "../components/unmatched-transfers.jsx";
 import { EmptyState } from "../components/empty-state.jsx";
 import { Page, Section } from "../components/page.jsx";
 import { Account } from "../components/account.jsx";
@@ -269,7 +268,6 @@ export function BalanceAssertionsPage() {
           </Section>
         </>
       )}
-      <UnmatchedTransfersSection />
     </Page>
   );
 }

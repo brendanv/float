@@ -19,7 +19,7 @@ const MIN = 40;
 
 const routes = [
   "/", "/transactions", "/add", "/trends", "/monthly", "/prices", "/accounts",
-  "/assertions", "/snapshots", "/import", "/rules", "/imports", "/payees",
+  "/assertions", "/transfers", "/snapshots", "/import", "/rules", "/imports", "/payees",
   "/portfolio", "/lots", "/settings", "/hledger-query", "/connections", "/templates",
 ];
 

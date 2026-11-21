@@ -7,8 +7,8 @@ test.describe("with unmatched transfers", () => {
     await mockLedgerApi(page, { unmatchedTransfers: mockUnmatchedTransfers });
   });
 
-  test("assertions page lists unmatched transfers by route", async ({ page }) => {
-    await page.goto("/#/assertions");
+  test("transfers page lists unmatched transfers by route", async ({ page }) => {
+    await page.goto("/#/transfers");
     const section = page.getByRole("region", { name: "Unmatched transfers" });
     await expect(section).toBeVisible();
     await expect(section).toContainText("equity:transfers");
@@ -34,9 +34,9 @@ test.describe("with unmatched transfers", () => {
     await expect(page).toHaveURL(/#\/transactions\?search=code%3Af1e2d3c5/);
   });
 
-  test("assertions page hides transfers older than six months until show all", async ({ page }) => {
+  test("transfers page hides transfers older than six months until show all", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-08-10T12:00:00"));
-    await page.goto("/#/assertions");
+    await page.goto("/#/transfers");
     const section = page.getByRole("region", { name: "Unmatched transfers" });
     const rows = section.locator("[data-slot=unmatched-transfer-row]");
     await expect(rows).toHaveCount(3);
@@ -50,9 +50,9 @@ test.describe("with unmatched transfers", () => {
     await expect(rows).toHaveCount(3);
   });
 
-  test("assertions page offers show all when every transfer is older than six months", async ({ page }) => {
+  test("transfers page offers show all when every transfer is older than six months", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-11-20T12:00:00"));
-    await page.goto("/#/assertions");
+    await page.goto("/#/transfers");
     const section = page.getByRole("region", { name: "Unmatched transfers" });
     await expect(section).toContainText("No unmatched transfers in the last 6 months");
     await section.getByRole("button", { name: "Show all (4 older)" }).click();
@@ -74,7 +74,7 @@ test.describe("with unmatched transfers", () => {
     const notice = page.getByRole("status").filter({ hasText: "missing the other side" });
     await expect(notice).toContainText("3 transfers are");
     await notice.getByRole("link", { name: "Check" }).click();
-    await expect(page).toHaveURL(/#\/assertions/);
+    await expect(page).toHaveURL(/#\/transfers/);
   });
 
   test("dismissed missing-transfers notice stays hidden across reloads", async ({ page }) => {
@@ -99,16 +99,19 @@ test.describe("with unmatched transfers", () => {
     await expect(notice).toContainText("4 transfers are");
   });
 
-  test("assertions page - mobile", async ({ page }) => {
+  test("transfers page - mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/#/assertions");
+    await page.goto("/#/transfers");
     await expect(page.getByRole("region", { name: "Unmatched transfers" })).toBeVisible();
     await page.screenshot({ path: "test-results/unmatched-transfers-mobile.png", fullPage: true });
   });
 });
 
-test("no unmatched transfers renders nothing", async ({ page }) => {
+test("no unmatched transfers shows an empty state", async ({ page }) => {
   await mockLedgerApi(page);
+  await page.goto("/#/transfers");
+  await expect(page.getByText("No unmatched transfers")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Unmatched transfers" })).toHaveCount(0);
   await page.goto("/#/assertions");
   await expect(page.getByRole("region", { name: "Accounts" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Unmatched transfers" })).toHaveCount(0);
