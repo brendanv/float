@@ -206,6 +206,9 @@ const (
 	// LedgerServiceUnlinkStripeAccountProcedure is the fully-qualified name of the LedgerService's
 	// UnlinkStripeAccount RPC.
 	LedgerServiceUnlinkStripeAccountProcedure = "/float.v1.LedgerService/UnlinkStripeAccount"
+	// LedgerServiceSetStripeAccountImportFromProcedure is the fully-qualified name of the
+	// LedgerService's SetStripeAccountImportFrom RPC.
+	LedgerServiceSetStripeAccountImportFromProcedure = "/float.v1.LedgerService/SetStripeAccountImportFrom"
 	// LedgerServiceFetchStripeTransactionsProcedure is the fully-qualified name of the LedgerService's
 	// FetchStripeTransactions RPC.
 	LedgerServiceFetchStripeTransactionsProcedure = "/float.v1.LedgerService/FetchStripeTransactions"
@@ -347,6 +350,9 @@ type LedgerServiceClient interface {
 	CompleteStripeLinking(context.Context, *connect.Request[v1.CompleteStripeLinkingRequest]) (*connect.Response[v1.CompleteStripeLinkingResponse], error)
 	ListStripeLinkedAccounts(context.Context, *connect.Request[v1.ListStripeLinkedAccountsRequest]) (*connect.Response[v1.ListStripeLinkedAccountsResponse], error)
 	UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error)
+	// Sets or clears a linked account's import cutoff date. Stripe transactions
+	// dated before it are skipped by fetch, import, and daily auto-import.
+	SetStripeAccountImportFrom(context.Context, *connect.Request[v1.SetStripeAccountImportFromRequest]) (*connect.Response[v1.SetStripeAccountImportFromResponse], error)
 	FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error)
 	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest]) (*connect.ServerStreamForClient[v1.ImportTransactionsResponse], error)
 	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
@@ -742,6 +748,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("UnlinkStripeAccount")),
 			connect.WithClientOptions(opts...),
 		),
+		setStripeAccountImportFrom: connect.NewClient[v1.SetStripeAccountImportFromRequest, v1.SetStripeAccountImportFromResponse](
+			httpClient,
+			baseURL+LedgerServiceSetStripeAccountImportFromProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetStripeAccountImportFrom")),
+			connect.WithClientOptions(opts...),
+		),
 		fetchStripeTransactions: connect.NewClient[v1.FetchStripeTransactionsRequest, v1.FetchStripeTransactionsResponse](
 			httpClient,
 			baseURL+LedgerServiceFetchStripeTransactionsProcedure,
@@ -956,6 +968,7 @@ type ledgerServiceClient struct {
 	completeStripeLinking        *connect.Client[v1.CompleteStripeLinkingRequest, v1.CompleteStripeLinkingResponse]
 	listStripeLinkedAccounts     *connect.Client[v1.ListStripeLinkedAccountsRequest, v1.ListStripeLinkedAccountsResponse]
 	unlinkStripeAccount          *connect.Client[v1.UnlinkStripeAccountRequest, v1.UnlinkStripeAccountResponse]
+	setStripeAccountImportFrom   *connect.Client[v1.SetStripeAccountImportFromRequest, v1.SetStripeAccountImportFromResponse]
 	fetchStripeTransactions      *connect.Client[v1.FetchStripeTransactionsRequest, v1.FetchStripeTransactionsResponse]
 	importStripeTransactions     *connect.Client[v1.ImportStripeTransactionsRequest, v1.ImportTransactionsResponse]
 	fetchAllStripeTransactions   *connect.Client[v1.FetchAllStripeTransactionsRequest, v1.FetchAllStripeTransactionsResponse]
@@ -1278,6 +1291,11 @@ func (c *ledgerServiceClient) UnlinkStripeAccount(ctx context.Context, req *conn
 	return c.unlinkStripeAccount.CallUnary(ctx, req)
 }
 
+// SetStripeAccountImportFrom calls float.v1.LedgerService.SetStripeAccountImportFrom.
+func (c *ledgerServiceClient) SetStripeAccountImportFrom(ctx context.Context, req *connect.Request[v1.SetStripeAccountImportFromRequest]) (*connect.Response[v1.SetStripeAccountImportFromResponse], error) {
+	return c.setStripeAccountImportFrom.CallUnary(ctx, req)
+}
+
 // FetchStripeTransactions calls float.v1.LedgerService.FetchStripeTransactions.
 func (c *ledgerServiceClient) FetchStripeTransactions(ctx context.Context, req *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error) {
 	return c.fetchStripeTransactions.CallUnary(ctx, req)
@@ -1468,6 +1486,9 @@ type LedgerServiceHandler interface {
 	CompleteStripeLinking(context.Context, *connect.Request[v1.CompleteStripeLinkingRequest]) (*connect.Response[v1.CompleteStripeLinkingResponse], error)
 	ListStripeLinkedAccounts(context.Context, *connect.Request[v1.ListStripeLinkedAccountsRequest]) (*connect.Response[v1.ListStripeLinkedAccountsResponse], error)
 	UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error)
+	// Sets or clears a linked account's import cutoff date. Stripe transactions
+	// dated before it are skipped by fetch, import, and daily auto-import.
+	SetStripeAccountImportFrom(context.Context, *connect.Request[v1.SetStripeAccountImportFromRequest]) (*connect.Response[v1.SetStripeAccountImportFromResponse], error)
 	FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error)
 	ImportStripeTransactions(context.Context, *connect.Request[v1.ImportStripeTransactionsRequest], *connect.ServerStream[v1.ImportTransactionsResponse]) error
 	FetchAllStripeTransactions(context.Context, *connect.Request[v1.FetchAllStripeTransactionsRequest]) (*connect.Response[v1.FetchAllStripeTransactionsResponse], error)
@@ -1859,6 +1880,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("UnlinkStripeAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceSetStripeAccountImportFromHandler := connect.NewUnaryHandler(
+		LedgerServiceSetStripeAccountImportFromProcedure,
+		svc.SetStripeAccountImportFrom,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetStripeAccountImportFrom")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceFetchStripeTransactionsHandler := connect.NewUnaryHandler(
 		LedgerServiceFetchStripeTransactionsProcedure,
 		svc.FetchStripeTransactions,
@@ -2129,6 +2156,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceListStripeLinkedAccountsHandler.ServeHTTP(w, r)
 		case LedgerServiceUnlinkStripeAccountProcedure:
 			ledgerServiceUnlinkStripeAccountHandler.ServeHTTP(w, r)
+		case LedgerServiceSetStripeAccountImportFromProcedure:
+			ledgerServiceSetStripeAccountImportFromHandler.ServeHTTP(w, r)
 		case LedgerServiceFetchStripeTransactionsProcedure:
 			ledgerServiceFetchStripeTransactionsHandler.ServeHTTP(w, r)
 		case LedgerServiceImportStripeTransactionsProcedure:
@@ -2422,6 +2451,10 @@ func (UnimplementedLedgerServiceHandler) ListStripeLinkedAccounts(context.Contex
 
 func (UnimplementedLedgerServiceHandler) UnlinkStripeAccount(context.Context, *connect.Request[v1.UnlinkStripeAccountRequest]) (*connect.Response[v1.UnlinkStripeAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UnlinkStripeAccount is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetStripeAccountImportFrom(context.Context, *connect.Request[v1.SetStripeAccountImportFromRequest]) (*connect.Response[v1.SetStripeAccountImportFromResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetStripeAccountImportFrom is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) FetchStripeTransactions(context.Context, *connect.Request[v1.FetchStripeTransactionsRequest]) (*connect.Response[v1.FetchStripeTransactionsResponse], error) {

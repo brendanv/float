@@ -134,13 +134,19 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("accounts must not be empty"))
 	}
 
-	for _, a := range req.Msg.Accounts {
+	importFroms := make([]string, len(req.Msg.Accounts))
+	for i, a := range req.Msg.Accounts {
 		if a.StripeAccountId == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required for each account"))
 		}
 		if a.HledgerAccount == "" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("hledger_account is required for each account"))
 		}
+		importFrom, err := normalizeImportFrom(a.ImportFrom)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		importFroms[i] = importFrom
 		if err := stripeClient.SubscribeTransactions(ctx, secretKey, a.StripeAccountId); err != nil {
 			logger.ErrorContext(ctx, "subscribe transactions failed", "account", a.StripeAccountId, "error", err)
 			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to subscribe to transaction updates"))
@@ -151,12 +157,17 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 		cur := h.loadCfg()
 		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
 		copy(accounts, cur.Stripe.LinkedAccounts)
-		for _, a := range req.Msg.Accounts {
+		for ai, a := range req.Msg.Accounts {
 			found := false
 			for i, existing := range accounts {
 				if existing.StripeAccountID == a.StripeAccountId {
 					accounts[i].HledgerAccount = a.HledgerAccount
 					accounts[i].DisplayName = a.DisplayName
+					// An empty cutoff keeps the existing one, so re-mapping an
+					// account never silently drops it.
+					if importFroms[ai] != "" {
+						accounts[i].ImportFrom = importFroms[ai]
+					}
 					found = true
 					break
 				}
@@ -166,6 +177,7 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 					StripeAccountID: a.StripeAccountId,
 					HledgerAccount:  a.HledgerAccount,
 					DisplayName:     a.DisplayName,
+					ImportFrom:      importFroms[ai],
 				})
 			}
 		}
@@ -221,6 +233,7 @@ func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Reque
 		if cfg, ok := cfgMap[sa.ID]; ok {
 			pa.HledgerAccount = cfg.HledgerAccount
 			pa.LastFetchedAt = cfg.LastFetchedAt
+			pa.ImportFrom = cfg.ImportFrom
 			if cfg.DisplayName != "" {
 				pa.DisplayName = cfg.DisplayName
 			}
@@ -270,6 +283,53 @@ func (h *Handler) UnlinkStripeAccount(ctx context.Context, req *connect.Request[
 	return connect.NewResponse(&floatv1.UnlinkStripeAccountResponse{}), nil
 }
 
+// SetStripeAccountImportFrom sets or clears a linked account's import cutoff
+// date. It only changes float's config; nothing is sent to Stripe.
+func (h *Handler) SetStripeAccountImportFrom(ctx context.Context, req *connect.Request[floatv1.SetStripeAccountImportFromRequest]) (*connect.Response[floatv1.SetStripeAccountImportFromResponse], error) {
+	if h.loadCfg() == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if req.Msg.StripeAccountId == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
+	}
+	importFrom, err := normalizeImportFrom(req.Msg.ImportFrom)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	var updated config.StripeLinkedAccount
+	errNotLinked := fmt.Errorf("stripe account %q not linked", req.Msg.StripeAccountId)
+	err = h.lock.DoConfigPublish(ctx, fmt.Sprintf("set stripe account %s import cutoff", req.Msg.StripeAccountId), []string{h.configPath}, func() (func(), error) {
+		cur := h.loadCfg()
+		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
+		copy(accounts, cur.Stripe.LinkedAccounts)
+		found := false
+		for i := range accounts {
+			if accounts[i].StripeAccountID == req.Msg.StripeAccountId {
+				accounts[i].ImportFrom = importFrom
+				updated = accounts[i]
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, errNotLinked
+		}
+		newCfg := *cur
+		newCfg.Stripe.LinkedAccounts = accounts
+		return h.saveCfg(&newCfg)
+	})
+	if errors.Is(err, errNotLinked) {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	if err != nil {
+		return nil, rpcErr(ctx, err, "set stripe account import cutoff failed")
+	}
+	return connect.NewResponse(&floatv1.SetStripeAccountImportFromResponse{
+		Account: configToProtoLinkedAccount(updated),
+	}), nil
+}
+
 func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Request[floatv1.FetchStripeTransactionsRequest]) (*connect.Response[floatv1.FetchStripeTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
 	cfg := h.loadCfg()
@@ -311,9 +371,9 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 
 	candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
 	for _, st := range stripeTxns {
-		// Only settled transactions are importable; duplicates (by Stripe txn id) are
-		// hidden so the UI never shows them.
-		if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
+		// Only settled transactions on or after the account's cutoff are importable;
+		// duplicates (by Stripe txn id) are hidden so the UI never shows them.
+		if !stripeTxnImportable(st, linked, cfg.Location()) || stripeTxnSet[st.ID] {
 			continue
 		}
 		ht := stripeTransactionToHledger(st, linked.HledgerAccount, cfg.Location())
@@ -417,7 +477,7 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 			if !ok {
 				return nil, fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 			}
-			if !stripeTxnSettled(st) {
+			if !stripeTxnImportable(st, linked, loc) {
 				continue
 			}
 			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, loc)
@@ -522,9 +582,10 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 
 			candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
 			for _, st := range stripeTxns {
-				// Only settled transactions are importable; duplicates (by Stripe txn id)
-				// are hidden so the UI never shows them.
-				if !stripeTxnSettled(st) || stripeTxnSet[st.ID] {
+				// Only settled transactions on or after the account's cutoff are
+				// importable; duplicates (by Stripe txn id) are hidden so the UI never
+				// shows them.
+				if !stripeTxnImportable(st, linked, cfg.Location()) || stripeTxnSet[st.ID] {
 					continue
 				}
 				ht := stripeTransactionToHledger(st, linked.HledgerAccount, cfg.Location())
@@ -693,7 +754,7 @@ func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.
 				if !ok {
 					return nil, fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 				}
-				if !stripeTxnSettled(st) {
+				if !stripeTxnImportable(st, linked, loc) {
 					continue
 				}
 				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, loc)
@@ -987,6 +1048,7 @@ func configToProtoLinkedAccount(a config.StripeLinkedAccount) *floatv1.StripeLin
 		HledgerAccount:  a.HledgerAccount,
 		DisplayName:     a.DisplayName,
 		LastFetchedAt:   a.LastFetchedAt,
+		ImportFrom:      a.ImportFrom,
 	}
 }
 
@@ -994,6 +1056,33 @@ func configToProtoLinkedAccount(a config.StripeLinkedAccount) *floatv1.StripeLin
 // and therefore eligible for import. Pending and void transactions are ignored.
 func stripeTxnSettled(t stripeClient.Transaction) bool {
 	return t.Status == "posted"
+}
+
+// stripeTxnImportable reports whether a Stripe transaction may be fetched or
+// imported for linked: it is settled and not dated (transacted_at in loc)
+// before the account's ImportFrom cutoff.
+func stripeTxnImportable(t stripeClient.Transaction, linked config.StripeLinkedAccount, loc *time.Location) bool {
+	if !stripeTxnSettled(t) {
+		return false
+	}
+	if linked.ImportFrom == "" {
+		return true
+	}
+	return stripeTransactedAtDate(t.TransactedAt, loc).Format(time.DateOnly) >= linked.ImportFrom
+}
+
+// normalizeImportFrom validates an import cutoff date and returns it in
+// YYYY-MM-DD form; empty input returns "".
+func normalizeImportFrom(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	d, err := time.Parse(time.DateOnly, s)
+	if err != nil {
+		return "", fmt.Errorf("import_from %q must be a YYYY-MM-DD date", s)
+	}
+	return d.Format(time.DateOnly), nil
 }
 
 // importedStripeTxnIDs returns the set of Stripe transaction ids already present

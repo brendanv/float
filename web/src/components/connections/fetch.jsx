@@ -149,6 +149,7 @@ export function useAccountFetch(account, onImported) {
   }
 
   return {
+    importFrom: account.importFrom,
     candidates,
     fetching,
     fetchError,
@@ -398,6 +399,7 @@ export function FetchResults({ fetch, showAccount = false, resultText, className
             <div className="flex min-h-8 flex-wrap items-center gap-2">
               <span className="text-control text-muted-foreground">
                 {plural(total, "new transaction")}
+                {fetch.importFrom && ` since ${fetch.importFrom}`}
               </span>
               {total > 0 && (
                 <div className="ml-auto flex gap-2">

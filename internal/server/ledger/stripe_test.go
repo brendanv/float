@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/brendanv/float/internal/config"
 	stripeClient "github.com/brendanv/float/internal/stripe"
 )
 
@@ -424,5 +425,63 @@ func TestStripeAccountSlug(t *testing.T) {
 		if got := stripeAccountSlug(tc.in); got != tc.want {
 			t.Errorf("stripeAccountSlug(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestStripeTxnImportable(t *testing.T) {
+	eastern, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Skipf("timezone data unavailable: %v", err)
+	}
+	// 2026-05-10 01:00 UTC is 2026-05-09 in New York.
+	at := time.Date(2026, 5, 10, 1, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		status     string
+		importFrom string
+		loc        *time.Location
+		want       bool
+	}{
+		{"no cutoff", "posted", "", time.UTC, true},
+		{"pending with no cutoff", "pending", "", time.UTC, false},
+		{"on cutoff date", "posted", "2026-05-10", time.UTC, true},
+		{"after cutoff date", "posted", "2026-05-09", time.UTC, true},
+		{"before cutoff date", "posted", "2026-05-11", time.UTC, false},
+		{"local date is before cutoff", "posted", "2026-05-10", eastern, false},
+		{"pending on cutoff date", "pending", "2026-05-10", time.UTC, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			txn := stripeClient.Transaction{Status: tc.status, TransactedAt: at}
+			linked := config.StripeLinkedAccount{ImportFrom: tc.importFrom}
+			if got := stripeTxnImportable(txn, linked, tc.loc); got != tc.want {
+				t.Errorf("stripeTxnImportable = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeImportFrom(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{"", "", false},
+		{"  ", "", false},
+		{"2026-03-01", "2026-03-01", false},
+		{" 2026-03-01\n", "2026-03-01", false},
+		{"2026-3-1", "", true},
+		{"2026-02-30", "", true},
+		{"03/01/2026", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			got, err := normalizeImportFrom(tc.in)
+			if (err != nil) != tc.wantErr || got != tc.want {
+				t.Errorf("normalizeImportFrom(%q) = %q, %v; want %q, err=%v", tc.in, got, err, tc.want, tc.wantErr)
+			}
+		})
 	}
 }

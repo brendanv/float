@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Link2, Link2Off, RefreshCw } from "lucide-react";
+import { CalendarClock, Link2, Link2Off, RefreshCw } from "lucide-react";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
 import { Loading } from "../components/loading.jsx";
@@ -12,6 +12,7 @@ import { Page, Section } from "../components/page.jsx";
 import { Account } from "../components/account.jsx";
 import { Timestamp } from "../components/timestamp.jsx";
 import { LinkMappingDialog } from "../components/connections/link-mapping-dialog.jsx";
+import { ImportFromDialog } from "../components/connections/import-from-dialog.jsx";
 import {
   FetchResults,
   refreshLine,
@@ -72,9 +73,13 @@ const DETAIL = "flex min-w-0 items-baseline gap-3 pl-[26px] md:contents";
 
 // LinkedAccountRow is one configured account: status dot, name +
 // institution, hledger account, last import (relative), and its fetch
-// actions. Fetched transactions open under the row.
+// actions. Fetched transactions open under the row. The import start date
+// button is accent (and always shown) when a cutoff is set, hover-revealed
+// otherwise.
 function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking }) {
+  const queryClient = useQueryClient();
   const fetch = useAccountFetch(account, onImported);
+  const [editingImportFrom, setEditingImportFrom] = useState(false);
   const line = refreshAll ? refreshLine(refreshAll) : null;
   const dot = line?.tone === "below"
     ? { tone: "below", label: "Refresh failed" }
@@ -136,6 +141,16 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
             Fetch<span className="max-md:hidden"> Transactions</span>
           </Button>
           <Button
+            variant="ghost"
+            size="icon-sm"
+            className={cn(account.importFrom ? "text-primary" : ROW_ACTION)}
+            aria-label={account.importFrom ? `Imports from ${account.importFrom}` : "Set import start date"}
+            title={account.importFrom ? `Imports from ${account.importFrom}` : "Set import start date"}
+            onClick={() => setEditingImportFrom(true)}
+          >
+            <CalendarClock />
+          </Button>
+          <Button
             variant="destructive-ghost"
             size="sm"
             className={cn("max-md:ml-auto", !unlinking && ROW_ACTION)}
@@ -149,6 +164,19 @@ function LinkedAccountRow({ account, refreshAll, onImported, onUnlink, unlinking
         </span>
       </div>
       <FetchResults fetch={fetch} className="pb-4 md:pl-[26px]" />
+      {editingImportFrom && (
+        <ImportFromDialog
+          open
+          account={account}
+          onClose={() => setEditingImportFrom(false)}
+          onSaved={async () => {
+            setEditingImportFrom(false);
+            await queryClient.invalidateQueries({ queryKey: queryKeys.stripeLinkedAccounts() });
+            // Re-run an open fetch so its list honors the new cutoff.
+            if (fetch.candidates) await fetch.handleFetch();
+          }}
+        />
+      )}
     </li>
   );
 }
@@ -252,6 +280,7 @@ export function ConnectionsPage() {
         a.display_name ||
         a.displayName ||
         a.id,
+      importFrom: mappings[a.id].importFrom || "",
     }));
     await ledgerClient.completeStripeLinking({ accounts: linked });
     setPendingSession(null);
@@ -280,6 +309,7 @@ export function ConnectionsPage() {
         stripeAccountId: a.id,
         hledgerAccount: mappings[a.id].hledgerAccount,
         displayName: mappings[a.id].displayName || a.display_name || a.id,
+        importFrom: mappings[a.id].importFrom || "",
       }],
     });
     setPendingConfigureAccount(null);
