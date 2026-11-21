@@ -77,6 +77,28 @@ test.describe("with unmatched transfers", () => {
     await expect(page).toHaveURL(/#\/assertions/);
   });
 
+  test("dismissed missing-transfers notice stays hidden across reloads", async ({ page }) => {
+    await page.goto("/#/");
+    const notice = page.getByRole("status").filter({ hasText: "missing the other side" });
+    await notice.getByRole("button", { name: "Dismiss" }).click();
+    await expect(notice).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
+    await expect(notice).toHaveCount(0);
+  });
+
+  test("dismissed missing-transfers notice returns for a newly missing transfer", async ({ page }) => {
+    await page.goto("/#/");
+    const notice = page.getByRole("status").filter({ hasText: "missing the other side" });
+    await notice.getByRole("button", { name: "Dismiss" }).click();
+    await expect(notice).toHaveCount(0);
+    const missing = mockUnmatchedTransfers.find((t) => t.status === "missing");
+    const another = { ...missing, transaction: { ...missing.transaction, fid: "f1e2d3ff", date: "2026-04-01" } };
+    await mockLedgerApi(page, { unmatchedTransfers: [another, ...mockUnmatchedTransfers] });
+    await page.reload();
+    await expect(notice).toContainText("4 transfers are");
+  });
+
   test("assertions page - mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/#/assertions");

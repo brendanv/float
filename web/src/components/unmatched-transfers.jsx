@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { Account } from "./account.jsx";
 import { Amount } from "./amount.jsx";
 import { ErrorBanner } from "./error-banner.jsx";
@@ -19,7 +19,7 @@ import {
 import {
   RECENT_MONTHS,
   recentCutoff,
-  useMissingTransferCount,
+  useMissingTransferNotice,
   useUnmatchedTransfers,
 } from "@/hooks/use-unmatched-transfers.js";
 import { cn } from "@/lib/utils";
@@ -186,21 +186,26 @@ export function UnmatchedTransfersSection() {
 
 // MissingTransfersNotice points at Settings › Assertions when a transfer from
 // the last RECENT_MONTHS has been missing its other side for longer than the
-// match window.
+// match window. Dismissing it hides it until another transfer goes missing.
 export function MissingTransfersNotice() {
-  const count = useMissingTransferCount();
-  if (!count) return null;
+  const { count, hidden, dismiss } = useMissingTransferNotice();
+  if (!count || hidden) return null;
   return (
     <Notice
       variant="warning"
       action={
-        <Link
-          to="/assertions"
-          className="touch-target inline-flex items-center gap-1 font-medium text-primary hover:underline"
-        >
-          Check
-          <ArrowRight className="size-3.5" aria-hidden="true" />
-        </Link>
+        <>
+          <Link
+            to="/assertions"
+            className="touch-target inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          >
+            Check
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+          <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={dismiss}>
+            <X />
+          </Button>
+        </>
       }
     >
       <span className="font-medium">
