@@ -1728,6 +1728,7 @@ export async function mockLedgerApi(
     stripeEnabled = true,
     aiEnabled = true,
     unmatchedTransfers = [],
+    accounts = mockAccounts,
   } = {},
 ) {
   await page.route("**/float.v1.LedgerService/**", async (route) => {
@@ -1743,7 +1744,7 @@ export async function mockLedgerApi(
 
     switch (method) {
       case "ListAccounts":
-        body = { accounts: mockAccounts };
+        body = { accounts };
         break;
       case "ListTags":
         body = { tags: ["category", "memo", "reimbursable"] };
