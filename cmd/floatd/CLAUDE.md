@@ -26,7 +26,7 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
 
 ## Tests
 
-`main_test.go` is the whole-server smoke test: it runs `run()` against a temp data dir with real hledger and checks the public `/api/auth`, unauthenticated RPC rejection, login cookie and bearer auth, gRPC reflection (h2c) behind auth, a write that lands on disk / in balances / as a git snapshot, rejection of an unbalanced transaction, and startup failure on an invalid journal. Keep it fast and wiring-focused; feature behavior belongs in package tests and `web/e2e`.
+`main_test.go` is the whole-server smoke test: it runs `run()` against a temp data dir with real hledger and checks the public `/api/auth`, unauthenticated RPC rejection, login cookie and bearer auth, gRPC reflection (h2c) behind auth, a write that lands on disk / in balances / as a git snapshot, the `/mcp` endpoint (401 without a bearer, one tool call with it), rejection of an unbalanced transaction, and startup failure on an invalid journal. Keep it fast and wiring-focused; feature behavior belongs in package tests and `web/e2e`.
 
 ## Flags
 
@@ -40,11 +40,11 @@ Environment variable shortcuts such as `FLOAT_DATA_DIR` and `FLOAT_ADDR` are def
 
 ## HTTP / API
 
-`floatd` registers the generated `LedgerService` handler at `/float.v1.LedgerService/*` with `middleware.NewLoggingInterceptor` and `auth.NewServerInterceptor`. It also registers gRPC server reflection handlers (`grpcreflect` v1 and v1alpha) for `LedgerService` with the same interceptors, so reflection requires auth when it is enabled. The mux also serves the auth endpoints (`/api/auth`, `/api/login`, `/api/logout`) and falls through to `webui.Handler()` for static web assets, allowing the embedded app and API to share one origin.
+`floatd` registers the generated `LedgerService` handler at `/float.v1.LedgerService/*` with `middleware.NewLoggingInterceptor` and `auth.NewServerInterceptor`. It also registers gRPC server reflection handlers (`grpcreflect` v1 and v1alpha) for `LedgerService` with the same interceptors, so reflection requires auth when it is enabled. It mounts the MCP endpoint at `/mcp` (`internal/server/mcpserver`) behind `auth.RequireBearer`: tool calls use a Connect client over an `mcpserver.InProcess` server wrapping the same interceptor-wrapped service handler, which is shut down only when `run` returns, after the public server has drained. The mux also serves the auth endpoints (`/api/auth`, `/api/login`, `/api/logout`) and falls through to `webui.Handler()` for static web assets, allowing the embedded app and API to share one origin.
 
 The server uses `h2c.NewHandler(..., &http2.Server{})`, so local clients can use HTTP/2 without TLS.
 
-When `FLOAT_AUTH_PASSPHRASE` is set, every RPC requires an `Authorization: Bearer` header (passphrase or session token) or the `float_session` cookie; static assets and the `/api/*` auth endpoints remain open. When unset, all access is open.
+When `FLOAT_AUTH_PASSPHRASE` is set, `/mcp` requires the bearer header, and every RPC requires an `Authorization: Bearer` header (passphrase or session token) or the `float_session` cookie; static assets and the `/api/*` auth endpoints remain open. When unset, all access is open.
 
 ## Background Work
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // cookieMaxAge is one year; sessions are effectively permanent until the
@@ -113,4 +114,24 @@ func LoginHTTP(ctx context.Context, client *http.Client, baseURL, passphrase str
 		return "", fmt.Errorf("login: decode response: %w", err)
 	}
 	return out.Token, nil
+}
+
+// RequireBearer wraps next so requests without a valid Authorization: Bearer
+// credential (passphrase or session token) get 401 with a WWW-Authenticate
+// challenge. The session cookie is deliberately not accepted: endpoints
+// wrapped this way are for programmatic clients, and refusing ambient
+// credentials keeps a browser page from driving them cross-site. When auth
+// is disabled every request passes.
+func (a *Auth) RequireBearer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if a.Enabled() {
+			bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if !ok || !a.VerifyCredential(bearer) {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="float"`)
+				http.Error(w, "authentication required: send Authorization: Bearer <FLOAT_AUTH_PASSPHRASE>", http.StatusUnauthorized)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

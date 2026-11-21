@@ -59,12 +59,13 @@ description = "Check .proto files for breaking changes against origin/main (over
 run = "buf breaking --against \"${BUF_AGAINST:-.git#ref=refs/remotes/origin/main}\""
 
 [tasks.proto-check]
-description = "Fail if committed Go protobuf code in gen/ is stale"
+description = "Fail if committed Go protobuf code in gen/ (or the MCP descriptor set) is stale"
 run = """
 buf generate
-if ! git diff --quiet -- gen/ || [ -n "$(git ls-files --others --exclude-standard -- gen/)" ]; then
-  git status --short -- gen/
-  echo "gen/ is out of date: run 'mise run proto-gen' and commit the result." >&2
+buf build --as-file-descriptor-set -o internal/server/mcpserver/ledger.binpb
+if ! git diff --quiet -- gen/ internal/server/mcpserver/ledger.binpb || [ -n "$(git ls-files --others --exclude-standard -- gen/ internal/server/mcpserver/ledger.binpb)" ]; then
+  git status --short -- gen/ internal/server/mcpserver/ledger.binpb
+  echo "gen/ or the MCP descriptor set is out of date: run 'mise run proto-gen' and commit the result." >&2
   exit 1
 fi
 """
@@ -104,7 +105,10 @@ air -c cmd/floatd/.air.toml -- --data-dir "${FLOAT_DATA_DIR:-$VAULT_DATA_DIR}" $
 [tasks.proto-gen]
 description = "Regenerate Go and JS protobuf code from .proto files"
 depends = ["web-gen"]
-run = "buf generate"
+run = """
+buf generate
+buf build --as-file-descriptor-set -o internal/server/mcpserver/ledger.binpb
+"""
 
 [tasks.grpc-balances]
 description = "Query GetBalances"
