@@ -22,7 +22,7 @@ Replace every occurrence of the old version string with the new one. These are t
 1. **`mise.toml`** — `version = "OLD"` inside the hledger tool entry
 2. **`internal/hledger/client.go`** — `const supportedVersion = "OLD"` and the doc comment on `parseVersion` that shows an example version string
 3. **`internal/hledger/hledger_test.go`** — all mock `CommandRunner` stubs that return `"hledger OLD, linux-x86_64\n"` (there are two)
-4. **`internal/server/ledger/handler_test.go`** — all mock stubs returning the same version string (there are two)
+4. **`internal/server/ledger/*_test.go`** — all mock stubs returning the same version string (`grep -rn 'hledger OLD' internal/server/ledger`)
 5. **`internal/hledger/PLAN.md`** — all prose and code snippet references to the old version
 
 Use `replace_all: true` when editing test files since the same string appears multiple times.
@@ -98,7 +98,7 @@ Files to commit (include `parse.go` and `types.go` only if they were changed):
 - `mise.toml`
 - `internal/hledger/client.go`
 - `internal/hledger/hledger_test.go`
-- `internal/server/ledger/handler_test.go`
+- `internal/server/ledger/*_test.go` (the files whose version stubs changed)
 - `internal/hledger/PLAN.md`
 - `internal/hledger/parse.go` (if updated)
 - `internal/hledger/types.go` (if updated)
