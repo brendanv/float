@@ -8,20 +8,9 @@ import (
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
-	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/journal"
 	"github.com/brendanv/float/internal/rules"
 )
-
-// isAssetOrLiabilityAccount returns true if the account name looks like an
-// asset or liability account based on common prefixes.
-func isAssetOrLiabilityAccount(account string) bool {
-	lower := strings.ToLower(account)
-	return strings.HasPrefix(lower, "assets") ||
-		strings.HasPrefix(lower, "liabilities") ||
-		strings.HasPrefix(lower, "asset:") ||
-		strings.HasPrefix(lower, "liability:")
-}
 
 // ---- Rules handlers ----
 
@@ -252,7 +241,7 @@ func (h *Handler) PreviewApplyRules(ctx context.Context, req *connect.Request[fl
 			AddTags:       m.Changes.AddTags,
 		}
 		// Current category account.
-		if idx := categoryPostingIndex(m.Transaction); idx >= 0 {
+		if idx := rules.CategoryPostingIndex(m.Transaction); idx >= 0 {
 			p.CurrentAccount = m.Transaction.Postings[idx].Account
 		}
 		if m.Transaction.Payee != nil {
@@ -338,40 +327,6 @@ func (h *Handler) ApplyRules(ctx context.Context, req *connect.Request[floatv1.A
 	})
 }
 
-// applyImportRule returns a copy of an import candidate with the rule's payee
-// prefix and category-account replacement applied — the parts of a rule that
-// affect journal.TxnFingerprint. PreviewImport and ImportTransactions both use
-// it so duplicate detection sees the same form that gets written to disk. The
-// postings slice is copied, so the caller's transaction is not mutated.
-func applyImportRule(t hledger.Transaction, r *rules.Rule) hledger.Transaction {
-	if r.Payee != "" {
-		t.Description = r.Payee + " | " + t.Description
-	}
-	if r.Account != "" && len(t.Postings) == 2 {
-		postings := make([]hledger.Posting, len(t.Postings))
-		copy(postings, t.Postings)
-		for j, p := range postings {
-			if !isAssetOrLiabilityAccount(p.Account) {
-				postings[j].Account = r.Account
-			}
-		}
-		t.Postings = postings
-	}
-	return t
-}
-
-// sourceAccountFromPostings returns the first asset/liability account from a
-// slice of postings, or "" if none is found. Used to determine the source
-// (bank) account for rule account-scoping.
-func sourceAccountFromPostings(postings []hledger.Posting) string {
-	for _, p := range postings {
-		if isAssetOrLiabilityAccount(p.Account) {
-			return p.Account
-		}
-	}
-	return ""
-}
-
 // filterRules returns only rules whose IDs are in the given set.
 func filterRules(rulesList []rules.Rule, ids []string) []rules.Rule {
 	idSet := make(map[string]bool, len(ids))
@@ -385,20 +340,6 @@ func filterRules(rulesList []rules.Rule, ids []string) []rules.Rule {
 		}
 	}
 	return filtered
-}
-
-// categoryPostingIndex returns the index of the non-asset/liability posting
-// in a 2-posting transaction, or -1 if ambiguous.
-func categoryPostingIndex(txn hledger.Transaction) int {
-	if len(txn.Postings) != 2 {
-		return -1
-	}
-	for i, p := range txn.Postings {
-		if !isAssetOrLiabilityAccount(p.Account) {
-			return i
-		}
-	}
-	return -1
 }
 
 func toProtoRule(r rules.Rule) *floatv1.TransactionRule {

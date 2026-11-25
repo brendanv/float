@@ -72,10 +72,10 @@ func (h *Handler) PreviewImport(ctx context.Context, req *connect.Request[floatv
 	for i, c := range candidates {
 		candidate := &floatv1.ImportCandidate{}
 		if !profile.SkipRules {
-			if r := rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings)); r != nil {
+			if r := rules.Match(rulesList, c.Description, rules.SourceAccount(c.Postings)); r != nil {
 				candidate.MatchedRuleId = r.ID
 				// Apply rule transformations so the preview reflects what will actually be imported.
-				c = applyImportRule(c, r)
+				c = rules.ApplyToCandidate(c, r)
 			}
 		}
 		// Fingerprint after rules so it matches the form written to disk by ImportTransactions.
@@ -164,11 +164,9 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			// the post-rule form so dedup matches what earlier imports wrote.
 			var rule *rules.Rule
 			if !profile.SkipRules {
-				rule = rules.Match(rulesList, c.Description, sourceAccountFromPostings(c.Postings))
+				rule = rules.Match(rulesList, c.Description, rules.SourceAccount(c.Postings))
 			}
-			if rule != nil {
-				c = applyImportRule(c, rule)
-			}
+			c = rules.ApplyToCandidate(c, rule)
 			if fpSet[journal.TxnFingerprint(c)] {
 				skippedDuplicates++
 				continue
@@ -185,19 +183,7 @@ func (h *Handler) ImportTransactions(ctx context.Context, req *connect.Request[f
 			txInput.FloatMeta["float-import"] = importBatchID
 
 			// Apply the remaining (non-fingerprinted) rule effects.
-			if rule != nil {
-				if len(rule.Tags) > 0 {
-					if txInput.Tags == nil {
-						txInput.Tags = make(map[string]string)
-					}
-					for k, v := range rule.Tags {
-						txInput.Tags[k] = v
-					}
-				}
-				if rule.AutoReviewed {
-					txInput.Status = "Cleared"
-				}
-			}
+			rules.ApplyTagsAndStatus(&txInput, rule)
 
 			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
 			if writeErr != nil {

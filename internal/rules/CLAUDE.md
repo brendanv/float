@@ -25,6 +25,20 @@ Rules are stored as JSON in `<data-dir>/rules.json`.
 - `Apply(ctx, client, dataDir, matches)` — apply all matches and return count. Must be called inside `txlock.Do()`.
 - `ApplyBatch(ctx, client, dataDir, matches, onProgress)` — batched variant that emits progress callbacks and writes grouped replacements per source file.
 
+### Import-time helpers (`categorize.go`)
+
+Every import path (CSV, Stripe fetch/import/auto-import, structured import) applies rules through these; don't re-implement rule effects in handlers.
+
+- `IsAssetOrLiabilityAccount(account)` — true when the top-level segment is `assets`/`asset`/`liabilities`/`liability` (case-insensitive). Asset/liability postings are the source (bank) side; the rest are categories.
+- `SourceAccount(postings)` / `InputSourceAccount(postings)` — first asset/liability account, the `account` argument to `Match`.
+- `CategoryPostingIndex(txn)` — the single posting Preview/Apply would recategorize, or -1.
+- `ApplyToCandidate(txn, rule)` — copy with the fingerprinted effects (payee prefix `Payee | desc`, category account) applied. Fingerprint this form for duplicate detection.
+- `ApplyTagsAndStatus(input, rule)` — the non-fingerprinted effects: add tags (overwriting), mark `Cleared` if `auto_reviewed`.
+- `ApplyToInput(input, rule)` — all of the above on a `journal.TransactionInput`.
+- `SetCategoryAccount(postings, account)` — on a 2-posting input, set every non-asset/liability posting to `account`. Structured import uses this directly because explicit payee/tags/status on its input win over the rule's.
+
+All of them accept a nil rule as a no-op.
+
 ## ChangeSet / Apply Semantics
 
 `buildChangeSet` computes payee/account/tag/status changes. Account changes only apply when the transaction has an unambiguous category posting: currently a non-asset/non-liability posting in a 2-posting transaction. Existing user tags are preserved and rule tags are merged. Hidden `float-*` metadata and free-text comments are preserved.

@@ -199,18 +199,12 @@ func structuredToInput(st *floatv1.StructuredTransaction, rulesList []rules.Rule
 
 	payee, status := st.Payee, st.Status
 	var ruleID string
-	if r := rules.Match(rulesList, st.Description, sourceAccountFromInputs(postings)); r != nil {
+	if r := rules.Match(rulesList, st.Description, rules.InputSourceAccount(postings)); r != nil {
 		ruleID = r.ID
 		if payee == "" {
 			payee = r.Payee
 		}
-		if r.Account != "" && len(postings) == 2 {
-			for j := range postings {
-				if !isAssetOrLiabilityAccount(postings[j].Account) {
-					postings[j].Account = r.Account
-				}
-			}
-		}
+		rules.SetCategoryAccount(postings, r.Account)
 		for k, v := range r.Tags {
 			if tags == nil {
 				tags = make(map[string]string, len(r.Tags))
@@ -265,15 +259,6 @@ func validateTxStatus(status string) error {
 	default:
 		return fmt.Errorf("invalid status %q: must be \"\", \"Pending\", or \"Cleared\"", status)
 	}
-}
-
-func sourceAccountFromInputs(postings []journal.PostingInput) string {
-	for _, p := range postings {
-		if isAssetOrLiabilityAccount(p.Account) {
-			return p.Account
-		}
-	}
-	return ""
 }
 
 func fingerprintSet(txns []hledger.Transaction) map[string]bool {
