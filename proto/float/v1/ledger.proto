@@ -458,7 +458,13 @@ message ListSnapshotsResponse {
 }
 
 message RestoreSnapshotRequest {
-  string hash = 1;
+  string hash = 1; // full 40-character commit hash from ListSnapshots
+  // By default the data directory is set back to the snapshot's files and the
+  // result is recorded as a new snapshot, so every later snapshot stays in
+  // history and the restore can itself be restored away. When true, history
+  // is instead hard-reset to the snapshot: every later snapshot is permanently
+  // discarded.
+  bool hard_reset = 2;
 }
 
 message RestoreSnapshotResponse {}

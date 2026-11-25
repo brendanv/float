@@ -97,15 +97,48 @@ test("a write is snapshotted and can be restored from Snapshots", async ({ page,
     fid: transactionBlock(floatd.readFile("2026/02.journal"), "Latte").match(/\(([0-9a-f]{8})\)/)[1],
   });
   expect(floatd.readFile("2026/02.journal")).not.toContain("Latte");
+  const before = (await floatd.rpc("ListSnapshots", {})).snapshots;
 
   await page.goto("/#/snapshots");
   await settle(page);
   // Restore the snapshot taken before the delete (startup migrations).
   const row = page.locator("tr[data-slot=snapshot-row]").filter({ hasText: "startup migrations" }).first();
-  page.once("dialog", (d) => d.accept()); // native confirm()
   await row.hover();
   await row.getByRole("button", { name: "Restore" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Restore" }).click();
+  await expect(dialog).toHaveCount(0);
 
   await expect.poll(() => floatd.readFile("2026/02.journal")).toContain("Latte");
   expect(await balanceOf(floatd, "expenses:food:restaurants")).toEqual(["5.75 USD"]);
+
+  // The restore is a new snapshot on top; the delete stays in history.
+  const after = (await floatd.rpc("ListSnapshots", {})).snapshots;
+  expect(after.map((s) => s.hash).slice(1)).toEqual(before.map((s) => s.hash));
+  expect(after[0].message).toMatch(/^restore snapshot [0-9a-f]{8} /);
+  await expect(page.locator("tr[data-slot=snapshot-row]").first()).toContainText("restore snapshot");
+});
+
+test("a hard reset from Snapshots discards later history", async ({ page, floatd }) => {
+  await floatd.rpc("DeleteTransaction", {
+    fid: transactionBlock(floatd.readFile("2026/02.journal"), "Latte").match(/\(([0-9a-f]{8})\)/)[1],
+  });
+  const before = (await floatd.rpc("ListSnapshots", {})).snapshots;
+  const target = before.findIndex((s) => s.message.includes("startup migrations"));
+  expect(target).toBeGreaterThan(0);
+
+  await page.goto("/#/snapshots");
+  await settle(page);
+  const row = page.locator("tr[data-slot=snapshot-row]").filter({ hasText: "startup migrations" }).first();
+  await row.hover();
+  await row.getByRole("button", { name: "Restore" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("checkbox").click();
+  await dialog.getByRole("button", { name: "Hard reset" }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect.poll(() => floatd.readFile("2026/02.journal")).toContain("Latte");
+  const after = (await floatd.rpc("ListSnapshots", {})).snapshots;
+  expect(after.map((s) => s.hash)).toEqual(before.slice(target).map((s) => s.hash));
+  await expect(page.locator("tr[data-slot=snapshot-row]")).toHaveCount(after.length);
 });

@@ -4664,8 +4664,14 @@ func (x *ListSnapshotsResponse) GetSnapshots() []*Snapshot {
 }
 
 type RestoreSnapshotRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Hash          string                 `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Hash  string                 `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"` // full 40-character commit hash from ListSnapshots
+	// By default the data directory is set back to the snapshot's files and the
+	// result is recorded as a new snapshot, so every later snapshot stays in
+	// history and the restore can itself be restored away. When true, history
+	// is instead hard-reset to the snapshot: every later snapshot is permanently
+	// discarded.
+	HardReset     bool `protobuf:"varint,2,opt,name=hard_reset,json=hardReset,proto3" json:"hard_reset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4705,6 +4711,13 @@ func (x *RestoreSnapshotRequest) GetHash() string {
 		return x.Hash
 	}
 	return ""
+}
+
+func (x *RestoreSnapshotRequest) GetHardReset() bool {
+	if x != nil {
+		return x.HardReset
+	}
+	return false
 }
 
 type RestoreSnapshotResponse struct {
@@ -12285,9 +12298,11 @@ const file_float_v1_ledger_proto_rawDesc = "" +
 	"\x14ListSnapshotsRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\"I\n" +
 	"\x15ListSnapshotsResponse\x120\n" +
-	"\tsnapshots\x18\x01 \x03(\v2\x12.float.v1.SnapshotR\tsnapshots\",\n" +
+	"\tsnapshots\x18\x01 \x03(\v2\x12.float.v1.SnapshotR\tsnapshots\"K\n" +
 	"\x16RestoreSnapshotRequest\x12\x12\n" +
-	"\x04hash\x18\x01 \x01(\tR\x04hash\"\x19\n" +
+	"\x04hash\x18\x01 \x01(\tR\x04hash\x12\x1d\n" +
+	"\n" +
+	"hard_reset\x18\x02 \x01(\bR\thardReset\"\x19\n" +
 	"\x17RestoreSnapshotResponse\"\x8d\x01\n" +
 	"\bFileDiff\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x19\n" +

@@ -84,7 +84,7 @@ func init() {
 		&Command{
 			Group:    "journal",
 			Name:     "restore",
-			Synopsis: "Restore data directory to a previous git snapshot",
+			Synopsis: "Restore data directory to a previous git snapshot (as a new snapshot; --hard discards later history)",
 			Run:      runJournalRestore,
 		},
 	)
@@ -739,25 +739,34 @@ func runJournalSnapshots(args []string) error {
 func runJournalRestore(args []string) error {
 	fset := flag.NewFlagSet("journal restore", flag.ExitOnError)
 	fset.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: floatctl journal restore <data-dir> <hash>")
+		fmt.Fprintln(os.Stderr, "usage: floatctl journal restore <data-dir> <hash> [--hard]")
+		fset.PrintDefaults()
 	}
-	if err := fset.Parse(args); err != nil {
-		return err
-	}
-	if fset.NArg() < 2 {
+	hard := fset.Bool("hard", false, "hard-reset to the snapshot, permanently discarding every later snapshot")
+	if len(args) < 2 {
 		fset.Usage()
 		return fmt.Errorf("missing <data-dir> and/or <hash> argument")
 	}
-	dataDir := fset.Arg(0)
-	hash := fset.Arg(1)
+	dataDir, hash := args[0], args[1]
+	if err := fset.Parse(args[2:]); err != nil {
+		return err
+	}
 
 	snap, err := gitsnap.New(dataDir)
 	if err != nil {
 		return err
 	}
-	if err := snap.Restore(context.Background(), hash); err != nil {
+	ctx := context.Background()
+	if *hard {
+		if err := snap.ResetHard(ctx, hash); err != nil {
+			return err
+		}
+		fmt.Printf("hard-reset to %s\n", hash)
+		return nil
+	}
+	if err := snap.Restore(ctx, hash, "restore snapshot "+hash); err != nil {
 		return err
 	}
-	fmt.Printf("restored to %s\n", hash)
+	fmt.Printf("restored %s as a new snapshot\n", hash)
 	return nil
 }
