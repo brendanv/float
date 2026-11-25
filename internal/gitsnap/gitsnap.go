@@ -127,25 +127,44 @@ func ensureGitignore(dir string) error {
 	return os.WriteFile(path, []byte(content), 0600)
 }
 
-func (r *Repo) Commit(_ context.Context, msg string) error {
+func (r *Repo) Commit(ctx context.Context, msg string) error {
+	_, err := r.CommitHash(ctx, msg)
+	return err
+}
+
+// CommitHash is Commit that also returns the new commit's hash, or "" when
+// the worktree was clean and nothing was committed.
+func (r *Repo) CommitHash(_ context.Context, msg string) (string, error) {
 	wt, err := r.repo.Worktree()
 	if err != nil {
-		return fmt.Errorf("gitsnap: commit: worktree: %w", err)
+		return "", fmt.Errorf("gitsnap: commit: worktree: %w", err)
 	}
 	status, err := wt.Status()
 	if err != nil {
-		return fmt.Errorf("gitsnap: commit: status: %w", err)
+		return "", fmt.Errorf("gitsnap: commit: status: %w", err)
 	}
 	if status.IsClean() {
-		return nil
+		return "", nil
 	}
 	if err := wt.AddWithOptions(&git.AddOptions{All: true}); err != nil {
-		return fmt.Errorf("gitsnap: commit: add: %w", err)
+		return "", fmt.Errorf("gitsnap: commit: add: %w", err)
 	}
-	if _, err := wt.Commit(limitCommitMessage(msg), &git.CommitOptions{Author: floatSignature()}); err != nil {
-		return fmt.Errorf("gitsnap: commit: %w", err)
+	h, err := wt.Commit(limitCommitMessage(msg), &git.CommitOptions{Author: floatSignature()})
+	if err != nil {
+		return "", fmt.Errorf("gitsnap: commit: %w", err)
 	}
-	return nil
+	return h.String(), nil
+}
+
+// Tracks reports whether snapshots capture the file at absolute path p, i.e.
+// whether restoring or undoing a snapshot brings it back. Local config and
+// key material (config.toml, …) are never tracked.
+func (r *Repo) Tracks(p string) bool {
+	rel, err := filepath.Rel(r.dir, p)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	return !skipRestorePath(filepath.ToSlash(rel))
 }
 
 func limitCommitMessage(msg string) string {
@@ -368,6 +387,38 @@ func (r *Repo) writeEntry(e object.ChangeEntry) error {
 		return fmt.Errorf("gitsnap: restore: write %s: %w", e.Name, err)
 	}
 	return nil
+}
+
+// ErrNotUndoable is returned by PlanUndo for a snapshot with no parent.
+var ErrNotUndoable = errors.New("gitsnap: snapshot has nothing before it to go back to")
+
+// PlanUndo plans undoing snapshot hash, which must be HEAD: a forward restore
+// of its parent, so the undo is itself a new snapshot (and can be undone).
+// It returns ErrHeadMoved when hash is no longer HEAD, i.e. a later snapshot
+// would be lost too. The returned message is hash's own commit message.
+func (r *Repo) PlanUndo(ctx context.Context, hash string) (plan *RestorePlan, undone string, err error) {
+	c, err := r.commitByHash("undo", hash)
+	if err != nil {
+		return nil, "", err
+	}
+	head, err := r.Head()
+	if err != nil {
+		return nil, "", err
+	}
+	if head != c.Hash.String() {
+		return nil, "", ErrHeadMoved
+	}
+	if c.NumParents() == 0 {
+		return nil, "", ErrNotUndoable
+	}
+	plan, err = r.PlanRestore(ctx, c.ParentHashes[0].String())
+	if err != nil {
+		return nil, "", err
+	}
+	if plan.Head != c.Hash.String() {
+		return nil, "", ErrHeadMoved
+	}
+	return plan, c.Message, nil
 }
 
 // Restore is PlanRestore + ApplyRestore + Commit for callers that do not go

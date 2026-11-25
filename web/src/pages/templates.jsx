@@ -34,14 +34,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn, ON_ACCENT, ROW_ACTION } from "@/lib/utils";
 
 const columnHelper = createColumnHelper();
@@ -256,8 +248,7 @@ function templateShape(postings) {
 export function TemplatesPage() {
   const queryClient = useQueryClient();
   const [editingTemplate, setEditingTemplate] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -290,18 +281,18 @@ export function TemplatesPage() {
     },
   });
 
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
+  // No confirmation: a deleted template can be brought back from the undo toast.
+  async function handleDelete(template) {
+    setDeletingId(template.id);
     setDeleteError(null);
     try {
-      await ledgerClient.deleteTemplate({ id: deleteTarget.id });
+      await ledgerClient.deleteTemplate({ id: template.id });
+      if (editingTemplate?.id === template.id) setEditingTemplate(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.templates() });
-      setDeleteTarget(null);
     } catch (err) {
       setDeleteError(err);
     } finally {
-      setDeleting(false);
+      setDeletingId(null);
     }
   }
 
@@ -376,7 +367,8 @@ export function TemplatesPage() {
             title="Delete template"
             aria-label={`Delete template ${row.original.name}`}
             className="text-muted-foreground hover:text-below"
-            onClick={() => setDeleteTarget(row.original)}
+            isLoading={deletingId === row.original.id}
+            onClick={() => handleDelete(row.original)}
           >
             <Trash2 />
           </Button>
@@ -412,6 +404,8 @@ export function TemplatesPage() {
           )
         }
       />
+
+      {deleteError && <ErrorBanner error={deleteError} />}
 
       {/* Create / edit form */}
       {formOpen && (
@@ -485,26 +479,6 @@ export function TemplatesPage() {
         )}
       </Section>
 
-      {/* Delete confirmation dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Delete template?</DialogTitle>
-            <DialogDescription>
-              This will permanently delete &ldquo;{deleteTarget?.name}&rdquo;. Existing transactions are not affected.
-            </DialogDescription>
-          </DialogHeader>
-          {deleteError && <ErrorBanner error={deleteError} />}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} isLoading={deleting}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Page>
   );
 }

@@ -130,11 +130,7 @@ func (l *TxLock) DoWithPublish(ctx context.Context, msg string, extraPaths []str
 	}
 	gen := l.gen.Add(1)
 	logger.Info("txlock: write committed", "generation", gen)
-	if l.snap != nil {
-		if snapErr := l.snap.Commit(ctx, msg); snapErr != nil {
-			logger.Warn("txlock: gitsnap commit failed", "error", snapErr)
-		}
-	}
+	l.commitSnap(ctx, msg, extraPaths)
 	l.fireCommitHooks(gen)
 	return nil
 }
@@ -190,11 +186,7 @@ func (l *TxLock) DoConfigPublish(ctx context.Context, msg string, paths []string
 		publish()
 	}
 	logger.Info("txlock: config write committed")
-	if l.snap != nil {
-		if snapErr := l.snap.Commit(ctx, msg); snapErr != nil {
-			logger.Warn("txlock: gitsnap commit failed", "error", snapErr)
-		}
-	}
+	l.commitSnap(ctx, msg, paths)
 	return nil
 }
 

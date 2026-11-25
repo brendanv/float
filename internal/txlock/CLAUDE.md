@@ -25,6 +25,7 @@ Serializes all mutations to the float data directory. Every write to journal fil
 - `BumpGeneration()` — manually invalidate caches, e.g. after a snapshot restore. Also fires commit hooks with the new generation.
 - `OnCommit(fn)` — register a `func(gen uint64)` hook fired after every generation-bumping success (`DoWith`/`Do` commits and `BumpGeneration`), not on failure/revert or `DoConfig` (which never bumps the generation). Hooks run synchronously in registration order right after the bump, so a hook must not block — `internal/warm` uses this to schedule a debounced cache-warming pass rather than warming inline.
 - `SetSnap(repo)` — enable automatic git snapshots after successful writes.
+- `WithReceipt(ctx)` — returns a context and a `*Receipt` that every successful `Do*`/`DoConfig*` under that context records its snapshot commit into. `Receipt.Undoable()` returns the snapshot only when exactly one write committed, its gitsnap commit succeeded, and every declared extra path is `gitsnap.Repo.Tracks`-ed (so a write that also changed `config.toml` is never undoable). The ledger `UndoInterceptor` uses it to put undoable snapshots in the `Float-Snapshot` response trailer.
 - `ErrNoChanges` — sentinel `fn` can return to signal it made no modifications. `DoWith`/`Do` treat this as success but skip `hledger check`, the generation bump, and the gitsnap commit. Useful for combining multiple idempotent startup migrations into one locked section without paying for a check when none of them had anything to do.
 
 ## Declaring Extra Paths

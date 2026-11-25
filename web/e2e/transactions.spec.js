@@ -79,17 +79,72 @@ test("marking a transaction reviewed clears it from Needs review", async ({ page
   await expect(page.getByRole("button", { name: /Needs review · 1/ })).toBeVisible();
 });
 
-test("deleting a transaction removes it from the journal", async ({ page, floatd }) => {
+test("deleting a transaction removes it from the journal, and Undo/Redo work", async ({ page, floatd }) => {
+  const before = floatd.readFile("2026/02.journal");
   await page.goto("/#/transactions");
   await rowFor(page, "Latte").getByRole("button", { name: /^Edit / }).click();
+  // No confirmation: the delete happens at once and can be undone.
   await page.locator("tbody form").getByRole("button", { name: "Delete" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Delete transaction?")).toBeVisible();
-  await dialog.getByRole("button", { name: "Delete" }).click();
   await expect(rowFor(page, "Latte")).toHaveCount(0);
-
   expect(floatd.readFile("2026/02.journal")).not.toContain("Latte");
   expect(await balanceOf(floatd, "expenses:food:restaurants")).toEqual([]);
+
+  const toast = page.locator("[data-slot=undo-toast]");
+  await expect(toast).toContainText("Transaction deleted");
+  await toast.getByRole("button", { name: "Undo" }).click();
+  await expect(toast).toContainText("Change undone");
+  await expect(rowFor(page, "Latte")).toHaveCount(1);
+  expect(floatd.readFile("2026/02.journal")).toBe(before);
+  expect(await balanceOf(floatd, "expenses:food:restaurants")).toEqual(["5.75 USD"]);
+
+  await toast.getByRole("button", { name: "Redo" }).click();
+  await expect(toast).toContainText("Transaction deleted");
+  await expect(rowFor(page, "Latte")).toHaveCount(0);
+  expect(floatd.readFile("2026/02.journal")).not.toContain("Latte");
+
+  const messages = (await floatd.rpc("ListSnapshots", {})).snapshots.map((s) => s.message.trim());
+  expect(messages[0]).toMatch(/^redo: delete transaction /);
+  expect(messages[1]).toMatch(/^undo: delete transaction /);
+  expect(messages[2]).toMatch(/^delete transaction /);
+});
+
+test("bulk delete (a streaming RPC) can be undone", async ({ page, floatd }) => {
+  const before = floatd.readFile("2026/02.journal");
+  await page.goto("/#/transactions");
+  await rowFor(page, "Latte").getByRole("checkbox").click();
+  await page.locator("[data-slot=bulk-action-bar]").getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+  await expect(rowFor(page, "Latte")).toHaveCount(0);
+
+  const toast = page.locator("[data-slot=undo-toast]");
+  await expect(toast).toContainText("Transactions deleted");
+  await toast.getByRole("button", { name: "Undo" }).click();
+  await expect(rowFor(page, "Latte")).toHaveCount(1);
+  expect(floatd.readFile("2026/02.journal")).toBe(before);
+});
+
+test.describe("stale undo", () => {
+  test.use({ allowedErrors: [[/failed_precondition/, /status of 400/]] });
+
+  test("undo is refused once another change has been saved", async ({ page, floatd }) => {
+    await page.goto("/#/transactions");
+    await rowFor(page, "Latte").getByRole("button", { name: /^Edit / }).click();
+    await page.locator("tbody form").getByRole("button", { name: "Delete" }).click();
+    const toast = page.locator("[data-slot=undo-toast]");
+    await expect(toast).toContainText("Transaction deleted");
+
+    // Another write lands (e.g. from another tab) before Undo is clicked.
+    const latteGone = floatd.readFile("2026/02.journal");
+    const mark = rowFor(page, "Mystery Merchant").locator("button[data-slot=status-mark]");
+    await mark.click();
+    await expect(mark).toHaveAccessibleName("Reviewed — click to mark pending");
+    const afterMark = floatd.readFile("2026/02.journal");
+    expect(afterMark).not.toBe(latteGone);
+
+    await toast.getByRole("button", { name: "Undo" }).click();
+    await expect(toast).toContainText("Couldn’t undo");
+    expect(floatd.readFile("2026/02.journal")).toBe(afterMark);
+  });
 });
 
 test("a write is snapshotted and can be restored from Snapshots", async ({ page, floatd }) => {

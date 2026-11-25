@@ -1663,7 +1663,37 @@ function mockStripeRefreshMessages(stripeAccountId) {
   ];
 }
 
-function encodeConnectStreamingBody(messages) {
+// Mutations floatd marks as undoable: their mocked responses carry a fake
+// snapshot in the float-snapshot trailer, as the real UndoInterceptor does
+// (see handler_undo.go), so the app shows its undo toast.
+export const UNDOABLE_METHODS = new Set([
+  "DeleteTransaction",
+  "UpdateTransaction",
+  "BulkEditTransactions",
+  "BulkDeleteTransactions",
+  "ApplyRules",
+  "ImportTransactions",
+  "ImportStructuredTransactions",
+  "DeleteRule",
+  "DeleteTemplate",
+  "DeletePrice",
+  "DeleteAccountDeclaration",
+  "SetAccountClosed",
+  "RestoreSnapshot",
+]);
+
+// mockSnapshotHash returns the nth fake 40-hex snapshot hash.
+export function mockSnapshotHash(n) {
+  return n.toString(16).padStart(40, "a");
+}
+const snapshotCounters = new WeakMap();
+function nextSnapshot(page) {
+  const n = (snapshotCounters.get(page) ?? 0) + 1;
+  snapshotCounters.set(page, n);
+  return mockSnapshotHash(n);
+}
+
+function encodeConnectStreamingBody(messages, trailers = {}) {
   const parts = [];
   for (const msg of messages) {
     const json = JSON.stringify(msg);
@@ -1673,7 +1703,8 @@ function encodeConnectStreamingBody(messages) {
     header.writeUInt32BE(buf.length, 1);
     parts.push(header, buf);
   }
-  const trailer = Buffer.from("{}", "utf8");
+  const metadata = Object.fromEntries(Object.entries(trailers).map(([k, v]) => [k, [v]]));
+  const trailer = Buffer.from(JSON.stringify(Object.keys(metadata).length ? { metadata } : {}), "utf8");
   const eosHeader = Buffer.alloc(5);
   eosHeader[0] = 0x02;
   eosHeader.writeUInt32BE(trailer.length, 1);
@@ -1710,10 +1741,11 @@ async function fulfillStream(route, page, method, messages) {
       recordSchemaError(page, `mock ${method} stream message doesn't match ${output.typeName}: ${err.message}`);
     }
   }
+  const trailers = UNDOABLE_METHODS.has(method) ? { "float-snapshot": nextSnapshot(page) } : {};
   await route.fulfill({
     status: 200,
     contentType: "application/connect+json",
-    body: encodeConnectStreamingBody(messages),
+    body: encodeConnectStreamingBody(messages, trailers),
   });
 }
 
@@ -2292,6 +2324,12 @@ export async function mockLedgerApi(
       case "RestoreSnapshot":
         body = {};
         break;
+      case "UndoSnapshot":
+        body = { snapshot: nextSnapshot(page), message: "undo: mocked change" };
+        break;
+      case "BulkDeleteTransactions":
+        await fulfillStream(route, page, method, [{ progress: { deleted: 1, total: 1 } }, { result: { deletedCount: 1 } }]);
+        return;
       case "ExportJournal":
         body = {
           content: btoa("; mock journal export\n"),
@@ -2321,9 +2359,12 @@ export async function mockLedgerApi(
     if (rpcMethods.get(method)?.methodKind === "server_streaming") {
       recordSchemaError(page, `${method} is server-streaming: mock it with fulfillStream, not a JSON body`);
     }
+    // Connect unary trailers travel as "trailer-" prefixed headers.
+    const headers = UNDOABLE_METHODS.has(method) ? { "trailer-float-snapshot": nextSnapshot(page) } : {};
     await route.fulfill({
       status: 200,
       contentType: "application/json",
+      headers,
       body: JSON.stringify(body),
     });
   });

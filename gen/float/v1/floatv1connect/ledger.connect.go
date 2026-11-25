@@ -124,6 +124,9 @@ const (
 	// LedgerServiceRestoreSnapshotProcedure is the fully-qualified name of the LedgerService's
 	// RestoreSnapshot RPC.
 	LedgerServiceRestoreSnapshotProcedure = "/float.v1.LedgerService/RestoreSnapshot"
+	// LedgerServiceUndoSnapshotProcedure is the fully-qualified name of the LedgerService's
+	// UndoSnapshot RPC.
+	LedgerServiceUndoSnapshotProcedure = "/float.v1.LedgerService/UndoSnapshot"
 	// LedgerServiceGetSnapshotDiffProcedure is the fully-qualified name of the LedgerService's
 	// GetSnapshotDiff RPC.
 	LedgerServiceGetSnapshotDiffProcedure = "/float.v1.LedgerService/GetSnapshotDiff"
@@ -318,6 +321,7 @@ type LedgerServiceClient interface {
 	BulkDeleteTransactions(context.Context, *connect.Request[v1.BulkDeleteTransactionsRequest]) (*connect.ServerStreamForClient[v1.BulkDeleteTransactionsResponse], error)
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	UndoSnapshot(context.Context, *connect.Request[v1.UndoSnapshotRequest]) (*connect.Response[v1.UndoSnapshotResponse], error)
 	GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error)
 	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
 	// Import
@@ -578,6 +582,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+LedgerServiceRestoreSnapshotProcedure,
 			connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
+			connect.WithClientOptions(opts...),
+		),
+		undoSnapshot: connect.NewClient[v1.UndoSnapshotRequest, v1.UndoSnapshotResponse](
+			httpClient,
+			baseURL+LedgerServiceUndoSnapshotProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("UndoSnapshot")),
 			connect.WithClientOptions(opts...),
 		),
 		getSnapshotDiff: connect.NewClient[v1.GetSnapshotDiffRequest, v1.GetSnapshotDiffResponse](
@@ -940,6 +950,7 @@ type ledgerServiceClient struct {
 	bulkDeleteTransactions       *connect.Client[v1.BulkDeleteTransactionsRequest, v1.BulkDeleteTransactionsResponse]
 	listSnapshots                *connect.Client[v1.ListSnapshotsRequest, v1.ListSnapshotsResponse]
 	restoreSnapshot              *connect.Client[v1.RestoreSnapshotRequest, v1.RestoreSnapshotResponse]
+	undoSnapshot                 *connect.Client[v1.UndoSnapshotRequest, v1.UndoSnapshotResponse]
 	getSnapshotDiff              *connect.Client[v1.GetSnapshotDiffRequest, v1.GetSnapshotDiffResponse]
 	getIncomeStatementTimeseries *connect.Client[v1.GetIncomeStatementTimeseriesRequest, v1.GetIncomeStatementTimeseriesResponse]
 	listBankProfiles             *connect.Client[v1.ListBankProfilesRequest, v1.ListBankProfilesResponse]
@@ -1149,6 +1160,11 @@ func (c *ledgerServiceClient) ListSnapshots(ctx context.Context, req *connect.Re
 // RestoreSnapshot calls float.v1.LedgerService.RestoreSnapshot.
 func (c *ledgerServiceClient) RestoreSnapshot(ctx context.Context, req *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error) {
 	return c.restoreSnapshot.CallUnary(ctx, req)
+}
+
+// UndoSnapshot calls float.v1.LedgerService.UndoSnapshot.
+func (c *ledgerServiceClient) UndoSnapshot(ctx context.Context, req *connect.Request[v1.UndoSnapshotRequest]) (*connect.Response[v1.UndoSnapshotResponse], error) {
+	return c.undoSnapshot.CallUnary(ctx, req)
 }
 
 // GetSnapshotDiff calls float.v1.LedgerService.GetSnapshotDiff.
@@ -1454,6 +1470,7 @@ type LedgerServiceHandler interface {
 	BulkDeleteTransactions(context.Context, *connect.Request[v1.BulkDeleteTransactionsRequest], *connect.ServerStream[v1.BulkDeleteTransactionsResponse]) error
 	ListSnapshots(context.Context, *connect.Request[v1.ListSnapshotsRequest]) (*connect.Response[v1.ListSnapshotsResponse], error)
 	RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error)
+	UndoSnapshot(context.Context, *connect.Request[v1.UndoSnapshotRequest]) (*connect.Response[v1.UndoSnapshotResponse], error)
 	GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error)
 	GetIncomeStatementTimeseries(context.Context, *connect.Request[v1.GetIncomeStatementTimeseriesRequest]) (*connect.Response[v1.GetIncomeStatementTimeseriesResponse], error)
 	// Import
@@ -1710,6 +1727,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		LedgerServiceRestoreSnapshotProcedure,
 		svc.RestoreSnapshot,
 		connect.WithSchema(ledgerServiceMethods.ByName("RestoreSnapshot")),
+		connect.WithHandlerOptions(opts...),
+	)
+	ledgerServiceUndoSnapshotHandler := connect.NewUnaryHandler(
+		LedgerServiceUndoSnapshotProcedure,
+		svc.UndoSnapshot,
+		connect.WithSchema(ledgerServiceMethods.ByName("UndoSnapshot")),
 		connect.WithHandlerOptions(opts...),
 	)
 	ledgerServiceGetSnapshotDiffHandler := connect.NewUnaryHandler(
@@ -2100,6 +2123,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceListSnapshotsHandler.ServeHTTP(w, r)
 		case LedgerServiceRestoreSnapshotProcedure:
 			ledgerServiceRestoreSnapshotHandler.ServeHTTP(w, r)
+		case LedgerServiceUndoSnapshotProcedure:
+			ledgerServiceUndoSnapshotHandler.ServeHTTP(w, r)
 		case LedgerServiceGetSnapshotDiffProcedure:
 			ledgerServiceGetSnapshotDiffHandler.ServeHTTP(w, r)
 		case LedgerServiceGetIncomeStatementTimeseriesProcedure:
@@ -2339,6 +2364,10 @@ func (UnimplementedLedgerServiceHandler) ListSnapshots(context.Context, *connect
 
 func (UnimplementedLedgerServiceHandler) RestoreSnapshot(context.Context, *connect.Request[v1.RestoreSnapshotRequest]) (*connect.Response[v1.RestoreSnapshotResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.RestoreSnapshot is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) UndoSnapshot(context.Context, *connect.Request[v1.UndoSnapshotRequest]) (*connect.Response[v1.UndoSnapshotResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.UndoSnapshot is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) GetSnapshotDiff(context.Context, *connect.Request[v1.GetSnapshotDiffRequest]) (*connect.Response[v1.GetSnapshotDiffResponse], error) {

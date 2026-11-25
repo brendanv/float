@@ -236,6 +236,7 @@ func run(ctx context.Context, opts options) error {
 	interceptors := connect.WithInterceptors(
 		middleware.NewLoggingInterceptor(logger),
 		auth.NewServerInterceptor(authn),
+		serverledger.NewUndoInterceptor(),
 	)
 	path, svcHandler := floatv1connect.NewLedgerServiceHandler(handler, interceptors)
 	mux.Handle(path, svcHandler)

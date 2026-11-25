@@ -126,6 +126,8 @@ const { data } = useQuery({
 });
 ```
 
+Undo: a transport interceptor in `client.js` reads the `float-snapshot` trailer that floatd sets on undoable mutations (unary and streaming) and reports it through `src/lib/undo.js`; `components/undo-toaster.jsx` (mounted by the app shell, built on `sonner`) shows "<change> · Undo", calls `UndoSnapshot`, invalidates all queries and then offers Redo. Only the newest change is undoable, so there is one toast at a time. Because of this, single deletes (transaction, template, rule, price, account declaration) don't ask for confirmation; bulk delete still does. Add new undoable methods to `undoLabel` in `lib/undo.js`. In mocked tests, `mock-api.js` sends a fake snapshot trailer for every method in `UNDOABLE_METHODS` and answers `UndoSnapshot`.
+
 After any ledger mutation call `invalidateLedgerQueries(queryClient)` from `query-keys.js`: floatd bumps its cache generation on every write, so any ledger-derived query may be stale, and a hand-picked key list misses pages (with `staleTime: 30s` they would show old data). Keep query-key construction centralized in `query-keys.js`.
 
 Build hledger query tokens from UI values with `src/lib/hledger-query.js`: `payee:`/`desc:`/`tag:` values are regexes, so literal names must go through `escapeRegex`/`exactRegex` (e.g. `SQ *COFFEE`), and `dateRangeQuery` handles open-ended ranges. `isHledgerQuery` decides whether search text is a raw hledger query (sent as tokens, shown in mono) or literal description text.
