@@ -229,7 +229,7 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 					continue
 				}
 				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batchID, loc)
-				applyRuleToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
+				rules.ApplyToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
 				if _, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput); writeErr != nil {
 					return nil, fmt.Errorf("write %s: %w", st.ID, writeErr)
 				}

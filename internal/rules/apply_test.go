@@ -97,7 +97,7 @@ func TestBuildChangeSet(t *testing.T) {
 					{Account: "expenses:food:tip"},
 				},
 			},
-			// 3 postings → categoryPostingIndex == -1 → no account change
+			// 3 postings → CategoryPostingIndex == -1 → no account change
 		},
 		{
 			name: "account_skipped_for_ambiguous_2_posting",
@@ -466,7 +466,7 @@ func TestApplyMatch(t *testing.T) {
 			}
 
 			if tc.wantAccount != "" {
-				idx := categoryPostingIndex(result)
+				idx := CategoryPostingIndex(result)
 				if idx < 0 {
 					t.Errorf("no category posting in result")
 				} else if result.Postings[idx].Account != tc.wantAccount {

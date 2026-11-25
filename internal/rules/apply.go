@@ -25,18 +25,6 @@ type RuleMatch struct {
 	Changes     ChangeSet
 }
 
-// sourceAccount returns the source (asset/liability) account of a transaction,
-// i.e. the first posting whose account name looks like an asset or liability.
-// Returns "" if no such posting is found.
-func sourceAccount(txn hledger.Transaction) string {
-	for _, p := range txn.Postings {
-		if isAssetOrLiabilityAccount(p.Account) {
-			return p.Account
-		}
-	}
-	return ""
-}
-
 // Preview checks all transactions against rules and returns proposed changes.
 // Does NOT modify anything. Only transactions that match a rule are included.
 func Preview(rules []Rule, transactions []hledger.Transaction) []RuleMatch {
@@ -45,7 +33,7 @@ func Preview(rules []Rule, transactions []hledger.Transaction) []RuleMatch {
 		if txn.FID == "" {
 			continue // skip untagged transactions — can't update them
 		}
-		rule := Match(rules, txn.Description, sourceAccount(txn))
+		rule := Match(rules, txn.Description, SourceAccount(txn.Postings))
 		if rule == nil {
 			continue
 		}
@@ -203,8 +191,9 @@ func buildApplyInput(m RuleMatch) (journal.TransactionInput, journal.SourceLocat
 		input.Description = desc
 
 		if changes.NewAccount != nil {
+			catIdx := CategoryPostingIndex(t)
 			for i := range input.Postings {
-				if isCategoryPosting(t, i) {
+				if i == catIdx {
 					input.Postings[i].Account = *changes.NewAccount
 				}
 			}
@@ -273,7 +262,7 @@ func buildChangeSet(rule Rule, txn hledger.Transaction) ChangeSet {
 
 	if rule.Account != "" {
 		// Only applicable to 2-posting transactions with a clear category posting.
-		if idx := categoryPostingIndex(txn); idx >= 0 {
+		if idx := CategoryPostingIndex(txn); idx >= 0 {
 			currentAccount := txn.Postings[idx].Account
 			if rule.Account != currentAccount {
 				acc := rule.Account
@@ -310,34 +299,4 @@ func buildChangeSet(rule Rule, txn hledger.Transaction) ChangeSet {
 // hasChanges returns true if cs would change anything.
 func hasChanges(cs ChangeSet) bool {
 	return cs.NewPayee != nil || cs.NewAccount != nil || len(cs.AddTags) > 0 || cs.MarkReviewed != nil
-}
-
-// categoryPostingIndex returns the index of the "category" posting (the
-// non-asset/liability posting in a 2-posting transaction), or -1 if the
-// transaction is ambiguous (3+ postings, or both postings are same type).
-func categoryPostingIndex(txn hledger.Transaction) int {
-	if len(txn.Postings) != 2 {
-		return -1
-	}
-	for i, p := range txn.Postings {
-		if !isAssetOrLiabilityAccount(p.Account) {
-			return i
-		}
-	}
-	return -1 // both look like assets/liabilities
-}
-
-// isCategoryPosting returns true if posting i is the category (non-asset/liability) posting.
-func isCategoryPosting(txn hledger.Transaction, idx int) bool {
-	return categoryPostingIndex(txn) == idx
-}
-
-// isAssetOrLiabilityAccount returns true if the account name looks like an
-// asset or liability account based on its prefix.
-func isAssetOrLiabilityAccount(account string) bool {
-	lower := strings.ToLower(account)
-	return strings.HasPrefix(lower, "assets") ||
-		strings.HasPrefix(lower, "liabilities") ||
-		strings.HasPrefix(lower, "asset:") ||
-		strings.HasPrefix(lower, "liability:")
 }
