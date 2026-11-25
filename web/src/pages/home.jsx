@@ -163,6 +163,8 @@ export function HomePage() {
             )}
             sparkline={snapshots.length >= 2 ? {
               values: snapshots.map((s) => firstQuantity(s.netWorth)),
+              labels: snapshots.map((s) => shortMonthLabel(s.date)),
+              formatValue: (v) => <Amount value={v} commodity={commodity} />,
               label: `Net worth, ${shortMonthLabel(snapshots[0].date)} to ${shortMonthLabel(snapshots.at(-1).date)}`,
               axis: [shortMonthLabel(snapshots[0].date), shortMonthLabel(snapshots.at(-1).date)],
             } : undefined}
