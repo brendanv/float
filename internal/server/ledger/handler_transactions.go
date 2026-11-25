@@ -95,6 +95,7 @@ func (h *Handler) ListTransactions(ctx context.Context, req *connect.Request[flo
 	proto := make([]*floatv1.Transaction, len(txns))
 	for i, t := range txns {
 		proto[i] = toProtoTransaction(t)
+		proto[i].SuggestedAccount = h.accountSuggestion(t)
 	}
 	return connect.NewResponse(&floatv1.ListTransactionsResponse{Transactions: proto, Total: total, HasNext: hasNext}), nil
 }

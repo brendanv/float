@@ -93,7 +93,7 @@ ConnectRPC powers all clients. Protobufs live in `proto/float/v1/` and generated
 - Mutations: add/update/delete transactions, status/date changes, bulk edit/delete, account declarations, account rename, close/reopen accounts (`float-closed` account tag), prices, Alpha Vantage price backfill, snapshots (forward restore or hard reset), and undo: undoable mutations return their snapshot in the `Float-Snapshot` trailer and `UndoSnapshot` reverts it while it is still the newest snapshot (see `internal/server/ledger/CLAUDE.md`).
 - Imports/rules: bank profile CRUD, CSV preview/import with import batches and original file storage, structured (JSON) transaction import for scripts/agents (`ImportStructuredTransactions`), categorization rule CRUD, preview/apply rules.
 - Templates: saved transaction shapes (CRUD) stored in `templates.json` for quick recurring-transaction entry.
-- Integrations/settings/debug: Stripe Financial Connections, daily Stripe auto-import toggles, AI helper RPCs via OpenRouter, Alpha Vantage API key, timezone, raw hledger query, server log stream.
+- Integrations/settings/debug: Stripe Financial Connections, daily Stripe auto-import toggles, AI helper RPCs via OpenRouter (rule suggestions, query help; account suggestions for "unknown" postings computed in the background after writes on a separate optional decision model and returned as `suggested_account` on transactions), Alpha Vantage API key, timezone, raw hledger query, server log stream.
 
 ### MCP Endpoint (`internal/server/mcpserver/`)
 

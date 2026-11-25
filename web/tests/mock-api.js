@@ -315,6 +315,11 @@ export const mockTransactions = [
       },
     ],
     tags: {},
+    suggestedAccount: {
+      account: "expenses:shopping",
+      confidence: "medium",
+      reasoning: "Card purchase at a general merchant.",
+    },
   },
   {
     fid: "u5v6w7x8",
@@ -2305,13 +2310,20 @@ export async function mockLedgerApi(
               prompt:
                 "My accounts use kebab-case. Groceries go under expenses:food:groceries.",
               enabled: true,
+              decisionModel: "",
+              effectiveDecisionModel: "anthropic/claude-sonnet-4-6",
             }
           : {
               model: "",
               effectiveModel: "anthropic/claude-3-haiku",
               prompt: "",
               enabled: false,
+              decisionModel: "",
+              effectiveDecisionModel: "anthropic/claude-3-haiku",
             };
+        break;
+      case "SetAIDecisionModel":
+        body = {};
         break;
       case "ListSnapshots":
         body = { snapshots: mockSnapshots };

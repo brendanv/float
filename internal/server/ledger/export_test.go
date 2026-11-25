@@ -43,3 +43,8 @@ func ExportedSetBeforeApplyRulesLock(h *Handler, fn func()) {
 func ExportedLoadCfg(h *Handler) *config.Config {
 	return h.loadCfg()
 }
+
+// ExportedSuggestPendingAccounts runs one background account-suggestion pass.
+func ExportedSuggestPendingAccounts(h *Handler, ctx context.Context) error {
+	return h.suggestPendingAccounts(ctx)
+}

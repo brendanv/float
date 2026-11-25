@@ -61,7 +61,7 @@ linters:
     rules:
       # File-write rule: packages that own a data-directory file format and are
       # only called from inside txlock, plus txlock/gitsnap themselves and tooling.
-      - path: (internal/(journal|txlock|gitsnap|config|rules|templates|testgen)/|scripts/|cmd/floatctl/)
+      - path: (internal/(journal|txlock|gitsnap|config|rules|templates|suggestions|testgen)/|scripts/|cmd/floatctl/)
         linters: [forbidigo]
         text: "os\\."
       # Tests may write fixtures freely.

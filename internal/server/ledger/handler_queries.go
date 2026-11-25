@@ -24,6 +24,7 @@ func (h *Handler) GetAccountRegister(ctx context.Context, req *connect.Request[f
 	proto := make([]*floatv1.AccountRegisterRow, len(rows))
 	for i, r := range rows {
 		proto[i] = toProtoAccountRegisterRow(r)
+		proto[i].SuggestedAccount = h.accountSuggestion(r.Transaction)
 	}
 	return connect.NewResponse(&floatv1.GetAccountRegisterResponse{
 		Rows: proto, Total: total, HasNext: hasNext,

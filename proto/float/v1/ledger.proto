@@ -58,6 +58,19 @@ message Transaction {
   optional string note = 9;  // part after "|" in description; nil if no "|"
   optional string import_batch_id = 10;       // import batch ID this transaction was imported in; nil if not imported
   optional string stripe_transaction_id = 11; // Stripe Financial Connections transaction ID; nil if not a Stripe import
+  // AI-suggested replacement for this transaction's "unknown" posting
+  // account, computed in the background when the transaction was written.
+  // Set only while a posting account still contains "unknown"; advisory,
+  // apply it with BulkEditTransactions' update_unknown_account.
+  AccountSuggestion suggested_account = 12;
+}
+
+// AccountSuggestion is the AI's proposed account for a transaction's
+// "unknown" posting. It is never applied automatically.
+message AccountSuggestion {
+  string account = 1;    // suggested account; an existing, open account that does not contain "unknown"
+  string confidence = 2; // "high" | "medium" | "low"
+  string reasoning = 3;  // brief explanation of the choice
 }
 
 message BalanceRow {
@@ -164,6 +177,7 @@ message AccountRegisterRow {
   repeated Amount running_total = 9;  // Running balance of the focused account after this row
   map<string, string> tags = 10;                // Non-float-* tags on the transaction
   optional string stripe_transaction_id = 11;   // Stripe Financial Connections transaction ID; nil if not a Stripe import
+  AccountSuggestion suggested_account = 12;     // as Transaction.suggested_account
 }
 
 message GetAccountRegisterRequest {
@@ -1094,6 +1108,8 @@ message GetAIConfigResponse {
   string effective_model = 2; // model that will actually be used (config → env → default)
   string prompt = 3;          // user-defined guidelines prepended to AI system prompts
   bool enabled = 4;           // true if OPENROUTER_API_KEY env var is set
+  string decision_model = 5;  // model ID for quick per-transaction decisions (account suggestions for new transactions) from config.toml; empty if not set
+  string effective_decision_model = 6; // decision model that will actually be used (decision_model → effective_model)
 }
 
 message SetAIModelRequest {
@@ -1101,6 +1117,12 @@ message SetAIModelRequest {
 }
 
 message SetAIModelResponse {}
+
+message SetAIDecisionModelRequest {
+  string model = 1; // new decision model ID; empty string clears it (decisions use the main model)
+}
+
+message SetAIDecisionModelResponse {}
 
 message SetAIPromptRequest {
   string prompt = 1; // user-defined guidelines; empty string clears the prompt
@@ -1308,6 +1330,7 @@ service LedgerService {
   rpc SetAlphaVantageApiKey(SetAlphaVantageApiKeyRequest) returns (SetAlphaVantageApiKeyResponse);
   rpc GetAIConfig(GetAIConfigRequest) returns (GetAIConfigResponse);
   rpc SetAIModel(SetAIModelRequest) returns (SetAIModelResponse);
+  rpc SetAIDecisionModel(SetAIDecisionModelRequest) returns (SetAIDecisionModelResponse);
   rpc SetAIPrompt(SetAIPromptRequest) returns (SetAIPromptResponse);
   rpc SetStripeCustomerId(SetStripeCustomerIdRequest) returns (SetStripeCustomerIdResponse);
   rpc SetStripeDailyImportEnabled(SetStripeDailyImportEnabledRequest) returns (SetStripeDailyImportEnabledResponse);

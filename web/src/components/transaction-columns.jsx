@@ -2,6 +2,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { Scale } from "lucide-react";
 import { amountSortValue, accountSplit, displayAmounts, isIncome, registerDisplay } from "@/lib/transactions.js";
 import { Amount } from "./amount.jsx";
+import { AccountSuggestionChip } from "./account-suggestion.jsx";
 import { StatusMark } from "./status.jsx";
 import { TagChip, TagEditor, tagLabel } from "./tag-editor.jsx";
 import { TableSortHeader } from "./table-sort-header.jsx";
@@ -143,6 +144,7 @@ const descriptionColumn = col.accessor((tx) => tx.description, {
           />
         </span>
         {tx.stripeTransactionId && <StripeIndicator id={tx.stripeTransactionId} />}
+        <AccountSuggestionChip tx={tx} onApplied={onStatusChange} className="shrink-0" />
         <RowTags tx={tx} onChanged={onStatusChange} />
         {canExpand && !isRegisterMode && (
           <Button

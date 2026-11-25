@@ -95,8 +95,9 @@ func initRepo(dir string) (*git.Repository, error) {
 }
 
 // gitignoreEntries are local-only files that must never be committed to the
-// snapshot repo: user config and key material.
-var gitignoreEntries = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts"}
+// snapshot repo: user config, key material, and derived AI suggestions
+// (advisory, keyed by transaction code; not worth a snapshot per import).
+var gitignoreEntries = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts", "account-suggestions.json"}
 
 // ensureGitignore creates .gitignore or appends any required entries missing
 // from an existing one, preserving user-added lines.
@@ -206,7 +207,7 @@ func (r *Repo) List(_ context.Context, limit int) ([]Snapshot, error) {
 	return snaps, nil
 }
 
-var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts"}
+var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts", "account-suggestions.json"}
 
 // ErrHeadMoved is returned by ApplyRestore when HEAD is no longer the commit
 // the plan was computed against (another write committed in between).

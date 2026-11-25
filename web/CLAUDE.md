@@ -56,7 +56,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 | Route | Component | Nav (group › tab) | Description |
 |-------|-----------|-------------------|-------------|
 | `/` | `HomePage` | Overview | Net worth hero + sparkline, assets/liabilities waterline, accounts list, month spending, review and missing-transfer notices |
-| `/transactions` | `TransactionsPage` | Transactions | Day-grouped transaction list / account register, search + filter chips, bulk edit |
+| `/transactions` | `TransactionsPage` | Transactions | Day-grouped transaction list / account register, search + filter chips, bulk edit, AI-suggested accounts for "unknown" postings (`AccountSuggestionChip` from `suggestedAccount`, one-click apply via `update_unknown_account`) |
 | `/add` | `AddTransactionPage` | Transactions | Full-page add transaction form |
 | `/trends` | `TrendsPage` | Reports › Net worth | Net worth hero, chart and spending by category |
 | `/monthly` | `MonthlyDashboardPage` | Reports › Income & spending | Income statement matrix (sticky account column, pinned Avg/Total) |
@@ -70,7 +70,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 | `/connections` | `ConnectionsPage` | Bring in › Connections | Stripe Financial Connections linking, refresh, fetch, import |
 | `/import` | `ImportPage` | Bring in › Import › Import | CSV import wizard and bank profiles |
 | `/imports` | `ImportsHistoryPage` | Bring in › Import › History | Import batches (a row, or its Source link, opens `/transactions?importBatchId=`) and original CSVs |
-| `/settings` | `SettingsPage` | Settings › General | Timezone, export, Alpha Vantage, Stripe, AI |
+| `/settings` | `SettingsPage` | Settings › General | Timezone, export, Alpha Vantage, Stripe, AI (model, decision model, guidelines) |
 | `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status; unmatched transfers grouped by route (`FindUnmatchedTransfers`, shown only when non-empty) |
 | `/snapshots` | `SnapshotsPage` | Settings › Snapshots | Git snapshots and diffs; Restore (saved as a new snapshot, or a hard reset that discards later history) on every row but the newest |
 | `/hledger-query` | `HledgerQueryPage` | Settings › Query | Raw hledger query and AI query helpers |

@@ -35,9 +35,24 @@ func (h *Handler) effectiveAIModel() string {
 	return defaultAIModel
 }
 
-// aiClient constructs an ai.Client. Returns FailedPrecondition if
-// OPENROUTER_API_KEY is not set.
+// effectiveDecisionModel returns the model for quick per-transaction
+// decisions (SuggestAccounts): h.cfg.AI.DecisionModel, else the main model.
+func (h *Handler) effectiveDecisionModel() string {
+	if cfg := h.loadCfg(); cfg != nil && cfg.AI.DecisionModel != "" {
+		return cfg.AI.DecisionModel
+	}
+	return h.effectiveAIModel()
+}
+
+// aiClient constructs an ai.Client for the main model. Returns
+// FailedPrecondition if OPENROUTER_API_KEY is not set.
 func (h *Handler) aiClient() (*ai.Client, error) {
+	return h.aiClientFor(h.effectiveAIModel())
+}
+
+// aiClientFor constructs an ai.Client for model. Returns FailedPrecondition
+// if OPENROUTER_API_KEY is not set.
+func (h *Handler) aiClientFor(model string) (*ai.Client, error) {
 	key := os.Getenv("OPENROUTER_API_KEY")
 	if key == "" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
@@ -47,7 +62,7 @@ func (h *Handler) aiClient() (*ai.Client, error) {
 	if h.AIBaseURL != "" {
 		opts = append(opts, ai.WithBaseURL(h.AIBaseURL))
 	}
-	return ai.NewClient(key, h.effectiveAIModel(), opts...), nil
+	return ai.NewClient(key, model, opts...), nil
 }
 
 // GetAIConfig returns the current AI model and prompt configuration.
@@ -57,10 +72,12 @@ func (h *Handler) GetAIConfig(ctx context.Context, req *connect.Request[floatv1.
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
 	}
 	return connect.NewResponse(&floatv1.GetAIConfigResponse{
-		Model:          cfg.AI.Model,
-		EffectiveModel: h.effectiveAIModel(),
-		Prompt:         cfg.AI.Prompt,
-		Enabled:        os.Getenv("OPENROUTER_API_KEY") != "",
+		Model:                  cfg.AI.Model,
+		EffectiveModel:         h.effectiveAIModel(),
+		Prompt:                 cfg.AI.Prompt,
+		Enabled:                os.Getenv("OPENROUTER_API_KEY") != "",
+		DecisionModel:          cfg.AI.DecisionModel,
+		EffectiveDecisionModel: h.effectiveDecisionModel(),
 	}), nil
 }
 
@@ -118,6 +135,30 @@ func (h *Handler) SetAIModel(ctx context.Context, req *connect.Request[floatv1.S
 
 	slogctx.FromContext(ctx).InfoContext(ctx, "updated AI model", "model", req.Msg.Model)
 	return connect.NewResponse(&floatv1.SetAIModelResponse{}), nil
+}
+
+// SetAIDecisionModel updates the AI decision model in config.toml. An empty
+// model clears it, so decisions use the main model.
+func (h *Handler) SetAIDecisionModel(ctx context.Context, req *connect.Request[floatv1.SetAIDecisionModelRequest]) (*connect.Response[floatv1.SetAIDecisionModelResponse], error) {
+	if h.loadCfg() == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	if h.configPath == "" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server config path not set"))
+	}
+
+	model := strings.TrimSpace(req.Msg.Model)
+	err := h.lock.DoConfigPublish(ctx, "set AI decision model", []string{h.configPath}, func() (func(), error) {
+		newCfg := *h.loadCfg()
+		newCfg.AI.DecisionModel = model
+		return h.saveCfg(&newCfg)
+	})
+	if err != nil {
+		return nil, rpcErr(ctx, err, "set AI decision model failed")
+	}
+
+	slogctx.FromContext(ctx).InfoContext(ctx, "updated AI decision model", "model", model)
+	return connect.NewResponse(&floatv1.SetAIDecisionModelResponse{}), nil
 }
 
 // SuggestRules fetches transactions (by FID list or hledger query), then asks
@@ -369,12 +410,20 @@ func categoryAccount(txn hledger.Transaction) string {
 // primaryAmount formats the first amount of the first non-zero posting.
 func primaryAmount(txn hledger.Transaction) string {
 	for _, p := range txn.Postings {
-		for _, a := range p.Amounts {
-			if a.Quantity.DecimalMantissa != 0 {
-				divisor := math.Pow10(a.Quantity.DecimalPlaces)
-				val := float64(a.Quantity.DecimalMantissa) / divisor
-				return fmt.Sprintf("%.2f %s", val, a.Commodity)
-			}
+		if s := postingAmount(p); s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+// postingAmount formats the first non-zero amount of p for an AI prompt.
+func postingAmount(p hledger.Posting) string {
+	for _, a := range p.Amounts {
+		if a.Quantity.DecimalMantissa != 0 {
+			divisor := math.Pow10(a.Quantity.DecimalPlaces)
+			val := float64(a.Quantity.DecimalMantissa) / divisor
+			return fmt.Sprintf("%.2f %s", val, a.Commodity)
 		}
 	}
 	return ""

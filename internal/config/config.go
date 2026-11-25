@@ -31,6 +31,9 @@ type AlphaVantageConfig struct {
 type AIConfig struct {
 	Model  string `toml:"model"`  // OpenRouter model ID; empty = use default
 	Prompt string `toml:"prompt"` // User-defined guidelines prepended to AI system prompts
+	// DecisionModel is the OpenRouter model ID for quick per-transaction
+	// decisions (account suggestions); empty = use Model.
+	DecisionModel string `toml:"decision_model"`
 }
 
 type StripeLinkedAccount struct {

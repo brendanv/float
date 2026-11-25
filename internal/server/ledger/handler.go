@@ -15,6 +15,7 @@ import (
 	"github.com/brendanv/float/internal/hledger"
 	"github.com/brendanv/float/internal/logstream"
 	"github.com/brendanv/float/internal/slogctx"
+	"github.com/brendanv/float/internal/suggestions"
 	"github.com/brendanv/float/internal/txlock"
 )
 
@@ -30,6 +31,11 @@ type Handler struct {
 	snap           *gitsnap.Repo
 	cfg            atomic.Pointer[config.Config]
 	logBroadcaster *logstream.Broadcaster
+	// suggestions mirrors account-suggestions.json (see handler_ai_accounts.go).
+	// Only the background suggester writes it, publishing after the save.
+	suggestions atomic.Pointer[suggestions.Store]
+	// suggestWake wakes the background suggester after a write (cap 1).
+	suggestWake chan struct{}
 	// AIBaseURL overrides the OpenRouter API endpoint. Set in tests only.
 	AIBaseURL string
 	// afterImportAllPreFetch is called between the pre-fetch phase and lock acquisition
@@ -51,8 +57,9 @@ type Handler struct {
 }
 
 func NewHandler(hl *hledger.Client, lock *txlock.TxLock, dataDir string, configPath string, c *cache.Cache[any], snap *gitsnap.Repo, cfg *config.Config, broadcaster *logstream.Broadcaster) *Handler {
-	h := &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, recentAccounts: newRecentAccounts(recentAccountsCap), snap: snap, logBroadcaster: broadcaster}
+	h := &Handler{hl: hl, lock: lock, dataDir: dataDir, configPath: configPath, cache: c, recentAccounts: newRecentAccounts(recentAccountsCap), snap: snap, logBroadcaster: broadcaster, suggestWake: make(chan struct{}, 1)}
 	h.cfg.Store(cfg)
+	h.loadSuggestions()
 	return h
 }
 

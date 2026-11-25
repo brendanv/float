@@ -17,6 +17,7 @@ import {
   registerDisplay,
 } from "@/lib/transactions.js";
 import { Amount } from "./amount.jsx";
+import { AccountSuggestionChip } from "./account-suggestion.jsx";
 import { StatusMark } from "./status.jsx";
 import { TagChip, TagEditor, tagLabel } from "./tag-editor.jsx";
 import { TablePagination } from "./table-pagination.jsx";
@@ -441,6 +442,7 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
                   onSaved={onStatusChange}
                 />
               </span>
+              <AccountSuggestionChip tx={tx} onApplied={onStatusChange} className="h-4 text-[11px]" />
               {tx.fid && (
                 <span className="min-w-0 has-[input]:basis-full" onClick={stop}>
                   <TagEditor quiet fid={tx.fid} tags={tx.tags} onChanged={onStatusChange} />
@@ -452,6 +454,7 @@ function MobileRow({ row, isRegisterMode, registerAccount, showDate, showCheck, 
               <span className="min-w-0 truncate" title={`${split.from} → ${split.to}`}>
                 {leaf(split.from)} → {leaf(split.to)}
               </span>
+              <AccountSuggestionChip tx={tx} onApplied={onStatusChange} className="h-4 text-[11px]" />
               {tags.map(([k, v]) => <TagChip key={k} className="h-4 text-[11px]">{tagLabel(k, v)}</TagChip>)}
             </>
           )}

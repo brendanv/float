@@ -20,8 +20,8 @@ The main float server binary. It serves ConnectRPC/gRPC/gRPC-Web on an h2c HTTP 
    - account declaration bootstrap: ensure `accounts.journal`, ensure its include, and append currently undeclared accounts.
 9. Read `FLOAT_AUTH_PASSPHRASE` into `internal/auth` (auth disabled when unset) and log the auth state.
 10. Create the generation-aware cache, `LedgerService` handler, logging + auth interceptors, gRPC reflection handlers, `/api/auth`, `/api/login`, `/api/logout` endpoints, h2c mux, and embedded web UI handler.
-11. Create an `internal/warm.Warmer` over `handler.WarmEntries` and register it as a `lock.OnCommit` hook, so every successful write schedules a debounced (500ms) cache-warming pass. Also register a second `lock.OnCommit` hook (`newStatsLogger`) that diffs `cache.Cache.Stats()` and `hledger.Client.Invocations()` against the previous generation and logs the delta at Info level (reaches `StreamLogs` via the broadcast handler) — the target steady state is zero hledger invocations between writes.
-12. Bind the listener (`net.Listen`), then start `handler.StartDailyStripeImport(ctx)` and kick the startup warm pass (`warmer.Start(ctx)`) — only once the listener is bound, so warming never delays accepting connections — before serving HTTP.
+11. Create an `internal/warm.Warmer` over `handler.WarmEntries` and register it as a `lock.OnCommit` hook, so every successful write schedules a debounced (500ms) cache-warming pass. Also register a second `lock.OnCommit` hook (`newStatsLogger`) that diffs `cache.Cache.Stats()` and `hledger.Client.Invocations()` against the previous generation and logs the delta at Info level (reaches `StreamLogs` via the broadcast handler) — the target steady state is zero hledger invocations between writes. A third hook, `handler.WakeAccountSuggester`, wakes the background AI account suggester.
+12. Bind the listener (`net.Listen`), then start `handler.StartDailyStripeImport(ctx)` and `handler.StartAccountSuggester(ctx)` and kick the startup warm pass (`warmer.Start(ctx)`) — only once the listener is bound, so warming never delays accepting connections — before serving HTTP.
 13. Serve HTTP until `ctx` is cancelled, then shut down gracefully and return.
 
 ## Tests
@@ -49,6 +49,8 @@ When `FLOAT_AUTH_PASSPHRASE` is set, `/mcp` requires the bearer header, and ever
 ## Background Work
 
 `StartDailyStripeImport` runs in the server context. It checks config state and Stripe refresh throttles, fetches/imports new settled transactions for linked accounts, updates `LastDailyImportAt`, and logs per-account errors without crashing the server.
+
+`StartAccountSuggester` also runs in the server context: after each journal write (debounced) it stores AI account suggestions for newly written unreviewed transactions in an "unknown" account; see `internal/server/ledger/CLAUDE.md`.
 
 ## Web UI
 

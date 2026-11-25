@@ -741,9 +741,10 @@ func TestRecoverUncommitted_CleanTree(t *testing.T) {
 func TestCommit_IgnoresSSHKeyMaterial(t *testing.T) {
 	dir := t.TempDir()
 	for name, content := range map[string]string{
-		"ssh_host_key":    "PRIVATE KEY MATERIAL",
-		"ssh_known_hosts": "host key fingerprints",
-		"main.journal":    "; journal\n",
+		"ssh_host_key":             "PRIVATE KEY MATERIAL",
+		"ssh_known_hosts":          "host key fingerprints",
+		"account-suggestions.json": "{}",
+		"main.journal":             "; journal\n",
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
 			t.Fatal(err)
@@ -770,7 +771,7 @@ func TestCommit_IgnoresSSHKeyMaterial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Tree: %v", err)
 	}
-	for _, secret := range []string{"ssh_host_key", "ssh_known_hosts", "config.toml", "float.key"} {
+	for _, secret := range []string{"ssh_host_key", "ssh_known_hosts", "config.toml", "float.key", "account-suggestions.json"} {
 		if _, err := tree.File(secret); err == nil {
 			t.Errorf("%s was committed to the snapshot repo", secret)
 		}
@@ -801,7 +802,7 @@ func TestNew_SelfHealsGitignore(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(data)
-	for _, want := range []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts", "my-custom-entry"} {
+	for _, want := range []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts", "account-suggestions.json", "my-custom-entry"} {
 		if !strings.Contains(got, want) {
 			t.Errorf(".gitignore missing %q:\n%s", want, got)
 		}

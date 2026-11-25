@@ -25,6 +25,6 @@ Maintains a git repository inside a float data directory for journal/config snap
 
 ## Ignored / Preserved Files
 
-The repo-managed `.gitignore` excludes local secrets/state: `config.toml`, `float.key`, `ssh_host_key`, and `ssh_known_hosts`. `New` self-heals missing entries in existing repos (preserving user-added lines) so newly ignored files take effect without re-init. `Restore` reads preserved files before reset and writes them back afterward so snapshot rollbacks do not destroy local configuration/secrets.
+The repo-managed `.gitignore` excludes local secrets/state: `config.toml`, `float.key`, `ssh_host_key`, `ssh_known_hosts`, and `account-suggestions.json` (derived AI suggestions, so an import doesn't produce a second snapshot). `New` self-heals missing entries in existing repos (preserving user-added lines) so newly ignored files take effect without re-init. `Restore` reads preserved files before reset and writes them back afterward so snapshot rollbacks do not destroy local configuration/secrets.
 
 All commits use author `float <float@localhost>`.

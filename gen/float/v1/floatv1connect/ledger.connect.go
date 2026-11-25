@@ -254,6 +254,9 @@ const (
 	// LedgerServiceSetAIModelProcedure is the fully-qualified name of the LedgerService's SetAIModel
 	// RPC.
 	LedgerServiceSetAIModelProcedure = "/float.v1.LedgerService/SetAIModel"
+	// LedgerServiceSetAIDecisionModelProcedure is the fully-qualified name of the LedgerService's
+	// SetAIDecisionModel RPC.
+	LedgerServiceSetAIDecisionModelProcedure = "/float.v1.LedgerService/SetAIDecisionModel"
 	// LedgerServiceSetAIPromptProcedure is the fully-qualified name of the LedgerService's SetAIPrompt
 	// RPC.
 	LedgerServiceSetAIPromptProcedure = "/float.v1.LedgerService/SetAIPrompt"
@@ -373,6 +376,7 @@ type LedgerServiceClient interface {
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
+	SetAIDecisionModel(context.Context, *connect.Request[v1.SetAIDecisionModelRequest]) (*connect.Response[v1.SetAIDecisionModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
@@ -848,6 +852,12 @@ func NewLedgerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(ledgerServiceMethods.ByName("SetAIModel")),
 			connect.WithClientOptions(opts...),
 		),
+		setAIDecisionModel: connect.NewClient[v1.SetAIDecisionModelRequest, v1.SetAIDecisionModelResponse](
+			httpClient,
+			baseURL+LedgerServiceSetAIDecisionModelProcedure,
+			connect.WithSchema(ledgerServiceMethods.ByName("SetAIDecisionModel")),
+			connect.WithClientOptions(opts...),
+		),
 		setAIPrompt: connect.NewClient[v1.SetAIPromptRequest, v1.SetAIPromptResponse](
 			httpClient,
 			baseURL+LedgerServiceSetAIPromptProcedure,
@@ -994,6 +1004,7 @@ type ledgerServiceClient struct {
 	setAlphaVantageApiKey        *connect.Client[v1.SetAlphaVantageApiKeyRequest, v1.SetAlphaVantageApiKeyResponse]
 	getAIConfig                  *connect.Client[v1.GetAIConfigRequest, v1.GetAIConfigResponse]
 	setAIModel                   *connect.Client[v1.SetAIModelRequest, v1.SetAIModelResponse]
+	setAIDecisionModel           *connect.Client[v1.SetAIDecisionModelRequest, v1.SetAIDecisionModelResponse]
 	setAIPrompt                  *connect.Client[v1.SetAIPromptRequest, v1.SetAIPromptResponse]
 	setStripeCustomerId          *connect.Client[v1.SetStripeCustomerIdRequest, v1.SetStripeCustomerIdResponse]
 	setStripeDailyImportEnabled  *connect.Client[v1.SetStripeDailyImportEnabledRequest, v1.SetStripeDailyImportEnabledResponse]
@@ -1382,6 +1393,11 @@ func (c *ledgerServiceClient) SetAIModel(ctx context.Context, req *connect.Reque
 	return c.setAIModel.CallUnary(ctx, req)
 }
 
+// SetAIDecisionModel calls float.v1.LedgerService.SetAIDecisionModel.
+func (c *ledgerServiceClient) SetAIDecisionModel(ctx context.Context, req *connect.Request[v1.SetAIDecisionModelRequest]) (*connect.Response[v1.SetAIDecisionModelResponse], error) {
+	return c.setAIDecisionModel.CallUnary(ctx, req)
+}
+
 // SetAIPrompt calls float.v1.LedgerService.SetAIPrompt.
 func (c *ledgerServiceClient) SetAIPrompt(ctx context.Context, req *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error) {
 	return c.setAIPrompt.CallUnary(ctx, req)
@@ -1522,6 +1538,7 @@ type LedgerServiceHandler interface {
 	SetAlphaVantageApiKey(context.Context, *connect.Request[v1.SetAlphaVantageApiKeyRequest]) (*connect.Response[v1.SetAlphaVantageApiKeyResponse], error)
 	GetAIConfig(context.Context, *connect.Request[v1.GetAIConfigRequest]) (*connect.Response[v1.GetAIConfigResponse], error)
 	SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error)
+	SetAIDecisionModel(context.Context, *connect.Request[v1.SetAIDecisionModelRequest]) (*connect.Response[v1.SetAIDecisionModelResponse], error)
 	SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error)
 	SetStripeCustomerId(context.Context, *connect.Request[v1.SetStripeCustomerIdRequest]) (*connect.Response[v1.SetStripeCustomerIdResponse], error)
 	SetStripeDailyImportEnabled(context.Context, *connect.Request[v1.SetStripeDailyImportEnabledRequest]) (*connect.Response[v1.SetStripeDailyImportEnabledResponse], error)
@@ -1993,6 +2010,12 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(ledgerServiceMethods.ByName("SetAIModel")),
 		connect.WithHandlerOptions(opts...),
 	)
+	ledgerServiceSetAIDecisionModelHandler := connect.NewUnaryHandler(
+		LedgerServiceSetAIDecisionModelProcedure,
+		svc.SetAIDecisionModel,
+		connect.WithSchema(ledgerServiceMethods.ByName("SetAIDecisionModel")),
+		connect.WithHandlerOptions(opts...),
+	)
 	ledgerServiceSetAIPromptHandler := connect.NewUnaryHandler(
 		LedgerServiceSetAIPromptProcedure,
 		svc.SetAIPrompt,
@@ -2211,6 +2234,8 @@ func NewLedgerServiceHandler(svc LedgerServiceHandler, opts ...connect.HandlerOp
 			ledgerServiceGetAIConfigHandler.ServeHTTP(w, r)
 		case LedgerServiceSetAIModelProcedure:
 			ledgerServiceSetAIModelHandler.ServeHTTP(w, r)
+		case LedgerServiceSetAIDecisionModelProcedure:
+			ledgerServiceSetAIDecisionModelHandler.ServeHTTP(w, r)
 		case LedgerServiceSetAIPromptProcedure:
 			ledgerServiceSetAIPromptHandler.ServeHTTP(w, r)
 		case LedgerServiceSetStripeCustomerIdProcedure:
@@ -2540,6 +2565,10 @@ func (UnimplementedLedgerServiceHandler) GetAIConfig(context.Context, *connect.R
 
 func (UnimplementedLedgerServiceHandler) SetAIModel(context.Context, *connect.Request[v1.SetAIModelRequest]) (*connect.Response[v1.SetAIModelResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAIModel is not implemented"))
+}
+
+func (UnimplementedLedgerServiceHandler) SetAIDecisionModel(context.Context, *connect.Request[v1.SetAIDecisionModelRequest]) (*connect.Response[v1.SetAIDecisionModelResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("float.v1.LedgerService.SetAIDecisionModel is not implemented"))
 }
 
 func (UnimplementedLedgerServiceHandler) SetAIPrompt(context.Context, *connect.Request[v1.SetAIPromptRequest]) (*connect.Response[v1.SetAIPromptResponse], error) {

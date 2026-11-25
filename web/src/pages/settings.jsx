@@ -193,6 +193,40 @@ export function SettingsPage() {
     setModelMutation.mutate("");
   }
 
+  // --- AI Decision Model ---
+  const [decisionModelInput, setDecisionModelInput] = useState("");
+  const [decisionMutationError, setDecisionMutationError] = useState(null);
+  const [decisionSaved, setDecisionSaved] = useState(false);
+
+  const setDecisionModelMutation = useMutation({
+    mutationFn: (model) => ledgerClient.setAIDecisionModel({ model }),
+    onSuccess: () => {
+      setDecisionModelInput("");
+      setDecisionSaved(true);
+      setDecisionMutationError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiConfig() });
+      setTimeout(() => setDecisionSaved(false), 3000);
+    },
+    onError: (err) => {
+      setDecisionMutationError(err);
+      setDecisionSaved(false);
+    },
+  });
+
+  function handleDecisionSave(e) {
+    e.preventDefault();
+    setDecisionMutationError(null);
+    setDecisionSaved(false);
+    setDecisionModelMutation.mutate(decisionModelInput.trim());
+  }
+
+  function handleDecisionReset() {
+    if (!confirm("Clear the decision model? Account suggestions will use the main model.")) return;
+    setDecisionMutationError(null);
+    setDecisionSaved(false);
+    setDecisionModelMutation.mutate("");
+  }
+
   // --- AI Prompt ---
   const [promptInput, setPromptInput] = useState(null); // null = not yet initialized from server
   const [promptMutationError, setPromptMutationError] = useState(null);
@@ -519,7 +553,7 @@ export function SettingsPage() {
         >
           {aiData && !aiData.enabled && (
             <p className="text-control text-muted-foreground">
-              Set <Code>OPENROUTER_API_KEY</Code> on the server to enable AI features (rule suggestions, query translation).
+              Set <Code>OPENROUTER_API_KEY</Code> on the server to enable AI features (rule suggestions, account suggestions, query translation).
             </p>
           )}
           <CollapsibleContent>
@@ -580,6 +614,54 @@ export function SettingsPage() {
                     {aiData.model && (
                       <ClearButton disabled={setModelMutation.isPending} onClick={handleAiReset}>
                         Reset to default
+                      </ClearButton>
+                    )}
+                  </>
+                )}
+              </SettingGroup>
+
+              <SettingGroup
+                title="Decision model"
+                description="Optional faster or cheaper model for quick per-transaction decisions: suggesting accounts for newly written transactions that land in an unknown account. Leave unset to use the main model."
+              >
+                {decisionMutationError && <ErrorBanner error={decisionMutationError} />}
+                {aiLoading && <Loading />}
+                {aiData && (
+                  <>
+                    <ConfigState on={!!aiData.decisionModel}>
+                      Active decision model <Code>{aiData.effectiveDecisionModel}</Code>
+                      {!aiData.decisionModel && <span className="text-faint">(main model)</span>}
+                    </ConfigState>
+                    <Form onSubmit={handleDecisionSave} className="gap-2">
+                      <FormField
+                        label={aiData.decisionModel ? "Replace decision model" : "Set decision model"}
+                        htmlFor="ai-decision-model"
+                      >
+                        <div className="flex gap-2">
+                          <Input
+                            id="ai-decision-model"
+                            type="text"
+                            placeholder={aiData.effectiveDecisionModel}
+                            value={decisionModelInput}
+                            onChange={(e) => setDecisionModelInput(e.target.value)}
+                            className="max-w-sm font-mono text-code placeholder:font-sans placeholder:text-control"
+                          />
+                          <Button
+                            type="submit"
+                            variant="outline"
+                            disabled={!decisionModelInput.trim()}
+                            isLoading={setDecisionModelMutation.isPending}
+                            loadingText="Saving…"
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </FormField>
+                      {decisionSaved && <Saved>Decision model saved.</Saved>}
+                    </Form>
+                    {aiData.decisionModel && (
+                      <ClearButton disabled={setDecisionModelMutation.isPending} onClick={handleDecisionReset}>
+                        Use main model
                       </ClearButton>
                     )}
                   </>

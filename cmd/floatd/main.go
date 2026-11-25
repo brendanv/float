@@ -231,6 +231,7 @@ func run(ctx context.Context, opts options) error {
 	warmer := warm.New(lock.Generation, handler.WarmEntries, warmDebounce, hl.WaitUncontended)
 	lock.OnCommit(warmer.Trigger)
 	lock.OnCommit(newStatsLogger(c, hl))
+	lock.OnCommit(handler.WakeAccountSuggester)
 
 	mux := http.NewServeMux()
 	interceptors := connect.WithInterceptors(
@@ -283,6 +284,7 @@ func run(ctx context.Context, opts options) error {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 	go handler.StartDailyStripeImport(ctx)
+	go handler.StartAccountSuggester(ctx)
 
 	// Kick the startup warm pass only once the listener is bound, so warming
 	// never delays accepting connections.
