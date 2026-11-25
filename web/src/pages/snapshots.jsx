@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ledgerClient } from "../client.js";
 import { queryKeys, invalidateLedgerQueries } from "../query-keys.js";
@@ -20,9 +20,13 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { cn, ROW_ACTION } from "@/lib/utils";
 
 const CHANGE_TONE = {
@@ -111,6 +115,60 @@ function SnapshotDiffDialog({ hash, open, onOpenChange }) {
   );
 }
 
+// RestoreDialog confirms a restore. By default the restore is recorded as a
+// new snapshot (nothing is lost); the hard-reset option instead discards the
+// `newerCount` snapshots above the target from history.
+function RestoreDialog({ snapshot, newerCount, onOpenChange, onRestore, restoring }) {
+  const [hardReset, setHardReset] = useState(false);
+  const open = snapshot !== null;
+  const plural = newerCount === 1 ? "" : "s";
+  // Every confirmation starts from the safe default.
+  useEffect(() => {
+    if (open) setHardReset(false);
+  }, [open]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Restore this snapshot?</DialogTitle>
+          <DialogDescription>
+            Your data goes back to how it was after &ldquo;{snapshot?.message?.trim()}&rdquo;
+            {snapshot && <> (<Timestamp value={snapshot.timestamp} absolute />)</>}.
+            {" "}The restore is saved as a new snapshot, so this history stays intact.
+          </DialogDescription>
+        </DialogHeader>
+        <Label className="items-start gap-2.5 font-normal leading-snug">
+          <Checkbox
+            className="mt-0.5"
+            checked={hardReset}
+            onCheckedChange={(checked) => setHardReset(!!checked)}
+            disabled={restoring}
+          />
+          <span>
+            <span className="block font-medium">Discard later history</span>
+            <span className="block text-muted-foreground">
+              Hard reset instead, permanently deleting the {newerCount} newer snapshot{plural}. This can&rsquo;t be undone.
+            </span>
+          </span>
+        </Label>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={restoring}>
+            Cancel
+          </Button>
+          <Button
+            variant={hardReset ? "destructive" : "default"}
+            isLoading={restoring}
+            loadingText={hardReset ? "Resetting…" : "Restoring…"}
+            onClick={() => onRestore({ hash: snapshot.hash, hardReset })}
+          >
+            {hardReset ? "Hard reset" : "Restore"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function SnapshotsPage() {
   const queryClient = useQueryClient();
 
@@ -119,32 +177,24 @@ export function SnapshotsPage() {
     queryFn: () => ledgerClient.listSnapshots({}),
   });
 
-  const [restoring, setRestoring] = useState(null);
+  const [confirming, setConfirming] = useState(null);
   const [error, setError] = useState(null);
   const [viewingHash, setViewingHash] = useState(null);
 
   const restoreMutation = useMutation({
-    mutationFn: ({ hash }) => ledgerClient.restoreSnapshot({ hash }),
+    mutationFn: ({ hash, hardReset }) => ledgerClient.restoreSnapshot({ hash, hardReset }),
     onSuccess: () => {
-      setRestoring(null);
+      setConfirming(null);
       invalidateLedgerQueries(queryClient);
     },
     onError: (err) => {
       setError(err);
-      setRestoring(null);
+      setConfirming(null);
     },
   });
 
-  function handleRestore(hash) {
-    if (!confirm(`Restore to snapshot ${hash.slice(0, 12)}? This will revert all journal files to that point in time.`)) {
-      return;
-    }
-    setError(null);
-    setRestoring(hash);
-    restoreMutation.mutate({ hash });
-  }
-
   const snapshots = snapshotsData?.snapshots ?? [];
+  const confirmingIndex = confirming ? snapshots.findIndex((s) => s.hash === confirming.hash) : -1;
 
   return (
     <Page>
@@ -164,7 +214,7 @@ export function SnapshotsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {snapshots.map((s) => (
+                {snapshots.map((s, i) => (
                   <TableRow key={s.hash} data-slot="snapshot-row" className="group/row">
                     <TableCell className="py-1 whitespace-nowrap text-muted-foreground">
                       <Timestamp value={s.timestamp} absolute />
@@ -176,7 +226,7 @@ export function SnapshotsPage() {
                       <span className="font-mono text-[12px] text-faint">{s.hash.slice(0, 8)}</span>
                     </TableCell>
                     <TableCell className="py-1 text-right">
-                      <div className={cn("flex items-center justify-end gap-1", restoring !== s.hash && ROW_ACTION)}>
+                      <div className={cn("flex items-center justify-end gap-1", ROW_ACTION)}>
                         <Button
                           variant="ghost"
                           size="xs"
@@ -186,18 +236,21 @@ export function SnapshotsPage() {
                           <FileDiff data-icon="inline-start" className="sm:hidden" />
                           <span className="max-sm:hidden">View diff</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="text-muted-foreground"
-                          isLoading={restoring === s.hash}
-                          loadingText="Restoring…"
-                          onClick={() => handleRestore(s.hash)}
-                          aria-label="Restore"
-                        >
-                          <RotateCcw data-icon="inline-start" className="sm:hidden" />
-                          <span className="max-sm:hidden">Restore</span>
-                        </Button>
+                        {i === 0 ? (
+                          // The newest snapshot is the current state; restoring it is a no-op.
+                          <span className="hidden w-[4.5rem] text-center text-control text-faint sm:inline-block">Current</span>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            className="text-muted-foreground"
+                            onClick={() => { setError(null); setConfirming(s); }}
+                            aria-label="Restore"
+                          >
+                            <RotateCcw data-icon="inline-start" className="sm:hidden" />
+                            <span className="max-sm:hidden">Restore</span>
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -213,6 +266,14 @@ export function SnapshotsPage() {
           )
         )}
       </Section>
+
+      <RestoreDialog
+        snapshot={confirming}
+        newerCount={Math.max(confirmingIndex, 0)}
+        restoring={restoreMutation.isPending}
+        onOpenChange={(open) => { if (!open && !restoreMutation.isPending) setConfirming(null); }}
+        onRestore={(vars) => restoreMutation.mutate(vars)}
+      />
 
       <SnapshotDiffDialog
         hash={viewingHash}

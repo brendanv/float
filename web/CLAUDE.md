@@ -72,7 +72,7 @@ The sidebar groups routes (`src/components/nav-items.js` is the single source fo
 | `/imports` | `ImportsHistoryPage` | Bring in › Import › History | Import batches (a row, or its Source link, opens `/transactions?importBatchId=`) and original CSVs |
 | `/settings` | `SettingsPage` | Settings › General | Timezone, export, Alpha Vantage, Stripe, AI |
 | `/assertions` | `BalanceAssertionsPage` | Settings › Assertions | Balance assertion drift status; unmatched transfers grouped by route (`FindUnmatchedTransfers`, shown only when non-empty) |
-| `/snapshots` | `SnapshotsPage` | Settings › Snapshots | Git snapshots, diffs and restores |
+| `/snapshots` | `SnapshotsPage` | Settings › Snapshots | Git snapshots and diffs; Restore (saved as a new snapshot, or a hard reset that discards later history) on every row but the newest |
 | `/hledger-query` | `HledgerQueryPage` | Settings › Query | Raw hledger query and AI query helpers |
 | `/logs` | `LogsPage` | Settings › Logs | Live server log stream |
 | `/login` | `LoginPage` | — | Passphrase login (rendered without the app shell) |

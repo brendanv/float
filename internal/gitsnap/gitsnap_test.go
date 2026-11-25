@@ -1,6 +1,7 @@
 package gitsnap
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,43 +176,142 @@ func TestList_RespectsLimit(t *testing.T) {
 	}
 }
 
-func TestRestore_RevertsFiles(t *testing.T) {
+// writeFiles writes path → content under dir (creating directories); an
+// empty content deletes the file.
+func writeFiles(t *testing.T, dir string, files map[string]string) {
+	t.Helper()
+	for name, content := range files {
+		p := filepath.Join(dir, filepath.FromSlash(name))
+		if content == "" {
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// commitFiles writes files, commits them with msg and returns the new HEAD.
+func commitFiles(t *testing.T, repo *Repo, dir, msg string, files map[string]string) string {
+	t.Helper()
+	writeFiles(t, dir, files)
+	if err := repo.Commit(t.Context(), msg); err != nil {
+		t.Fatalf("Commit %q: %v", msg, err)
+	}
+	head, err := repo.Head()
+	if err != nil {
+		t.Fatalf("Head: %v", err)
+	}
+	return head
+}
+
+func readFile(t *testing.T, dir, name string) (string, bool) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+	if os.IsNotExist(err) {
+		return "", false
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data), true
+}
+
+func snapshotMessages(t *testing.T, repo *Repo) []string {
+	t.Helper()
+	snaps, err := repo.List(t.Context(), 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	msgs := make([]string, len(snaps))
+	for i, s := range snaps {
+		msgs[i] = strings.TrimSpace(s.Message)
+	}
+	return msgs
+}
+
+// TestRestore_ForwardKeepsHistory restores an older snapshot covering a
+// modified, an added, a deleted, and a nested file, and checks the result is
+// committed on top of the existing history.
+func TestRestore_ForwardKeepsHistory(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()
 	repo, err := New(dir)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{
+		"main.journal":    "version-A",
+		"2026/01.journal": "january",
+	})
+	commitFiles(t, repo, dir, "commit B", map[string]string{
+		"main.journal":    "version-B",
+		"2026/01.journal": "",
+		"uploads/x.csv":   "csv",
+	})
 
-	journalPath := filepath.Join(dir, "main.journal")
-
-	if err := os.WriteFile(journalPath, []byte("version-A"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.Commit(ctx, "commit A"); err != nil {
-		t.Fatalf("Commit A: %v", err)
-	}
-
-	snapsA, _ := repo.List(ctx, 1)
-	hashA := snapsA[0].Hash
-
-	if err := os.WriteFile(journalPath, []byte("version-B"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.Commit(ctx, "commit B"); err != nil {
-		t.Fatalf("Commit B: %v", err)
-	}
-
-	if err := repo.Restore(ctx, hashA); err != nil {
+	if err := repo.Restore(ctx, hashA, "restore A"); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
 
-	got, err := os.ReadFile(journalPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
+	if got, _ := readFile(t, dir, "main.journal"); got != "version-A" {
+		t.Errorf("main.journal = %q, want version-A", got)
 	}
-	if string(got) != "version-A" {
-		t.Errorf("after restore: got %q, want %q", got, "version-A")
+	if got, ok := readFile(t, dir, "2026/01.journal"); !ok || got != "january" {
+		t.Errorf("2026/01.journal = %q (exists %v), want january", got, ok)
+	}
+	if _, ok := readFile(t, dir, "uploads/x.csv"); ok {
+		t.Error("uploads/x.csv should be removed by the restore")
+	}
+	want := []string{"restore A", "commit B", "commit A", "float: init"}
+	if got := snapshotMessages(t, repo); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("history = %q, want %q", got, want)
+	}
+	// The restore commit records the deleted upload too, not just the
+	// journal files, so the worktree is clean afterwards.
+	wt, err := repo.repo.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st, err := wt.Status(); err != nil || !st.IsClean() {
+		t.Errorf("worktree not clean after restore: %v %v", st, err)
+	}
+}
+
+func mustHead(t *testing.T, repo *Repo) string {
+	t.Helper()
+	h, err := repo.Head()
+	if err != nil {
+		t.Fatalf("Head: %v", err)
+	}
+	return h
+}
+
+// TestRestore_RestoreCanBeRestoredAway checks the snapshot before a restore
+// can itself be restored, i.e. a restore is never a one-way door.
+func TestRestore_RestoreCanBeRestoredAway(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "version-A"})
+	hashB := commitFiles(t, repo, dir, "commit B", map[string]string{"main.journal": "version-B"})
+	if err := repo.Restore(ctx, hashA, "restore A"); err != nil {
+		t.Fatalf("Restore A: %v", err)
+	}
+	if err := repo.Restore(ctx, hashB, "restore B"); err != nil {
+		t.Fatalf("Restore B: %v", err)
+	}
+	if got, _ := readFile(t, dir, "main.journal"); got != "version-B" {
+		t.Errorf("main.journal = %q, want version-B", got)
 	}
 }
 
@@ -222,49 +322,144 @@ func TestRestore_PreservesIgnoredFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	gitignore, _ := readFile(t, dir, ".gitignore")
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "version-A"})
+	commitFiles(t, repo, dir, "commit B", map[string]string{
+		"main.journal": "version-B",
+		"config.toml":  "[server]\nport=8080\n",
+		".gitignore":   gitignore + "extra-local\n",
+	})
 
-	journalPath := filepath.Join(dir, "main.journal")
-	configPath := filepath.Join(dir, "config.toml")
-
-	if err := os.WriteFile(journalPath, []byte("version-A"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.Commit(ctx, "commit A"); err != nil {
-		t.Fatalf("Commit A: %v", err)
-	}
-	snapsA, _ := repo.List(ctx, 1)
-	hashA := snapsA[0].Hash
-
-	if err := os.WriteFile(journalPath, []byte("version-B"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(configPath, []byte("[server]\nport=8080\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.Commit(ctx, "commit B"); err != nil {
-		t.Fatalf("Commit B: %v", err)
-	}
-
-	if err := repo.Restore(ctx, hashA); err != nil {
+	if err := repo.Restore(ctx, hashA, "restore A"); err != nil {
 		t.Fatalf("Restore: %v", err)
 	}
-
-	if _, err := os.Stat(configPath); err != nil {
-		t.Errorf("config.toml deleted by restore: %v", err)
+	if got, _ := readFile(t, dir, "config.toml"); got != "[server]\nport=8080\n" {
+		t.Errorf("config.toml = %q, want it untouched", got)
+	}
+	if got, _ := readFile(t, dir, ".gitignore"); !strings.Contains(got, "extra-local") {
+		t.Errorf(".gitignore lost newer entries: %q", got)
 	}
 }
 
-func TestRestore_InvalidHash(t *testing.T) {
+func TestPlanRestore_Paths(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "A", "keep.journal": "same"})
+	commitFiles(t, repo, dir, "commit B", map[string]string{"main.journal": "B", "new.journal": "new"})
+
+	plan, err := repo.PlanRestore(t.Context(), hashA)
+	if err != nil {
+		t.Fatalf("PlanRestore: %v", err)
+	}
+	got := map[string]bool{}
+	for _, p := range plan.Paths {
+		got[p] = true
+	}
+	for _, name := range []string{"main.journal", "new.journal"} {
+		if !got[filepath.Join(dir, name)] {
+			t.Errorf("plan paths %q missing %s", plan.Paths, name)
+		}
+	}
+	if len(plan.Paths) != 2 {
+		t.Errorf("plan paths = %q, want exactly main.journal and new.journal", plan.Paths)
+	}
+	if plan.Target != hashA || strings.TrimSpace(plan.Message) != "commit A" {
+		t.Errorf("plan target/message = %s %q", plan.Target, plan.Message)
+	}
+
+	// Restoring HEAD itself changes nothing.
+	self, err := repo.PlanRestore(t.Context(), mustHead(t, repo))
+	if err != nil {
+		t.Fatalf("PlanRestore HEAD: %v", err)
+	}
+	if len(self.Paths) != 0 {
+		t.Errorf("restoring HEAD: paths = %q, want none", self.Paths)
+	}
+}
+
+func TestApplyRestore_RefusesStalePlan(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()
 	repo, err := New(dir)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "A"})
+	commitFiles(t, repo, dir, "commit B", map[string]string{"main.journal": "B"})
+	plan, err := repo.PlanRestore(ctx, hashA)
+	if err != nil {
+		t.Fatalf("PlanRestore: %v", err)
+	}
+	commitFiles(t, repo, dir, "commit C", map[string]string{"main.journal": "C"})
 
-	err = repo.Restore(ctx, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
-	if err == nil {
-		t.Fatal("expected error for nonexistent hash, got nil")
+	if err := repo.ApplyRestore(ctx, plan); !errors.Is(err, ErrHeadMoved) {
+		t.Fatalf("ApplyRestore after a new commit: err = %v, want ErrHeadMoved", err)
+	}
+	if got, _ := readFile(t, dir, "main.journal"); got != "C" {
+		t.Errorf("main.journal = %q, want C (untouched)", got)
+	}
+}
+
+func TestApplyRestore_RefusesDirtyWorktree(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "A"})
+	commitFiles(t, repo, dir, "commit B", map[string]string{"main.journal": "B"})
+	writeFiles(t, dir, map[string]string{"other.journal": "uncommitted"})
+	plan, err := repo.PlanRestore(ctx, hashA)
+	if err != nil {
+		t.Fatalf("PlanRestore: %v", err)
+	}
+	if err := repo.ApplyRestore(ctx, plan); !errors.Is(err, ErrDirty) {
+		t.Fatalf("ApplyRestore on a dirty tree: err = %v, want ErrDirty", err)
+	}
+}
+
+func TestRestore_InvalidHash(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	for _, hash := range []string{"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "deadbeef", "not-a-hash"} {
+		if err := repo.Restore(t.Context(), hash, "x"); err == nil {
+			t.Errorf("Restore(%q): expected error, got nil", hash)
+		}
+		if err := repo.ResetHard(t.Context(), hash); err == nil {
+			t.Errorf("ResetHard(%q): expected error, got nil", hash)
+		}
+	}
+}
+
+func TestResetHard_DiscardsLaterHistory(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "version-A"})
+	commitFiles(t, repo, dir, "commit B", map[string]string{"main.journal": "version-B", "config.toml": "secret"})
+
+	if err := repo.ResetHard(ctx, hashA); err != nil {
+		t.Fatalf("ResetHard: %v", err)
+	}
+	if got, _ := readFile(t, dir, "main.journal"); got != "version-A" {
+		t.Errorf("main.journal = %q, want version-A", got)
+	}
+	if got, _ := readFile(t, dir, "config.toml"); got != "secret" {
+		t.Errorf("config.toml = %q, want it preserved", got)
+	}
+	want := []string{"commit A", "float: init"}
+	if got := snapshotMessages(t, repo); strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("history = %q, want %q", got, want)
 	}
 }
 

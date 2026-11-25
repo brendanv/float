@@ -100,6 +100,10 @@ Fetch RPCs only list already-available settled transactions and hide duplicates 
 
 AI handlers use `internal/ai` and OpenRouter via `OPENROUTER_API_KEY`. They can suggest rules for transactions, flag existing rules that are duplicates/contradictions/combinable (`FindRuleIssues`, read-only — it does not modify rules), translate natural language into hledger query tokens, and answer questions by running hledger and summarizing the output. Model/prompt config is persisted in `config.toml`.
 
+### Snapshots
+
+`RestoreSnapshot` defaults to a forward restore: the data directory is set back to the snapshot's tracked files and txlock commits that as a new snapshot (`restore snapshot <hash8> ("<message>")`), so later snapshots stay in history and the restore can itself be restored away. `hard_reset` instead discards the later snapshots, but only after `hledger check` has passed on the restored files. See `internal/gitsnap/CLAUDE.md` for the mechanics.
+
 ### Settings / Logs / Debug
 
 Settings handlers manage Alpha Vantage API key, AI model/prompt, Stripe customer/daily import config, and timezone. `RunHledgerQuery` runs a constrained raw hledger command with `-f <journal>` automatically prepended. `ExportJournal` runs `hledger print -f <journal>` and returns the flattened journal (all includes inlined) as bytes plus a suggested filename, for a one-file download of the entire ledger. `StreamLogs` streams broadcast slog entries filtered by minimum level.

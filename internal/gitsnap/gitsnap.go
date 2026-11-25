@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
@@ -188,17 +189,211 @@ func (r *Repo) List(_ context.Context, limit int) ([]Snapshot, error) {
 
 var preservedFiles = []string{"config.toml", "float.key", "ssh_host_key", "ssh_known_hosts"}
 
-func (r *Repo) Restore(_ context.Context, hash string) error {
-	h := plumbing.NewHash(hash)
-	if h.IsZero() {
-		return fmt.Errorf("gitsnap: restore: invalid hash %q", hash)
+// ErrHeadMoved is returned by ApplyRestore when HEAD is no longer the commit
+// the plan was computed against (another write committed in between).
+var ErrHeadMoved = errors.New("gitsnap: HEAD moved since the restore was planned")
+
+// ErrDirty is returned by ApplyRestore when the worktree has uncommitted
+// changes, which a forward restore would otherwise fold into its commit.
+var ErrDirty = errors.New("gitsnap: worktree has uncommitted changes")
+
+// RestorePlan describes a forward restore: the files that must be rewritten
+// to make the worktree match Target, computed against Head.
+type RestorePlan struct {
+	Head    string // HEAD when the plan was made
+	Target  string // commit whose tree is restored
+	Message string // Target's commit message
+	// Paths are the absolute paths ApplyRestore may create, modify or delete.
+	// Callers pass them to txlock so a failed restore is reverted exactly.
+	Paths   []string
+	changes object.Changes
+}
+
+// skipRestorePath reports whether a forward restore must leave path alone:
+// local secrets/config (never tracked going forward) and .gitignore itself,
+// so an old tree cannot drop newer ignore entries.
+func skipRestorePath(path string) bool {
+	if path == ".gitignore" {
+		return true
 	}
-	if _, err := r.repo.CommitObject(h); err != nil {
-		return fmt.Errorf("gitsnap: restore: commit %q not found: %w", hash, err)
+	for _, name := range preservedFiles {
+		if path == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Head returns the hash of the current HEAD commit.
+func (r *Repo) Head() (string, error) {
+	ref, err := r.repo.Head()
+	if err != nil {
+		return "", fmt.Errorf("gitsnap: head: %w", err)
+	}
+	return ref.Hash().String(), nil
+}
+
+func (r *Repo) commitByHash(op, hash string) (*object.Commit, error) {
+	h := plumbing.NewHash(hash)
+	if h.IsZero() || h.String() != strings.ToLower(hash) {
+		return nil, fmt.Errorf("gitsnap: %s: invalid hash %q", op, hash)
+	}
+	c, err := r.repo.CommitObject(h)
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: %s: commit %q not found: %w", op, hash, err)
+	}
+	return c, nil
+}
+
+// PlanRestore computes the file changes that turn HEAD's tree into hash's
+// tree. It reads only git objects, so it is safe to call outside txlock;
+// ApplyRestore re-checks HEAD before writing.
+func (r *Repo) PlanRestore(ctx context.Context, hash string) (*RestorePlan, error) {
+	target, err := r.commitByHash("plan restore", hash)
+	if err != nil {
+		return nil, err
+	}
+	headRef, err := r.repo.Head()
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: plan restore: head: %w", err)
+	}
+	head, err := r.repo.CommitObject(headRef.Hash())
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: plan restore: head commit: %w", err)
+	}
+	headTree, err := head.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: plan restore: head tree: %w", err)
+	}
+	targetTree, err := target.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: plan restore: target tree: %w", err)
+	}
+	all, err := object.DiffTreeWithOptions(ctx, headTree, targetTree, &object.DiffTreeOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("gitsnap: plan restore: tree diff: %w", err)
+	}
+	plan := &RestorePlan{Head: head.Hash.String(), Target: target.Hash.String(), Message: target.Message}
+	seen := map[string]bool{}
+	for _, ch := range all {
+		keep := false
+		for _, name := range []string{ch.From.Name, ch.To.Name} {
+			if name == "" || skipRestorePath(name) {
+				continue
+			}
+			keep = true
+			if !seen[name] {
+				seen[name] = true
+				plan.Paths = append(plan.Paths, filepath.Join(r.dir, filepath.FromSlash(name)))
+			}
+		}
+		if keep {
+			plan.changes = append(plan.changes, ch)
+		}
+	}
+	return plan, nil
+}
+
+// ApplyRestore rewrites the worktree so every tracked file matches the plan's
+// target tree. HEAD and the index are left alone, so the next Commit records
+// the restore as a new snapshot on top of the existing history. It refuses
+// with ErrHeadMoved if HEAD changed since PlanRestore, and with ErrDirty if
+// the worktree has uncommitted changes. Call it inside txlock.
+func (r *Repo) ApplyRestore(ctx context.Context, plan *RestorePlan) error {
+	head, err := r.Head()
+	if err != nil {
+		return err
+	}
+	if head != plan.Head {
+		return ErrHeadMoved
 	}
 	wt, err := r.repo.Worktree()
 	if err != nil {
 		return fmt.Errorf("gitsnap: restore: worktree: %w", err)
+	}
+	status, err := wt.Status()
+	if err != nil {
+		return fmt.Errorf("gitsnap: restore: status: %w", err)
+	}
+	if !status.IsClean() {
+		return ErrDirty
+	}
+	for _, ch := range plan.changes {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if ch.From.Name != "" && ch.From.Name != ch.To.Name && !skipRestorePath(ch.From.Name) {
+			p := filepath.Join(r.dir, filepath.FromSlash(ch.From.Name))
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("gitsnap: restore: remove %s: %w", ch.From.Name, err)
+			}
+		}
+		if ch.To.Name == "" || skipRestorePath(ch.To.Name) {
+			continue
+		}
+		if err := r.writeEntry(ch.To); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Repo) writeEntry(e object.ChangeEntry) error {
+	blob, err := r.repo.BlobObject(e.TreeEntry.Hash)
+	if err != nil {
+		return fmt.Errorf("gitsnap: restore: blob %s: %w", e.Name, err)
+	}
+	rd, err := blob.Reader()
+	if err != nil {
+		return fmt.Errorf("gitsnap: restore: read %s: %w", e.Name, err)
+	}
+	defer func() { _ = rd.Close() }()
+	data, err := io.ReadAll(rd)
+	if err != nil {
+		return fmt.Errorf("gitsnap: restore: read %s: %w", e.Name, err)
+	}
+	p := filepath.Join(r.dir, filepath.FromSlash(e.Name))
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return fmt.Errorf("gitsnap: restore: mkdir for %s: %w", e.Name, err)
+	}
+	perm := os.FileMode(0o644)
+	if e.TreeEntry.Mode == filemode.Executable {
+		perm = 0o755
+	}
+	// Remove first so a mode change (and a file replacing a symlink) applies.
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("gitsnap: restore: replace %s: %w", e.Name, err)
+	}
+	if err := os.WriteFile(p, data, perm); err != nil {
+		return fmt.Errorf("gitsnap: restore: write %s: %w", e.Name, err)
+	}
+	return nil
+}
+
+// Restore is PlanRestore + ApplyRestore + Commit for callers that do not go
+// through txlock (floatctl): the worktree is set to hash's tree and recorded
+// as a new snapshot with msg, keeping all later snapshots in history.
+func (r *Repo) Restore(ctx context.Context, hash, msg string) error {
+	plan, err := r.PlanRestore(ctx, hash)
+	if err != nil {
+		return err
+	}
+	if err := r.ApplyRestore(ctx, plan); err != nil {
+		return err
+	}
+	return r.Commit(ctx, msg)
+}
+
+// ResetHard hard-resets the branch and worktree to the given commit, discarding
+// every later snapshot from history, while preserving secret/local files.
+func (r *Repo) ResetHard(_ context.Context, hash string) error {
+	c, err := r.commitByHash("reset", hash)
+	if err != nil {
+		return err
+	}
+	wt, err := r.repo.Worktree()
+	if err != nil {
+		return fmt.Errorf("gitsnap: reset: worktree: %w", err)
 	}
 
 	saved := map[string][]byte{}
@@ -210,15 +405,15 @@ func (r *Repo) Restore(_ context.Context, hash string) error {
 	}
 
 	if err := wt.Reset(&git.ResetOptions{
-		Commit: h,
+		Commit: c.Hash,
 		Mode:   git.HardReset,
 	}); err != nil {
-		return fmt.Errorf("gitsnap: restore: reset: %w", err)
+		return fmt.Errorf("gitsnap: reset: %w", err)
 	}
 
 	for name, data := range saved {
 		if err := os.WriteFile(filepath.Join(r.dir, name), data, 0600); err != nil {
-			return fmt.Errorf("gitsnap: restore: restore %s: %w", name, err)
+			return fmt.Errorf("gitsnap: reset: restore %s: %w", name, err)
 		}
 	}
 	return nil
