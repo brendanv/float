@@ -22,6 +22,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { setThemeColor } from "@/lib/pwa.js";
 import { AddTransactionModal } from "./add-transaction-modal.jsx";
+import { UndoToaster } from "./undo-toaster.jsx";
 import { CommandPalette } from "./command-palette.jsx";
 import { NAV_GROUPS, SETTINGS_ITEM, navItemFor } from "./nav-items.js";
 import { GroupHeader, GroupHeaderProvider } from "./page-header.jsx";
@@ -317,6 +318,8 @@ export function AppShell({ children, currentPath }) {
         onOpenChange={setJumpOpen}
         onNewTransaction={() => setAddTxnOpen(true)}
       />
+      {/* On phones, keep toasts above the tab bar. */}
+      <UndoToaster bottomOffset={isMobile ? "calc(env(safe-area-inset-bottom) + 4.5rem)" : undefined} />
     </SidebarProvider>
   );
 }

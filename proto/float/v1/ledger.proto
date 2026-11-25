@@ -469,6 +469,26 @@ message RestoreSnapshotRequest {
 
 message RestoreSnapshotResponse {}
 
+// UndoSnapshotRequest undoes the most recent change. Mutations that can be
+// undone return the snapshot they created in the "float-snapshot" response
+// trailer: DeleteTransaction, UpdateTransaction, BulkEditTransactions,
+// BulkDeleteTransactions, ApplyRules, ImportTransactions,
+// ImportStructuredTransactions, DeleteRule, DeleteTemplate, DeletePrice,
+// DeleteAccountDeclaration, SetAccountClosed and RestoreSnapshot.
+message UndoSnapshotRequest {
+  // Full commit hash of the snapshot to undo. It must still be the newest
+  // snapshot: if any other change has been saved since, the call fails with
+  // FAILED_PRECONDITION and nothing changes (use RestoreSnapshot instead).
+  string hash = 1;
+}
+
+message UndoSnapshotResponse {
+  // The snapshot recording the undo. Passing it to UndoSnapshot redoes the
+  // change, under the same newest-snapshot rule.
+  string snapshot = 1;
+  string message = 2; // commit message of the undo snapshot
+}
+
 message FileDiff {
   string path = 1;          // new path; old path for deletes
   string old_path = 2;      // set only on rename
@@ -1230,6 +1250,7 @@ service LedgerService {
   rpc BulkDeleteTransactions(BulkDeleteTransactionsRequest) returns (stream BulkDeleteTransactionsResponse);
   rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
   rpc RestoreSnapshot(RestoreSnapshotRequest) returns (RestoreSnapshotResponse);
+  rpc UndoSnapshot(UndoSnapshotRequest) returns (UndoSnapshotResponse);
   rpc GetSnapshotDiff(GetSnapshotDiffRequest) returns (GetSnapshotDiffResponse);
   rpc GetIncomeStatementTimeseries(GetIncomeStatementTimeseriesRequest) returns (GetIncomeStatementTimeseriesResponse);
 

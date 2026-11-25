@@ -104,6 +104,12 @@ AI handlers use `internal/ai` and OpenRouter via `OPENROUTER_API_KEY`. They can 
 
 `RestoreSnapshot` defaults to a forward restore: the data directory is set back to the snapshot's tracked files and txlock commits that as a new snapshot (`restore snapshot <hash8> ("<message>")`), so later snapshots stay in history and the restore can itself be restored away. `hard_reset` instead discards the later snapshots, but only after `hledger check` has passed on the restored files. See `internal/gitsnap/CLAUDE.md` for the mechanics.
 
+### Undo (`handler_undo.go`)
+
+`NewUndoInterceptor` (registered by `cmd/floatd`) wraps the procedures in `undoableProcedures` — single-transaction delete/update, bulk edit/delete, apply rules, CSV and structured import, rule/template/price/account-declaration delete, close/reopen, forward restore — with a `txlock.Receipt` and, when the call made one undoable write, sets the `Float-Snapshot` response trailer (trailers, so server-streaming RPCs work too). Keep the list in sync with the `UndoSnapshotRequest` proto comment and the web's `undoLabel`. Writes that also touch `config.toml` (rename, Stripe, settings) never get the trailer because git can't restore that file.
+
+`UndoSnapshot(hash)` plans with `gitsnap.PlanUndo` and applies under `lock.DoWith` (plan paths declared, `hledger check`, file-for-file revert on failure). It commits `undo: <message>` (undoing an undo commits `redo: …`) and returns that snapshot, so the client can offer Redo. If `hash` is no longer the newest snapshot — any other write landed, undoable or not — it returns `FailedPrecondition` and changes nothing; older history is for `RestoreSnapshot`.
+
 ### Settings / Logs / Debug
 
 Settings handlers manage Alpha Vantage API key, AI model/prompt, Stripe customer/daily import config, and timezone. `RunHledgerQuery` runs a constrained raw hledger command with `-f <journal>` automatically prepended. `ExportJournal` runs `hledger print -f <journal>` and returns the flattened journal (all includes inlined) as bytes plus a suggested filename, for a one-file download of the entire ledger. `StreamLogs` streams broadcast slog entries filtered by minimum level.

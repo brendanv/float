@@ -13,15 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormActions, FormField } from "@/components/ui/form";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 
 // Inline editors and the full edit form for transaction rows. Every save
 // sends all postings back through toPostingInput(fieldsFromPosting(p)) so
@@ -241,7 +232,6 @@ export function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel, 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
 
   const isDirty = date !== initialDate
@@ -289,7 +279,6 @@ export function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel, 
     setDeleting(true);
     try {
       await ledgerClient.deleteTransaction({ fid: tx.fid });
-      setDeleteOpen(false);
       if (onDeleted) onDeleted();
     } catch (err) {
       setError(err.message || String(err));
@@ -337,27 +326,16 @@ export function EditableDetailRow({ tx, accounts, onSaved, onDeleted, onCancel, 
             <Button variant="outline" size={inDialog ? "sm" : "xs"} disabled={saving || deleting} onClick={() => setDuplicateOpen(true)}>
               <Copy data-icon="inline-start" /> Duplicate
             </Button>
-            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-              <DialogTrigger
-                render={<Button variant="destructive-ghost" size={inDialog ? "sm" : "xs"} disabled={saving || deleting} />}
-              >
-                <Trash2 data-icon="inline-start" /> Delete
-              </DialogTrigger>
-              <DialogContent showCloseButton={false}>
-                <DialogHeader>
-                  <DialogTitle>Delete transaction?</DialogTitle>
-                  <DialogDescription>
-                    This will permanently remove &ldquo;{tx.description}&rdquo; from the journal. This cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-                  <Button variant="destructive" onClick={handleDelete} isLoading={deleting}>
-                    Delete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button
+              variant="destructive-ghost"
+              size={inDialog ? "sm" : "xs"}
+              disabled={saving}
+              isLoading={deleting}
+              loadingText="Deleting…"
+              onClick={handleDelete}
+            >
+              <Trash2 data-icon="inline-start" /> Delete
+            </Button>
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
             <Button type="button" variant="outline" size={inDialog ? "default" : "xs"} onClick={cancel} disabled={saving || deleting}>

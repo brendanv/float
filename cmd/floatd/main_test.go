@@ -24,6 +24,7 @@ import (
 
 	floatv1 "github.com/brendanv/float/gen/float/v1"
 	"github.com/brendanv/float/gen/float/v1/floatv1connect"
+	serverledger "github.com/brendanv/float/internal/server/ledger"
 )
 
 // These tests start the whole server through run() — config, startup
@@ -319,6 +320,30 @@ func TestServerSmoke(t *testing.T) {
 		text := res.Content[0].(*mcp.TextContent).Text
 		if res.IsError || !strings.Contains(text, `"Grocery store"`) {
 			t.Fatalf("list_transactions = %s (isError=%v)", text, res.IsError)
+		}
+	})
+
+	t.Run("undoable write returns a snapshot trailer that UndoSnapshot reverts", func(t *testing.T) {
+		// The transaction written by the earlier subtest (fixture ones have no code).
+		list, err := client.ListTransactions(ctx, connect.NewRequest(&floatv1.ListTransactionsRequest{Query: []string{"desc:Smoke coffee"}}))
+		if err != nil || len(list.Msg.Transactions) == 0 {
+			t.Fatalf("ListTransactions: %v (%d found)", err, len(list.Msg.GetTransactions()))
+		}
+		fid := list.Msg.Transactions[0].Fid
+		del, err := client.DeleteTransaction(ctx, connect.NewRequest(&floatv1.DeleteTransactionRequest{Fid: fid}))
+		if err != nil {
+			t.Fatalf("DeleteTransaction: %v", err)
+		}
+		snapshot := del.Trailer().Get(serverledger.SnapshotTrailer)
+		if snapshot == "" {
+			t.Fatal("DeleteTransaction returned no snapshot trailer through the full interceptor chain")
+		}
+		if _, err := client.UndoSnapshot(ctx, connect.NewRequest(&floatv1.UndoSnapshotRequest{Hash: snapshot})); err != nil {
+			t.Fatalf("UndoSnapshot: %v", err)
+		}
+		again, err := client.ListTransactions(ctx, connect.NewRequest(&floatv1.ListTransactionsRequest{Query: []string{"code:" + fid}}))
+		if err != nil || len(again.Msg.Transactions) != 1 {
+			t.Fatalf("after undo, code:%s matched %d transactions (err %v), want 1", fid, len(again.Msg.GetTransactions()), err)
 		}
 	})
 

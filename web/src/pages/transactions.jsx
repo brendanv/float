@@ -190,7 +190,7 @@ function BulkActionBar({ selectedFids, transactions, accounts, focusedAccount, o
               <DialogHeader>
                 <DialogTitle>Delete selected transactions?</DialogTitle>
                 <DialogDescription>
-                  This will permanently remove {count} selected transaction{count === 1 ? "" : "s"} from the journal. This cannot be undone.
+                  This removes {count} selected transaction{count === 1 ? "" : "s"} from the journal. You can undo it right after.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

@@ -5,11 +5,13 @@ Maintains a git repository inside a float data directory for journal/config snap
 ## API
 
 - `New(dir)` — opens an existing repo or initializes a new one, writes `.gitignore`, and creates an initial empty commit if needed.
-- `Commit(ctx, msg)` — stages all changes and commits. It no-ops when the worktree is clean and caps long commit messages.
+- `Commit(ctx, msg)` — stages all changes and commits. It no-ops when the worktree is clean and caps long commit messages. `CommitHash` does the same and returns the new commit's hash (`""` for a no-op); txlock uses it to fill a `txlock.Receipt`.
+- `Tracks(path)` — whether snapshots cover an absolute path (false for the preserved/ignored files below, `.gitignore`, and paths outside the repo). A write that declared an untracked file can't be undone from git.
 - `List(ctx, limit)` — returns snapshots (hash, message, timestamp) in reverse chronological order; limit 0 means the default of 50.
 - `Head()` — hash of the current HEAD commit.
 - `PlanRestore(ctx, hash)` — computes a forward restore: the tracked-file changes that turn HEAD's tree into `hash`'s tree, as a `RestorePlan` whose `Paths` (absolute) callers declare to txlock. Reads git objects only, so it can run outside the lock. `.gitignore` and the preserved files are never touched.
 - `ApplyRestore(ctx, plan)` — writes the plan's files into the worktree without moving HEAD or the index, so the next `Commit` records the restore as a new snapshot on top of history. Refuses with `ErrHeadMoved` if HEAD changed since planning and `ErrDirty` if the worktree has uncommitted changes. Call inside txlock.
+- `PlanUndo(ctx, hash)` — plans undoing snapshot `hash`: a forward restore of its parent, so the undo is itself a new snapshot. Refuses with `ErrHeadMoved` unless `hash` is HEAD, and `ErrNotUndoable` for the root commit. Also returns `hash`'s message. Apply with `ApplyRestore` inside txlock (`UndoSnapshot` RPC).
 - `Restore(ctx, hash, msg)` — `PlanRestore` + `ApplyRestore` + `Commit`, for callers outside txlock (`floatctl journal restore`).
 - `ResetHard(ctx, hash)` — hard-resets the branch and worktree to the given commit, discarding every later snapshot from history, while preserving secret/local files (`floatctl journal restore --hard`, `RestoreSnapshot` with `hard_reset`).
 - `Diff(ctx, hash)` — returns per-file diffs for the target commit compared to its parent, including added/deleted/modified/renamed and binary-file markers.

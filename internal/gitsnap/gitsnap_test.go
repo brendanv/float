@@ -807,3 +807,115 @@ func TestNew_SelfHealsGitignore(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitHash(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	writeFiles(t, dir, map[string]string{"main.journal": "A"})
+	h, err := repo.CommitHash(t.Context(), "commit A")
+	if err != nil {
+		t.Fatalf("CommitHash: %v", err)
+	}
+	if h == "" || h != mustHead(t, repo) {
+		t.Errorf("CommitHash = %q, want HEAD %q", h, mustHead(t, repo))
+	}
+	if h, err := repo.CommitHash(t.Context(), "nothing"); err != nil || h != "" {
+		t.Errorf("CommitHash on a clean tree = %q, %v; want \"\", nil", h, err)
+	}
+}
+
+func TestTracks(t *testing.T) {
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	for _, tc := range []struct {
+		path string
+		want bool
+	}{
+		{filepath.Join(dir, "main.journal"), true},
+		{filepath.Join(dir, "rules.json"), true},
+		{filepath.Join(dir, "uploads", "x.csv"), true},
+		{filepath.Join(dir, "config.toml"), false},
+		{filepath.Join(dir, "float.key"), false},
+		{filepath.Join(dir, ".gitignore"), false},
+		{filepath.Join(filepath.Dir(dir), "elsewhere.journal"), false},
+	} {
+		if got := repo.Tracks(tc.path); got != tc.want {
+			t.Errorf("Tracks(%s) = %v, want %v", tc.path, got, tc.want)
+		}
+	}
+}
+
+// TestPlanUndo_UndoAndRedo undoes HEAD (a new snapshot going back to its
+// parent), then undoes the undo.
+func TestPlanUndo_UndoAndRedo(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "A"})
+	hashB := commitFiles(t, repo, dir, "commit B", map[string]string{"main.journal": "B", "uploads/b.csv": "csv"})
+
+	plan, undone, err := repo.PlanUndo(ctx, hashB)
+	if err != nil {
+		t.Fatalf("PlanUndo: %v", err)
+	}
+	if strings.TrimSpace(undone) != "commit B" {
+		t.Errorf("undone message = %q, want commit B", undone)
+	}
+	if err := repo.ApplyRestore(ctx, plan); err != nil {
+		t.Fatalf("ApplyRestore: %v", err)
+	}
+	undoHash, err := repo.CommitHash(ctx, "undo: commit B")
+	if err != nil || undoHash == "" {
+		t.Fatalf("commit undo: %q %v", undoHash, err)
+	}
+	if got, _ := readFile(t, dir, "main.journal"); got != "A" {
+		t.Errorf("after undo main.journal = %q, want A", got)
+	}
+	if _, ok := readFile(t, dir, "uploads/b.csv"); ok {
+		t.Error("after undo uploads/b.csv should be gone")
+	}
+
+	redo, _, err := repo.PlanUndo(ctx, undoHash)
+	if err != nil {
+		t.Fatalf("PlanUndo(undo): %v", err)
+	}
+	if err := repo.ApplyRestore(ctx, redo); err != nil {
+		t.Fatalf("ApplyRestore redo: %v", err)
+	}
+	if got, _ := readFile(t, dir, "main.journal"); got != "B" {
+		t.Errorf("after redo main.journal = %q, want B", got)
+	}
+}
+
+func TestPlanUndo_Refusals(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	repo, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	snaps, err := repo.List(ctx, 0)
+	if err != nil || len(snaps) != 1 {
+		t.Fatalf("List: %v %v", snaps, err)
+	}
+	if _, _, err := repo.PlanUndo(ctx, snaps[0].Hash); !errors.Is(err, ErrNotUndoable) {
+		t.Errorf("undo init commit: err = %v, want ErrNotUndoable", err)
+	}
+	hashA := commitFiles(t, repo, dir, "commit A", map[string]string{"main.journal": "A"})
+	commitFiles(t, repo, dir, "commit B", map[string]string{"main.journal": "B"})
+	if _, _, err := repo.PlanUndo(ctx, hashA); !errors.Is(err, ErrHeadMoved) {
+		t.Errorf("undo non-HEAD: err = %v, want ErrHeadMoved", err)
+	}
+	if _, _, err := repo.PlanUndo(ctx, "not-a-hash"); err == nil {
+		t.Error("undo invalid hash: expected error")
+	}
+}
