@@ -114,7 +114,6 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 	fetched := make([]fetchResult, len(eligible))
 	var wg sync.WaitGroup
 	for i, linked := range eligible {
-		i, linked := i, linked
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -210,43 +209,30 @@ func (h *Handler) runDailyStripeImport(ctx context.Context) (int, map[string]err
 		// concurrent operation (e.g. a manual ImportStripeTransactions) between our
 		// pre-lock dedup and lock acquisition are not written a second time. This mirrors
 		// the in-lock re-check performed by the manual import RPCs.
-		freshExisting, freshErr := h.hl.Transactions(ctx)
-		if freshErr != nil {
-			return nil, fmt.Errorf("refresh existing transactions: %w", freshErr)
-		}
-		for id := range importedStripeTxnIDs(freshExisting) {
-			stripeTxnSet[id] = true
+		if err := h.addImportedStripeTxnIDs(ctx, stripeTxnSet); err != nil {
+			return nil, err
 		}
 
 		cur := h.loadCfg()
 		loc := cur.Location()
-		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
-		copy(accounts, cur.Stripe.LinkedAccounts)
-
+		fetchedAccounts := make(map[string]bool, len(batches))
 		for _, batch := range batches {
+			fetchedAccounts[batch.linked.StripeAccountID] = true
 			for _, st := range batch.newTxns {
 				if stripeTxnSet[st.ID] {
 					continue
 				}
-				txInput := stripeTransactionToInput(st, batch.linked.HledgerAccount, batchID, loc)
-				rules.ApplyToInput(&txInput, rules.Match(rulesList, st.Description, batch.linked.HledgerAccount))
-				if _, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput); writeErr != nil {
+				if _, writeErr := h.appendStripeTxn(ctx, st, batch.linked.HledgerAccount, batchID, loc, rulesList); writeErr != nil {
 					return nil, fmt.Errorf("write %s: %w", st.ID, writeErr)
 				}
 				stripeTxnSet[st.ID] = true
 				totalImported++
 				perAccountImported[batch.linked.StripeAccountID]++
 			}
-			for j, la := range accounts {
-				if la.StripeAccountID == batch.linked.StripeAccountID {
-					accounts[j].LastFetchedAt = fetchedAt
-					break
-				}
-			}
 		}
 
 		newCfg := *cur
-		newCfg.Stripe.LinkedAccounts = accounts
+		newCfg.Stripe.LinkedAccounts = withLastFetchedAt(cur.Stripe.LinkedAccounts, fetchedAccounts, fetchedAt)
 		newCfg.Stripe.LastDailyImportAt = now
 		// Publish only once the lock call commits: under DoWithPublish a failed
 		// hledger check (e.g. an imported transaction breaking a balance
