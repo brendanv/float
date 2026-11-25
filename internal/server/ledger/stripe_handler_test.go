@@ -1199,6 +1199,9 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		if result.ImportedCount != 1 {
 			t.Errorf("ImportedCount = %d, want 1", result.ImportedCount)
 		}
+		if !strings.HasPrefix(result.ImportBatchId, "stripe-all/") {
+			t.Errorf("ImportBatchId = %q, expected prefix %q", result.ImportBatchId, "stripe-all/")
+		}
 
 		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
 		if err != nil {
@@ -1206,6 +1209,26 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		}
 		if savedCfg.Stripe.LinkedAccounts[0].LastFetchedAt == "" {
 			t.Error("LastFetchedAt was not updated after import")
+		}
+	})
+
+	t.Run("unlinked account returns not found", func(t *testing.T) {
+		dir := testgen.GenerateDataDir(t, testgen.Options{Seed: 831, NumTxns: 1})
+		h := mustHandlerWithConfig(t, dir, &config.Config{
+			Stripe: config.StripeConfig{
+				LinkedAccounts: []config.StripeLinkedAccount{
+					{StripeAccountID: "fca_abc", HledgerAccount: "assets:checking"},
+				},
+			},
+		})
+		_, err := importAllStripeTransactions(t, h, &floatv1.ImportAllStripeTransactionsRequest{
+			Selections: []*floatv1.AccountTransactionSelection{
+				{StripeAccountId: "fca_abc", StripeTransactionIds: []string{"fca_txn_a1"}},
+				{StripeAccountId: "fca_missing", StripeTransactionIds: []string{"fca_txn_x"}},
+			},
+		})
+		if connect.CodeOf(err) != connect.CodeNotFound {
+			t.Errorf("code = %v (err %v), want NotFound", connect.CodeOf(err), err)
 		}
 	})
 
@@ -1258,6 +1281,14 @@ func TestImportAllStripeTransactions(t *testing.T) {
 		}
 		if result.ImportedCount != 0 {
 			t.Errorf("ImportedCount = %d, want 0 (already imported)", result.ImportedCount)
+		}
+		// The account was fetched, so it is stamped even with nothing new.
+		savedCfg, err := config.Load(filepath.Join(dir, "config.toml"))
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if savedCfg.Stripe.LinkedAccounts[0].LastFetchedAt == "" {
+			t.Error("LastFetchedAt was not updated for a fetched account with no new transactions")
 		}
 	})
 }

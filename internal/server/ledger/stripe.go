@@ -83,13 +83,9 @@ func (h *Handler) SetStripeCustomerId(ctx context.Context, req *connect.Request[
 
 func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Request[floatv1.CreateStripeLinkSessionRequest]) (*connect.Response[floatv1.CreateStripeLinkSessionResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	cfg := h.loadCfg()
-	if cfg == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	cfg, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return nil, err
 	}
 	customerID := cfg.Stripe.CustomerID
 	if customerID == "" {
@@ -123,12 +119,9 @@ func (h *Handler) CreateStripeLinkSession(ctx context.Context, _ *connect.Reques
 
 func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Request[floatv1.CompleteStripeLinkingRequest]) (*connect.Response[floatv1.CompleteStripeLinkingResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	if h.loadCfg() == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	_, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return nil, err
 	}
 	if len(req.Msg.Accounts) == 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("accounts must not be empty"))
@@ -153,7 +146,7 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 		}
 	}
 
-	err := h.lock.DoConfig(ctx, "link stripe accounts", []string{h.configPath}, func() error {
+	err = h.lock.DoConfig(ctx, "link stripe accounts", []string{h.configPath}, func() error {
 		cur := h.loadCfg()
 		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
 		copy(accounts, cur.Stripe.LinkedAccounts)
@@ -203,13 +196,9 @@ func (h *Handler) CompleteStripeLinking(ctx context.Context, req *connect.Reques
 
 func (h *Handler) ListStripeLinkedAccounts(ctx context.Context, _ *connect.Request[floatv1.ListStripeLinkedAccountsRequest]) (*connect.Response[floatv1.ListStripeLinkedAccountsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	cfg := h.loadCfg()
-	if cfg == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	cfg, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return nil, err
 	}
 	stripeAccounts, err := stripeClient.ListAccounts(ctx, secretKey, cfg.Stripe.CustomerID)
 	if err != nil {
@@ -332,13 +321,9 @@ func (h *Handler) SetStripeAccountImportFrom(ctx context.Context, req *connect.R
 
 func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Request[floatv1.FetchStripeTransactionsRequest]) (*connect.Response[floatv1.FetchStripeTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	cfg := h.loadCfg()
-	if cfg == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	cfg, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return nil, err
 	}
 	if req.Msg.StripeAccountId == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
@@ -356,48 +341,18 @@ func (h *Handler) FetchStripeTransactions(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
 	}
 
-	existing, err := h.hl.Transactions(ctx)
+	imported, rulesList, err := h.loadStripeImportState(ctx)
 	if err != nil {
-		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
+		return nil, err
 	}
-	stripeTxnSet := importedStripeTxnIDs(existing)
-
-	rulesList, err := rules.Load(h.dataDir)
-	if err != nil {
-		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
-	}
-
-	candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
-	for _, st := range stripeTxns {
-		// Only settled transactions on or after the account's cutoff are importable;
-		// duplicates (by Stripe txn id) are hidden so the UI never shows them.
-		if !stripeTxnImportable(st, linked, cfg.Location()) || stripeTxnSet[st.ID] {
-			continue
-		}
-		ht := stripeTransactionToHledger(st, linked.HledgerAccount, cfg.Location())
-		candidate := &floatv1.ImportCandidate{
-			SourceId: st.ID,
-		}
-		if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
-			candidate.MatchedRuleId = r.ID
-			ht = rules.ApplyToCandidate(ht, r)
-		}
-		candidate.Transaction = toProtoTransaction(ht)
-		candidates = append(candidates, candidate)
-	}
+	candidates := stripeCandidates(stripeTxns, linked, imported, rulesList, cfg.Location())
 	return connect.NewResponse(&floatv1.FetchStripeTransactionsResponse{Candidates: candidates}), nil
 }
 
 func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Request[floatv1.ImportStripeTransactionsRequest], stream *connect.ServerStream[floatv1.ImportTransactionsResponse]) error {
-	logger := slogctx.FromContext(ctx)
-	if h.loadCfg() == nil {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	_, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return err
 	}
 	if req.Msg.StripeAccountId == "" {
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
@@ -411,141 +366,26 @@ func (h *Handler) ImportStripeTransactions(ctx context.Context, req *connect.Req
 		return connect.NewError(connect.CodeNotFound, err)
 	}
 
-	stripeTxns, err := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID)
-	if err != nil {
-		logger.ErrorContext(ctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
-	}
-
-	rulesList, err := rules.Load(h.dataDir)
-	if err != nil {
-		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
-	}
-
-	txnByID := make(map[string]stripeClient.Transaction, len(stripeTxns))
-	for _, st := range stripeTxns {
-		txnByID[st.ID] = st
-	}
-
-	existing, err := h.hl.Transactions(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
-	}
-	importedStripeTxnSet := importedStripeTxnIDs(existing)
-
-	if h.afterImportPreFetch != nil {
-		h.afterImportPreFetch()
-	}
-
-	selectedIDs := req.Msg.StripeTransactionIds
-	importBatchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
-	total := int32(len(selectedIDs))
-	fetchedAt := time.Now().UTC().Format(time.RFC3339)
-
-	var importedFIDs []string
-	err = h.lock.DoWithPublish(ctx, fmt.Sprintf("import %d stripe transactions (batch %s)", len(selectedIDs), importBatchID), []string{h.configPath}, func() (func(), error) {
-		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
-		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
-		// acquisition are not written a second time.
-		freshExisting, freshErr := h.hl.Transactions(ctx)
-		if freshErr != nil {
-			return nil, fmt.Errorf("refresh existing transactions: %w", freshErr)
-		}
-		for id := range importedStripeTxnIDs(freshExisting) {
-			importedStripeTxnSet[id] = true
-		}
-
-		cur := h.loadCfg()
-		loc := cur.Location()
-
-		for _, txnID := range selectedIDs {
-			if importedStripeTxnSet[txnID] {
-				continue
-			}
-			st, ok := txnByID[txnID]
-			if !ok {
-				return nil, fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
-			}
-			if !stripeTxnImportable(st, linked, loc) {
-				continue
-			}
-			txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, loc)
-
-			rules.ApplyToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
-
-			fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
-			if writeErr != nil {
-				return nil, fmt.Errorf("write transaction %s: %w", txnID, writeErr)
-			}
-			importedFIDs = append(importedFIDs, fid)
-			importedStripeTxnSet[txnID] = true
-
-			if sendErr := stream.Send(&floatv1.ImportTransactionsResponse{
-				Payload: &floatv1.ImportTransactionsResponse_Progress{
-					Progress: &floatv1.ImportProgress{
-						Imported: int32(len(importedFIDs)),
-						Total:    total,
-					},
-				},
-			}); sendErr != nil {
-				return nil, sendErr
-			}
-		}
-
-		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
-		copy(accounts, cur.Stripe.LinkedAccounts)
-		for i, la := range accounts {
-			if la.StripeAccountID == linked.StripeAccountID {
-				accounts[i].LastFetchedAt = fetchedAt
-				break
-			}
-		}
-		newCfg := *cur
-		newCfg.Stripe.LinkedAccounts = accounts
-		return h.saveCfg(&newCfg)
-	})
-	if err != nil {
-		logger.ErrorContext(ctx, "import stripe transactions failed", "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to import Stripe transactions"))
-	}
-
-	txnProtos := h.importedTransactionProtos(ctx, importedFIDs)
-
-	return stream.Send(&floatv1.ImportTransactionsResponse{
-		Payload: &floatv1.ImportTransactionsResponse_Result{
-			Result: &floatv1.ImportTransactionsResult{
-				ImportedCount: int32(len(importedFIDs)),
-				Transactions:  txnProtos,
-				ImportBatchId: importBatchID,
-			},
-		},
+	ids := req.Msg.StripeTransactionIds
+	batchID := "stripe-" + stripeAccountSlug(linked.StripeAccountID) + "/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
+	return h.runStripeImport(ctx, stream, secretKey, stripeImport{
+		selections:    []stripeImportSelection{{accountID: linked.StripeAccountID, txnIDs: ids}},
+		batchID:       batchID,
+		lockMsg:       fmt.Sprintf("import %d stripe transactions (batch %s)", len(ids), batchID),
+		afterPreFetch: h.afterImportPreFetch,
 	})
 }
 
 func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Request[floatv1.FetchAllStripeTransactionsRequest]) (*connect.Response[floatv1.FetchAllStripeTransactionsResponse], error) {
 	logger := slogctx.FromContext(ctx)
-	cfg := h.loadCfg()
-	if cfg == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	cfg, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return nil, err
 	}
 
-	existing, err := h.hl.Transactions(ctx)
+	imported, rulesList, err := h.loadStripeImportState(ctx)
 	if err != nil {
-		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
-	}
-	stripeTxnSet := importedStripeTxnIDs(existing)
-
-	rulesList, err := rules.Load(h.dataDir)
-	if err != nil {
-		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
+		return nil, err
 	}
 
 	var eligible []config.StripeLinkedAccount
@@ -555,14 +395,9 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 		}
 	}
 
-	type accountResult struct {
-		candidates []*floatv1.ImportCandidate
-	}
-	results := make([]accountResult, len(eligible))
-
+	results := make([][]*floatv1.ImportCandidate, len(eligible))
 	g, gctx := errgroup.WithContext(ctx)
 	for i, linked := range eligible {
-		i, linked := i, linked
 		g.Go(func() error {
 			logger.InfoContext(gctx, "fetch all: list stripe transactions", "account", linked.StripeAccountID)
 			stripeTxns, err := stripeClient.ListTransactions(gctx, secretKey, linked.StripeAccountID)
@@ -570,30 +405,10 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 				logger.ErrorContext(gctx, "list stripe transactions failed", "account", linked.StripeAccountID, "error", err)
 				return fmt.Errorf("failed to list transactions for account %s", linked.StripeAccountID)
 			}
-
-			candidates := make([]*floatv1.ImportCandidate, 0, len(stripeTxns))
-			for _, st := range stripeTxns {
-				// Only settled transactions on or after the account's cutoff are
-				// importable; duplicates (by Stripe txn id) are hidden so the UI never
-				// shows them.
-				if !stripeTxnImportable(st, linked, cfg.Location()) || stripeTxnSet[st.ID] {
-					continue
-				}
-				ht := stripeTransactionToHledger(st, linked.HledgerAccount, cfg.Location())
-				candidate := &floatv1.ImportCandidate{SourceId: st.ID}
-				if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
-					candidate.MatchedRuleId = r.ID
-					ht = rules.ApplyToCandidate(ht, r)
-				}
-				candidate.Transaction = toProtoTransaction(ht)
-				candidates = append(candidates, candidate)
-			}
-
-			results[i].candidates = candidates
+			results[i] = stripeCandidates(stripeTxns, linked, imported, rulesList, cfg.Location())
 			return nil
 		})
 	}
-
 	if err := g.Wait(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -602,7 +417,7 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 	for i, linked := range eligible {
 		accountCandidates = append(accountCandidates, &floatv1.AccountCandidates{
 			Account:    configToProtoLinkedAccount(linked),
-			Candidates: results[i].candidates,
+			Candidates: results[i],
 		})
 	}
 
@@ -612,184 +427,248 @@ func (h *Handler) FetchAllStripeTransactions(ctx context.Context, _ *connect.Req
 }
 
 func (h *Handler) ImportAllStripeTransactions(ctx context.Context, req *connect.Request[floatv1.ImportAllStripeTransactionsRequest], stream *connect.ServerStream[floatv1.ImportTransactionsResponse]) error {
-	logger := slogctx.FromContext(ctx)
-	if h.loadCfg() == nil {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	_, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return err
 	}
 	if len(req.Msg.Selections) == 0 {
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("selections must not be empty"))
 	}
 
-	total := int32(0)
-	for _, sel := range req.Msg.Selections {
-		total += int32(len(sel.StripeTransactionIds))
-	}
-	if total == 0 {
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("no transactions selected"))
-	}
-
-	rulesList, err := rules.Load(h.dataDir)
-	if err != nil {
-		logger.ErrorContext(ctx, "load rules failed", "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
-	}
-
-	existing, err := h.hl.Transactions(ctx)
-	if err != nil {
-		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
-		return connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
-	}
-	importedStripeTxnSet := importedStripeTxnIDs(existing)
-
-	// Phase 1: pre-fetch all Stripe API data outside the lock so the lock holds no
-	// network calls. The map is keyed by the canonical linked.StripeAccountID — never
-	// the raw sel.StripeAccountId — so any future tolerance in findLinkedAccount
-	// matching can't cause the prefetch and lock phases to disagree on which fetch
-	// belongs to which selection.
-	type acctFetch struct {
-		txns    []stripeClient.Transaction
-		txnByID map[string]stripeClient.Transaction
-		err     error
-	}
-	acctFetches := make(map[string]*acctFetch)
+	var selections []stripeImportSelection
 	for _, sel := range req.Msg.Selections {
 		if len(sel.StripeTransactionIds) == 0 {
 			continue
 		}
-		linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
-		if findErr != nil {
-			// Defer to the lock phase, which re-resolves and surfaces a NotFound-style error.
+		linked, err := h.findLinkedAccount(sel.StripeAccountId)
+		if err != nil {
+			return connect.NewError(connect.CodeNotFound, err)
+		}
+		selections = append(selections, stripeImportSelection{accountID: linked.StripeAccountID, txnIDs: sel.StripeTransactionIds})
+	}
+	if len(selections) == 0 {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("no transactions selected"))
+	}
+
+	return h.runStripeImport(ctx, stream, secretKey, stripeImport{
+		selections:    selections,
+		batchID:       "stripe-all/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID(),
+		lockMsg:       fmt.Sprintf("import all stripe transactions (%d selections)", len(req.Msg.Selections)),
+		afterPreFetch: h.afterImportAllPreFetch,
+	})
+}
+
+// stripeImportSelection is the Stripe transactions to import from one linked
+// account. accountID is the canonical linked.StripeAccountID.
+type stripeImportSelection struct {
+	accountID string
+	txnIDs    []string
+}
+
+// stripeImport describes one ImportStripeTransactions or
+// ImportAllStripeTransactions call for runStripeImport.
+type stripeImport struct {
+	selections []stripeImportSelection // non-empty txnIDs; an account may repeat
+	batchID    string
+	lockMsg    string
+	// afterPreFetch is a test hook run between the pre-fetch and lock
+	// acquisition. Nil in production.
+	afterPreFetch func()
+}
+
+// runStripeImport imports the selected Stripe transactions as one import
+// batch, streaming progress and then the result.
+//
+// Stripe is listed once per account before taking the lock, so the lock never
+// waits on the network. Inside the lock the already-imported Stripe IDs are
+// re-read, so a concurrent import (e.g. the daily auto-import) landing between
+// the pre-fetch and lock acquisition is not written twice, and each account is
+// re-resolved, so one unlinked meanwhile fails the import. Every selected
+// account's LastFetchedAt is stamped in the same write.
+func (h *Handler) runStripeImport(ctx context.Context, stream *connect.ServerStream[floatv1.ImportTransactionsResponse], secretKey string, imp stripeImport) error {
+	logger := slogctx.FromContext(ctx)
+
+	var total int32
+	txnsByAccount := make(map[string]map[string]stripeClient.Transaction)
+	for _, sel := range imp.selections {
+		total += int32(len(sel.txnIDs))
+		if _, seen := txnsByAccount[sel.accountID]; seen {
 			continue
 		}
-		if _, seen := acctFetches[linked.StripeAccountID]; seen {
-			continue
+		txns, err := stripeClient.ListTransactions(ctx, secretKey, sel.accountID)
+		if err != nil {
+			logger.ErrorContext(ctx, "list stripe transactions failed", "account", sel.accountID, "error", err)
+			return connect.NewError(connect.CodeInternal, errors.New("failed to list Stripe transactions"))
 		}
-		af := &acctFetch{}
-		txns, listErr := stripeClient.ListTransactions(ctx, secretKey, linked.StripeAccountID)
-		if listErr != nil {
-			af.err = fmt.Errorf("list transactions for %s: %w", linked.StripeAccountID, listErr)
-			acctFetches[linked.StripeAccountID] = af
-			continue
-		}
-		af.txns = txns
-		af.txnByID = make(map[string]stripeClient.Transaction, len(txns))
+		byID := make(map[string]stripeClient.Transaction, len(txns))
 		for _, st := range txns {
-			af.txnByID[st.ID] = st
+			byID[st.ID] = st
 		}
-		acctFetches[linked.StripeAccountID] = af
+		txnsByAccount[sel.accountID] = byID
+	}
+
+	imported, rulesList, err := h.loadStripeImportState(ctx)
+	if err != nil {
+		return err
+	}
+
+	if imp.afterPreFetch != nil {
+		imp.afterPreFetch()
 	}
 
 	fetchedAt := time.Now().UTC().Format(time.RFC3339)
-	importBatchID := "stripe-all/" + time.Now().Format("2006-01-02") + "-" + journal.MintFID()
 	var importedFIDs []string
-	importedAccounts := make(map[string]bool)
-
-	if h.afterImportAllPreFetch != nil {
-		h.afterImportAllPreFetch()
-	}
-
-	err = h.lock.DoWithPublish(ctx, fmt.Sprintf("import all stripe transactions (%d selections)", len(req.Msg.Selections)), []string{h.configPath}, func() (func(), error) {
-		// Refresh importedStripeTxnSet inside the lock so that transactions written by a
-		// concurrent operation (e.g. daily auto-import) between our pre-fetch and lock
-		// acquisition are not written a second time.
-		freshExisting, freshErr := h.hl.Transactions(ctx)
-		if freshErr != nil {
-			return nil, fmt.Errorf("refresh existing transactions: %w", freshErr)
-		}
-		for id := range importedStripeTxnIDs(freshExisting) {
-			importedStripeTxnSet[id] = true
+	err = h.lock.DoWithPublish(ctx, imp.lockMsg, []string{h.configPath}, func() (func(), error) {
+		if err := h.addImportedStripeTxnIDs(ctx, imported); err != nil {
+			return nil, err
 		}
 
 		cur := h.loadCfg()
 		loc := cur.Location()
-
-		for _, sel := range req.Msg.Selections {
-			if len(sel.StripeTransactionIds) == 0 {
-				continue
+		for _, sel := range imp.selections {
+			linked, err := h.findLinkedAccount(sel.accountID)
+			if err != nil {
+				return nil, fmt.Errorf("account %s: %w", sel.accountID, err)
 			}
-
-			linked, findErr := h.findLinkedAccount(sel.StripeAccountId)
-			if findErr != nil {
-				return nil, fmt.Errorf("account %s: %w", sel.StripeAccountId, findErr)
-			}
-
-			af := acctFetches[linked.StripeAccountID]
-			if af == nil || af.err != nil {
-				var errMsg error
-				if af != nil {
-					errMsg = af.err
-				} else {
-					errMsg = fmt.Errorf("no pre-fetched data for account %s", linked.StripeAccountID)
-				}
-				return nil, errMsg
-			}
-
-			for _, txnID := range sel.StripeTransactionIds {
-				if importedStripeTxnSet[txnID] {
+			byID := txnsByAccount[sel.accountID]
+			for _, txnID := range sel.txnIDs {
+				if imported[txnID] {
 					continue
 				}
-				st, ok := af.txnByID[txnID]
+				st, ok := byID[txnID]
 				if !ok {
 					return nil, fmt.Errorf("stripe transaction %q not found in current fetch results", txnID)
 				}
 				if !stripeTxnImportable(st, linked, loc) {
 					continue
 				}
-				txInput := stripeTransactionToInput(st, linked.HledgerAccount, importBatchID, loc)
-
-				rules.ApplyToInput(&txInput, rules.Match(rulesList, st.Description, linked.HledgerAccount))
-
-				fid, writeErr := journal.AppendTransaction(ctx, h.hl, h.dataDir, txInput)
-				if writeErr != nil {
-					return nil, fmt.Errorf("write transaction %s: %w", txnID, writeErr)
+				fid, err := h.appendStripeTxn(ctx, st, linked.HledgerAccount, imp.batchID, loc, rulesList)
+				if err != nil {
+					return nil, fmt.Errorf("write transaction %s: %w", txnID, err)
 				}
 				importedFIDs = append(importedFIDs, fid)
-				importedStripeTxnSet[txnID] = true
-				importedAccounts[linked.StripeAccountID] = true
+				imported[txnID] = true
 
-				if sendErr := stream.Send(&floatv1.ImportTransactionsResponse{
+				if err := stream.Send(&floatv1.ImportTransactionsResponse{
 					Payload: &floatv1.ImportTransactionsResponse_Progress{
 						Progress: &floatv1.ImportProgress{
 							Imported: int32(len(importedFIDs)),
 							Total:    total,
 						},
 					},
-				}); sendErr != nil {
-					return nil, sendErr
+				}); err != nil {
+					return nil, err
 				}
 			}
 		}
 
-		accounts := make([]config.StripeLinkedAccount, len(cur.Stripe.LinkedAccounts))
-		copy(accounts, cur.Stripe.LinkedAccounts)
-		for i, la := range accounts {
-			if importedAccounts[la.StripeAccountID] {
-				accounts[i].LastFetchedAt = fetchedAt
-			}
-		}
 		newCfg := *cur
-		newCfg.Stripe.LinkedAccounts = accounts
+		newCfg.Stripe.LinkedAccounts = withLastFetchedAt(cur.Stripe.LinkedAccounts, txnsByAccount, fetchedAt)
 		return h.saveCfg(&newCfg)
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "import all stripe transactions failed", "error", err)
+		logger.ErrorContext(ctx, "import stripe transactions failed", "batch", imp.batchID, "error", err)
 		return connect.NewError(connect.CodeInternal, errors.New("failed to import Stripe transactions"))
 	}
-
-	txnProtos := h.importedTransactionProtos(ctx, importedFIDs)
 
 	return stream.Send(&floatv1.ImportTransactionsResponse{
 		Payload: &floatv1.ImportTransactionsResponse_Result{
 			Result: &floatv1.ImportTransactionsResult{
 				ImportedCount: int32(len(importedFIDs)),
-				Transactions:  txnProtos,
+				Transactions:  h.importedTransactionProtos(ctx, importedFIDs),
+				ImportBatchId: imp.batchID,
 			},
 		},
 	})
+}
+
+// stripePrereqs returns the loaded config and the Stripe secret key, or a
+// FailedPrecondition error if either is missing.
+func (h *Handler) stripePrereqs() (*config.Config, string, error) {
+	cfg := h.loadCfg()
+	if cfg == nil {
+		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
+	}
+	secretKey := stripeSecretKey()
+	if secretKey == "" {
+		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	}
+	return cfg, secretKey, nil
+}
+
+// loadStripeImportState returns the Stripe transaction IDs already in the
+// journal and the categorization rules, which every Stripe fetch and import
+// needs. Errors are logged and returned as CodeInternal.
+func (h *Handler) loadStripeImportState(ctx context.Context) (map[string]bool, []rules.Rule, error) {
+	logger := slogctx.FromContext(ctx)
+	existing, err := h.hl.Transactions(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "fetch existing transactions failed", "error", err)
+		return nil, nil, connect.NewError(connect.CodeInternal, errors.New("failed to fetch existing transactions"))
+	}
+	rulesList, err := rules.Load(h.dataDir)
+	if err != nil {
+		logger.ErrorContext(ctx, "load rules failed", "error", err)
+		return nil, nil, connect.NewError(connect.CodeInternal, errors.New("failed to load rules"))
+	}
+	return importedStripeTxnIDs(existing), rulesList, nil
+}
+
+// addImportedStripeTxnIDs re-reads the journal and adds every imported Stripe
+// transaction ID to set. Call it inside the lock before writing, so writes
+// that landed after the pre-lock dedup are not imported twice.
+func (h *Handler) addImportedStripeTxnIDs(ctx context.Context, set map[string]bool) error {
+	existing, err := h.hl.Transactions(ctx)
+	if err != nil {
+		return fmt.Errorf("refresh existing transactions: %w", err)
+	}
+	for id := range importedStripeTxnIDs(existing) {
+		set[id] = true
+	}
+	return nil
+}
+
+// appendStripeTxn categorizes a Stripe transaction with the first matching
+// rule and appends it to the journal. Must be called inside the lock.
+func (h *Handler) appendStripeTxn(ctx context.Context, st stripeClient.Transaction, hledgerAccount, batchID string, loc *time.Location, rulesList []rules.Rule) (string, error) {
+	in := stripeTransactionToInput(st, hledgerAccount, batchID, loc)
+	rules.ApplyToInput(&in, rules.Match(rulesList, st.Description, hledgerAccount))
+	return journal.AppendTransaction(ctx, h.hl, h.dataDir, in)
+}
+
+// stripeCandidates converts listed Stripe transactions into import candidates
+// with rules applied. Only settled transactions on or after the account's
+// cutoff are importable; already-imported ones (by Stripe ID) are hidden so
+// the UI never shows them.
+func stripeCandidates(txns []stripeClient.Transaction, linked config.StripeLinkedAccount, imported map[string]bool, rulesList []rules.Rule, loc *time.Location) []*floatv1.ImportCandidate {
+	candidates := make([]*floatv1.ImportCandidate, 0, len(txns))
+	for _, st := range txns {
+		if !stripeTxnImportable(st, linked, loc) || imported[st.ID] {
+			continue
+		}
+		ht := stripeTransactionToHledger(st, linked.HledgerAccount, loc)
+		candidate := &floatv1.ImportCandidate{SourceId: st.ID}
+		if r := rules.Match(rulesList, ht.Description, linked.HledgerAccount); r != nil {
+			candidate.MatchedRuleId = r.ID
+			ht = rules.ApplyToCandidate(ht, r)
+		}
+		candidate.Transaction = toProtoTransaction(ht)
+		candidates = append(candidates, candidate)
+	}
+	return candidates
+}
+
+// withLastFetchedAt returns a copy of accounts with LastFetchedAt set to ts on
+// every account whose StripeAccountID is a key of fetched.
+func withLastFetchedAt[V any](accounts []config.StripeLinkedAccount, fetched map[string]V, ts string) []config.StripeLinkedAccount {
+	out := make([]config.StripeLinkedAccount, len(accounts))
+	copy(out, accounts)
+	for i, la := range out {
+		if _, ok := fetched[la.StripeAccountID]; ok {
+			out[i].LastFetchedAt = ts
+		}
+	}
+	return out
 }
 
 // RefreshStripeAccount triggers a transaction refresh on Stripe and streams
@@ -801,12 +680,9 @@ func (h *Handler) RefreshStripeAccount(
 	stream *connect.ServerStream[floatv1.RefreshStripeAccountResponse],
 ) error {
 	logger := slogctx.FromContext(ctx)
-	if h.loadCfg() == nil {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	_, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return err
 	}
 	if req.Msg.StripeAccountId == "" {
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("stripe_account_id is required"))
@@ -830,13 +706,9 @@ func (h *Handler) RefreshAllStripeAccounts(
 	stream *connect.ServerStream[floatv1.RefreshStripeAccountResponse],
 ) error {
 	logger := slogctx.FromContext(ctx)
-	cfg := h.loadCfg()
-	if cfg == nil {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("server has no config loaded"))
-	}
-	secretKey := stripeSecretKey()
-	if secretKey == "" {
-		return connect.NewError(connect.CodeFailedPrecondition, errors.New("STRIPE_SECRET_KEY is not set"))
+	cfg, secretKey, err := h.stripePrereqs()
+	if err != nil {
+		return err
 	}
 
 	var eligible []config.StripeLinkedAccount
