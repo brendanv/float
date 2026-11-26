@@ -329,18 +329,13 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 		cb = nil
 	}
 
-	// Build a date→cost-basis index for easy lookup.
-	cbByDate := map[string]*floatv1.Amount{}
+	var cbAssets [][]hledger.Amount
+	var cbSrc []int
 	if cb != nil {
-		for i, date := range cb.Periods {
-			for _, sub := range cb.Subreports {
-				if sub.Name == "Assets" && len(sub.Totals[i]) > 0 {
-					a := sub.Totals[i][0]
-					cbByDate[date] = &floatv1.Amount{
-						Commodity: a.Commodity,
-						Quantity:  fmt.Sprintf("%.2f", a.Quantity.FloatingPoint),
-					}
-				}
+		for _, sub := range cb.Subreports {
+			if sub.Name == "Assets" {
+				cbAssets = sub.Totals
+				cbSrc = periodSources(cb.Periods, ts.Periods, true)
 			}
 		}
 	}
@@ -349,18 +344,46 @@ func (h *Handler) GetPortfolioTimeseries(ctx context.Context, req *connect.Reque
 	for i, date := range ts.Periods {
 		snap := &floatv1.PortfolioTimeseriesSnapshot{Date: date}
 		for _, sub := range ts.Subreports {
-			if sub.Name == "Assets" && len(sub.Totals[i]) > 0 {
-				a := sub.Totals[i][0]
-				snap.TotalValue = &floatv1.Amount{
-					Commodity: a.Commodity,
-					Quantity:  fmt.Sprintf("%.2f", a.Quantity.FloatingPoint),
-				}
+			if sub.Name == "Assets" {
+				snap.TotalValue = pickReportedTotal(sub.Totals[i], "USD")
 			}
 		}
-		snap.CostBasis = cbByDate[date]
+		var cbTotals []hledger.Amount
+		if cbSrc != nil {
+			cbTotals = pick(cbAssets, cbSrc[i])
+		}
+		prefer := "USD"
+		if snap.TotalValue != nil {
+			prefer = snap.TotalValue.Commodity
+		}
+		snap.CostBasis = pickReportedTotal(cbTotals, prefer)
+		if snap.CostBasis == nil && len(cbTotals) > 0 {
+			slogctx.FromContext(ctx).DebugContext(ctx, "portfolio cost basis has no currency amount", "date", date, "amounts", len(cbTotals))
+		}
 		snapshots[i] = snap
 	}
 	return connect.NewResponse(&floatv1.GetPortfolioTimeseriesResponse{Snapshots: snapshots}), nil
+}
+
+func pickReportedTotal(amts []hledger.Amount, prefer string) *floatv1.Amount {
+	var picked *hledger.Amount
+	for i := range amts {
+		a := &amts[i]
+		if a.Commodity == prefer {
+			picked = a
+			break
+		}
+		if picked == nil && a.Quantity.DecimalMantissa != 0 && currencySymbols[a.Commodity] {
+			picked = a
+		}
+	}
+	if picked == nil {
+		return nil
+	}
+	return &floatv1.Amount{
+		Commodity: picked.Commodity,
+		Quantity:  fmt.Sprintf("%.2f", picked.Quantity.FloatingPoint),
+	}
 }
 
 // isExcludedAccount returns true if account matches any of the given prefixes exactly or as a path component.

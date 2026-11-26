@@ -1,12 +1,17 @@
 package ledger_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"connectrpc.com/connect"
 	floatv1 "github.com/brendanv/float/gen/float/v1"
+	"github.com/brendanv/float/internal/hledger"
+	serverledger "github.com/brendanv/float/internal/server/ledger"
+	"github.com/brendanv/float/internal/txlock"
 )
 
 func TestGetPortfolioHoldings_AggregatesLots(t *testing.T) {
@@ -475,5 +480,165 @@ include 2026/01.journal
 	}
 	if resp.Msg.Holdings[0].Account != "assets:investments:aapl" {
 		t.Errorf("Account = %q, want %q", resp.Msg.Holdings[0].Account, "assets:investments:aapl")
+	}
+}
+
+func writePortfolioJournal(t *testing.T, main, prices, txns string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "2026"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{"main.journal": main, "2026/01.journal": txns}
+	if prices != "" {
+		files["prices.journal"] = prices
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestGetPortfolioTimeseries_ZeroAssertionPosting(t *testing.T) {
+	main := `; float main journal
+account assets:ira
+account assets:checking
+
+include prices.journal
+include 2026/01.journal
+`
+	prices := `P 2026-01-31 AAPL 200.00 USD
+P 2026-01-31 GSFTX 12.00 USD
+`
+	txns := `2026-01-05 Buy AAPL
+    assets:ira           10 AAPL @@ 1500.00 USD
+    assets:checking   -1500.00 USD
+
+2026-01-06 Buy GSFTX
+    assets:ira          100 GSFTX @@ 1000.00 USD
+    assets:checking   -1000.00 USD
+
+2026-02-17 Statement balances
+    assets:ira            0 GSFTX = 100 GSFTX
+    assets:ira            0 AAPL = 10 AAPL
+`
+	h := mustRealHandler(t, writePortfolioJournal(t, main, prices, txns))
+
+	resp, err := h.GetPortfolioTimeseries(t.Context(), connect.NewRequest(&floatv1.GetPortfolioTimeseriesRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioTimeseries: %v", err)
+	}
+	snaps := resp.Msg.Snapshots
+	if len(snaps) < 2 {
+		t.Fatalf("got %d snapshots, want at least 2: %v", len(snaps), snaps)
+	}
+	for _, s := range snaps {
+		if s.CostBasis == nil || s.CostBasis.Commodity != "USD" || s.CostBasis.Quantity == "0.00" {
+			t.Errorf("%s: CostBasis = %v, want non-zero USD", s.Date, s.CostBasis)
+		}
+		if s.TotalValue == nil || s.TotalValue.Commodity != "USD" {
+			t.Errorf("%s: TotalValue = %v, want USD", s.Date, s.TotalValue)
+		}
+	}
+	if last := snaps[len(snaps)-1]; last.CostBasis.GetQuantity() != "2500.00" {
+		t.Errorf("last CostBasis = %v, want 2500.00 USD", last.CostBasis)
+	}
+}
+
+func TestGetPortfolioTimeseries_CostBasisCarriedPastLastTxn(t *testing.T) {
+	main := `; float main journal
+account assets:investments
+account assets:checking
+
+include prices.journal
+include 2026/01.journal
+`
+	prices := `P 2026-01-31 AAPL 160.00 USD
+P 2026-03-26 AAPL 180.00 USD
+`
+	txns := `2026-01-05 Buy AAPL
+    assets:investments    10 AAPL @@ 1500.00 USD
+    assets:checking    -1500.00 USD
+
+2026-02-10 Buy AAPL
+    assets:investments     5 AAPL @@ 800.00 USD
+    assets:checking     -800.00 USD
+`
+	h := mustRealHandler(t, writePortfolioJournal(t, main, prices, txns))
+
+	resp, err := h.GetPortfolioTimeseries(t.Context(), connect.NewRequest(&floatv1.GetPortfolioTimeseriesRequest{Begin: "2026-01-03"}))
+	if err != nil {
+		t.Fatalf("GetPortfolioTimeseries: %v", err)
+	}
+	snaps := resp.Msg.Snapshots
+	if len(snaps) < 3 {
+		t.Fatalf("got %d snapshots, want at least 3: %v", len(snaps), snaps)
+	}
+	last, prev := snaps[len(snaps)-1], snaps[len(snaps)-2]
+	if last.CostBasis == nil {
+		t.Fatalf("last snapshot %s has no CostBasis; snapshots: %v", last.Date, snaps)
+	}
+	if last.CostBasis.Quantity != prev.CostBasis.GetQuantity() || last.CostBasis.Quantity != "2300.00" {
+		t.Errorf("last CostBasis = %v, prev = %v, want both 2300.00 USD", last.CostBasis, prev.CostBasis)
+	}
+}
+
+func TestGetPortfolioTimeseries_CostBasisCarriedIntoGaps(t *testing.T) {
+	main := `; float main journal
+account assets:investments
+account assets:checking
+
+include prices.journal
+include 2026/01.journal
+`
+	prices := `P 2026-01-31 AAPL 160.00 USD
+P 2026-04-30 AAPL 180.00 USD
+`
+	txns := `2026-01-05 Buy AAPL
+    assets:investments    10 AAPL @@ 1500.00 USD
+    assets:checking    -1500.00 USD
+
+2026-02-10 Buy AAPL
+    assets:investments     5 AAPL @@ 800.00 USD
+    assets:checking     -800.00 USD
+
+2026-04-10 Buy AAPL
+    assets:investments     2 AAPL @@ 340.00 USD
+    assets:checking     -340.00 USD
+`
+	dir := writePortfolioJournal(t, main, prices, txns)
+	quarterlyCost := func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		if slices.Contains(args, "--cost") {
+			args = slices.Clone(args)
+			args[slices.Index(args, "--monthly")] = "--quarterly"
+		}
+		return hledger.ExecRunner(ctx, name, args...)
+	}
+	c, err := hledger.NewWithRunner("hledger", dir+"/main.journal", quarterlyCost)
+	if err != nil {
+		t.Skipf("hledger unavailable: %v", err)
+	}
+	h := serverledger.NewHandler(c, txlock.New(dir, c), dir, "", nil, nil, nil, nil)
+
+	resp, err := h.GetPortfolioTimeseries(t.Context(), connect.NewRequest(&floatv1.GetPortfolioTimeseriesRequest{}))
+	if err != nil {
+		t.Fatalf("GetPortfolioTimeseries: %v", err)
+	}
+	got := map[string]string{}
+	for _, s := range resp.Msg.Snapshots {
+		got[s.Date] = s.CostBasis.GetQuantity()
+	}
+	want := map[string]string{
+		"2026-01-01": "2300.00",
+		"2026-02-01": "2300.00",
+		"2026-03-01": "2300.00",
+		"2026-04-01": "2640.00",
+	}
+	for date, q := range want {
+		if got[date] != q {
+			t.Errorf("%s: CostBasis = %q, want %q; all: %v", date, got[date], q, got)
+		}
 	}
 }
